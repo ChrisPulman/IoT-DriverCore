@@ -1,0 +1,456 @@
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+using System.Collections;
+using System.Text;
+
+#if REACTIVELIST_REACTIVE
+namespace ABPlcRx.Reactive;
+#else
+namespace ABPlcRx;
+#endif
+
+/// <summary>Plc Tag Wrapper.</summary>
+public class PlcTagWrapper
+{
+    /// <summary>Number of bits in a byte.</summary>
+    private const byte BitsPerByte = 8;
+
+    /// <summary>Byte offset of string payload after the length header.</summary>
+    private const byte ByteHeaderLengthString = 4;
+
+    /// <summary>Maximum PLC string payload length.</summary>
+    private const byte MaxLengthString = 82;
+
+    /// <summary>Message used when a requested PLC value type is unsupported.</summary>
+    private const string UnsupportedDataTypeMessage = "Error data type!";
+
+    /// <summary>The wrapped PLC tag.</summary>
+    private readonly IPlcTag _tag;
+
+    /// <summary>Native PLC tag adapter.</summary>
+    private readonly IPlcTagNative _native;
+
+    /// <summary>Initializes a new instance of the <see cref="PlcTagWrapper"/> class.</summary>
+    /// <param name="tag">The wrapped tag.</param>
+    /// <param name="native">The native tag adapter.</param>
+    internal PlcTagWrapper(IPlcTag tag, IPlcTagNative? native = null)
+    {
+        _tag = tag;
+        _native = native ?? LibPlcTagNative.Instance;
+    }
+
+    /// <summary>Get bit from index.</summary>
+    /// <param name="index">The index.</param>
+    /// <returns>A Value.</returns>
+    public bool GetBit(int index) => (Convert.ToInt64(GetNumericValue()) & (1L << index)) != 0;
+
+    /// <summary>Get bit array from value.</summary>
+    /// <returns>A Value.</returns>
+    public BitArray GetBits() => new([Convert.ToInt32(GetNumericValue())]);
+
+    /// <summary>Get bit array from value.</summary>
+    /// <returns>A Value.</returns>
+    public bool[] GetBitsArray() => [.. GetBits().Cast<bool>()];
+
+    /// <summary>Get bit string format.</summary>
+    /// <returns>A Value.</returns>
+    public string GetBitsString() => new([.. GetBits().Cast<bool>().Select(a => a ? '1' : '0')]);
+
+    /// <summary>Get local value Bool.</summary>
+    /// <param name="offset">The offset.</param>
+    /// <returns>A Value.</returns>
+    public bool GetBool(int offset) => GetUInt8(offset) != 0;
+
+    /// <summary>Get local value Float32.</summary>
+    /// <param name="offset">The offset.</param>
+    /// <returns>A Value.</returns>
+    public float GetFloat32(int offset) => _native.GetFloat32(_tag.Handle, offset);
+
+    /// <summary>Get local value Float.</summary>
+    /// <param name="offset">The offset.</param>
+    /// <returns>A Value.</returns>
+    public double GetFloat64(int offset) => _native.GetFloat64(_tag.Handle, offset);
+
+    /// <summary>Get local value Int16.</summary>
+    /// <param name="offset">The offset.</param>
+    /// <returns>A Value.</returns>
+    public short GetInt16(int offset) => _native.GetInt16(_tag.Handle, offset);
+
+    /// <summary>Get local value Int32.</summary>
+    /// <param name="offset">The offset.</param>
+    /// <returns>A Value.</returns>
+    public int GetInt32(int offset) => _native.GetInt32(_tag.Handle, offset);
+
+    /// <summary>Get local value Int64.</summary>
+    /// <param name="offset">The offset.</param>
+    /// <returns>A Value.</returns>
+    public long GetInt64(int offset) => _native.GetInt64(_tag.Handle, offset);
+
+    /// <summary>Get local value Int8.</summary>
+    /// <param name="offset">The offset.</param>
+    /// <returns>A Value.</returns>
+    public sbyte GetInt8(int offset) => _native.GetInt8(_tag.Handle, offset);
+
+    /// <summary>Get local value String.</summary>
+    /// <param name="offset">The offset.</param>
+    /// <returns>A Value.</returns>
+    public string GetString(int offset)
+    {
+        var sb = new StringBuilder();
+
+        // max length string
+        var length = GetInt32(offset);
+
+        // read only length of string
+        for (var i = 0; i < length; i++)
+        {
+            _ = sb.Append((char)GetUInt8(offset + ByteHeaderLengthString + i));
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>Get local value form type.</summary>
+    /// <param name="obj">The object.</param>
+    /// <param name="offset">The offset.</param>
+    /// <returns>A Value.</returns>
+    public object GetType(object obj, int offset)
+    {
+        if (obj is null)
+        {
+            return null!;
+        }
+
+        foreach (var property in TagHelper.GetAccessableProperties(obj.GetType()))
+        {
+            var value = property.GetValue(obj);
+            property.SetValue(obj, Get(value, offset));
+            offset += DataLength.GetSizeObject(value);
+        }
+
+        return obj;
+    }
+
+    /// <summary>Get local value UInt16.</summary>
+    /// <param name="offset">The offset.</param>
+    /// <returns>A Value.</returns>
+    public ushort GetUInt16(int offset) => _native.GetUInt16(_tag.Handle, offset);
+
+    /// <summary>Get local value UInt32.</summary>
+    /// <param name="offset">The offset.</param>
+    /// <returns>A Value.</returns>
+    public uint GetUInt32(int offset) => _native.GetUInt32(_tag.Handle, offset);
+
+    /// <summary>Get local value UInt64.</summary>
+    /// <param name="offset">The offset.</param>
+    /// <returns>A Value.</returns>
+    public ulong GetUInt64(int offset) => _native.GetUInt64(_tag.Handle, offset);
+
+    /// <summary>Get local value UInt8.</summary>
+    /// <param name="offset">The offset.</param>
+    /// <returns>A Value.</returns>
+    public byte GetUInt8(int offset) => _native.GetUInt8(_tag.Handle, offset);
+
+    /// <summary>Set bit from index and value.</summary>
+    /// <param name="index">The index.</param>
+    /// <param name="value">if set to <c>true</c> [value].</param>
+    /// <exception cref="System.ArgumentOutOfRangeException">Index out of bound.</exception>
+    public void SetBit(int index, bool value)
+    {
+#if NET8_0_OR_GREATER
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, _tag.Size * BitsPerByte);
+#else
+        if (_tag.Size * BitsPerByte <= index)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+#endif
+
+        var bits = GetBits();
+        bits.Set(index, value);
+        var data = new int[1];
+        bits.CopyTo(data, 0);
+
+        Set(data[0]);
+    }
+
+    /// <summary>Set bits from BitArray.</summary>
+    /// <param name="bits">The bits.</param>
+    /// <exception cref="System.ArgumentNullException">binary.</exception>
+    public void SetBits(BitArray bits)
+    {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(bits);
+#else
+        if (bits is null)
+        {
+            throw new ArgumentNullException(nameof(bits));
+        }
+#endif
+
+        var data = new int[1];
+        bits.CopyTo(data, 0);
+        Set(data[0]);
+    }
+
+    /// <summary>Set local value Bool.</summary>
+    /// <param name="value">if set to <c>true</c> [value].</param>
+    /// <param name="offset">The offset.</param>
+    public void SetBool(bool value, int offset) => SetUInt8(value ? (byte)1 : (byte)0, offset);
+
+    /// <summary>Set local value Float32.</summary>
+    /// <param name="value">The value.</param>
+    /// <param name="offset">The offset.</param>
+    public void SetFloat32(float value, int offset) => _native.SetFloat32(_tag.Handle, offset, value);
+
+    /// <summary>Set local value Float.</summary>
+    /// <param name="value">The value.</param>
+    /// <param name="offset">The offset.</param>
+    public void SetFloat64(double value, int offset) => _native.SetFloat64(_tag.Handle, offset, value);
+
+    /// <summary>Set local value Int16.</summary>
+    /// <param name="value">The value.</param>
+    /// <param name="offset">The offset.</param>
+    public void SetInt16(short value, int offset) => _native.SetInt16(_tag.Handle, offset, value);
+
+    /// <summary>Set local value Int32.</summary>
+    /// <param name="value">The value.</param>
+    /// <param name="offset">The offset.</param>
+    public void SetInt32(int value, int offset) => _native.SetInt32(_tag.Handle, offset, value);
+
+    /// <summary>Set local value Int64.</summary>
+    /// <param name="value">The value.</param>
+    /// <param name="offset">The offset.</param>
+    public void SetInt64(long value, int offset) => _native.SetInt64(_tag.Handle, offset, value);
+
+    /// <summary>Set local value Int8.</summary>
+    /// <param name="value">The value.</param>
+    /// <param name="offset">The offset.</param>
+    public void SetInt8(sbyte value, int offset) => _native.SetInt8(_tag.Handle, offset, value);
+
+    /// <summary>Set local value String.</summary>
+    /// <param name="value">The value.</param>
+    /// <param name="offset">The offset.</param>
+    public void SetString(string value, int offset)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length > MaxLengthString)
+        {
+            throw new ArgumentOutOfRangeException($"Length of value <= {MaxLengthString}!");
+        }
+
+        // set length
+        SetInt32(value.Length, offset);
+
+        int strIdx;
+
+        // copy data
+        for (strIdx = 0; strIdx < value.Length; strIdx++)
+        {
+            SetUInt8((byte)value[strIdx], offset + ByteHeaderLengthString + strIdx);
+        }
+
+        // pad with zeros
+        for (; strIdx < MaxLengthString; strIdx++)
+        {
+            SetUInt8(0, offset + ByteHeaderLengthString + strIdx);
+        }
+    }
+
+    /// <summary>Set local valute from type.</summary>
+    /// <param name="obj">The object.</param>
+    /// <param name="offset">The offset.</param>
+    public void SetType(object obj, int offset)
+    {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(obj);
+#else
+        if (obj is null)
+        {
+            throw new ArgumentNullException(nameof(obj));
+        }
+#endif
+
+        foreach (var property in TagHelper.GetAccessableProperties(obj.GetType()))
+        {
+            var value = property.GetValue(obj);
+            Set(value, offset);
+            offset += DataLength.GetSizeObject(value);
+        }
+    }
+
+    /// <summary>Set local value UInt16.</summary>
+    /// <param name="value">The value.</param>
+    /// <param name="offset">The offset.</param>
+    public void SetUInt16(ushort value, int offset) => _native.SetUInt16(_tag.Handle, offset, value);
+
+    /// <summary>Set local value UInt32.</summary>
+    /// <param name="value">The value.</param>
+    /// <param name="offset">The offset.</param>
+    public void SetUInt32(uint value, int offset) => _native.SetUInt32(_tag.Handle, offset, value);
+
+    /// <summary>Set local value UInt64.</summary>
+    /// <param name="value">The value.</param>
+    /// <param name="offset">The offset.</param>
+    public void SetUInt64(ulong value, int offset) => _native.SetUInt64(_tag.Handle, offset, value);
+
+    /// <summary>Set local value UInt8.</summary>
+    /// <param name="value">The value.</param>
+    /// <param name="offset">The offset.</param>
+    public void SetUInt8(byte value, int offset) => _native.SetUInt8(_tag.Handle, offset, value);
+
+    /// <summary>Get local value.</summary>
+    /// <param name="obj">The object.</param>
+    /// <param name="offset">The offset.</param>
+    /// <returns>A Value.</returns>
+    /// <exception cref="System.ArgumentException">Error data type!.</exception>
+    internal object? Get(object? obj, int offset = 0) =>
+        obj is null ? null : GetValue(obj, offset);
+
+    /// <summary>Set local value.</summary>
+    /// <param name="value">The value.</param>
+    /// <param name="offset">The offset.</param>
+    /// <exception cref="System.ArgumentException">Error data type!.</exception>
+    internal void Set(object? value, int offset = 0)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        var type = value.GetType();
+        if (type.IsArray)
+        {
+            var array = TagHelper.GetArray(value);
+            if (array is not null)
+            {
+                SetArrayValue(array, offset);
+            }
+
+            return;
+        }
+
+        if (SetNativeValue(value, type, offset))
+        {
+            return;
+        }
+
+        if (type.IsClass && !type.IsAbstract)
+        {
+            SetType(value, offset);
+            return;
+        }
+
+        throw new ArgumentException(UnsupportedDataTypeMessage);
+    }
+
+    /// <summary>Get local value from a non-null object.</summary>
+    /// <param name="obj">The object.</param>
+    /// <param name="offset">The offset.</param>
+    /// <returns>A Value.</returns>
+    /// <exception cref="System.ArgumentException">Error data type!.</exception>
+    private object? GetValue(object obj, int offset)
+    {
+        var type = obj.GetType();
+        if (type.IsArray)
+        {
+            var array = TagHelper.GetArray(obj);
+            return array is null ? null : GetArrayValue(array, offset);
+        }
+
+        return Type.GetTypeCode(type) switch
+            {
+                TypeCode.Int64 => GetInt64(offset),
+                TypeCode.UInt64 => GetUInt64(offset),
+                TypeCode.Int32 => GetInt32(offset),
+                TypeCode.UInt32 => GetUInt32(offset),
+                TypeCode.Int16 => GetInt16(offset),
+                TypeCode.UInt16 => GetUInt16(offset),
+                TypeCode.SByte => GetInt8(offset),
+                TypeCode.Byte => GetUInt8(offset),
+                TypeCode.Boolean => GetBool(offset),
+                TypeCode.Single => GetFloat32(offset),
+                TypeCode.Double => GetFloat64(offset),
+                TypeCode.String => GetString(offset),
+                TypeCode.Object when type.IsClass && !type.IsAbstract => GetType(obj, offset),
+                _ => throw new ArgumentException(UnsupportedDataTypeMessage),
+            };
+    }
+
+    /// <summary>Gets a PLC array value.</summary>
+    /// <param name="array">The destination array.</param>
+    /// <param name="offset">The starting offset.</param>
+    /// <returns>The populated array.</returns>
+    private Array GetArrayValue(Array array, int offset)
+    {
+        for (var i = 0; i < array.Length; i++)
+        {
+            var el = array.GetValue(i);
+            array.SetValue(Get(el, offset), i);
+            offset += DataLength.GetSizeObject(el);
+        }
+
+        return array;
+    }
+
+    /// <summary>Sets a PLC array value.</summary>
+    /// <param name="array">The source array.</param>
+    /// <param name="offset">The starting offset.</param>
+    private void SetArrayValue(Array array, int offset)
+    {
+        foreach (var el in array)
+        {
+            Set(el, offset);
+            offset += DataLength.GetSizeObject(el);
+        }
+    }
+
+    /// <summary>Sets a native PLC value when the type is directly supported.</summary>
+    /// <param name="value">The source value.</param>
+    /// <param name="type">The source type.</param>
+    /// <param name="offset">The PLC data offset.</param>
+    /// <returns>True when the value was handled; otherwise, false.</returns>
+    private bool SetNativeValue(object value, Type type, int offset)
+    {
+        static bool SetNative(Action setValue)
+        {
+            setValue();
+            return true;
+        }
+
+        return Type.GetTypeCode(type) switch
+        {
+            TypeCode.Int64 => SetNative(() => SetInt64((long)value, offset)),
+            TypeCode.UInt64 => SetNative(() => SetUInt64((ulong)value, offset)),
+            TypeCode.Int32 => SetNative(() => SetInt32((int)value, offset)),
+            TypeCode.UInt32 => SetNative(() => SetUInt32((uint)value, offset)),
+            TypeCode.Int16 => SetNative(() => SetInt16((short)value, offset)),
+            TypeCode.UInt16 => SetNative(() => SetUInt16((ushort)value, offset)),
+            TypeCode.SByte => SetNative(() => SetInt8((sbyte)value, offset)),
+            TypeCode.Byte => SetNative(() => SetUInt8((byte)value, offset)),
+            TypeCode.Boolean => SetNative(() => SetBool((bool)value, offset)),
+            TypeCode.Single => SetNative(() => SetFloat32((float)value, offset)),
+            TypeCode.Double => SetNative(() => SetFloat64((double)value, offset)),
+            TypeCode.String => SetNative(() => SetString((string)value, offset)),
+            _ => false,
+        };
+    }
+
+    /// <summary>Gets the numeric value used by bit helpers.</summary>
+    /// <param name="offset">The PLC data offset.</param>
+    /// <returns>The numeric value.</returns>
+    private object? GetNumericValue(int offset = 0) => Type.GetTypeCode(_tag.TypeValue) switch
+    {
+        TypeCode.Boolean => GetBool(offset),
+        TypeCode.Byte => GetUInt8(offset),
+        TypeCode.SByte => GetInt8(offset),
+        TypeCode.UInt16 => GetUInt16(offset),
+        TypeCode.UInt32 => GetUInt32(offset),
+        TypeCode.UInt64 => GetUInt64(offset),
+        TypeCode.Int16 => GetInt16(offset),
+        TypeCode.Int32 => GetInt32(offset),
+        TypeCode.Int64 => GetInt64(offset),
+        _ => throw new ArgumentException(UnsupportedDataTypeMessage),
+    };
+}

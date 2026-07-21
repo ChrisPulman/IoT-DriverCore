@@ -1,0 +1,86 @@
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+#if NET8_0_OR_GREATER
+using System.Diagnostics.CodeAnalysis;
+#endif
+using System.Reflection;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Mono.Cecil;
+
+#if REACTIVE_SHIM
+namespace CP.TwinCatRx.Core.Reactive;
+#else
+namespace CP.TwinCatRx.Core;
+#endif
+
+/// <summary>C Sharp Language.</summary>
+/// <seealso cref="ILanguageService" />
+public sealed class CSharpLanguage : ILanguageService
+{
+    /// <summary>Contains metadata references required for dynamic compilation.</summary>
+    private static readonly IReadOnlyCollection<MetadataReference> References =
+    [
+      MetadataReference.CreateFromFile(typeof(Binder).GetTypeInfo().Assembly.Location),
+      MetadataReference.CreateFromFile(typeof(ValueTuple<>).GetTypeInfo().Assembly.Location)
+    ];
+
+    /// <summary>Creates the assembly.</summary>
+    /// <param name="code">The code.</param>
+    /// <param name="assemblyFileName">Name of the assembly file.</param>
+    /// <returns>A bool.</returns>
+#if NET8_0_OR_GREATER
+    [RequiresDynamicCode("Emits and inspects assemblies dynamically.")]
+    [RequiresUnreferencedCode("Dynamic compilation may access trimmed members.")]
+#endif
+    public static bool CreateAssembly(string code, string assemblyFileName)
+    {
+        var sourceLanguage = new CSharpLanguage();
+        var syntaxTree = sourceLanguage.ParseText(code, SourceCodeKind.Regular);
+        var compilation = sourceLanguage
+          .CreateLibraryCompilation(
+              assemblyName: Path.GetFileNameWithoutExtension(assemblyFileName),
+              enableOptimisations: false)
+          .AddReferences(References)
+          .AddSyntaxTrees(syntaxTree);
+
+        if (string.IsNullOrWhiteSpace(assemblyFileName))
+        {
+            return false;
+        }
+
+        using var stream = new FileStream(assemblyFileName, FileMode.Create);
+        var emitResult = compilation.Emit(stream);
+
+        if (!emitResult.Success)
+        {
+            return false;
+        }
+
+        _ = stream.Seek(0, SeekOrigin.Begin);
+        _ = AssemblyDefinition.ReadAssembly(stream);
+        return true;
+    }
+
+    /// <inheritdoc />
+    public SyntaxTree ParseText(string code, SourceCodeKind kind)
+    {
+        var options = new CSharpParseOptions(languageVersion: LanguageVersion.Latest, kind: kind);
+
+        // Return a syntax tree of our source code
+        return CSharpSyntaxTree.ParseText(code, options);
+    }
+
+    /// <inheritdoc />
+    public Compilation CreateLibraryCompilation(string assemblyName, bool enableOptimisations)
+    {
+        var options = new CSharpCompilationOptions(
+            OutputKind.DynamicallyLinkedLibrary,
+            optimizationLevel: enableOptimisations ? OptimizationLevel.Release : OptimizationLevel.Debug,
+            allowUnsafe: true);
+
+        return CSharpCompilation.Create(assemblyName, references: References, options: options);
+    }
+}

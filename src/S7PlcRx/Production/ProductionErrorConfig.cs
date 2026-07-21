@@ -1,0 +1,31 @@
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Production;
+#else
+namespace S7PlcRx.Production;
+#endif
+
+/// <summary>Represents production error-handling and retry configuration.</summary>
+/// <remarks>This class provides options to control retry attempts, delay strategies, and circuit breaker behavior
+/// for handling transient errors. It is typically used to configure error resilience policies in applications that
+/// interact with external systems or services.</remarks>
+public sealed class ProductionErrorConfig
+{
+    /// <summary>Gets or sets the maximum retry attempts.</summary>
+    public int MaxRetryAttempts { get; set; } = 3;
+
+    /// <summary>Gets or sets the base retry delay in milliseconds.</summary>
+    public int BaseRetryDelayMs { get; set; } = 1000;
+
+    /// <summary>Gets or sets a value indicating whether gets or sets whether to use exponential backoff.</summary>
+    public bool UseExponentialBackoff { get; set; } = true;
+
+    /// <summary>Gets or sets the circuit breaker failure threshold.</summary>
+    public int CircuitBreakerThreshold { get; set; } = 5;
+
+    /// <summary>Gets or sets the circuit breaker timeout.</summary>
+    public TimeSpan CircuitBreakerTimeout { get; set; } = TimeSpan.FromMinutes(1);
+}

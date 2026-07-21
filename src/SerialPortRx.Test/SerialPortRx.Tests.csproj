@@ -1,0 +1,52 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>CP.IO.Ports.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <TestTfmsInParallel>false</TestTfmsInParallel>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="coverlet.collector" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="System" />
+    <Using Include="System.Collections.Concurrent" />
+    <Using Include="System.Collections.Generic" />
+    <Using Include="System.IO" />
+    <Using Include="System.IO.Ports" />
+    <Using Include="System.Linq" />
+    <Using Include="System.Net" />
+    <Using Include="System.Net.Sockets" />
+    <Using Include="System.Reflection" />
+    <Using Include="System.Text" />
+    <Using Include="System.Threading" />
+    <Using Include="System.Threading.Tasks" />
+    <Using Include="CP.IO.Ports.SourceGeneration" />
+    <Using Include="CP.IO.Ports.SourceGenerators" />
+    <Using Include="Microsoft.CodeAnalysis" />
+    <Using Include="Microsoft.CodeAnalysis.CSharp" />
+    <Using Include="ReactiveUI.Primitives" />
+    <Using Include="ReactiveUI.Primitives.Async" />
+    <Using Include="ReactiveUI.Primitives.Core" />
+    <Using Include="ReactiveUI.Primitives.Disposables" />
+    <Using Include="ReactiveUI.Primitives.Signals" />
+    <Using Include="ReactiveUI.Primitives.Signals.Signal" Alias="Observable" />
+    <Using Include="ReactiveUI.Primitives.Disposables.MultipleDisposable" Alias="CompositeDisposable" />
+    <Using Include="TUnit.Assertions" />
+    <Using Include="TUnit.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SerialPortRx.Reactive\SerialPortRx.Reactive.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\SerialPortRx.Generators\SerialPortRx.Generators.csproj" />
+    <ProjectReference Include="..\SerialPortRx\SerialPortRx.csproj" />
+  </ItemGroup>
+
+</Project>

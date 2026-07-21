@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(CoreTargetFrameworks)</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>CP.TwinCATRx.Core</PackageId>
+    <Title>TwinCATRx.Core</Title>
+    <RootNamespace>CP.TwinCatRx.Core</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+    <!-- Allow consumers to trim unused APIs from this library -->
+    <IsTrimmable>true</IsTrimmable>
+    <!-- Enable AOT compatibility analysis on modern TFMs -->
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup Condition="$([System.String]::new('$(TargetFramework)').StartsWith('net4'))">
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ReactiveUI.Primitives" />
+    <PackageReference Include="Beckhoff.TwinCAT.Ads" />
+    <!-- Use CSharp compiler APIs only; Workspaces adds heavy dependencies not used at runtime -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="System.CodeDom" />
+    <PackageReference Include="Mono.Cecil" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="ReactiveUI.Primitives" />
+    <Using Include="ReactiveUI.Primitives.Concurrency" />
+    <Using Include="ReactiveUI.Primitives.Extensions" />
+    <Using Include="ReactiveUI.Primitives.Signals" />
+    <Using Include="ReactiveUI.Primitives.Disposables.OnceDisposable" Alias="SingleAssignmentDisposable" />
+    <Using Include="ReactiveUI.Primitives.Signals.Signal" Alias="Observable" />
+  </ItemGroup>
+
+</Project>

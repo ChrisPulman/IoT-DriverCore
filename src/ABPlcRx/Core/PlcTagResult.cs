@@ -1,0 +1,119 @@
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+#if REACTIVELIST_REACTIVE
+namespace ABPlcRx.Reactive;
+#else
+namespace ABPlcRx;
+#endif
+
+/// <summary>Result returned by PLC tag operations.</summary>
+[Serializable]
+public class PlcTagResult
+{
+    /// <summary>Initializes a new instance of the <see cref="PlcTagResult"/> class.</summary>
+    /// <param name="tag">The tag that produced the result.</param>
+    /// <param name="timestamp">The operation timestamp.</param>
+    /// <param name="executionTime">The operation execution time in milliseconds.</param>
+    /// <param name="statusCode">The PLC status code.</param>
+    internal PlcTagResult(IPlcTag tag, DateTimeOffset timestamp, long executionTime, int statusCode)
+    {
+        Tag = tag;
+        Timestamp = timestamp;
+        ExecutionTime = executionTime;
+        StatusCode = statusCode;
+    }
+
+    /// <summary>Gets tag.</summary>
+    /// <value>
+    /// The tag.
+    /// </value>
+    public IPlcTag Tag { get; }
+
+    /// <summary>Gets timestamp last operation.</summary>
+    /// <value>
+    /// The timestamp.
+    /// </value>
+    public DateTimeOffset Timestamp { get; }
+
+    /// <summary>Gets millisecond execution operatorion.</summary>
+    /// <value>
+    /// The execution time.
+    /// </value>
+    public long ExecutionTime { get; }
+
+    /// <summary>Gets the <see cref="PlcTagStatus" /> code; STATUS_OK indicates success.</summary>
+    /// <value>
+    /// The status code.
+    /// </value>
+    public int StatusCode { get; }
+
+    /// <summary>Reduce multiple result to one.</summary>
+    /// <param name="results">The results.</param>
+    /// <returns>
+    /// A Value.
+    /// </returns>
+    public static PlcTagResult Reduce(IEnumerable<PlcTagResult> results) =>
+        Reduce(results, TimeProvider.System);
+
+    /// <summary>Reduce multiple result to one.</summary>
+    /// <param name="results">The results.</param>
+    /// <param name="timeProvider">The time provider used to produce the fallback timestamp when <paramref name="results"/> is empty.</param>
+    /// <returns>
+    /// A Value.
+    /// </returns>
+    public static PlcTagResult Reduce(IEnumerable<PlcTagResult> results, TimeProvider timeProvider)
+    {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(results);
+#else
+        if (results is null)
+        {
+            throw new ArgumentNullException(nameof(results));
+        }
+#endif
+
+        IPlcTag? tag = null;
+        var minTs = DateTimeOffset.MaxValue;
+        long execSum = 0;
+        var worstStatus = 0;
+        var any = false;
+
+        foreach (var r in results)
+        {
+            if (!any)
+            {
+                tag = r.Tag;
+                any = true;
+            }
+
+            if (r.Timestamp < minTs)
+            {
+                minTs = r.Timestamp;
+            }
+
+            execSum += r.ExecutionTime;
+
+            if (r.StatusCode != 0 && r.StatusCode < worstStatus)
+            {
+                worstStatus = r.StatusCode;
+            }
+        }
+
+        return new PlcTagResult(
+            tag!,
+            minTs == DateTimeOffset.MaxValue ? timeProvider.GetUtcNow() : minTs,
+            execSum,
+            worstStatus);
+    }
+
+    /// <summary>Information result.</summary>
+    /// <returns>A Value.</returns>
+    public override string ToString() =>
+       $@"Tag Name:      {Tag.TagName}
+            Tag Value:     {Tag.Value}
+            Timestamp:     {Timestamp}
+            ExecutionTime: {ExecutionTime}
+            StatusCode:    {StatusCode}";
+}

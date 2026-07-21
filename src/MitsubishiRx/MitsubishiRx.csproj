@@ -1,0 +1,34 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ReactiveUI.Primitives" />
+    <PackageReference Include="ReactiveUI.Primitives.Async" />
+    <PackageReference Include="YamlDotNet" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="ReactiveUI.Primitives" />
+    <Using Include="ReactiveUI.Primitives.Concurrency" />
+    <Using Include="ReactiveUI.Primitives.Disposables" />
+    <Using Include="ReactiveUI.Primitives.Extensions" />
+    <Using Include="ReactiveUI.Primitives.Extensions.Operators" />
+    <Using Include="ReactiveUI.Primitives.Signals" />
+    <Using Include="ReactiveUI.Primitives.Concurrency.ISequencer" Alias="IScheduler" />
+    <Using Include="ReactiveUI.Primitives.Concurrency.Sequencer" Alias="Scheduler" />
+    <Using Include="ReactiveUI.Primitives.RxVoid" Alias="Unit" />
+    <Using Include="ReactiveUI.Primitives.Signals.Signal" Alias="Observable" />
+    <Using Include="ReactiveUI.Primitives.Disposables.Scope" Alias="Disposable" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CP.IoT.Core\CP.IoT.Core.csproj" />
+    <ProjectReference Include="..\MitsubishiRx.Generators\MitsubishiRx.Generators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" SetConfiguration="Configuration=$(Configuration)" />
+    <ProjectReference Include="..\SerialPortRx\SerialPortRx.csproj" />
+    <None Include="..\MitsubishiRx.Generators\bin\$(Configuration)\netstandard2.0\MitsubishiRx.Generators.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+</Project>

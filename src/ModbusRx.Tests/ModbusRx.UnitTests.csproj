@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <TargetFrameworks>net48;net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <TUnitAssertionsImplicitUsings>false</TUnitAssertionsImplicitUsings>
+    <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(CI)' == 'true'">
+    <TargetFrameworks>net8.0</TargetFrameworks>
+    <UseAppHost>false</UseAppHost>
+    <DisableTransitiveFrameworkReferences>true</DisableTransitiveFrameworkReferences>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PlatformTarget>x86</PlatformTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Moq" />
+    <PackageReference Include="ReactiveUI.Primitives" />
+    <PackageReference Include="ReactiveUI.Primitives.Async" />
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="TUnit.Assertions" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
+    <PackageReference Include="PolySharp" />
+    <PackageReference Include="System.Memory" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ModbusRx\ModbusRx.csproj" />
+    <ProjectReference Include="..\ModbusRx.Reactive\ModbusRx.Reactive.csproj" />
+    <ProjectReference Include="..\CP.IoT.Core\CP.IoT.Core.csproj" />
+    <ProjectReference Include="..\SerialPortRx\SerialPortRx.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="ReactiveUI.Primitives.Reactive" />
+    <Using Include="ReactiveUI.Primitives.Async.Reactive" />
+    <Using Include="ReactiveUI.Primitives.Reactive.Signals.Signal" Alias="Observable" />
+    <Using Include="ModbusRx.UnitTests.Testing.Assert" Alias="Assert" />
+    <Using Include="TUnit.Assertions.Extensions" />
+  </ItemGroup>
+
+</Project>

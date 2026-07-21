@@ -1,0 +1,31 @@
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Core;
+#else
+namespace S7PlcRx.Core;
+#endif
+
+/// <summary>Describes an operation and its status, duration, and metadata.</summary>
+public class OperationDetail
+{
+    /// <summary>Gets or sets the tag name.</summary>
+    public string TagName { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the operation type.</summary>
+    public string OperationType { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets a value indicating whether gets or sets whether the operation succeeded.</summary>
+    public bool Success { get; set; }
+
+    /// <summary>Gets or sets the operation duration.</summary>
+    public TimeSpan Duration { get; set; }
+
+    /// <summary>Gets or sets any error message.</summary>
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>Gets or sets the data block number.</summary>
+    public int DataBlockNumber { get; set; }
+}

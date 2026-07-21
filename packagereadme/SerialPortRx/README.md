@@ -1,0 +1,533 @@
+# SerialPortRx
+A Reactive Serial, TCP, and UDP I/O library that exposes incoming data as IObservable streams and accepts writes via simple methods. Ideal for event-driven, message-framed, and polling scenarios.
+
+[![SerialPortRx CI-Build](https://github.com/ChrisPulman/SerialPortRx/actions/workflows/dotnet.yml/badge.svg)](https://github.com/ChrisPulman/SerialPortRx/actions/workflows/dotnet.yml)
+![Nuget](https://img.shields.io/nuget/dt/SerialPortRx)
+[![NuGet Stats](https://img.shields.io/nuget/v/SerialPortRx.svg)](https://www.nuget.org/packages/SerialPortRx)
+
+## Features
+- SerialPortRx: Reactive wrapper for System.IO.Ports.SerialPort using ReactiveUI.Primitives
+- UdpClientRx and TcpClientRx: Reactive wrappers exposing a common IPortRx interface
+- Observables:
+  - DataReceived: IObservable<char> for serial text flow
+  - DataReceivedBytes: IObservable<byte> for raw byte stream (auto-receive mode)
+  - Lines: IObservable<string> of complete lines split by NewLine
+  - BytesReceived: IObservable<int> for byte stream emitted when using ReadAsync
+  - IsOpenObservable: IObservable<bool> for connection state
+  - ErrorReceived: IObservable<Exception> for errors
+  - PinChanged: IObservable<SerialPinChangedEventArgs> for pin state changes (Windows only)
+- Async observables:
+  - Concrete serial, TCP, and UDP types expose IObservableAsync<T> counterparts.
+  - IPortRx and ISerialPortRx extension methods bridge existing streams to IObservableAsync<T>.
+  - SerialPortRx helpers include async BufferUntil, WhileIsOpenAsync, and PortNamesAsync variants.
+- Synchronous read methods for manual data consumption
+- TCP/UDP batched reads:
+  - TcpClientRx.DataReceivedBatches: IObservable<byte[]> chunks per read loop
+  - UdpClientRx.DataReceivedBatches: IObservable<byte[]> per received datagram
+- Source generator support:
+  - SerialPortReactiveStream attributes generate properties, IObservable<T>, IObservableAsync<T>, and a connection method for serial protocol values.
+- Helpers:
+  - PortNames(): reactive port enumeration with change notifications
+  - BufferUntil(): message framing between start and end delimiters with timeout
+  - WhileIsOpen(): periodic observable that fires only while a port is open
+- Cross-targeted: net8.0, net9.0, net10.0, .NET Framework, and Windows-specific TFMs
+
+## Installation
+```bash
+dotnet add package SerialPortRx
+```
+
+Use the default `SerialPortRx` package for new code. Version 5.0.x is a breaking release that replaces direct `System.Reactive` usage with `ReactiveUI.Primitives`, including Primitives signals, async observables, sequencers, and disposable helpers.
+
+Existing Rx consumers should install the compatibility package:
+
+```bash
+dotnet add package SerialPortRx.Reactive
+```
+
+`SerialPortRx.Reactive` shares the same source as `SerialPortRx` and uses ReactiveUI.Primitives `.Reactive` package variants so existing `System.Reactive` `Unit`, `IScheduler`, and Rx operator conventions remain available.
+
+The package includes the SerialPortRx source generator as an analyzer. No separate generator package is required.
+
+### Breaking changes in 5.0.x
+- The main `SerialPortRx` package no longer depends on `System.Reactive`; it is based on `ReactiveUI.Primitives`.
+- `Unit`, scheduler, subject, and disposable implementation details are now Primitives-based in the default package.
+- Use `SerialPortRx.Reactive` when an application or library must keep System.Reactive-facing APIs and Rx scheduler/unit conventions.
+- ReactiveUI.Primitives analyzer assets are excluded from the SerialPortRx packages; no extra bridge generator package is included.
+- The repository solution entry point is now `src/SerialPortRx.slnx`.
+
+## Supported target frameworks
+- net8.0, net9.0, net10.0
+- net462, net472, net481
+- net8.0-windows10.0.19041.0, net9.0-windows10.0.19041.0, net10.0-windows10.0.19041.0 (adds Windows-only APIs guarded by HasWindows)
+
+## Quick start (Serial)
+```csharp
+using System;
+using CP.IO.Ports;
+using ReactiveUI.Primitives;
+
+var port = new SerialPortRx("COM3", 115200) { ReadTimeout = -1, WriteTimeout = -1 };
+
+// Observe line/state/errors
+using var openSubscription = port.IsOpenObservable.Subscribe(isOpen => Console.WriteLine($"Open: {isOpen}"));
+using var errorSubscription = port.ErrorReceived.Subscribe(ex => Console.WriteLine($"Error: {ex.Message}"));
+
+// Raw character stream
+using var dataSubscription = port.DataReceived.Subscribe(ch => Console.Write(ch));
+
+await port.OpenAsync();
+port.WriteLine("AT");
+
+// Close when done
+port.Close();
+```
+
+## Discovering serial ports
+```csharp
+// Emits the list of available port names whenever it changes
+SerialPortRx.PortNames(pollInterval: 500)
+    .Subscribe(names => Console.WriteLine(string.Join(", ", names)));
+```
+
+To auto-connect when a specific COM port appears:
+```csharp
+var target = "COM3";
+var portDisposables = new List<IDisposable>();
+
+using var portNamesSubscription = SerialPortRx.PortNames()
+    .Subscribe(names =>
+    {
+        if (portDisposables.Count == 0 && Array.Exists(names, n => string.Equals(n, target, StringComparison.OrdinalIgnoreCase)))
+        {
+            var port = new SerialPortRx(target, 115200);
+            portDisposables.Add(port);
+
+            portDisposables.Add(port.ErrorReceived.Subscribe(Console.WriteLine));
+            portDisposables.Add(port.IsOpenObservable.Subscribe(open => Console.WriteLine($"{target}: {(open ? "Open" : "Closed")}")));
+
+            port.OpenAsync();
+        }
+        else if (!Array.Exists(names, n => string.Equals(n, target, StringComparison.OrdinalIgnoreCase)))
+        {
+            foreach (var disposable in portDisposables)
+            {
+                disposable.Dispose();
+            }
+
+            portDisposables.Clear();
+        }
+    });
+```
+
+## Async observables
+SerialPortRx uses ReactiveUI.Primitives async observables for consumers that need asynchronous observer callbacks and full `IObservableAsync<T>` operators.
+
+```csharp
+using CP.IO.Ports;
+using ReactiveUI.Primitives;
+using ReactiveUI.Primitives.Async;
+
+var port = new SerialPortRx("COM3", 115200);
+
+await using var lines = await port.LinesAsync.SubscribeAsync(
+    async (line, cancellationToken) =>
+    {
+        await ProcessLineAsync(line, cancellationToken);
+    });
+
+await port.OpenAsync();
+```
+
+Concrete types expose async properties:
+- `SerialPortRx.DataReceivedAsync`, `DataReceivedBytesAsync`, `LinesAsync`, `BytesReceivedAsync`, `IsOpenObservableAsync`, `ErrorReceivedAsync`
+- `TcpClientRx.DataReceivedAsync`, `DataReceivedBatchesAsync`, `BytesReceivedAsync`
+- `UdpClientRx.DataReceivedAsync`, `DataReceivedBatchesAsync`, `BytesReceivedAsync`
+
+Interface consumers can use extension methods without requiring a new interface contract:
+```csharp
+ISerialPortRx serial = port;
+await using var state = await SerialPortRxMixins.IsOpenAsyncObservable(serial)
+    .WhereTrue()
+    .SubscribeAsync(_ => Console.WriteLine("Open"));
+
+IPortRx common = port;
+await using var bytes = await SerialPortRxMixins.BytesReceivedAsyncObservable(common)
+    .SubscribeAsync(value => Console.WriteLine(value));
+```
+
+Async helper variants are also available:
+```csharp
+var start = SerialPortRxMixins.AsAsyncObservable(0x21);
+var end = SerialPortRxMixins.AsAsyncObservable(0x0a);
+
+await using var framed = await SerialPortRxMixins
+    .BufferUntil(port.DataReceivedAsync, start, end, timeOut: 100)
+    .SubscribeAsync(message => Console.WriteLine(message));
+
+await using var names = await SerialPortRxMixins.PortNamesAsyncObservable()
+    .SubscribeAsync(ports => Console.WriteLine(string.Join(", ", ports)));
+```
+
+## Message framing with BufferUntil
+BufferUntil helps extract framed messages from the character stream between a start and end delimiter within a timeout.
+
+```csharp
+// Example: messages start with '!' and end with '\n' and must complete within 100ms
+var start = SerialPortRxMixins.AsObservable(0x21);  // '!'
+var end   = SerialPortRxMixins.AsObservable(0x0a);  // '\n'
+
+SerialPortRxMixins
+    .BufferUntil(port.DataReceived, start, end, timeOut: 100)
+    .Subscribe(msg => Console.WriteLine($"MSG: {msg}"));
+```
+
+A variant returns a default message on timeout:
+```csharp
+SerialPortRxMixins
+    .BufferUntil(port.DataReceived, start, end, defaultValue: Observable.Return("<timeout>"), timeOut: 100)
+    .Subscribe(msg => Console.WriteLine($"MSG: {msg}"));
+```
+
+## Periodic work while the port is open
+```csharp
+// Write a heartbeat every 500ms but only while the port remains open
+SerialPortRxMixins.WhileIsOpen(port, TimeSpan.FromMilliseconds(500))
+    .Subscribe(_ => port.Write("PING\n"));
+```
+
+## Reading raw bytes with ReadAsync
+Use ReadAsync for binary protocols or fixed-length reads. Each byte successfully read is also pushed to BytesReceived.
+
+```csharp
+var buffer = new byte[64];
+int read = await port.ReadAsync(buffer, 0, buffer.Length);
+Console.WriteLine($"Read {read} bytes");
+
+port.BytesReceived.Subscribe(b => Console.WriteLine($"Byte: {b:X2}"));
+```
+
+Notes:
+- DataReceived is a char stream produced from SerialPort.ReadExisting() when EnableAutoDataReceive is true (default).
+- DataReceivedBytes emits raw bytes alongside DataReceived in auto-receive mode.
+- BytesReceived emits bytes read by your ReadAsync calls (not from ReadExisting()).
+- Concurrent ReadAsync calls are serialized internally for safety.
+
+## Automatic vs Manual Data Reception
+By default, `EnableAutoDataReceive = true` automatically feeds incoming data to `DataReceived` and `DataReceivedBytes` observables. Set this to `false` before calling `OpenAsync()` if you want to use synchronous read methods instead.
+
+```csharp
+// Automatic mode (default) - data flows to observables
+var port = new SerialPortRx("COM3", 115200);
+port.DataReceived.Subscribe(ch => Console.Write(ch));
+await port.OpenAsync();
+
+// Manual mode - use synchronous reads
+var port = new SerialPortRx("COM3", 115200) { EnableAutoDataReceive = false };
+await port.OpenAsync();
+string data = port.ReadExisting();
+```
+
+If you disable auto-receive but later want reactive streaming, call `StartDataReception()`:
+```csharp
+port.EnableAutoDataReceive = false;
+await port.OpenAsync();
+
+// Later, enable reactive streaming manually
+var reception = port.StartDataReception(pollingIntervalMs: 10);
+port.DataReceived.Subscribe(ch => Console.Write(ch));
+
+// Stop when done
+reception.Dispose();
+```
+
+## Synchronous Read Methods
+When `EnableAutoDataReceive = false`, use these synchronous methods for manual data consumption:
+
+```csharp
+var port = new SerialPortRx("COM3", 115200) { EnableAutoDataReceive = false, ReadTimeout = 1000 };
+await port.OpenAsync();
+
+// Read all available data as string
+string existing = port.ReadExisting();
+
+// Read a single byte (-1 if none available)
+int b = port.ReadByte();
+
+// Read a single character (-1 if none available)
+int ch = port.ReadChar();
+
+// Read into a byte buffer
+var buffer = new byte[64];
+int bytesRead = port.Read(buffer, 0, buffer.Length);
+
+// Read into a char buffer
+var charBuffer = new char[64];
+int charsRead = port.Read(charBuffer, 0, charBuffer.Length);
+
+// Read until newline (respects NewLine property)
+string line = port.ReadLine();
+
+// Read until a specific delimiter
+string data = port.ReadTo(">");
+```
+
+## Reading lines
+Use ReadLineAsync to await a single complete line split by the configured NewLine. Supports single- and multi-character newline sequences and respects ReadTimeout (> 0).
+
+```csharp
+port.NewLine = "\r\n"; // optional: default is "\n"
+var line = await port.ReadLineAsync();
+Console.WriteLine($"Line: {line}");
+```
+
+You can also pass a CancellationToken:
+```csharp
+using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+var line = await port.ReadLineAsync(cts.Token);
+```
+
+### ReadToAsync
+Read data up to a specific delimiter asynchronously:
+```csharp
+// Read until '>' delimiter
+var data = await port.ReadToAsync(">");
+Console.WriteLine($"Received: {data}");
+
+// With cancellation
+using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+var data = await port.ReadToAsync(">", cts.Token);
+```
+
+## Line streaming with Lines
+Subscribe to Lines to get a continuous stream of complete lines:
+```csharp
+port.NewLine = "\n";
+port.Lines.Subscribe(line => Console.WriteLine($"LINE: {line}"));
+```
+
+## Source-generated serial properties
+The package includes a source generator that can turn serial protocol messages into strongly typed properties with classic and async observable streams. Mark a partial class with one or more `SerialPortReactiveStream` attributes, then connect it to an `ISerialPortRx`.
+
+```csharp
+using CP.IO.Ports;
+using CP.IO.Ports.SourceGeneration;
+using ReactiveUI.Primitives;
+using ReactiveUI.Primitives.Async;
+
+[SerialPortReactiveStream("Temperature", typeof(double), @"^TEMP:(?<value>-?\d+(\.\d+)?)$")]
+[SerialPortReactiveStream("DeviceReady", typeof(bool), @"^READY:(?<value>0|1)$", IgnoreCase = true)]
+public partial class DeviceState
+{
+}
+
+var port = new SerialPortRx("COM3", 115200);
+var state = new DeviceState();
+using var generatedBindings = state.ConnectReactiveSerialPort(port);
+
+state.TemperatureObservable.Subscribe(value => Console.WriteLine($"Temperature: {value}"));
+
+await using var ready = await state.DeviceReadyObservableAsync
+    .SubscribeAsync(value => Console.WriteLine($"Ready: {value}"));
+
+await port.OpenAsync();
+```
+
+Generated members:
+- `Temperature` and `DeviceReady` properties with private setters
+- `TemperatureObservable` / `DeviceReadyObservable`
+- `TemperatureObservableAsync` / `DeviceReadyObservableAsync`
+- `ConnectReactiveSerialPort(ISerialPortRx serialPort)` to wire the generated bindings
+
+By default, generated bindings listen to `ISerialPortRx.Lines`. Set `Source` to `SerialPortReactiveSource.DataReceived`, `DataReceivedBytes`, `BytesReceived`, or `IsOpen` when a property should be driven by a different stream.
+
+## Writing
+- `port.Write(string text)` - Write a string
+- `port.WriteLine(string text)` - Write a string followed by NewLine
+- `port.Write(byte[] buffer)` - Write entire byte array
+- `port.Write(byte[] buffer, int offset, int count)` - Write portion of byte array
+- `port.Write(char[] buffer)` - Write entire char array
+- `port.Write(char[] buffer, int offset, int count)` - Write portion of char array
+
+### Modern .NET Write Overloads (net8.0+)
+On modern .NET targets, additional Span-based overloads are available:
+```csharp
+// Write from ReadOnlySpan<byte>
+ReadOnlySpan<byte> data = stackalloc byte[] { 0x01, 0x02, 0x03 };
+port.Write(data);
+
+// Write from ReadOnlyMemory<byte>
+ReadOnlyMemory<byte> memory = new byte[] { 0x01, 0x02, 0x03 };
+port.Write(memory);
+
+// Write from ReadOnlySpan<char>
+ReadOnlySpan<char> chars = "Hello".AsSpan();
+port.Write(chars);
+```
+
+## Error handling and state
+- Subscribe to `port.ErrorReceived` for exceptions and serial errors.
+- Subscribe to `port.IsOpenObservable` to react to open/close transitions.
+- Call `port.Close()` or dispose subscriptions (DisposeWith) to release the port.
+
+### Buffer Management
+```csharp
+// Discard pending input data
+port.DiscardInBuffer();
+
+// Discard pending output data
+port.DiscardOutBuffer();
+
+// Check buffer sizes
+Console.WriteLine($"Bytes to read: {port.BytesToRead}");
+Console.WriteLine($"Bytes to write: {port.BytesToWrite}");
+```
+
+### Windows-only: Pin Changed Events
+On Windows targets, subscribe to pin state changes:
+```csharp
+#if HasWindows
+port.PinChanged.Subscribe(args => 
+    Console.WriteLine($"Pin changed: {args.EventType}"));
+#endif
+```
+
+## TCP/UDP variants
+The TcpClientRx and UdpClientRx classes implement the same IPortRx interface for a similar reactive experience with sockets.
+
+TCP example:
+```csharp
+var tcp = new TcpClientRx("example.com", 80);
+await tcp.OpenAsync();
+var req = System.Text.Encoding.ASCII.GetBytes("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n");
+tcp.Write(req, 0, req.Length);
+var buf = new byte[1024];
+var n = await tcp.ReadAsync(buf, 0, buf.Length);
+Console.WriteLine(System.Text.Encoding.ASCII.GetString(buf, 0, n));
+```
+
+UDP example:
+```csharp
+var udp = new UdpClientRx(12345);
+await udp.OpenAsync();
+var buf = new byte[16];
+var n = await udp.ReadAsync(buf, 0, buf.Length);
+Console.WriteLine($"UDP read {n} bytes");
+```
+
+### Batched receive (TCP/UDP)
+Subscribe to batched byte arrays for throughput-sensitive pipelines:
+```csharp
+// TCP batched chunks per read loop
+new TcpClientRx("example.com", 80).DataReceivedBatches
+    .Subscribe(chunk => Console.WriteLine($"TCP chunk size: {chunk.Length}"));
+
+// UDP per-datagram batches
+new UdpClientRx(12345).DataReceivedBatches
+    .Subscribe(datagram => Console.WriteLine($"UDP datagram size: {datagram.Length}"));
+```
+
+## Testing
+The test suite uses TUnit on Microsoft.Testing.Platform. Run it with:
+
+```bash
+dotnet test --project src/SerialPortRx.Test/SerialPortRx.Test.csproj -c Debug -f net8.0
+```
+
+Serial integration tests expect a virtual COM port pair named `COM1` and `COM2`. The source-generator tests do not require serial hardware.
+
+## Threading and scheduling
+- The DataReceived and other streams run on the underlying event threads. Use ObserveOn to marshal to a UI or a dedicated scheduler when needed.
+- ReadAsync uses a lightweight lock and offloads blocking reads, avoiding CPU spin.
+
+## Tips and best practices
+- Subscribe before calling OpenAsync() to ensure you don’t miss events.
+- Tune Encoding (default ASCII), BaudRate, Parity, StopBits, and Handshake to match your device.
+- Use BufferUntil for delimited protocols. For binary protocols, use ReadAsync with fixed sizes.
+- Use Lines when dealing with text protocols; use ReadLineAsync when you need a one-shot line.
+- Always dispose subscriptions (DisposeWith) and call Close() when done.
+
+## Example program (complete)
+```csharp
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using CP.IO.Ports;
+using ReactiveUI.Primitives;
+
+internal static class Program
+{
+    private static async System.Threading.Tasks.Task Main()
+    {
+        const string comPortName = "COM1";
+        const string dataToWrite = "DataToWrite";
+        var rootDisposables = new List<IDisposable>();
+
+        var startChar = SerialPortRxMixins.AsObservable(0x21); // '!'
+        var endChar = SerialPortRxMixins.AsObservable(0x0a);   // '\n'
+
+        var portDisposables = new List<IDisposable>();
+
+        using var portNamesSubscription = SerialPortRx.PortNames().Subscribe(names =>
+        {
+            if (portDisposables.Count == 0 && names.Contains(comPortName))
+            {
+                var port = new SerialPortRx(comPortName, 9600);
+                portDisposables.Add(port);
+
+                portDisposables.Add(port.ErrorReceived.Subscribe(Console.WriteLine));
+                portDisposables.Add(port.IsOpenObservable.Subscribe(open => Console.WriteLine($"{comPortName} {(open ? "Open" : "Closed")}")));
+
+                portDisposables.Add(SerialPortRxMixins
+                    .BufferUntil(port.DataReceived, startChar, endChar, 100)
+                    .Subscribe(data => Console.WriteLine($"Data: {data}")));
+
+                portDisposables.Add(SerialPortRxMixins.WhileIsOpen(port, TimeSpan.FromMilliseconds(500))
+                    .Subscribe(_ => port.Write(dataToWrite)));
+
+                port.OpenAsync().GetAwaiter().GetResult();
+            }
+            else if (!names.Contains(comPortName))
+            {
+                foreach (var disposable in portDisposables)
+                {
+                    disposable.Dispose();
+                }
+
+                portDisposables.Clear();
+                Console.WriteLine($"Port {comPortName} Disposed");
+            }
+        });
+
+        rootDisposables.Add(portNamesSubscription);
+
+        Console.ReadLine();
+        foreach (var disposable in portDisposables)
+        {
+            disposable.Dispose();
+        }
+
+        foreach (var disposable in rootDisposables)
+        {
+            disposable.Dispose();
+        }
+    }
+}
+```
+
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+## Sponsorship
+
+If you find this library useful and would like to support its development, consider sponsoring the project on [GitHub Sponsors](https://github.com/sponsors/ChrisPulman).
+
+---
+
+**SerialPortRx** - Empowering Industrial Automation with Reactive Technology ⚡🏭

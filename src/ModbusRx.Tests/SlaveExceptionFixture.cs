@@ -1,0 +1,88 @@
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+using System;
+using System.IO;
+using ModbusRx.Message;
+
+namespace ModbusRx.UnitTests;
+
+/// <summary>Tests the SlaveExceptionFixture behavior.</summary>
+public class SlaveExceptionFixture
+{
+    /// <summary>Empties the constructor.</summary>
+    [TUnit.Core.Test]
+    public void EmptyConstructor()
+    {
+        var e = new SlaveException();
+        Assert.Equal($"Exception of type '{typeof(SlaveException).FullName}' was thrown.", e.Message);
+        Assert.Equal(0, e.SlaveAddress);
+        Assert.Equal(0, e.FunctionCode);
+        Assert.Equal(0, e.SlaveExceptionCode);
+        Assert.Null(e.InnerException);
+    }
+
+    /// <summary>Constructors the with message.</summary>
+    [TUnit.Core.Test]
+    public void ConstructorWithMessage()
+    {
+        var e = new SlaveException("Hello World");
+        Assert.Equal("Hello World", e.Message);
+        Assert.Equal(0, e.SlaveAddress);
+        Assert.Equal(0, e.FunctionCode);
+        Assert.Equal(0, e.SlaveExceptionCode);
+        Assert.Null(e.InnerException);
+    }
+
+    /// <summary>Constructors the with message and inner exception.</summary>
+    [TUnit.Core.Test]
+    public void ConstructorWithMessageAndInnerException()
+    {
+        var inner = new IOException("Bar");
+        var e = new SlaveException("Foo", inner);
+        Assert.Equal("Foo", e.Message);
+        Assert.Same(inner, e.InnerException);
+        Assert.Equal(0, e.SlaveAddress);
+        Assert.Equal(0, e.FunctionCode);
+        Assert.Equal(0, e.SlaveExceptionCode);
+    }
+
+    /// <summary>Constructors the with slave exception response.</summary>
+    [TUnit.Core.Test]
+    public void ConstructorWithSlaveExceptionResponse()
+    {
+        var response = new SlaveExceptionResponse(Num.Value12, Modbus.ReadCoils, 1);
+        var e = new SlaveException(response);
+
+        Assert.Equal(Num.Value12, e.SlaveAddress);
+        Assert.Equal(Modbus.ReadCoils, e.FunctionCode);
+        Assert.Equal(1, e.SlaveExceptionCode);
+        Assert.Null(e.InnerException);
+
+        var expectedMessage = $"Exception of type '{typeof(SlaveException).FullName}' was thrown."
+            + $"{Environment.NewLine}Function Code: {response.FunctionCode}"
+            + $"{Environment.NewLine}Exception Code: {response.SlaveExceptionCode} - {Resources.IllegalFunction}";
+
+        Assert.Equal(expectedMessage, e.Message);
+    }
+
+    /// <summary>Constructors the with custom message and slave exception response.</summary>
+    [TUnit.Core.Test]
+    public void ConstructorWithCustomMessageAndSlaveExceptionResponse()
+    {
+        var response = new SlaveExceptionResponse(Num.Value12, Modbus.ReadCoils, Num.Value2);
+        const string customMessage = "custom message";
+        var e = new SlaveException(customMessage, response);
+
+        Assert.Equal(Num.Value12, e.SlaveAddress);
+        Assert.Equal(Modbus.ReadCoils, e.FunctionCode);
+        Assert.Equal(Num.Value2, e.SlaveExceptionCode);
+        Assert.Null(e.InnerException);
+
+        var expectedMessage = $"{customMessage}{Environment.NewLine}Function Code: {response.FunctionCode}"
+            + $"{Environment.NewLine}Exception Code: {response.SlaveExceptionCode} - {Resources.IllegalDataAddress}";
+
+        Assert.Equal(expectedMessage, e.Message);
+    }
+}

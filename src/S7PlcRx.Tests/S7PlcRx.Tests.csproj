@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net48;net8.0;net9.0;net10.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <TUnitAssertionsImplicitUsings>false</TUnitAssertionsImplicitUsings>
+    <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(CI)' == 'true'">
+    <TargetFrameworks>net8.0</TargetFrameworks>
+    <UseAppHost>false</UseAppHost>
+    <DisableTransitiveFrameworkReferences>true</DisableTransitiveFrameworkReferences>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PlatformTarget>x86</PlatformTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="ReactiveUI.Primitives" />
+    <PackageReference Include="ReactiveUI.Primitives.Async" />
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="TUnit.Assertions" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MockS7Plc\MockS7Plc.csproj" />
+    <ProjectReference Include="..\S7PlcRx.Generators\S7PlcRx.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
+    <ProjectReference Include="..\S7PlcRx\S7PlcRx.csproj" />
+    <ProjectReference Include="$(CPIOtCoreProject)" Condition="'$(CPIOtCoreProject)' != ''" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\MockS7Plc\runtimes\win-x64\native\snap7.dll" Link="runtimes\win-x64\native\snap7.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\MockS7Plc\runtimes\win-x86\native\snap7.dll" Link="runtimes\win-x86\native\snap7.dll" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="CP.IoT.Core" />
+    <Using Include="ReactiveUI.Primitives" />
+    <Using Include="ReactiveUI.Primitives.Async" />
+    <Using Include="ReactiveUI.Primitives.Extensions" />
+    <Using Include="ReactiveUI.Primitives.Signals" />
+    <Using Include="ReactiveUI.Primitives.Signals.Signal" Alias="Observable" />
+    <Using Include="S7PlcRx.Tests.Testing.Assert" Alias="Assert" />
+    <Using Include="S7PlcRx.Tests.Testing.Contains" Alias="Contains" />
+    <Using Include="S7PlcRx.Tests.Testing.Does" Alias="Does" />
+    <Using Include="S7PlcRx.Tests.Testing.Has" Alias="Has" />
+    <Using Include="S7PlcRx.Tests.Testing.Is" Alias="Is" />
+    <Using Include="S7PlcRx.Tests.Testing.Throws" Alias="Throws" />
+    <Using Include="TUnit.Core" />
+    <Using Include="TUnit.Assertions.Extensions" />
+  </ItemGroup>
+</Project>

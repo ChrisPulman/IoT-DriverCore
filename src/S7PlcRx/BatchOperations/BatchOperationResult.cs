@@ -1,0 +1,51 @@
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Core;
+#else
+using S7PlcRx.Core;
+#endif
+
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.BatchOperations;
+#else
+namespace S7PlcRx.BatchOperations;
+#endif
+
+/// <summary>Represents the result and summary statistics of a batch operation.</summary>
+/// <remarks>Use this class to access aggregate information such as the number of successful and failed
+/// operations, processing times, and detailed results for each operation in the batch. The class provides both summary
+/// properties and collections for per-operation and error details.</remarks>
+public class BatchOperationResult
+{
+    /// <summary>Gets or sets the operation start time.</summary>
+    public DateTimeOffset StartTime { get; set; }
+
+    /// <summary>Gets or sets the operation end time.</summary>
+    public DateTimeOffset EndTime { get; set; }
+
+    /// <summary>Gets or sets the number of operations in the batch.</summary>
+    public int OperationCount { get; set; }
+
+    /// <summary>Gets or sets the number of successful operations.</summary>
+    public int SuccessfulOperations { get; set; }
+
+    /// <summary>Gets or sets the number of failed operations.</summary>
+    public int FailedOperations { get; set; }
+
+    /// <summary>Gets the total processing time.</summary>
+    public TimeSpan ProcessingTime => EndTime - StartTime;
+
+    /// <summary>Gets the average time per operation.</summary>
+    public double AverageTimePerOperation => OperationCount > 0
+        ? ProcessingTime.TotalMilliseconds / OperationCount
+        : 0;
+
+    /// <summary>Gets operation details.</summary>
+    public List<OperationDetail> OperationDetails { get; } = [];
+
+    /// <summary>Gets error details for failed operations.</summary>
+    public List<string> ErrorDetails { get; } = [];
+}

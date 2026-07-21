@@ -1,0 +1,27 @@
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+#if REACTIVE_SHIM
+namespace CP.TwinCatRx.Core.Reactive;
+#else
+namespace CP.TwinCatRx.Core;
+#endif
+
+/// <summary>Interface for Notification.</summary>
+public interface INotification
+{
+    /// <summary>Gets the update rate.</summary>
+    /// <value>The update rate.</value>
+    int UpdateRate { get; }
+
+    /// <summary>Gets the variable.</summary>
+    /// <value>The variable.</value>
+    string? Variable { get; }
+
+    /// <summary>Gets the size of the array.</summary>
+    /// <value>
+    /// The size of the array.
+    /// </value>
+    int ArraySize { get; }
+}

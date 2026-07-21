@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <OutputType>Exe</OutputType>
+
+    <!-- Ensure dependencies are present in output folder for in-process execution -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ReactiveUI.Primitives" />
+    <PackageReference Include="ReactiveUI.Primitives.Extensions" />
+    <ProjectReference Include="..\MockS7Plc\MockS7Plc.csproj" />
+    <ProjectReference Include="..\S7PlcRx\S7PlcRx.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="CP.IoT.Core" />
+    <Using Include="ReactiveUI.Primitives" />
+    <Using Include="ReactiveUI.Primitives.Extensions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\MockS7Plc\runtimes\win-x64\native\snap7.dll" Link="runtimes\win-x64\native\snap7.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\MockS7Plc\runtimes\win-x86\native\snap7.dll" Link="runtimes\win-x86\native\snap7.dll" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

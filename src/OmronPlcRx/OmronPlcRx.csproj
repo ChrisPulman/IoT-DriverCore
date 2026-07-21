@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net462;net472;net481;net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+    <LangVersion>preview</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ReactiveUI.Primitives" />
+    <PackageReference Include="ReactiveUI.Primitives.Async" />
+    <PackageReference Include="Microsoft.Bcl.TimeProvider" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>OmronPlcRx.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CP.IoT.Core\CP.IoT.Core.csproj" />
+    <ProjectReference Include="..\OmronPlcRx.Generators\OmronPlcRx.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\SerialPortRx\SerialPortRx.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\OmronPlcRx.Generators\bin\$(Configuration)\netstandard2.0\OmronPlcRx.Generators.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+
+  <Import Project="..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets" Condition="Exists('..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets')" />
+</Project>

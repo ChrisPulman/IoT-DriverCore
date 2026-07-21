@@ -1,0 +1,63 @@
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+using System;
+using ModbusRx.Utility;
+
+namespace ModbusRx.UnitTests.Utility;
+
+/// <summary>Tests the DiscriminatedUnionFixture behavior.</summary>
+public class DiscriminatedUnionFixture
+{
+    /// <summary>Discriminateds the union create a.</summary>
+    [TUnit.Core.Test]
+    public void DiscriminatedUnion_CreateA()
+    {
+        var du = DiscriminatedUnion<string, string>.CreateA("foo");
+        Assert.Equal(DiscriminatedUnionOption.A, du.Option);
+        Assert.Equal("foo", du.A);
+    }
+
+    /// <summary>Discriminateds the union create b.</summary>
+    [TUnit.Core.Test]
+    public void DiscriminatedUnion_CreateB()
+    {
+        var du = DiscriminatedUnion<string, string>.CreateB("foo");
+        Assert.Equal(DiscriminatedUnionOption.B, du.Option);
+        Assert.Equal("foo", du.B);
+    }
+
+    /// <summary>Discriminateds the union allow nulls.</summary>
+    [TUnit.Core.Test]
+    public void DiscriminatedUnion_AllowNulls()
+    {
+        var du = DiscriminatedUnion<object, object>.CreateB(null!);
+        Assert.Equal(DiscriminatedUnionOption.B, du.Option);
+        Assert.Null(du.B);
+    }
+
+    /// <summary>Accesses the invalid option a.</summary>
+    [TUnit.Core.Test]
+    public void AccessInvalidOption_A()
+    {
+        var du = DiscriminatedUnion<string, string>.CreateB("foo");
+        _ = Assert.Throws<InvalidOperationException>(() => du.A?.ToString());
+    }
+
+    /// <summary>Accesses the invalid option b.</summary>
+    [TUnit.Core.Test]
+    public void AccessInvalidOption_B()
+    {
+        var du = DiscriminatedUnion<string, string>.CreateA("foo");
+        _ = Assert.Throws<InvalidOperationException>(() => du.B?.ToString());
+    }
+
+    /// <summary>Discriminateds the union to string.</summary>
+    [TUnit.Core.Test]
+    public void DiscriminatedUnion_ToString()
+    {
+        var du = DiscriminatedUnion<string, string>.CreateA("foo");
+        Assert.Equal("foo", du.ToString());
+    }
+}

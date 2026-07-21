@@ -1,0 +1,104 @@
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+using System.IO;
+using System.Text;
+using System.Threading.Tasks;
+using ModbusRx.IO;
+using ModbusRx.Message;
+using Moq;
+
+namespace ModbusRx.UnitTests.IO;
+
+/// <summary>Tests the ModbusAsciiTransportFixture behavior.</summary>
+public class ModbusAsciiTransportFixture
+{
+    /// <summary>Gets the stream resource.</summary>
+    /// <value>
+    /// The stream resource.
+    /// </value>
+    private static IStreamResource StreamResource => new Mock<IStreamResource>().Object;
+
+    /// <summary>Builds the message frame.</summary>
+    [TUnit.Core.Test]
+    public void BuildMessageFrame()
+    {
+        byte[] expected = { 58, 48, 50, 48, 49, 48, 48, 48, 48, 48, 48, 48, 49, 70, 67, 13, 10 };
+        var request = new ReadCoilsInputsRequest(Modbus.ReadCoils, Num.Value2, 0, 1);
+        using var transport = new ModbusAsciiTransport(StreamResource);
+        var actual = transport.BuildMessageFrame(request);
+
+        Assert.Equal(expected, actual);
+    }
+
+    /// <summary>Reads the request response.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [TUnit.Core.Test]
+    public async Task ReadRequestResponseAsync()
+    {
+        var mock = new Mock<IStreamResource>();
+        var stream = mock.Object;
+        using var transport = new ModbusAsciiTransport(stream);
+        var calls = 0;
+        var bytes = Encoding.ASCII.GetBytes(":110100130025B6\r\n");
+
+        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 1), 0, 1).Result)
+            .Returns((byte[] buffer, int offset, int count) =>
+            {
+                buffer[offset] = bytes[calls];
+                calls++;
+                return 1;
+            });
+
+        Assert.Equal(
+            [ Num.Value17, 1, 0, Num.Value19, 0, Num.Value37, Num.Value182],
+            await transport.ReadRequestResponseAsync());
+        mock.VerifyAll();
+    }
+
+    /// <summary>Reads the request response not enough bytes.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [TUnit.Core.Test]
+    public async Task ReadRequestResponseNotEnoughBytesAsync()
+    {
+        var mock = new Mock<IStreamResource>();
+        var stream = mock.Object;
+        using var transport = new ModbusAsciiTransport(stream);
+        var calls = 0;
+        var bytes = Encoding.ASCII.GetBytes(":10\r\n");
+
+        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 1), 0, 1).Result)
+            .Returns((byte[] buffer, int offset, int count) =>
+            {
+                buffer[offset] = bytes[calls];
+                calls++;
+                return 1;
+            });
+
+        await Assert.ThrowsAsync<IOException>(() => transport.ReadRequestResponseAsync());
+        mock.VerifyAll();
+    }
+
+    /// <summary>Checksumses the match succeed.</summary>
+    [TUnit.Core.Test]
+    public void ChecksumsMatchSucceed()
+    {
+        using var transport = new ModbusAsciiTransport(StreamResource);
+        var message = new ReadCoilsInputsRequest(Modbus.ReadCoils, Num.Value17, Num.Value19, Num.Value37);
+        byte[] frame = { 17, Modbus.ReadCoils, 0, 19, 0, 37, 182 };
+
+        Assert.True(transport.ChecksumsMatch(message, frame));
+    }
+
+    /// <summary>Checksumses the match fail.</summary>
+    [TUnit.Core.Test]
+    public void ChecksumsMatchFail()
+    {
+        using var transport = new ModbusAsciiTransport(StreamResource);
+        var message = new ReadCoilsInputsRequest(Modbus.ReadCoils, Num.Value17, Num.Value19, Num.Value37);
+        byte[] frame = { 17, Modbus.ReadCoils, 0, 19, 0, 37, 181 };
+
+        Assert.False(transport.ChecksumsMatch(message, frame));
+    }
+}

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <PackageReference Include="TUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ABPlcRx.Reactive\ABPlcRx.Reactive.csproj" />
+    <ProjectReference Include="..\ABPlcRx\ABPlcRx.csproj" />
+    <ProjectReference Include="..\ABPlcRx.Generators\ABPlcRx.Generators.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,145 @@
+<Project DefaultTargets="Build"
+  xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Authors>Chris Pulman</Authors>
+    <Description>A Reactive Allen Bradley PLC library</Description>
+    <Copyright>Copyright © https://github.com/ChrisPulman $([System.DateTime]::Now.ToString(yyyy))</Copyright>
+    <IsTestProject>$(MSBuildProjectName.Contains('Tests'))</IsTestProject>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <LangVersion>preview</LangVersion>
+    <Company>ChrisPulman</Company>
+    <Nullable>enable</Nullable>
+    <LibraryTargetFrameworks>net462;net472;net481;net8.0;net9.0;net10.0;net11.0</LibraryTargetFrameworks>
+    <CoreTargetFrameworks>net472;net48;net481;net8.0;net9.0;net10.0;net11.0</CoreTargetFrameworks>
+    <Configurations>Debug;Release</Configurations>
+    <PackageReleaseNotes>Compatability with Net 8/ 9/ 10 /11 and net4.7.2 / net4.8 / net4.8.1</PackageReleaseNotes>
+    <PackageTags>Rockwell;AB;Allen;Bradley;PLC;Micrologix;Controllogix;CompactLogix;PLC-5;rx;reactive;extensions;observable;LINQ;net;netstandard</PackageTags>
+    <EnableNETAnalyzers>True</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+
+    <PackageProjectUrl>https://github.com/ChrisPulman/ABPlcRx</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ChrisPulman/ABPlcRx</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <!--https://devblogs.microsoft.com/dotnet/producing-packages-with-source-link/-->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <DebugType>embedded</DebugType>
+    <IncludeSymbols>true</IncludeSymbols>
+
+    <!-- Include PDB in the built .nupkg -->
+    <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
+    <IncludePackageReferencesDuringMarkupCompilation>true</IncludePackageReferencesDuringMarkupCompilation>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0'))">
+    <Features>$(Features);runtime-async=on</Features>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'ABPlcRx' or '$(MSBuildProjectName)' == 'ABPlcRx.Reactive'">
+    <!-- Approved package-policy exception: libplctag.NativeImport 2.0.0-alpha.8 carries required runtime fixes. -->
+    <NoWarn>$(NoWarn);NU5104</NoWarn>
+    <PackageIcon>abplclogo.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'ABPlcRx' or '$(MSBuildProjectName)' == 'ABPlcRx.Reactive'">
+    <None Include="$(MSBuildThisFileDirectory)..\images\abplclogo.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\packagereadme\ABPlcRx\README.md" Pack="true" PackagePath="\"/>
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'MitsubishiRx' or '$(MSBuildProjectName)' == 'MitsubishiRx.Reactive'">
+    <PackageIcon>mitplclogo.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'MitsubishiRx' or '$(MSBuildProjectName)' == 'MitsubishiRx.Reactive'">
+    <None Include="$(MSBuildThisFileDirectory)..\images\mitplclogo.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\packagereadme\MitsubishiRx\README.md" Pack="true" PackagePath="\"/>
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'ModbusRx' or '$(MSBuildProjectName)' == 'ModbusRx.Reactive'">
+    <PackageIcon>ModbusRx.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'ModbusRx' or '$(MSBuildProjectName)' == 'ModbusRx.Reactive'">
+    <None Include="$(MSBuildThisFileDirectory)..\images\ModbusRx.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\packagereadme\ModbusRx\README.md" Pack="true" PackagePath="\"/>
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'OmronPlcRx' or '$(MSBuildProjectName)' == 'OmronPlcRx.Reactive'">
+    <PackageIcon>OmronPLCRx-icon.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'OmronPlcRx' or '$(MSBuildProjectName)' == 'OmronPlcRx.Reactive'">
+    <None Include="$(MSBuildThisFileDirectory)..\images\OmronPLCRx-icon.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\packagereadme\OmronPlcRx\README.md" Pack="true" PackagePath="\"/>
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'S7PlcRx' or '$(MSBuildProjectName)' == 'S7PlcRx.Reactive'">
+    <PackageIcon>S7PlcRx.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'S7PlcRx' or '$(MSBuildProjectName)' == 'S7PlcRx.Reactive'">
+    <None Include="$(MSBuildThisFileDirectory)..\images\S7PlcRx.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\packagereadme\S7PlcRx\README.md" Pack="true" PackagePath="\"/>
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SerialPortRx' or '$(MSBuildProjectName)' == 'SerialPortRx.Reactive'">
+    <PackageIcon>serlogo.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'SerialPortRx' or '$(MSBuildProjectName)' == 'SerialPortRx.Reactive'">
+    <None Include="$(MSBuildThisFileDirectory)..\images\serlogo.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\packagereadme\SerialPortRx\README.md" Pack="true" PackagePath="\"/>
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'TwinCATRx' or '$(MSBuildProjectName)' == 'TwinCATRx.Reactive' or '$(MSBuildProjectName)' == 'TwinCATRx.Core' or '$(MSBuildProjectName)' == 'TwinCATRx.Core.Reactive'">
+    <PackageIcon>TwinCATRx.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'TwinCATRx' or '$(MSBuildProjectName)' == 'TwinCATRx.Reactive'">
+    <None Include="$(MSBuildThisFileDirectory)..\images\TwinCATRx.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\packagereadme\TwinCATRx\README.md" Pack="true" PackagePath="\"/>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'TwinCATRx.Core' or '$(MSBuildProjectName)' == 'TwinCATRx.Core.Reactive'">
+    <None Include="$(MSBuildThisFileDirectory)..\images\TwinCATRx.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\packagereadme\TwinCATRx\README.md" Pack="true" PackagePath="\"/>
+  </ItemGroup>
+
+  <!-- Alias Lock to the dedicated System.Threading.Lock on .NET 9+ (faster EnterScope fast path),
+     and to a plain object elsewhere (the lock statement falls back to Monitor). -->
+  <ItemGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net9.0'))">
+    <Using Include="System.Threading.Lock" Alias="Lock"/>
+  </ItemGroup>
+  <ItemGroup Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net9.0'))">
+    <Using Include="System.Object" Alias="Lock"/>
+  </ItemGroup>
+  
+  <ItemGroup Condition="'$(IsTestProject)' != 'true'">
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\LICENSE" Pack="true" PackagePath="LICENSE" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="StyleSharp.Analyzers" PrivateAssets="all" />
+    <PackageReference Include="Roslynator.Analyzers" PrivateAssets="All" />
+  </ItemGroup>
+</Project>

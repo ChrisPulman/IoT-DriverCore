@@ -1,0 +1,68 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(CoreTargetFrameworks);net8.0-windows10.0.19041.0;net9.0-windows10.0.19041.0;net10.0-windows10.0.19041.0;net11.0-windows10.0.19041.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>CP.TwinCATRx</PackageId>
+    <Title>TwinCATRx</Title>
+    <RootNamespace>CP.TwinCatRx</RootNamespace>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+    <!-- Allow consumers to trim unused APIs from this library -->
+    <IsTrimmable>true</IsTrimmable>
+    <!-- Enable AOT compatibility analysis on modern TFMs -->
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <DefineConstants>$(DefineConstants);HASHTABLERX_STRUCTURE_API</DefineConstants>
+  </PropertyGroup>
+
+  <!-- Define WINDOWS symbol for Windows-targeted TFMs -->
+  <PropertyGroup Condition="$([System.String]::new('$(TargetFramework)').StartsWith('net4')) or '$(TargetFramework)' == 'net8.0-windows10.0.19041.0' or '$(TargetFramework)' == 'net9.0-windows10.0.19041.0' or '$(TargetFramework)' == 'net10.0-windows10.0.19041.0' or '$(TargetFramework)' == 'net11.0-windows10.0.19041.0'">
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="$([System.String]::new('$(TargetFramework)').StartsWith('net4'))">
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="HashTableRx" />
+    <PackageReference Include="ReactiveUI.Primitives" />
+    <PackageReference Include="ReactiveUI.Primitives.Async" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TwinCATRx.Core\TwinCATRx.Core.csproj" />
+    <ProjectReference Include="..\TwinCATRx.Generators\TwinCATRx.Generators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
+    <ProjectReference Include="..\CP.IoT.Core\CP.IoT.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="ReactiveUI.Primitives" />
+    <Using Include="ReactiveUI.Primitives.Async" />
+    <Using Include="ReactiveUI.Primitives.Extensions" />
+    <Using Include="ReactiveUI.Primitives.Signals" />
+    <Using Include="ReactiveUI.Primitives.Disposables.MultipleDisposable" Alias="CompositeDisposable" />
+    <Using Include="ReactiveUI.Primitives.Signals.Signal" Alias="Observable" />
+    <Using Include="ReactiveUI.Primitives.RxVoid" Alias="Unit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\TwinCATRx.Generators\bin\Debug\netstandard2.0\TwinCATRx.Generators.dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false"
+          Condition="'$(Configuration)' == 'Debug' and Exists('$(MSBuildThisFileDirectory)..\TwinCATRx.Generators\bin\Debug\netstandard2.0\TwinCATRx.Generators.dll')" />
+    <None Include="$(MSBuildThisFileDirectory)..\TwinCATRx.Generators\bin\Release\netstandard2.0\TwinCATRx.Generators.dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false"
+          Condition="'$(Configuration)' == 'Release' and Exists('$(MSBuildThisFileDirectory)..\TwinCATRx.Generators\bin\Release\netstandard2.0\TwinCATRx.Generators.dll')" />
+  </ItemGroup>
+
+  <Import Project="..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets"
+          Condition="Exists('..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets')" />
+
+</Project>

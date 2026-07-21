@@ -1,0 +1,37 @@
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+#if REACTIVE_SHIM
+namespace CP.TwinCatRx.Reactive;
+#else
+namespace CP.TwinCatRx;
+#endif
+
+/// <summary>Service Status.</summary>
+public enum ServiceStatus
+{
+    /// <summary>The unknown.</summary>
+    Unknown,
+
+    /// <summary>The running.</summary>
+    Running,
+
+    /// <summary>The stopped.</summary>
+    Stopped,
+
+    /// <summary>The paused.</summary>
+    Paused,
+
+    /// <summary>The stopping.</summary>
+    Stopping,
+
+    /// <summary>The starting.</summary>
+    Starting,
+
+    /// <summary>The status changing.</summary>
+    StatusChanging,
+
+    /// <summary>The faulted.</summary>
+    Faulted,
+}

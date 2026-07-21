@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net48;net9.0-windows10.0.19041.0;net11.0-windows10.0.19041.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <UseAppHost>false</UseAppHost>
+    <TUnitAssertionsImplicitUsings>false</TUnitAssertionsImplicitUsings>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PlatformTarget>x86</PlatformTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="ReactiveUI.Primitives" />
+    <PackageReference Include="ReactiveUI.Primitives.Async" />
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="TUnit.Assertions" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CP.IoT.Core\CP.IoT.Core.csproj" />
+    <ProjectReference Include="..\TwinCATRx.Generators\TwinCATRx.Generators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+    <ProjectReference Include="..\TwinCATRx\TwinCATRx.csproj" />
+    <ProjectReference Include="..\TwinCATRx.Core\TwinCATRx.Core.csproj" />
+    <ProjectReference Include="..\TwinCATRx.Reactive\TwinCATRx.Reactive.csproj" />
+    <ProjectReference Include="..\TwinCATRx.Core.Reactive\TwinCATRx.Core.Reactive.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="CP.TwinCatRx" />
+    <Using Include="ReactiveUI.Primitives" />
+    <Using Include="ReactiveUI.Primitives.Async" />
+    <Using Include="ReactiveUI.Primitives.Extensions" />
+    <Using Include="ReactiveUI.Primitives.Signals" />
+    <Using Include="ReactiveUI.Primitives.Signals.Signal" Alias="Observable" />
+    <Using Include="ReactiveUI.Primitives.RxVoid" Alias="Unit" />
+    <Using Include="TUnit.Core" />
+    <Using Include="TUnit.Assertions.Extensions" />
+    <Using Include="TUnit.Assertions.Assert" Alias="TUnitAssert" />
+  </ItemGroup>
+
+</Project>

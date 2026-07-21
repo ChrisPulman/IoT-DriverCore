@@ -1,0 +1,613 @@
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+using System.Buffers;
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Enums;
+using S7PlcRx.Reactive.PlcTypes;
+#else
+using S7PlcRx.Enums;
+using S7PlcRx.PlcTypes;
+#endif
+
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Core;
+#else
+namespace S7PlcRx.Core;
+#endif
+
+/// <summary>
+/// Provides static helper methods for constructing and parsing S7 protocol multi-variable read and write requests and
+/// responses.
+/// </summary>
+/// <remarks>This class is intended for internal use when communicating with Siemens S7 PLCs using the S7
+/// protocol. It encapsulates the low-level details of building and interpreting S7 ReadVar and WriteVar PDUs for batch
+/// operations. All members are static and thread-safe.</remarks>
+internal static class S7MultiVar
+{
+    /// <summary>Defines the maximum number of variable items in one S7 PDU.</summary>
+    private const int MaximumItemsPerPdu = byte.MaxValue;
+
+    /// <summary>Defines the fixed length of an S7 multi-variable read request header.</summary>
+    private const int ReadRequestHeaderLength = 19;
+
+    /// <summary>Defines the fixed length of an S7 multi-variable write request header.</summary>
+    private const int WriteRequestHeaderLength = 17;
+
+    /// <summary>Defines the encoded length of one S7 variable specification.</summary>
+    private const int VariableSpecificationLength = 12;
+
+    /// <summary>Defines the fixed parameter header length.</summary>
+    private const int ParameterHeaderLength = 2;
+
+    /// <summary>Defines the fixed header length of one item in the response data section.</summary>
+    private const int ItemDataHeaderLength = 4;
+
+    /// <summary>Defines the response offset of the parameter length high byte.</summary>
+    private const int ResponseParameterLengthHighOffset = 13;
+
+    /// <summary>Defines the response offset of the parameter length low byte.</summary>
+    private const int ResponseParameterLengthLowOffset = 14;
+
+    /// <summary>Defines the response offset from which the parameter section is measured.</summary>
+    private const int ResponseDataBaseOffset = 17;
+
+    /// <summary>Defines the number of bits contained in one byte.</summary>
+    private const int BitsPerByte = 8;
+
+    /// <summary>Defines the rounding offset used to convert bit lengths to byte lengths.</summary>
+    private const int BitLengthRoundingOffset = BitsPerByte - 1;
+
+    /// <summary>Defines the item-header offset of the transport-size field.</summary>
+    private const int ResultTransportSizeOffset = 1;
+
+    /// <summary>Defines the item-header offset of the bit-length high byte.</summary>
+    private const int ResultBitLengthHighOffset = 2;
+
+    /// <summary>Defines the item-header offset of the bit-length low byte.</summary>
+    private const int ResultBitLengthLowOffset = 3;
+
+    /// <summary>Defines the TPKT protocol version.</summary>
+    private const byte TpktVersion = 3;
+
+    /// <summary>Defines the encoded COTP header length.</summary>
+    private const byte CotpHeaderLength = 2;
+
+    /// <summary>Defines the COTP data PDU type.</summary>
+    private const byte CotpDataPduType = 0xF0;
+
+    /// <summary>Defines the COTP end-of-transmission flag.</summary>
+    private const byte CotpEndOfTransmission = 0x80;
+
+    /// <summary>Defines the S7 protocol identifier.</summary>
+    private const byte S7ProtocolId = 0x32;
+
+    /// <summary>Defines the S7 job message type.</summary>
+    private const byte S7JobMessageType = 1;
+
+    /// <summary>Defines the S7 Read Var function code.</summary>
+    private const byte ReadVariableFunction = 4;
+
+    /// <summary>Defines the S7 Write Var function code.</summary>
+    private const byte WriteVariableFunction = 5;
+
+    /// <summary>Defines the S7 variable-specification marker.</summary>
+    private const byte VariableSpecificationMarker = 0x12;
+
+    /// <summary>Defines the encoded S7 variable-specification payload length.</summary>
+    private const byte VariableSpecificationPayloadLength = 0x0A;
+
+    /// <summary>Defines the S7ANY addressing syntax identifier.</summary>
+    private const byte S7AnySyntaxId = 0x10;
+
+    /// <summary>Defines the S7ANY byte transport-size code.</summary>
+    private const byte S7AnyTransportSizeByte = 2;
+
+    /// <summary>Stores the b ui ld re ad va rr eq ue s t value.</summary>
+    /// <param name="items">The i te m s value.</param>
+    /// <returns>The resulting value.</returns>
+    internal static byte[] BuildReadVarRequest(IReadOnlyList<ReadItem> items)
+    {
+        if (items is null)
+        {
+            throw new ArgumentNullException(nameof(items));
+        }
+
+        if (items.Count == 0)
+        {
+            return [];
+        }
+
+        if (items.Count > MaximumItemsPerPdu)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(items),
+                items.Count,
+                "S7 ReadVar supports up to 255 items per PDU.");
+        }
+
+        // Header is 19 bytes, each item 12 bytes.
+        var size = ReadRequestHeaderLength + (VariableSpecificationLength * items.Count);
+        using var package = new ByteArray(size);
+
+        // TPKT
+        package.Add([TpktVersion, 0, 0]);
+        package.Add((byte)size);
+
+        // COTP + S7 header start
+        package.Add(
+        [
+            CotpHeaderLength, CotpDataPduType, CotpEndOfTransmission,
+            S7ProtocolId, S7JobMessageType, 0, 0, 0, 0
+        ]);
+
+        // Parameter length = 2 + 12*n
+        package.Add(Word.ToByteArray((ushort)(ParameterHeaderLength + (items.Count * VariableSpecificationLength))));
+
+        // Data length = 0 for read request
+        package.Add([0, 0]);
+
+        // Function = Read Var (0x04)
+        package.Add(ReadVariableFunction);
+
+        // Item count
+        package.Add((byte)items.Count);
+
+        foreach (var item in items)
+        {
+            package.Add(BuildVarSpec(item.DataType, item.Db, item.StartByteAdr, item.Count));
+        }
+
+        return package.Array;
+    }
+
+    /// <summary>Parses a PLC 'Read Var' response frame and returns the results for each requested item.</summary>
+    /// <remarks>The returned list contains one entry per item in <paramref name="items"/>, up to the number
+    /// of results present in the response. If the response is incomplete or malformed, fewer results may be returned.
+    /// Rented buffers in the results must be returned to the provided pool by the caller when no longer
+    /// needed.</remarks>
+    /// <param name="response">The response data received from the PLC, as a span of bytes representing the full
+    /// protocol frame.</param>
+    /// <param name="items">The collection of items that were requested in the original read operation. Each item
+    /// corresponds to a result in
+    /// the response. Cannot be null.</param>
+    /// <param name="pool">The array pool used to rent buffers for the result data. Cannot be null.</param>
+    /// <returns>A read-only list of <see cref="ReadResult"/> objects containing the results for each requested item.
+    /// The list
+    /// may be empty if the response is invalid or contains no results.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="items"/> or <paramref name="pool"/> is
+    /// null.</exception>
+    internal static IReadOnlyList<ReadResult> ParseReadVarResponse(
+        ReadOnlySpan<byte> response,
+        IReadOnlyList<ReadItem> items,
+        ArrayPool<byte> pool)
+    {
+        if (items is null)
+        {
+            throw new ArgumentNullException(nameof(items));
+        }
+
+        if (pool is null)
+        {
+            throw new ArgumentNullException(nameof(pool));
+        }
+
+        if (items.Count == 0 || response.Length < ResponseDataBaseOffset)
+        {
+            return [];
+        }
+
+        // Parameter length is a big-endian ushort at offset 13/14 in the full frame.
+        var paramLength = (ushort)(
+            (response[ResponseParameterLengthHighOffset] << BitsPerByte) |
+            response[ResponseParameterLengthLowOffset]);
+        var dataStart = ResponseDataBaseOffset + paramLength;
+        if ((uint)dataStart >= (uint)response.Length)
+        {
+            return [];
+        }
+
+        var results = new List<ReadResult>(items.Count);
+        var offset = dataStart;
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (!TryReadResult(response, items[i], pool, ref offset, out var result))
+            {
+                break;
+            }
+
+            results.Add(result);
+        }
+
+        return results;
+    }
+
+    /// <summary>Builds an S7 WriteVar request for the specified write items.</summary>
+    /// <remarks>The resulting byte array can be sent directly to an S7-compatible device to perform a
+    /// multi-variable write operation. The S7 protocol limits each WriteVar request to a maximum of 255 items per
+    /// protocol data unit (PDU).</remarks>
+    /// <param name="items">A read-only list of write items to include in the WriteVar request. Each item specifies
+    /// the data and address
+    /// information to be written.</param>
+    /// <returns>A byte array containing the encoded S7 WriteVar request. Returns an empty array if no items are
+    /// provided.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="items"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="items"/> contains more than 255
+    /// elements.</exception>
+    internal static byte[] BuildWriteVarRequest(IReadOnlyList<WriteItem> items)
+    {
+        if (items is null)
+        {
+            throw new ArgumentNullException(nameof(items));
+        }
+
+        if (items.Count == 0)
+        {
+            return [];
+        }
+
+        if (items.Count > MaximumItemsPerPdu)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(items),
+                items.Count,
+                "S7 WriteVar supports up to 255 items per PDU.");
+        }
+
+        var paramLength = ParameterHeaderLength + (items.Count * VariableSpecificationLength);
+        var dataLength = 0;
+        for (var i = 0; i < items.Count; i++)
+        {
+            var len = items[i].Data.Length;
+            dataLength += ItemDataHeaderLength + len + ((len & 1) == 1 ? 1 : 0);
+        }
+
+        var size = WriteRequestHeaderLength + paramLength + dataLength;
+        using var package = new ByteArray(size);
+
+        // TPKT
+        package.Add([TpktVersion, 0, 0]);
+        package.Add((byte)size);
+
+        // COTP + S7 header start
+        package.Add(
+        [
+            CotpHeaderLength, CotpDataPduType, CotpEndOfTransmission,
+            S7ProtocolId, S7JobMessageType, 0, 0, 0, 0
+        ]);
+
+        package.Add(Word.ToByteArray((ushort)paramLength));
+        package.Add(Word.ToByteArray((ushort)dataLength));
+
+        // Function = Write Var (0x05)
+        package.Add(WriteVariableFunction);
+        package.Add((byte)items.Count);
+
+        foreach (var item in items)
+        {
+            package.Add(BuildVarSpec(item.DataType, item.Db, item.StartByteAdr, item.Count));
+        }
+
+        foreach (var item in items)
+        {
+            // Return code (0 for request)
+            package.Add(0);
+
+            // Transport size
+            package.Add(item.TransportSize);
+
+            // Length in bits
+            package.Add(Word.ToByteArray((ushort)(item.Data.Length * BitsPerByte)));
+
+            // Data
+            package.Add(item.Data);
+
+            if ((item.Data.Length & 1) == 1)
+            {
+                package.Add(0);
+            }
+        }
+
+        return package.Array;
+    }
+
+    /// <summary>Parses write results from an S7 WriteVar response.</summary>
+    /// <remarks>If the response buffer is too short or does not contain the expected number of items, the
+    /// returned list may contain fewer results than requested. This method does not throw exceptions for malformed or
+    /// incomplete responses.</remarks>
+    /// <param name="response">The response buffer containing the raw bytes returned from the write variable
+    /// operation.</param>
+    /// <param name="expectedItemCount">The expected number of write result items to parse from the response. Must be
+    /// greater than zero.</param>
+    /// <returns>A read-only list of <see cref="WriteResult"/> objects representing the outcome of each write
+    /// operation. The list
+    /// may be empty if the response is invalid or contains no results.</returns>
+    internal static IReadOnlyList<WriteResult> ParseWriteVarResponse(
+        ReadOnlySpan<byte> response,
+        int expectedItemCount)
+    {
+        if (expectedItemCount <= 0 || response.Length < ResponseDataBaseOffset)
+        {
+            return [];
+        }
+
+        var paramLength = (ushort)(
+            (response[ResponseParameterLengthHighOffset] << BitsPerByte) |
+            response[ResponseParameterLengthLowOffset]);
+        var dataStart = ResponseDataBaseOffset + paramLength;
+        if ((uint)dataStart >= (uint)response.Length)
+        {
+            return [];
+        }
+
+        var results = new List<WriteResult>(expectedItemCount);
+        var offset = dataStart;
+
+        for (var i = 0; i < expectedItemCount; i++)
+        {
+            if (offset >= response.Length)
+            {
+                break;
+            }
+
+            results.Add(new WriteResult(i, response[offset]));
+            offset++;
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Builds a variable specification (VarSpec) byte array for use in S7 protocol communication, based on the
+    /// specified data type, data block, starting byte address, and element count.
+    /// </summary>
+    /// <remarks>The format of the returned byte array depends on the specified data type. For Timer and
+    /// Counter types, the data block parameter is not used and the starting address is handled differently than for
+    /// other data types. This method is typically used when building low-level S7 protocol messages for PLC
+    /// communication.</remarks>
+    /// <param name="dataType">The type of data area to access. Determines how the variable specification is
+    /// constructed. Typical values
+    /// include Timer, Counter, or other supported S7 data types.</param>
+    /// <param name="db">The number of the data block to access. Ignored for data types that do not use data blocks
+    /// (such as Timer or
+    /// Counter).</param>
+    /// <param name="startByteAdr">The starting byte address within the specified data area. For Timer and Counter
+    /// types, this is interpreted as a
+    /// direct address; for other types, it is multiplied by 8 to represent a bit address.</param>
+    /// <param name="count">The number of elements to include in the variable specification. Must be a positive
+    /// value.</param>
+    /// <returns>A byte array containing the constructed variable specification suitable for use in S7 protocol
+    /// requests.</returns>
+    private static byte[] BuildVarSpec(DataType dataType, int db, int startByteAdr, int count)
+    {
+        using var package = new ByteArray(VariableSpecificationLength);
+        package.Add([VariableSpecificationMarker, VariableSpecificationPayloadLength, S7AnySyntaxId]);
+
+        switch (dataType)
+        {
+            case DataType.Timer or DataType.Counter:
+                {
+                    package.Add((byte)dataType);
+                    break;
+                }
+
+            default:
+                {
+                    package.Add(S7AnyTransportSizeByte);
+                    break;
+                }
+        }
+
+        package.Add(Word.ToByteArray((ushort)count));
+        package.Add(Word.ToByteArray((ushort)db));
+        package.Add((byte)dataType);
+
+        var overflow = startByteAdr * BitsPerByte / ushort.MaxValue;
+        package.Add((byte)overflow);
+
+        switch (dataType)
+        {
+            case DataType.Timer or DataType.Counter:
+                {
+                    package.Add(Word.ToByteArray((ushort)startByteAdr));
+                    break;
+                }
+
+            default:
+                {
+                    package.Add(Word.ToByteArray((ushort)(startByteAdr * BitsPerByte)));
+                    break;
+                }
+        }
+
+        return package.Array;
+    }
+
+    /// <summary>Attempts to parse a single read result from the response.</summary>
+    /// <param name="response">The response data.</param>
+    /// <param name="item">The requested read item.</param>
+    /// <param name="pool">The array pool used to rent result buffers.</param>
+    /// <param name="offset">The current response offset.</param>
+    /// <param name="result">The parsed read result.</param>
+    /// <returns>true when a result was parsed; otherwise, false.</returns>
+    private static bool TryReadResult(
+        ReadOnlySpan<byte> response,
+        ReadItem item,
+        ArrayPool<byte> pool,
+        ref int offset,
+        out ReadResult result)
+    {
+        result = default;
+        if (offset + ItemDataHeaderLength > response.Length)
+        {
+            return false;
+        }
+
+        var returnCode = response[offset];
+        var transportSize = response[offset + ResultTransportSizeOffset];
+        var bitLength =
+            (response[offset + ResultBitLengthHighOffset] << BitsPerByte) |
+            response[offset + ResultBitLengthLowOffset];
+        offset += ItemDataHeaderLength;
+
+        var byteLen = (bitLength + BitLengthRoundingOffset) / BitsPerByte;
+        if (offset + byteLen > response.Length)
+        {
+            return false;
+        }
+
+        result = byteLen == 0
+            ? new ReadResult(item.TagName, returnCode, transportSize, null, 0)
+            : ReadResultWithBuffer(response, item.TagName, returnCode, transportSize, byteLen, offset, pool);
+
+        offset += byteLen + ((byteLen & 1) == 1 ? 1 : 0);
+        return true;
+    }
+
+    /// <summary>Creates a read result backed by a rented buffer.</summary>
+    /// <param name="response">The response data.</param>
+    /// <param name="tagName">The tag name.</param>
+    /// <param name="returnCode">The return code.</param>
+    /// <param name="transportSize">The transport size.</param>
+    /// <param name="byteLen">The result length in bytes.</param>
+    /// <param name="offset">The response data offset.</param>
+    /// <param name="pool">The array pool used to rent result buffers.</param>
+    /// <returns>The read result.</returns>
+    private static ReadResult ReadResultWithBuffer(
+        ReadOnlySpan<byte> response,
+        string tagName,
+        byte returnCode,
+        byte transportSize,
+        int byteLen,
+        int offset,
+        ArrayPool<byte> pool)
+    {
+        var rented = pool.Rent(byteLen);
+        response.Slice(offset, byteLen).CopyTo(rented.AsSpan(0, byteLen));
+        return new ReadResult(tagName, returnCode, transportSize, rented, byteLen);
+    }
+
+    /// <summary>Represents a request to read a specific range of data from a PLC data block or memory area.</summary>
+    /// <param name="dataType">The type of data to read, specifying the memory area or data type (such as input,
+    /// output, or data block).</param>
+    /// <param name="db">The number of the data block to read from. Ignored for data types that do not use data
+    /// blocks.</param>
+    /// <param name="startByteAdr">The starting byte address within the specified data area or data block from which
+    /// to begin reading.</param>
+    /// <param name="count">The number of elements or bytes to read, depending on the data type.</param>
+    /// <param name="tagName">The symbolic tag name associated with the read operation. Can be used for identification
+    /// or logging purposes.</param>
+    internal readonly struct ReadItem(DataType dataType, int db, int startByteAdr, int count, string tagName)
+    {
+        /// <summary>Gets the data type value.</summary>
+        internal DataType DataType { get; } = dataType;
+
+        /// <summary>Gets the d b value.</summary>
+        internal int Db { get; } = db;
+
+        /// <summary>Gets the s ta rt by te a d r value.</summary>
+        internal int StartByteAdr { get; } = startByteAdr;
+
+        /// <summary>Gets the c ou n t value.</summary>
+        internal int Count { get; } = count;
+
+        /// <summary>Gets the t ag na m e value.</summary>
+        internal string TagName { get; } = tagName;
+    }
+
+    /// <summary>
+    /// Represents the result of a read operation, including the tag name, return code, transport size, data buffer,
+    /// and
+    /// the number of bytes read.
+    /// </summary>
+    /// <param name="tagName">The name of the tag that was read.</param>
+    /// <param name="returnCode">The return code indicating the status of the read operation.</param>
+    /// <param name="transportSize">The transport size code associated with the data read.</param>
+    /// <param name="rentedBuffer">The buffer containing the raw data read from the source, or null if no data was
+    /// returned.</param>
+    /// <param name="length">The number of bytes in the buffer that contain valid data.</param>
+    internal readonly struct ReadResult(
+        string tagName,
+        byte returnCode,
+        byte transportSize,
+        byte[]? rentedBuffer,
+        int length)
+    {
+        /// <summary>Gets the t ag na m e value.</summary>
+        internal string TagName { get; } = tagName;
+
+        /// <summary>Gets the r et ur nc o d e value.</summary>
+        internal byte ReturnCode { get; } = returnCode;
+
+        /// <summary>Gets the t ra ns po rt si z e value.</summary>
+        internal byte TransportSize { get; } = transportSize;
+
+        /// <summary>Gets the r en te db uf f e r value.</summary>
+        internal byte[]? RentedBuffer { get; } = rentedBuffer;
+
+        /// <summary>Gets the l en g t h value.</summary>
+        internal int Length { get; } = length;
+
+        /// <summary>Gets the data value.</summary>
+        internal ReadOnlyMemory<byte> Data => RentedBuffer is null || Length <= 0
+            ? ReadOnlyMemory<byte>.Empty
+            : RentedBuffer.AsMemory(0, Length);
+    }
+
+    /// <summary>Represents PLC data to write, including its address and buffer.</summary>
+    /// <param name="dataType">The data type of the item to write. Specifies how the data should be interpreted by the
+    /// PLC.</param>
+    /// <param name="db">The number of the data block (DB) in the PLC where the data will be written.</param>
+    /// <param name="startByteAdr">The starting byte address within the data block where the write operation begins.
+    /// </param>
+    /// <param name="count">The number of elements or items to write. Must be greater than zero.</param>
+    /// <param name="transportSize">The transport size code indicating how the data is transferred to the PLC.</param>
+    /// <param name="data">The buffer containing the data to be written. Cannot be null.</param>
+    /// <param name="tagName">The symbolic tag name associated with the data item, used for identification or
+    /// diagnostics.</param>
+    internal readonly struct WriteItem(
+        DataType dataType,
+        int db,
+        int startByteAdr,
+        int count,
+        byte transportSize,
+        byte[] data,
+        string tagName)
+    {
+        /// <summary>Gets the data type value.</summary>
+        internal DataType DataType { get; } = dataType;
+
+        /// <summary>Gets the d b value.</summary>
+        internal int Db { get; } = db;
+
+        /// <summary>Gets the s ta rt by te a d r value.</summary>
+        internal int StartByteAdr { get; } = startByteAdr;
+
+        /// <summary>Gets the c ou n t value.</summary>
+        internal int Count { get; } = count;
+
+        /// <summary>Gets the t ra ns po rt si z e value.</summary>
+        internal byte TransportSize { get; } = transportSize;
+
+        /// <summary>Gets the d a t a value.</summary>
+        internal byte[] Data { get; } = data;
+
+        /// <summary>Gets the t ag na m e value.</summary>
+        internal string TagName { get; } = tagName;
+    }
+
+    /// <summary>Represents the result of a write operation, including the operation index and return code.</summary>
+    /// <param name="index">The zero-based index associated with the write operation result.</param>
+    /// <param name="returnCode">The return code indicating the outcome of the write operation.</param>
+    internal readonly struct WriteResult(int index, byte returnCode)
+    {
+        /// <summary>Gets the i nd e x value.</summary>
+        internal int Index { get; } = index;
+
+        /// <summary>Gets the r et ur nc o d e value.</summary>
+        internal byte ReturnCode { get; } = returnCode;
+    }
+}

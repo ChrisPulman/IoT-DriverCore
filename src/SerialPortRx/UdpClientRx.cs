@@ -1,0 +1,458 @@
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+#if REACTIVE_SHIM
+namespace CP.IO.Ports.Reactive;
+#else
+namespace CP.IO.Ports;
+#endif
+
+/// <summary>Provides a reactive wrapper around <see cref="UdpClient"/>.</summary>
+[DebuggerDisplay("Available = {Available}")]
+public class UdpClientRx : IReceiveBatchPortRx
+{
+    /// <summary>The maximum UDP buffer size.</summary>
+    private const int MaxBufferSize = ushort.MaxValue;
+
+    /// <summary>The wrapped UDP client.</summary>
+    private readonly UdpClient _udpClient;
+
+    /// <summary>The reusable receive buffer.</summary>
+    private readonly byte[] _buffer = new byte[MaxBufferSize];
+
+    /// <summary>Publishes individual byte values read by ReadAsync.</summary>
+    private readonly ReplaySignal<int> _bytesReceived = new(0);
+
+    /// <summary>Publishes individual byte values read by the receive loop.</summary>
+    private readonly ReplaySignal<int> _dataReceived = new(0);
+
+    /// <summary>Publishes UDP datagram byte chunks.</summary>
+    private readonly ReplaySignal<byte[]> _dataChunks = new(0);
+
+    /// <summary>The cached async observable for received byte values.</summary>
+    private IObservableAsync<int>? _dataReceivedAsync;
+
+    /// <summary>The cached async observable for received datagram chunks.</summary>
+    private IObservableAsync<byte[]>? _dataReceivedBatchesAsync;
+
+    /// <summary>The cached async observable for bytes read by ReadAsync.</summary>
+    private IObservableAsync<int>? _bytesReceivedAsync;
+
+    /// <summary>The active connection subscription collection.</summary>
+    private CompositeDisposable _disposablePort = [];
+
+    /// <summary>Tracks whether this instance has been disposed.</summary>
+    private bool _disposedValue;
+
+    /// <summary>The next write offset in the reusable receive buffer.</summary>
+    private int _bufferOffset;
+
+    /// <summary>Initializes a new instance of the <see cref="UdpClientRx"/> class.</summary>
+    public UdpClientRx()
+            : this(AddressFamily.InterNetwork)
+    {
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="UdpClientRx"/> class.</summary>
+    /// <param name="udpClient">The UDP client.</param>
+    public UdpClientRx(UdpClient udpClient) => _udpClient = udpClient;
+
+    /// <summary>Initializes a new instance of the <see cref="UdpClientRx"/> class.</summary>
+    /// <param name="localEP">The local ep.</param>
+    public UdpClientRx(IPEndPoint localEP) => _udpClient = new(localEP);
+
+    /// <summary>Initializes a new instance of the <see cref="UdpClientRx"/> class.</summary>
+    /// <param name="port">The port.</param>
+    public UdpClientRx(int port) => _udpClient = new(port);
+
+    /// <summary>Initializes a new instance of the <see cref="UdpClientRx"/> class.</summary>
+    /// <param name="family">The family.</param>
+    public UdpClientRx(AddressFamily family) => _udpClient = new(family);
+
+    /// <summary>Initializes a new instance of the <see cref="UdpClientRx"/> class.</summary>
+    /// <param name="port">The port.</param>
+    /// <param name="family">The family.</param>
+    public UdpClientRx(int port, AddressFamily family) => _udpClient = new(port, family);
+
+    /// <summary>Initializes a new instance of the <see cref="UdpClientRx"/> class.</summary>
+    /// <param name="hostname">The hostname.</param>
+    /// <param name="port">The port.</param>
+    public UdpClientRx(string hostname, int port) => _udpClient = new(hostname, port);
+
+    /// <summary>Gets the available.</summary>
+    /// <value>
+    /// The available.
+    /// </value>
+    public int Available => _udpClient.Available;
+
+    /// <summary>Gets or sets the TTL.</summary>
+    /// <value>
+    /// The TTL.
+    /// </value>
+    public short Ttl { get => _udpClient.Ttl; set => _udpClient.Ttl = value; }
+
+    /// <summary>Gets or sets a value indicating whether [dont fragment].</summary>
+    /// <value>
+    ///   <c>true</c> if [dont fragment]; otherwise, <c>false</c>.
+    /// </value>
+    public bool DontFragment { get => _udpClient.DontFragment; set => _udpClient.DontFragment = value; }
+
+    /// <summary>Gets or sets a value indicating whether [multicast loopback].</summary>
+    /// <value>
+    ///   <c>true</c> if [multicast loopback]; otherwise, <c>false</c>.
+    /// </value>
+    public bool MulticastLoopback
+    {
+        get => _udpClient.MulticastLoopback;
+        set => _udpClient.MulticastLoopback = value;
+    }
+
+    /// <summary>Gets or sets a value indicating whether [enable broadcast].</summary>
+    /// <value>
+    ///   <c>true</c> if [enable broadcast]; otherwise, <c>false</c>.
+    /// </value>
+    public bool EnableBroadcast { get => _udpClient.EnableBroadcast; set => _udpClient.EnableBroadcast = value; }
+
+    /// <summary>Gets or sets a value indicating whether [exclusive address use].</summary>
+    /// <value>
+    ///   <c>true</c> if [exclusive address use]; otherwise, <c>false</c>.
+    /// </value>
+    public bool ExclusiveAddressUse
+    {
+        get => _udpClient.ExclusiveAddressUse;
+        set => _udpClient.ExclusiveAddressUse = value;
+    }
+
+    /// <summary>Gets the infinite timeout.</summary>
+    /// <value>
+    /// The infinite timeout.
+    /// </value>
+    public int InfiniteTimeout => Timeout.Infinite;
+
+    /// <summary>Gets or sets the underlying System.Net.Sockets.Socket.</summary>
+    /// <value>
+    /// The underlying network System.Net.Sockets.Socket.
+    /// </value>
+    public Socket Client { get => _udpClient.Client; set => _udpClient.Client = value; }
+
+    /// <summary>Gets or sets the read timeout.</summary>
+    /// <value>
+    /// The read timeout.
+    /// </value>
+    public int ReadTimeout
+    {
+        get => Client.ReceiveTimeout;
+        set => Client.ReceiveTimeout = value;
+    }
+
+    /// <summary>Gets or sets the write timeout.</summary>
+    /// <value>
+    /// The write timeout.
+    /// </value>
+    public int WriteTimeout
+    {
+        get => Client.SendTimeout;
+        set => Client.SendTimeout = value;
+    }
+
+    /// <summary>Gets the data received.</summary>
+    /// <value>The data received.</value>
+    public IObservable<int> DataReceived => _dataReceived;
+
+    /// <summary>Gets the data received as an async observable.</summary>
+    /// <value>The data received.</value>
+    public IObservableAsync<int> DataReceivedAsync =>
+        _dataReceivedAsync ??= ObservableAsyncBridgeExtensions.ToAsyncObservable(DataReceived);
+
+    /// <summary>Gets stream chunks (byte arrays) for each received UDP datagram.</summary>
+    public IObservable<byte[]> DataReceivedBatches => _dataChunks;
+
+    /// <summary>Gets stream chunks for each received UDP datagram as an async observable.</summary>
+    public IObservableAsync<byte[]> DataReceivedBatchesAsync =>
+        _dataReceivedBatchesAsync ??= ObservableAsyncBridgeExtensions.ToAsyncObservable(DataReceivedBatches);
+
+    /// <summary>Gets the data received.</summary>
+    /// <value>The data received.</value>
+    public IObservable<int> BytesReceived => _bytesReceived;
+
+    /// <summary>Gets the data received from ReadAsync as an async observable.</summary>
+    /// <value>The data received.</value>
+    public IObservableAsync<int> BytesReceivedAsync =>
+        _bytesReceivedAsync ??= ObservableAsyncBridgeExtensions.ToAsyncObservable(BytesReceived);
+
+#if HasWindows
+    /// <summary>Allows the nat traversal.</summary>
+    /// <param name="allowed">if set to <c>true</c> [allowed].</param>
+    public void AllowNatTraversal(bool allowed) => _udpClient.AllowNatTraversal(allowed);
+#endif
+
+    /// <summary>Connects the specified hostname.</summary>
+    /// <param name="hostname">The hostname.</param>
+    /// <param name="port">The port.</param>
+    public void Connect(string hostname, int port) =>
+        _udpClient.Connect(hostname, port);
+
+    /// <summary>Connects the specified addr.</summary>
+    /// <param name="addr">The addr.</param>
+    /// <param name="port">The port.</param>
+    public void Connect(IPAddress addr, int port) =>
+        _udpClient.Connect(addr, port);
+
+    /// <summary>Connects the specified end point.</summary>
+    /// <param name="endPoint">The end point.</param>
+    public void Connect(IPEndPoint endPoint) =>
+        _udpClient.Connect(endPoint);
+
+    /// <summary>Returns a UDP datagram asynchronously that was sent by a remote host.</summary>
+    /// <returns>The task object representing the asynchronous operation.</returns>
+    public Task<UdpReceiveResult> ReceiveAsync() => _udpClient.ReceiveAsync();
+
+    /// <summary>Opens this instance.</summary>
+    /// <returns>A Task.</returns>
+    public Task OpenAsync()
+    {
+        if (_disposablePort?.IsDisposed != false)
+        {
+            _disposablePort = [];
+        }
+
+        return _disposablePort?.Count == 0
+            ? Task.Run(() => _disposablePort.Add(Connect().Subscribe()))
+            : Task.CompletedTask;
+    }
+
+    /// <summary>Closes this instance.</summary>
+    public void Close() => _disposablePort?.Dispose();
+
+    /// <summary>Writes the specified buffer.</summary>
+    /// <param name="buffer">The buffer.</param>
+    /// <param name="offset">The offset.</param>
+    /// <param name="count">The count.</param>
+    public void Write(byte[]? buffer, int offset, int count)
+    {
+#if NETFRAMEWORK
+        if (buffer is null)
+        {
+            throw new ArgumentNullException(nameof(buffer));
+        }
+#else
+        ArgumentGuard.ThrowIfNull(buffer, nameof(buffer));
+#endif
+
+        if (offset < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(offset),
+                "Argument offset must be greater than or equal to 0.");
+        }
+
+        if (offset > buffer.Length)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(offset),
+                "Argument offset cannot be greater than the length of buffer.");
+        }
+
+        if (count < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(count),
+                "Argument count must be greater than or equal to 0.");
+        }
+
+        if (count > buffer.Length - offset)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(count),
+                "Argument count cannot be greater than the length of buffer minus offset.");
+        }
+
+        // Avoid allocations by sending directly from the buffer with offset
+        _ = Client.Send(buffer, offset, count, SocketFlags.None);
+    }
+
+    /// <summary>Sends a UDP datagram asynchronously to a remote host.</summary>
+    /// <param name="dataGram">The data gram.</param>
+    /// <param name="bytes">The bytes.</param>
+    /// <param name="endPoint">The end point.</param>
+    /// <returns>A Task of int.</returns>
+    public Task<int> SendAsync(byte[] dataGram, int bytes, IPEndPoint endPoint) =>
+        _udpClient.SendAsync(dataGram, bytes, endPoint);
+
+    /// <summary>Reads the specified buffer.</summary>
+    /// <param name="buffer">The buffer.</param>
+    /// <param name="offset">The offset.</param>
+    /// <param name="count">The count.</param>
+    /// <returns>A int.</returns>
+    public Task<int> ReadAsync(byte[]? buffer, int offset, int count)
+    {
+#if NETFRAMEWORK
+        if (buffer is null)
+        {
+            throw new ArgumentNullException(nameof(buffer));
+        }
+#else
+        ArgumentGuard.ThrowIfNull(buffer, nameof(buffer));
+#endif
+
+        if (offset < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(offset),
+                "Argument offset must be greater than or equal to 0.");
+        }
+
+        if (offset > buffer.Length)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(offset),
+                "Argument offset cannot be greater than the length of buffer.");
+        }
+
+        if (count < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(count),
+                "Argument count must be greater than or equal to 0.");
+        }
+
+        if (count > buffer.Length - offset)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(count),
+                "Argument count cannot be greater than the length of buffer minus offset.");
+        }
+
+        // Use a background task to avoid blocking the caller on frameworks without cancellation-aware UDP receive APIs.
+        return Task.Run(
+            () =>
+            {
+                if (_bufferOffset == 0)
+                {
+                    _bufferOffset = Client.Receive(_buffer);
+                }
+
+                if (_bufferOffset < count)
+                {
+                    throw new InvalidOperationException("Not enough bytes in the bytes received.");
+                }
+
+                Buffer.BlockCopy(_buffer, 0, buffer, offset, count);
+                _bufferOffset -= count;
+                Buffer.BlockCopy(_buffer, count, _buffer, 0, _bufferOffset);
+
+                for (var i = 0; i < count; i++)
+                {
+                    var item = buffer[i];
+                    _bytesReceived.OnNext(item);
+                }
+
+                return count;
+            });
+    }
+
+    /// <summary>Discards the in buffer.</summary>
+    public void DiscardInBuffer()
+    {
+    }
+
+    /// <summary>Releases owned resources.</summary>
+    public void Dispose()
+    {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>Releases unmanaged and - optionally - managed resources.</summary>
+    /// <param name="disposing">
+    /// <c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.
+    /// </param>
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposedValue)
+        {
+            return;
+        }
+
+        if (disposing)
+        {
+            _bytesReceived.Dispose();
+            _dataReceived.Dispose();
+            _dataChunks.Dispose();
+            _udpClient.Dispose();
+            _disposablePort.Dispose();
+        }
+
+        _disposedValue = true;
+    }
+
+    /// <summary>Creates the connection observable that drives the UDP receive loop.</summary>
+    /// <returns>An observable that signals when the receive loop has started.</returns>
+    private IObservable<Unit> Connect() => Observable.Create<Unit>(obs =>
+    {
+        var cts = new CancellationTokenSource();
+        var token = cts.Token;
+
+        // Dedicated loop to continuously receive datagrams and publish per-byte and as chunks
+        _ = Task.Factory
+            .StartNew(
+                async () =>
+                {
+                    try
+                    {
+                        obs.OnNext(Unit.Default);
+
+                        while (!token.IsCancellationRequested)
+                        {
+                            UdpReceiveResult result;
+                            try
+                            {
+                                result = await _udpClient.ReceiveAsync().ConfigureAwait(false);
+                            }
+                            catch (ObjectDisposedException)
+                            {
+                                break;
+                            }
+                            catch (SocketException)
+                            {
+                                // transient network error -> break and surface via retry upstream if used
+                                break;
+                            }
+
+                            var datagram = result.Buffer;
+
+                            // Per-byte stream
+                            for (var i = 0; i < datagram.Length; i++)
+                            {
+                                _dataReceived.OnNext(datagram[i]);
+                            }
+
+                            // Batched chunk stream (copy to separate array to keep immutability semantics)
+                            var chunk = new byte[datagram.Length];
+                            Array.Copy(datagram, chunk, datagram.Length);
+                            _dataChunks.OnNext(chunk);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        obs.OnError(ex);
+                    }
+                },
+                token,
+                TaskCreationOptions.DenyChildAttach,
+                TaskScheduler.Default)
+            .Unwrap()
+            .ContinueWith(
+                t => _ = t.Exception,
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted,
+                TaskScheduler.Default);
+
+        return Disposable.Create(() =>
+        {
+            cts.Cancel();
+            cts.Dispose();
+        });
+    });
+}

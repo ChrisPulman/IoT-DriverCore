@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MitsubishiRx\MitsubishiRx.csproj" />
+    <ProjectReference Include="..\MitsubishiRx.Generators\MitsubishiRx.Generators.csproj"
+                      SetConfiguration="Configuration=$(Configuration)" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="ReactiveUI.Primitives" />
+    <PackageReference Include="ReactiveUI.Primitives.Async" />
+    <PackageReference Include="TUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="ReactiveUI.Primitives" />
+    <Using Include="ReactiveUI.Primitives.Concurrency" />
+    <Using Include="ReactiveUI.Primitives.Extensions" />
+    <Using Include="ReactiveUI.Primitives.Extensions.Operators" />
+    <Using Include="ReactiveUI.Primitives.Signals" />
+    <Using Include="ReactiveUI.Primitives.Concurrency.ISequencer" Alias="IScheduler" />
+    <Using Include="ReactiveUI.Primitives.Concurrency.Sequencer" Alias="Scheduler" />
+    <Using Include="ReactiveUI.Primitives.Concurrency.VirtualClock" Alias="TestScheduler" />
+    <Using Include="ReactiveUI.Primitives.RxVoid" Alias="Unit" />
+    <Using Include="ReactiveUI.Primitives.Signals.Signal" Alias="Observable" />
+  </ItemGroup>
+</Project>

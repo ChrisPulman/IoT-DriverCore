@@ -1,0 +1,54 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net472;net48;net481;net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="libplctag.NativeImport" />
+    <PackageReference Include="ReactiveUI.Primitives" />
+    <PackageReference Include="ReactiveUI.Primitives.Async" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" $([System.String]::new('$(TargetFramework)').StartsWith('net4')) ">
+    <PackageReference Include="Polyfill">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="ReactiveUI.Primitives.Signals" />
+    <Using Include="ReactiveUI.Primitives" />
+    <Using Include="ReactiveUI.Primitives.Async" />
+    <Using Include="ReactiveUI.Primitives.Disposables" />
+    <Using Include="ReactiveUI.Primitives.Extensions" />
+    <Using Include="ReactiveUI.Primitives.Concurrency" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>ABPlcRx.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ABPlcRx.Generators\ABPlcRx.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" SetTargetFramework="TargetFramework=netstandard2.0" />
+    <ProjectReference Include="..\CP.IoT.Core\CP.IoT.Core.csproj" />
+  </ItemGroup>
+
+  <Target Name="PackSourceGeneratorAnalyzer" BeforeTargets="_GetPackageFiles">
+    <PropertyGroup>
+      <_ABPlcRxSourceGeneratorPath>$(MSBuildProjectDirectory)\..\ABPlcRx.Generators\bin\$(Configuration)\netstandard2.0\ABPlcRx.Generators.dll</_ABPlcRxSourceGeneratorPath>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <None Include="$(_ABPlcRxSourceGeneratorPath)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" Condition="Exists('$(_ABPlcRxSourceGeneratorPath)')" />
+    </ItemGroup>
+  </Target>
+
+  <Import Project="..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets" Condition="Exists('..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets')" />
+  
+</Project>

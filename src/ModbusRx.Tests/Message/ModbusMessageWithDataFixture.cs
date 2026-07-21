@@ -1,0 +1,47 @@
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+using ModbusRx.Data;
+using ModbusRx.Message;
+
+namespace ModbusRx.UnitTests.Message;
+
+/// <summary>Tests the ModbusMessageWithDataFixture behavior.</summary>
+public class ModbusMessageWithDataFixture
+{
+    /// <summary>Modbuses the message with data fixture ctor initializes properties.</summary>
+    [TUnit.Core.Test]
+    public void ModbusMessageWithDataFixtureCtorInitializesProperties()
+    {
+        AbstractModbusMessageWithData<DiscreteCollection> message =
+            new ReadCoilsInputsResponse(
+                Modbus.ReadCoils,
+                Num.Value10,
+                1,
+                new DiscreteCollection(true, false, true));
+        Assert.Equal(Modbus.ReadCoils, message.FunctionCode);
+        Assert.Equal(Num.Value10, message.SlaveAddress);
+    }
+
+    /// <summary>Protocols the data unit read coils response.</summary>
+    [TUnit.Core.Test]
+    public void ProtocolDataUnitReadCoilsResponse()
+    {
+        AbstractModbusMessageWithData<DiscreteCollection> message =
+            new ReadCoilsInputsResponse(Modbus.ReadCoils, 1, Num.Value2, new DiscreteCollection(true));
+        byte[] expectedResult = { 1, 2, 1 };
+        Assert.Equal(expectedResult, message.ProtocolDataUnit);
+    }
+
+    /// <summary>Datas the read coils response.</summary>
+    [TUnit.Core.Test]
+    public void DataReadCoilsResponse()
+    {
+        var col = new DiscreteCollection(false, true, false, true, false, true, false, false, false, false);
+        AbstractModbusMessageWithData<DiscreteCollection> message =
+            new ReadCoilsInputsResponse(Modbus.ReadCoils, Num.Value11, 1, col);
+        Assert.Equal(col.Count, message.Data.Count);
+        Assert.Equal(col.NetworkBytes, message.Data.NetworkBytes);
+    }
+}

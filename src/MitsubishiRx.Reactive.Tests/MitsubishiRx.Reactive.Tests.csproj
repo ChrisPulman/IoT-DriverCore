@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <DefineConstants>$(DefineConstants);REACTIVE_SHIM</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\MitsubishiRx.Tests\**\*.cs"
+             Exclude="..\MitsubishiRx.Tests\bin\**;..\MitsubishiRx.Tests\obj\**;..\MitsubishiRx.Tests\MitsubishiGeneratedClientTests*.cs;..\MitsubishiRx.Tests\MitsubishiSerialSupportTests.cs"
+             Link="%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MitsubishiRx.Reactive\MitsubishiRx.Reactive.csproj" />
+    <PackageReference Include="Microsoft.Reactive.Testing" />
+    <PackageReference Include="ReactiveUI.Primitives.Reactive" />
+    <PackageReference Include="TUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="ReactiveUI.Primitives.Disposables" />
+    <Using Include="ReactiveUI.Primitives.Extensions" />
+    <Using Include="ReactiveUI.Primitives.Signals" />
+    <Using Include="ReactiveUI.Primitives.Reactive" />
+    <Using Include="ReactiveUI.Primitives.Reactive.Concurrency" />
+    <Using Include="ReactiveUI.Primitives.Extensions.Reactive" />
+    <Using Include="ReactiveUI.Primitives.Extensions.Reactive.Operators" />
+    <Using Include="CP.IO.Ports.Reactive" />
+    <Using Include="System.Reactive.Concurrency.IScheduler" Alias="IScheduler" />
+    <Using Include="System.Reactive.Concurrency.Scheduler" Alias="Scheduler" />
+    <Using Include="Microsoft.Reactive.Testing.TestScheduler" Alias="TestScheduler" />
+    <Using Include="System.Reactive.Unit" Alias="Unit" />
+    <Using Include="System.Reactive.Linq.Observable" Alias="Observable" />
+  </ItemGroup>
+</Project>

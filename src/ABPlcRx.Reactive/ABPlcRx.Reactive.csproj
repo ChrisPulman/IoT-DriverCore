@@ -1,0 +1,67 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net472;net48;net481;net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+    <AssemblyName>ABPlcRx.Reactive</AssemblyName>
+    <PackageId>ABPlcRx.Reactive</PackageId>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <DefineConstants>$(DefineConstants);REACTIVE_SHIM;REACTIVELIST_REACTIVE</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\ABPlcRx\**\*.cs"
+             Exclude="..\ABPlcRx\bin\**;..\ABPlcRx\obj\**"
+             LinkBase="ABPlcRx" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="ReactiveUI.Primitives.Async" />
+    <Using Include="ReactiveUI.Primitives.Signals" />
+    <Using Include="ReactiveUI.Primitives.Disposables" />
+    <Using Include="ReactiveUI.Primitives.Reactive" />
+    <Using Include="ReactiveUI.Primitives.Extensions.Reactive" />
+    <Using Include="System.Reactive.Unit" Alias="RxVoid" />
+    <Using Include="System.Reactive.Concurrency.IScheduler" Alias="ISequencer" />
+    <Using Include="System.Reactive.Concurrency.TaskPoolScheduler" Alias="TaskPoolSequencer" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="libplctag.NativeImport" />
+    <PackageReference Include="ReactiveUI.Primitives.Reactive" />
+    <PackageReference Include="ReactiveUI.Primitives.Async.Reactive" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>ABPlcRx.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CP.IoT.Core\CP.IoT.Core.csproj" />
+    <ProjectReference Include="..\ABPlcRx.Generators\ABPlcRx.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all"
+                      SetTargetFramework="TargetFramework=netstandard2.0" />
+  </ItemGroup>
+
+  <Target Name="PackSourceGeneratorAnalyzer" BeforeTargets="_GetPackageFiles">
+    <PropertyGroup>
+      <_ABPlcRxSourceGeneratorPath>$(MSBuildProjectDirectory)\..\ABPlcRx.Generators\bin\$(Configuration)\netstandard2.0\ABPlcRx.Generators.dll</_ABPlcRxSourceGeneratorPath>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <None Include="$(_ABPlcRxSourceGeneratorPath)"
+            Pack="true"
+            PackagePath="analyzers/dotnet/cs"
+            Visible="false"
+            Condition="Exists('$(_ABPlcRxSourceGeneratorPath)')" />
+    </ItemGroup>
+  </Target>
+
+  <Import Project="..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets"
+          Condition="Exists('..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets')" />
+
+</Project>

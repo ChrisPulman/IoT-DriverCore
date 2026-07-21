@@ -1,0 +1,161 @@
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+#if REACTIVE_SHIM
+
+namespace MitsubishiRx.Reactive.Tests;
+#else
+
+namespace MitsubishiRx.Tests;
+#endif
+
+/// <summary>Provides the MitsubishiHardeningTests type.</summary>
+internal sealed class MitsubishiHardeningTests
+{
+    /// <summary>Stores the <c>Ascii3ESuccessResponse</c> test value.</summary>
+    private const string Ascii3ESuccessResponse = "D00000FF03FF0000020000";
+
+    /// <summary>Stores the <c>LoopbackHost</c> test value.</summary>
+    private const string LoopbackHost = "127.0.0.1";
+
+    /// <summary>Stores the byte offset of random-read address data in the request payload.</summary>
+    private const int RandomReadAddressDataOffset = 15;
+
+    /// <summary>Stores the byte length of random-read address data in the request payload.</summary>
+    private const int RandomReadAddressDataLength = 8;
+
+    /// <summary>Executes the RemoteRunAsyncEncodesAscii3EForceAndClearMode operation.</summary>
+    /// <returns>The RemoteRunAsyncEncodesAscii3EForceAndClearMode operation result.</returns>
+    [Test]
+    internal async Task RemoteRunAsyncEncodesAscii3EForceAndClearModeAsync()
+    {
+        await using var transport = new FakeTransport(
+        [
+            System.Text.Encoding.ASCII.GetBytes(Ascii3ESuccessResponse),
+        ]);
+
+        var options = new MitsubishiClientOptions(
+            Host: LoopbackHost,
+            Port: 5010,
+            FrameType: MitsubishiFrameType.ThreeE,
+            DataCode: CommunicationDataCode.Ascii,
+            TransportKind: MitsubishiTransportKind.Tcp,
+            Route: MitsubishiRoute.Default);
+
+        await using var client = new MitsubishiRx(options, transport, Scheduler.Immediate);
+        var result = await client.RemoteRunAsync(force: true, clearMode: true, CancellationToken.None);
+        if (!result.IsSucceed)
+        {
+            throw new InvalidOperationException(result.Err);
+        }
+
+        await Assert.That(result.IsSucceed).IsTrue();
+        await Assert.That(System.Text.Encoding.ASCII.GetString(transport.Requests[0].Payload))
+            .IsEqualTo("500000FF03FF00000E00101001000000010001");
+    }
+
+    /// <summary>Executes the RegisterMonitorAsyncEncodesAscii3EAddresses operation.</summary>
+    /// <returns>The RegisterMonitorAsyncEncodesAscii3EAddresses operation result.</returns>
+    [Test]
+    internal async Task RegisterMonitorAsyncEncodesAscii3EAddressesAsync()
+    {
+        await using var transport = new FakeTransport(
+        [
+            System.Text.Encoding.ASCII.GetBytes(Ascii3ESuccessResponse),
+        ]);
+
+        var options = new MitsubishiClientOptions(
+            Host: LoopbackHost,
+            Port: 5011,
+            FrameType: MitsubishiFrameType.ThreeE,
+            DataCode: CommunicationDataCode.Ascii,
+            TransportKind: MitsubishiTransportKind.Tcp,
+            Route: MitsubishiRoute.Default);
+
+        await using var client = new MitsubishiRx(options, transport, Scheduler.Immediate);
+        var result = await client.RegisterMonitorAsync(["D100", "D101"], CancellationToken.None);
+        if (!result.IsSucceed)
+        {
+            throw new InvalidOperationException(result.Err);
+        }
+
+        await Assert.That(result.IsSucceed).IsTrue();
+        await Assert.That(System.Text.Encoding.ASCII.GetString(transport.Requests[0].Payload))
+            .IsEqualTo("500000FF03FF00001A0010080100000200000064D*000065D*");
+    }
+
+    /// <summary>Executes the RandomReadWordsAsyncPreservesHexadecimalXyNotation operation.</summary>
+    /// <returns>The RandomReadWordsAsyncPreservesHexadecimalXyNotation operation result.</returns>
+    [Test]
+    internal async Task RandomReadWordsAsyncPreservesHexadecimalXyNotationAsync()
+    {
+        await using var transport = new FakeTransport(
+        [
+            [0xD0, 0x00, 0x00, 0xFF, 0xFF, 0x03, 0x00, 0x06, 0x00, 0x00, 0x00, 0x34, 0x12, 0x78, 0x56],
+        ]);
+
+        var options = new MitsubishiClientOptions(
+            Host: LoopbackHost,
+            Port: 5012,
+            FrameType: MitsubishiFrameType.ThreeE,
+            DataCode: CommunicationDataCode.Binary,
+            TransportKind: MitsubishiTransportKind.Tcp,
+            Route: MitsubishiRoute.Default,
+            MonitoringTimer: 0x0010,
+            XyNotation: XyAddressNotation.Hexadecimal);
+
+        await using var client = new MitsubishiRx(options, transport, Scheduler.Immediate);
+        var result = await client.RandomReadWordsAsync(["X10", "Y1F"], CancellationToken.None);
+
+        await Assert.That(result.IsSucceed).IsTrue();
+        await Assert.That(
+                transport.Requests[0].Payload
+                    .Skip(RandomReadAddressDataOffset)
+                    .Take(RandomReadAddressDataLength)
+                    .Select(static value => (int)value)
+                    .ToArray())
+            .IsEquivalentTo(
+        [0x02, 0x00, 0x10, 0x00, 0x00, 0x9C, 0x1F, 0x00]);
+    }
+
+    /// <summary>Executes the ReadBlocksAsyncEncodesAscii3EBlockCounts operation.</summary>
+    /// <returns>The ReadBlocksAsyncEncodesAscii3EBlockCounts operation result.</returns>
+    [Test]
+    internal async Task ReadBlocksAsyncEncodesAscii3EBlockCountsAsync()
+    {
+        await using var transport = new FakeTransport(
+        [
+            System.Text.Encoding.ASCII.GetBytes(Ascii3ESuccessResponse),
+        ]);
+
+        var options = new MitsubishiClientOptions(
+            Host: LoopbackHost,
+            Port: 5013,
+            FrameType: MitsubishiFrameType.ThreeE,
+            DataCode: CommunicationDataCode.Ascii,
+            TransportKind: MitsubishiTransportKind.Tcp,
+            Route: MitsubishiRoute.Default);
+
+        var request = new MitsubishiBlockRequest(
+            WordBlocks:
+            [
+                new MitsubishiWordBlock(MitsubishiDeviceAddress.Parse("D100", XyAddressNotation.Octal), new ushort[2]),
+            ],
+            BitBlocks:
+            [
+                new MitsubishiBitBlock(MitsubishiDeviceAddress.Parse("M10", XyAddressNotation.Octal), new bool[3]),
+            ]);
+
+        await using var client = new MitsubishiRx(options, transport, Scheduler.Immediate);
+        var result = await client.ReadBlocksAsync(request, CancellationToken.None);
+        if (!result.IsSucceed)
+        {
+            throw new InvalidOperationException(result.Err);
+        }
+
+        await Assert.That(result.IsSucceed).IsTrue();
+        await Assert.That(System.Text.Encoding.ASCII.GetString(transport.Requests[0].Payload))
+            .IsEqualTo("500000FF03FF00002600100406000000010001000064D*000200000AM*0003");
+    }
+}

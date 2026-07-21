@@ -1,0 +1,10 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- SQLitePCLRaw 2.1.12's net461 target lists a win-arm asset that is not present in the package. -->
+  <Target Name="RemoveMissingSQLitePCLRawNativeContent"
+          BeforeTargets="AssignTargetPaths;GetCopyToOutputDirectoryItems">
+    <ItemGroup>
+      <Content Remove="@(Content)"
+               Condition="'%(Content.Filename)' == 'e_sqlite3' and !Exists('%(Content.FullPath)')" />
+    </ItemGroup>
+  </Target>
+</Project>
