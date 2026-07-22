@@ -1,4 +1,18 @@
 <Solution>
+  <Folder Name="/AllenBradley/">
+    <Project Path="ABPlcRx.Generators/ABPlcRx.Generators.csproj" />
+    <Project Path="ABPlcRx.Reactive/ABPlcRx.Reactive.csproj" />
+    <Project Path="ABPlcRx.TestApp/ABPlcRx.TestApp.csproj" />
+    <Project Path="ABPlcRx/ABPlcRx.csproj" />
+  </Folder>
+  <Folder Name="/Beckhoff/">
+    <Project Path="TwinCATRx.Core.Reactive/TwinCATRx.Core.Reactive.csproj" />
+    <Project Path="TwinCATRx.Core/TwinCATRx.Core.csproj" />
+    <Project Path="TwinCATRx.Generators/TwinCATRx.Generators.csproj" />
+    <Project Path="TwinCATRx.Reactive/TwinCATRx.Reactive.csproj" />
+    <Project Path="TwinCATRx.TestConsole/TwinCATRx.TestConsole.csproj" />
+    <Project Path="TwinCATRx/TwinCATRx.csproj" />
+  </Folder>
   <Folder Name="/Config/">
     <File Path="../.editorconfig" />
     <File Path="../.gitattributes" />
@@ -9,40 +23,50 @@
     <File Path="Directory.Build.props" />
     <File Path="Directory.Packages.props" />
   </Folder>
+  <Folder Name="/Mitsubishi/">
+    <Project Path="MitsubishiRx.Generators/MitsubishiRx.Generators.csproj" />
+    <Project Path="MitsubishiRx.Reactive/MitsubishiRx.Reactive.csproj" />
+    <Project Path="MitsubishiRx/MitsubishiRx.csproj" />
+  </Folder>
+  <Folder Name="/Modbus/">
+    <Project Path="ModbusRx.DriverTest/ModbusRx.DriverTest.csproj" />
+    <Project Path="ModbusRx.Generators/ModbusRx.Generators.csproj" />
+    <Project Path="ModbusRx.Reactive/ModbusRx.Reactive.csproj" />
+    <Project Path="ModbusRx.Server.UI/ModbusRx.Server.UI.csproj" />
+    <Project Path="ModbusRx/ModbusRx.csproj" />
+  </Folder>
+  <Folder Name="/Omron/">
+    <Project Path="OmronPlcRx.Dashboard/OmronPlcRx.Dashboard.csproj" />
+    <Project Path="OmronPlcRx.Generators/OmronPlcRx.Generators.csproj" />
+    <Project Path="OmronPlcRx.Reactive/OmronPlcRx.Reactive.csproj" />
+    <Project Path="OmronPlcRx/OmronPlcRx.csproj" />
+  </Folder>
+  <Folder Name="/Serial/">
+    <Project Path="SerialPortRx.Generators/SerialPortRx.Generators.csproj" />
+    <Project Path="SerialPortRx.Reactive/SerialPortRx.Reactive.csproj" />
+    <Project Path="SerialPortRx/SerialPortRx.csproj" />
+  </Folder>
+  <Folder Name="/Siemens/">
+    <Project Path="S7PlcRx.Benchmarks/S7PlcRx.Benchmarks.csproj" />
+    <Project Path="S7PlcRx.Generators/S7PlcRx.Generators.csproj" />
+    <Project Path="S7PlcRx.Reactive/S7PlcRx.Reactive.csproj" />
+    <Project Path="S7PlcRx.TestApp/S7PlcRx.TestApp.csproj" />
+    <Project Path="S7PlcRx/S7PlcRx.csproj" />
+  </Folder>
   <Folder Name="/Tests/">
-    <File Path="ABPlcRx.Tests/ABPlcRx.Tests.csproj" />
+    <Project Path="ABPlcRx.Tests/ABPlcRx.Tests.csproj" />
     <Project Path="CP.IoT.Core.Tests/CP.IoT.Core.Tests.csproj" />
     <Project Path="MitsubishiRx.Reactive.Tests/MitsubishiRx.Reactive.Tests.csproj" />
     <Project Path="MitsubishiRx.Tests/MitsubishiRx.Tests.csproj" />
     <Project Path="ModbusRx.Generators.Tests/ModbusRx.Generators.Tests.csproj" />
+    <Project Path="ModbusRx.IntegrationTests/ModbusRx.IntegrationTests.csproj" />
     <Project Path="ModbusRx.Tests/ModbusRx.UnitTests.csproj" />
     <Project Path="OmronPlcRx.Reactive.Tests/OmronPlcRx.Reactive.Tests.csproj" />
     <Project Path="OmronPlcRx.Tests/OmronPlcRx.Tests.csproj" />
     <Project Path="S7PlcRx.Tests/S7PlcRx.Tests.csproj" />
     <Project Path="SerialPortRx.Test/SerialPortRx.Tests.csproj" />
+    <Project Path="TwinCATRx.Generators.Tests/TwinCATRx.Generators.Tests.csproj" />
+    <Project Path="TwinCATRx.Tests/TwinCATRx.Tests.csproj" />
   </Folder>
-  <Project Path="ABPlcRx.Generators/ABPlcRx.Generators.csproj" />
-  <Project Path="ABPlcRx.Reactive/ABPlcRx.Reactive.csproj" />
-  <Project Path="ABPlcRx/ABPlcRx.csproj" />
   <Project Path="CP.IoT.Core/CP.IoT.Core.csproj" />
-  <Project Path="MitsubishiRx.Generators/MitsubishiRx.Generators.csproj" />
-  <Project Path="MitsubishiRx.Reactive/MitsubishiRx.Reactive.csproj" />
-  <Project Path="MitsubishiRx/MitsubishiRx.csproj" />
-  <Project Path="ModbusRx.Generators/ModbusRx.Generators.csproj" />
-  <Project Path="ModbusRx.Reactive/ModbusRx.Reactive.csproj" />
-  <Project Path="ModbusRx/ModbusRx.csproj" />
-  <Project Path="OmronPlcRx.Generators/OmronPlcRx.Generators.csproj" />
-  <Project Path="OmronPlcRx.Reactive/OmronPlcRx.Reactive.csproj" />
-  <Project Path="OmronPlcRx/OmronPlcRx.csproj" />
-  <Project Path="S7PlcRx.Generators/S7PlcRx.Generators.csproj" />
-  <Project Path="S7PlcRx.Reactive/S7PlcRx.Reactive.csproj" />
-  <Project Path="S7PlcRx/S7PlcRx.csproj" />
-  <Project Path="SerialPortRx.Generators/SerialPortRx.Generators.csproj" />
-  <Project Path="SerialPortRx.Reactive/SerialPortRx.Reactive.csproj" />
-  <Project Path="SerialPortRx/SerialPortRx.csproj" />
-  <Project Path="TwinCATRx.Core.Reactive/TwinCATRx.Core.Reactive.csproj" />
-  <Project Path="TwinCATRx.Core/TwinCATRx.Core.csproj" />
-  <Project Path="TwinCATRx.Generators/TwinCATRx.Generators.csproj" />
-  <Project Path="TwinCATRx.Reactive/TwinCATRx.Reactive.csproj" />
-  <Project Path="TwinCATRx/TwinCATRx.csproj" />
 </Solution>
