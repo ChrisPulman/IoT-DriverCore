@@ -6,23 +6,23 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 #if REACTIVE_SHIM
-using OmronPlcRx.Reactive.Core.Channels;
-using OmronPlcRx.Reactive.Core.Requests;
-using OmronPlcRx.Reactive.Core.Responses;
-using OmronPlcRx.Reactive.Enums;
-using OmronPlcRx.Reactive.Results;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Channels;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Requests;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Responses;
+using IoT.DriverCore.OmronPlcRx.Reactive.Enums;
+using IoT.DriverCore.OmronPlcRx.Reactive.Results;
 #else
-using OmronPlcRx.Core.Channels;
-using OmronPlcRx.Core.Requests;
-using OmronPlcRx.Core.Responses;
-using OmronPlcRx.Enums;
-using OmronPlcRx.Results;
+using IoT.DriverCore.OmronPlcRx.Core.Channels;
+using IoT.DriverCore.OmronPlcRx.Core.Requests;
+using IoT.DriverCore.OmronPlcRx.Core.Responses;
+using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.DriverCore.OmronPlcRx.Results;
 #endif
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Core;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Core;
 #else
-namespace OmronPlcRx.Core;
+namespace IoT.DriverCore.OmronPlcRx.Core;
 #endif
 
 /// <summary>Provides Omron FINS operations over supported transports.</summary>
@@ -273,7 +273,11 @@ internal sealed partial class OmronPLCConnection : IDisposable
     /// <summary>Releases the connection and its transport resources.</summary>
     internal void Dispose()
     {
-        Dispose(true);
+        Channel.Dispose();
+        lock (_isInitializedLock)
+        {
+            _isInitialized = false;
+        }
     }
 
     /// <summary>Read a single bit value.</summary>

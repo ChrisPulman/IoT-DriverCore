@@ -6,21 +6,21 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 #if REACTIVE_SHIM
-using OmronPlcRx.Reactive.Core.Channels;
-using OmronPlcRx.Reactive.Core.Requests;
-using OmronPlcRx.Reactive.Core.Responses;
-using OmronPlcRx.Reactive.Enums;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Channels;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Requests;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Responses;
+using IoT.DriverCore.OmronPlcRx.Reactive.Enums;
 #else
-using OmronPlcRx.Core.Channels;
-using OmronPlcRx.Core.Requests;
-using OmronPlcRx.Core.Responses;
-using OmronPlcRx.Enums;
+using IoT.DriverCore.OmronPlcRx.Core.Channels;
+using IoT.DriverCore.OmronPlcRx.Core.Requests;
+using IoT.DriverCore.OmronPlcRx.Core.Responses;
+using IoT.DriverCore.OmronPlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Core;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Core;
 #else
-namespace OmronPlcRx.Core;
+namespace IoT.DriverCore.OmronPlcRx.Core;
 #endif
 
 /// <summary>Contains Omron PLC connection validation and lifecycle helpers.</summary>
@@ -116,22 +116,6 @@ internal sealed partial class OmronPLCConnection
         throw new ArgumentOutOfRangeException(
             nameof(address),
             $"{MaximumAddressMessagePrefix}'{GetDataTypeName(dataType)}{DataTypeNameSuffix}");
-    }
-
-    /// <summary>Releases resources used by the client and channel.</summary>
-    /// <param name="disposing">True to dispose managed resources; otherwise, false.</param>
-    private void Dispose(bool disposing)
-    {
-        if (!disposing)
-        {
-            return;
-        }
-
-        Channel.Dispose();
-        lock (_isInitializedLock)
-        {
-            _isInitialized = false;
-        }
     }
 
     /// <summary>Throws when the PLC connection has not been initialized.</summary>

@@ -9,17 +9,15 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 #if REACTIVE_SHIM
-using OmronPlcRx.Reactive.Core.Results;
-using SerialPortRx = CP.IO.Ports.Reactive.SerialPortRx;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Results;
 #else
-using OmronPlcRx.Core.Results;
-using SerialPortRx = CP.IO.Ports.SerialPortRx;
+using IoT.DriverCore.OmronPlcRx.Core.Results;
 #endif
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Core.Channels;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Channels;
 #else
-namespace OmronPlcRx.Core.Channels;
+namespace IoT.DriverCore.OmronPlcRx.Core.Channels;
 #endif
 
 /// <summary>Represents the s er ia lh os tl in kf in sc ha nn el type.</summary>
@@ -28,11 +26,14 @@ internal sealed class SerialHostLinkFinsChannel : BaseChannel
     /// <summary>Stores the o pt io ns value.</summary>
     private readonly OmronSerialOptions _options;
 
+    /// <summary>Creates serial-port instances for channel initialization and reconnection.</summary>
+    private readonly Func<int, IOmronSerialPort> _portFactory;
+
     /// <summary>Executes the r ec ei ve db yt es operation.</summary>
     private readonly ConcurrentQueue<byte> _receivedBytes = new();
 
     /// <summary>Stores the p or t value.</summary>
-    private SerialPortRx? _port;
+    private IOmronSerialPort? _port;
 
     /// <summary>Stores the h os tl in kc od ec value.</summary>
     private HostLinkFinsFrameCodec? _hostLinkCodec;
@@ -40,9 +41,20 @@ internal sealed class SerialHostLinkFinsChannel : BaseChannel
     /// <summary>Initializes a new instance of the <see cref="SerialHostLinkFinsChannel"/> class.</summary>
     /// <param name="options">The o pt io ns value.</param>
     internal SerialHostLinkFinsChannel(OmronSerialOptions options)
+        : this(options, timeout => new OmronSerialPortAdapter(options, timeout))
+    {
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="SerialHostLinkFinsChannel"/> class.</summary>
+    /// <param name="options">Serial connection options.</param>
+    /// <param name="portFactory">Factory that composes the serial transport used by the channel.</param>
+    internal SerialHostLinkFinsChannel(
+        OmronSerialOptions options,
+        Func<int, IOmronSerialPort> portFactory)
         : base(options?.PortName ?? throw new ArgumentNullException(nameof(options)), 0)
     {
         _options = options;
+        _portFactory = portFactory ?? throw new ArgumentNullException(nameof(portFactory));
         _options.Validate();
     }
 
@@ -255,22 +267,7 @@ internal sealed class SerialHostLinkFinsChannel : BaseChannel
             _options.Protocol == OmronSerialProtocol.HostLinkFins
                 ? new HostLinkFinsFrameCodec(_options)
                 : null;
-        _port = new(
-            _options.PortName,
-            _options.BaudRate,
-            _options.DataBits,
-            _options.Parity,
-            _options.StopBits,
-            _options.Handshake)
-        {
-            EnableAutoDataReceive = false,
-            ReadTimeout = timeout,
-            WriteTimeout = timeout,
-            ReceivedBytesThreshold = 1,
-            NewLine = "\r",
-            RtsEnable = _options.RtsEnable,
-            DtrEnable = _options.DtrEnable,
-        };
+        _port = _portFactory(timeout);
 
         await _port.OpenAsync().ConfigureAwait(false);
         _port.RtsEnable = _options.RtsEnable;
@@ -384,20 +381,7 @@ internal sealed class SerialHostLinkFinsChannel : BaseChannel
             return false;
         }
 
-        ValidateToolbusAccumulatedLength(received);
         return TryDecodeCompleteToolbusFrame(received, out result);
-    }
-
-    /// <summary>Validates the accumulated Toolbus frame length.</summary>
-    /// <param name="received">The accumulated received bytes.</param>
-    private void ValidateToolbusAccumulatedLength(List<byte> received)
-    {
-        if (received.Count <= _options.MaximumFrameLength)
-        {
-            return;
-        }
-
-        throw new OmronPLCException(CreateFrameLengthMessage("Toolbus FINS response", _options.MaximumFrameLength));
     }
 
     /// <summary>Attempts to decode a complete Toolbus frame.</summary>

@@ -5,20 +5,20 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 #if REACTIVE_SHIM
-using CP.IO.Ports.Reactive;
-using OmronPlcRx.Reactive.Tags;
+using IoT.DriverCore.OmronPlcRx.Reactive.Tags;
+using IoT.DriverCore.Serial.Reactive;
 #else
-using CP.IO.Ports;
-using OmronPlcRx.Tags;
+using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.DriverCore.Serial;
 #endif
 using ReactiveUI.Primitives.Async;
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Async;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Async;
 #else
-namespace OmronPlcRx.Async;
+namespace IoT.DriverCore.OmronPlcRx.Async;
 #endif
 
 /// <summary>Bridges Omron PLC classic Rx streams into ReactiveUI.Primitives.Async observables.</summary>

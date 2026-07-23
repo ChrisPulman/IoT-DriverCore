@@ -4,15 +4,15 @@
 
 using System;
 #if REACTIVE_SHIM
-using OmronPlcRx.Reactive.Enums;
+using IoT.DriverCore.OmronPlcRx.Reactive.Enums;
 #else
-using OmronPlcRx.Enums;
+using IoT.DriverCore.OmronPlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Core;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Core;
 #else
-namespace OmronPlcRx.Core;
+namespace IoT.DriverCore.OmronPlcRx.Core;
 #endif
 
 /// <summary>Provides validation and metadata helpers for PLC connections.</summary>

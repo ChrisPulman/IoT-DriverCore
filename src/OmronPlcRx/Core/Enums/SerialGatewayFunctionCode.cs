@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Core.Enums;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Enums;
 #else
-namespace OmronPlcRx.Core.Enums;
+namespace IoT.DriverCore.OmronPlcRx.Core.Enums;
 #endif
 
 /// <summary>Represents the s er ia lg at ew ay fu nc ti on co de enumeration.</summary>

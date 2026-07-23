@@ -7,17 +7,17 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 #if REACTIVE_SHIM
-using OmronPlcRx.Reactive.Core.Responses;
-using OmronPlcRx.Reactive.Core.Results;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Responses;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Results;
 #else
-using OmronPlcRx.Core.Responses;
-using OmronPlcRx.Core.Results;
+using IoT.DriverCore.OmronPlcRx.Core.Responses;
+using IoT.DriverCore.OmronPlcRx.Core.Results;
 #endif
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Core.Channels;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Channels;
 #else
-namespace OmronPlcRx.Core.Channels;
+namespace IoT.DriverCore.OmronPlcRx.Core.Channels;
 #endif
 
 /// <summary>Represents the t cp ch an ne l type.</summary>
@@ -105,11 +105,6 @@ internal sealed class TCPChannel : BaseChannel
         {
             await InitializeClientAsync(timeout, cancellationToken);
         }
-        catch (ObjectDisposedException)
-        {
-            throw new OmronPLCException(
-                $"Failed to Re-Connect to Omron PLC '{RemoteEndpoint}' - The underlying Socket Connection was Closed");
-        }
         catch (TimeoutException)
         {
             throw new OmronPLCException(
@@ -164,30 +159,24 @@ internal sealed class TCPChannel : BaseChannel
                 {
                     await client.ReceiveAsync(buffer, timeout, cancellationToken);
                 }
-                catch (TimeoutException)
-                {
-                    return;
-                }
-                catch (ObjectDisposedException)
-                {
-                    return;
-                }
-                catch (System.Net.Sockets.SocketException)
+                catch (Exception ex) when (IsPurgeException(ex))
                 {
                     return;
                 }
             }
         }
-        catch (TimeoutException)
-        {
-        }
-        catch (ObjectDisposedException)
-        {
-        }
-        catch (System.Net.Sockets.SocketException)
+        catch (Exception ex) when (IsPurgeException(ex))
         {
         }
     }
+
+    /// <summary>Checks whether an exception represents a completed purge operation.</summary>
+    /// <param name="exception">The transport exception.</param>
+    /// <returns><see langword="true"/> for expected purge termination exceptions.</returns>
+    private static bool IsPurgeException(Exception exception) =>
+        exception is TimeoutException
+            or ObjectDisposedException
+            or System.Net.Sockets.SocketException;
 
     /// <summary>Initializes a new instance of the <see cref="BuildFinsTcpMessage"/> class.</summary>
     /// <param name="command">The c om ma nd value.</param>
