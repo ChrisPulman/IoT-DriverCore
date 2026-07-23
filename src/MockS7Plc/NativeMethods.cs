@@ -5,7 +5,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace MockS7Plc;
+namespace IoT.DriverCore.S7PlcRx.Mock;
 
 /// <summary>Provides the Snap7 native interop used by <see cref="MockServer"/>.</summary>
 internal static class NativeMethods
@@ -34,7 +34,7 @@ internal static class NativeMethods
         var candidate = Path.Combine(AppContext.BaseDirectory, "runtimes", rid, "native", LibName);
         _ = NativeLibrary.TryLoad(candidate, out var handle) || NativeLibrary.TryLoad(LibName, out handle);
         LibraryHandle = handle;
-#elif NET48
+#elif NETFRAMEWORK
         var rid = Environment.Is64BitProcess ? "win-x64" : "win-x86";
         var candidate = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "runtimes", rid, "native", LibName);
         LibraryHandle = File.Exists(candidate) ? LoadLibrary(candidate) : LoadLibrary(LibName);
@@ -268,7 +268,7 @@ internal static class NativeMethods
 
 #if NET8_0_OR_GREATER
             var exportPointer = NativeLibrary.GetExport(LibraryHandle, exportName);
-#elif NET48
+#elif NETFRAMEWORK
             var exportNameBytes = Encoding.ASCII.GetBytes(exportName + '\0');
             var exportPointer = GetProcAddress(LibraryHandle, exportNameBytes);
             if (exportPointer == default)
@@ -282,7 +282,7 @@ internal static class NativeMethods
         }
     }
 
-#if NET48
+#if NETFRAMEWORK
     /// <summary>Loads a native library from an explicit path on .NET Framework.</summary>
     /// <param name="fileName">The library file path.</param>
     /// <returns>The loaded module handle.</returns>

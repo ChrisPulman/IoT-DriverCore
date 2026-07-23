@@ -4,7 +4,7 @@
 
 using System.Runtime.InteropServices;
 
-namespace MockS7Plc;
+namespace IoT.DriverCore.S7PlcRx.Mock;
 
 /// <summary>Represents the Snap7 read/write callback buffer.</summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
