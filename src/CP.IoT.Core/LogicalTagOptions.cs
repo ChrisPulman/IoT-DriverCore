@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace CP.IoT.Core;
+namespace IoT.DriverCore.Core;
 
 /// <summary>Groups the optional construction parameters for a <see cref="LogicalTag"/>.</summary>
 public sealed class LogicalTagOptions

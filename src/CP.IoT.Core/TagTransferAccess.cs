@@ -4,5 +4,12 @@
 
 namespace IoT.DriverCore.Core;
 
-/// <summary>Combines read, write, and observation capabilities for logical PLC tags.</summary>
-public interface ILogicalTagClient : ILogicalTagReader, ILogicalTagWriter, ILogicalTagObserver;
+/// <summary>Identifies the direction of a protocol transfer.</summary>
+public enum TagTransferAccess
+{
+    /// <summary>Reads values from a device.</summary>
+    Read = 0,
+
+    /// <summary>Writes values to a device.</summary>
+    Write = 1,
+}

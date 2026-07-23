@@ -4,5 +4,5 @@
 
 namespace IoT.DriverCore.Core;
 
-/// <summary>Combines read, write, and observation capabilities for logical PLC tags.</summary>
-public interface ILogicalTagClient : ILogicalTagReader, ILogicalTagWriter, ILogicalTagObserver;
+/// <summary>Combines the common read, write, observe, and logical-tag setup surfaces.</summary>
+public interface IManagedLogicalTagClient : ILogicalTagClient, ILogicalTagSetup;

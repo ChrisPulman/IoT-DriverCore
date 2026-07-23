@@ -4,7 +4,7 @@
 
 using Microsoft.Data.Sqlite;
 
-namespace CP.IoT.Core;
+namespace IoT.DriverCore.Core;
 
 /// <summary>Persists logical tag definitions and groups in SQLite.</summary>
 public sealed class LogicalTagSqliteStore

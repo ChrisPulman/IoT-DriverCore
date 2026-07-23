@@ -1,11 +1,11 @@
 // Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 using TUnit.Assertions;
 using TUnit.Core;
 
-namespace CP.IoT.Core.Tests;
+namespace IoT.DriverCore.Core.Tests;
 
 /// <summary>Direct coverage for logical tag models, catalog, CSV, persistence, and contracts.</summary>
 public sealed class LogicalTagCoreTests
@@ -30,6 +30,27 @@ public sealed class LogicalTagCoreTests
 
     /// <summary>The scan interval in milliseconds used in CSV round-trip tests.</summary>
     private const int CsvScanMilliseconds = 250;
+
+    /// <summary>The expected number of ranges produced by the planner scenarios.</summary>
+    private const int ExpectedTransferRangeCount = 3;
+
+    /// <summary>The length of the first fully coalesced transfer range.</summary>
+    private const long ExpectedCoalescedLength = 6;
+
+    /// <summary>The input position of the overlapping request.</summary>
+    private const int OverlapInputIndex = 2;
+
+    /// <summary>The input position of the request in the other memory area.</summary>
+    private const int OtherAreaInputIndex = 3;
+
+    /// <summary>The input position of the write request.</summary>
+    private const int WriteInputIndex = 4;
+
+    /// <summary>The largest range length in the constrained planner scenario.</summary>
+    private const long ConstrainedRangeLength = 4;
+
+    /// <summary>The final offset in the constrained planner scenario.</summary>
+    private const long FinalConstrainedOffset = 10;
 
     /// <summary>An out-of-range access mode value used to verify constructor validation.</summary>
     private const LogicalTagAccessMode InvalidAccessMode = (LogicalTagAccessMode)999;
@@ -222,10 +243,87 @@ public sealed class LogicalTagCoreTests
         await Assert.That(writes[0].Value!.TagName).IsEqualTo("A");
     }
 
+    /// <summary>Verifies protocol-neutral planning groups only compatible contiguous and overlapping addresses.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [Test]
+    public async Task TransferPlannerCoalescesCompatibleRangesAndRestoresInputOrderAsync()
+    {
+        var planner = new TagTransferPlanner(new TagTransferCapabilities(maximumRangeLength: 8, maximumItemsPerRange: 3));
+        var plan = planner.Plan(
+        [
+            Request("Later", offset: 4, length: 2),
+            Request("First", offset: 0, length: 2),
+            Request("Overlap", offset: 1, length: 3),
+            Request("OtherArea", offset: 0, length: 1, memoryArea: "Inputs"),
+            Request("Write", offset: 0, length: 1, access: TagTransferAccess.Write),
+        ]);
+
+        await Assert.That(plan.Ranges.Count).IsEqualTo(ExpectedTransferRangeCount);
+        await Assert.That(plan.Ranges[0].Offset).IsEqualTo(0L);
+        await Assert.That(plan.Ranges[0].Length).IsEqualTo(ExpectedCoalescedLength);
+        await Assert.That(plan.Ranges[0].Items[0].Request.TagName).IsEqualTo("First");
+        await Assert.That(plan.Ranges[0].Items[1].Request.TagName).IsEqualTo("Overlap");
+        await Assert.That(plan.Ranges[0].Items[2].Request.TagName).IsEqualTo("Later");
+        await Assert.That(plan.Ranges[0].InputIndices.ToArray()).IsEquivalentTo([0, 1, OverlapInputIndex]);
+        await Assert.That(plan.Ranges[1].Address.Access).IsEqualTo(TagTransferAccess.Write);
+        await Assert.That(plan.Ranges[2].Address.MemoryArea).IsEqualTo("Inputs");
+
+        var ordered = plan.OrderResults(
+        [
+            new TagIndexedResult<string>(WriteInputIndex, "write"),
+            new TagIndexedResult<string>(1, "first"),
+            new TagIndexedResult<string>(OtherAreaInputIndex, "other"),
+            new TagIndexedResult<string>(0, "later"),
+            new TagIndexedResult<string>(OverlapInputIndex, "overlap"),
+        ]);
+
+        await Assert.That(ordered.ToArray()).IsEquivalentTo(["later", "first", "overlap", "other", "write"]);
+    }
+
+    /// <summary>Verifies capability limits prevent invalid coalescing while preserving deterministic numeric ordering.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [Test]
+    public async Task TransferPlannerHonoursLimitsAndRejectsInvalidResultCorrelationAsync()
+    {
+        var planner = new TagTransferPlanner(new TagTransferCapabilities(maximumRangeLength: 4, maximumItemsPerRange: 2));
+        var plan = planner.Plan(
+        [
+            Request("AtTen", offset: 10, length: 2),
+            Request("AtZero", offset: 0, length: 2),
+            Request("AtTwo", offset: 2, length: 2),
+            Request("AtFour", offset: 4, length: 1),
+        ]);
+
+        await Assert.That(plan.Ranges.Count).IsEqualTo(ExpectedTransferRangeCount);
+        await Assert.That(plan.Ranges[0].Offset).IsEqualTo(0L);
+        await Assert.That(plan.Ranges[0].Length).IsEqualTo(ConstrainedRangeLength);
+        await Assert.That(plan.Ranges[1].Offset).IsEqualTo(ConstrainedRangeLength);
+        await Assert.That(plan.Ranges[2].Offset).IsEqualTo(FinalConstrainedOffset);
+        _ = Assert.Throws<ArgumentException>(() => plan.OrderResults([new TagIndexedResult<int>(0, 1)]));
+        _ = Assert.Throws<ArgumentException>(() => planner.Plan([Request("TooLarge", offset: 0, length: 5)]));
+    }
+
     /// <summary>Returns a unique file-system path for a temporary SQLite database.</summary>
     /// <returns>The temporary database file path.</returns>
     private static string TemporaryDatabasePath() =>
         Path.Combine(Path.GetTempPath(), $"cp-iot-core-{Guid.NewGuid():N}.db");
+
+    /// <summary>Creates an adapter-parsed request used by transfer planner tests.</summary>
+    /// <param name="name">The logical tag name.</param>
+    /// <param name="offset">The numeric memory offset.</param>
+    /// <param name="length">The number of addressable units.</param>
+    /// <param name="memoryArea">The opaque memory-area partition.</param>
+    /// <param name="access">The transfer direction.</param>
+    /// <returns>A parser-provided transfer request.</returns>
+    private static TagTransferRequest Request(
+        string name,
+        long offset,
+        int length,
+        string memoryArea = "Holding",
+        TagTransferAccess access = TagTransferAccess.Read) =>
+        new(
+            name,
+            new TagTransportAddress("ControllerA", memoryArea, "UInt16", access, "Rack0", offset, length));
 
     /// <summary>Deletes a temporary SQLite database and any associated journal files.</summary>
     /// <param name="file">The base database file path to remove.</param>

@@ -4,7 +4,7 @@
 
 using System.Text;
 
-namespace CP.IoT.Core;
+namespace IoT.DriverCore.Core;
 
 /// <summary>Imports and exports logical tags as RFC 4180 CSV.</summary>
 public static class LogicalTagCsv

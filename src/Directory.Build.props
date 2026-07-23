@@ -3,46 +3,96 @@
   <PropertyGroup>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <Authors>Chris Pulman</Authors>
-    <Description>A Reactive Allen Bradley PLC library</Description>
+    <Description>Reactive IoT driver libraries for PLC and industrial device communication.</Description>
     <Copyright>Copyright © https://github.com/ChrisPulman $([System.DateTime]::Now.ToString(yyyy))</Copyright>
-    <IsTestProject>$(MSBuildProjectName.Contains('Tests'))</IsTestProject>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsTestProject Condition="'$(IsTestProject)' == '' and $([System.String]::Copy('$(MSBuildProjectName)').Contains('Test'))">true</IsTestProject>
     <LangVersion>preview</LangVersion>
     <Company>ChrisPulman</Company>
+    <RootNamespace>IoT.DriverCore.$(MSBuildProjectName)</RootNamespace>
     <Nullable>enable</Nullable>
-    <LibraryTargetFrameworks>net462;net472;net481;net8.0;net9.0;net10.0;net11.0</LibraryTargetFrameworks>
-    <CoreTargetFrameworks>net472;net48;net481;net8.0;net9.0;net10.0;net11.0</CoreTargetFrameworks>
     <Configurations>Debug;Release</Configurations>
-    <PackageReleaseNotes>Compatability with Net 8/ 9/ 10 /11 and net4.7.2 / net4.8 / net4.8.1</PackageReleaseNotes>
-    <PackageTags>Rockwell;AB;Allen;Bradley;PLC;Micrologix;Controllogix;CompactLogix;PLC-5;rx;reactive;extensions;observable;LINQ;net;netstandard</PackageTags>
+    <PackageReleaseNotes>Unified IoT driver packages for the supported .NET Framework and current .NET target frameworks.</PackageReleaseNotes>
+    <PackageTags>IoT;industrial automation;PLC;device driver;reactive;observable;.NET</PackageTags>
     <EnableNETAnalyzers>True</EnableNETAnalyzers>
     <AnalysisLevel>latest</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <DeterministicSourcePaths>true</DeterministicSourcePaths>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 
-    <PackageProjectUrl>https://github.com/ChrisPulman/ABPlcRx</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/ChrisPulman/ABPlcRx</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/ChrisPulman/IoT-DriverCore</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ChrisPulman/IoT-DriverCore</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <!--https://devblogs.microsoft.com/dotnet/producing-packages-with-source-link/-->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <DebugType>embedded</DebugType>
+    <DebugType>portable</DebugType>
     <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
 
-    <!-- Include PDB in the built .nupkg -->
-    <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
     <IncludePackageReferencesDuringMarkupCompilation>true</IncludePackageReferencesDuringMarkupCompilation>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'CP.IoT.Core'">
+    <RootNamespace>IoT.DriverCore.Core</RootNamespace>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'CP.IoT.Core.Tests'">
+    <RootNamespace>IoT.DriverCore.Core.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([System.String]::Copy('$(MSBuildProjectName)').StartsWith('SerialPortRx'))">
+    <RootNamespace>IoT.DriverCore.Serial</RootNamespace>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'OmronPlcRx.Dashboard'">
+    <RootNamespace>IoT.DriverCore.OmronPlcRx.Dashboard</RootNamespace>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'MockS7Plc'">
+    <RootNamespace>IoT.DriverCore.S7PlcRx.Mock</RootNamespace>
+  </PropertyGroup>
+
+  <!-- TwinCAT's ADS core supports the original .NET Framework 4.6.2 target. -->
+  <PropertyGroup>
+    <CoreTargetFrameworks>net462;net472;net48;net481;net8.0;net9.0;net10.0;net11.0</CoreTargetFrameworks>
+  </PropertyGroup>
+
+  <!-- SerialPortRx is cross-platform on modern .NET and adds Windows-only targets when applicable. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SerialPortRx' or '$(MSBuildProjectName)' == 'SerialPortRx.Reactive'">
+    <NetCoreTargetFrameworks>net8.0;net9.0;net10.0;net11.0</NetCoreTargetFrameworks>
+    <NetFrameworkTargetFrameworks Condition="$([MSBuild]::IsOsPlatform('Windows'))">net462;net472;net481;net8.0-windows10.0.19041.0;net9.0-windows10.0.19041.0;net10.0-windows10.0.19041.0;net11.0-windows10.0.19041.0</NetFrameworkTargetFrameworks>
+    <LibraryTargetFrameworks>$(NetCoreTargetFrameworks)</LibraryTargetFrameworks>
+    <LibraryTargetFrameworks Condition="'$(NetFrameworkTargetFrameworks)' != ''">$(LibraryTargetFrameworks);$(NetFrameworkTargetFrameworks)</LibraryTargetFrameworks>
+  </PropertyGroup>
+
+  <!-- Test, benchmark, sample, and UI applications are never NuGet package deliverables. -->
+  <PropertyGroup Condition="$([System.String]::Copy('$(MSBuildProjectName)').Contains('Test')) or $([System.String]::Copy('$(MSBuildProjectName)').Contains('Benchmark')) or '$(MSBuildProjectName)' == 'MockS7Plc' or '$(MSBuildProjectName)' == 'ModbusRx.Server.UI' or '$(MSBuildProjectName)' == 'OmronPlcRx.Dashboard'">
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0'))">
     <Features>$(Features);runtime-async=on</Features>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true' or '$(CI)' == 'true'">
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'CP.IoT.Core'">
+    <Description>Protocol-agnostic logical-tag contracts, catalogues, and stores for IoT and PLC drivers.</Description>
+    <PackageReleaseNotes>Shared logical-tag read, write, observation, and batch-planning contracts for IoT-DriverCore drivers.</PackageReleaseNotes>
+    <PackageTags>IoT;PLC;industrial automation;logical tags;read;write;observe;batch;SQLite</PackageTags>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'ABPlcRx' or '$(MSBuildProjectName)' == 'ABPlcRx.Reactive'">
-    <!-- Approved package-policy exception: libplctag.NativeImport 2.0.0-alpha.8 carries required runtime fixes. -->
-    <NoWarn>$(NoWarn);NU5104</NoWarn>
+    <Description>Reactive Allen-Bradley PLC driver for ControlLogix, CompactLogix, MicroLogix, PLC-5, and compatible controllers.</Description>
+    <PackageReleaseNotes>Allen-Bradley PLC communication with logical tags, reactive observation, and bulk operations across supported target frameworks.</PackageReleaseNotes>
+    <PackageTags>Allen-Bradley;Rockwell;ControlLogix;CompactLogix;MicroLogix;PLC-5;PLC;IoT;reactive;observable</PackageTags>
     <PackageIcon>abplclogo.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
@@ -53,6 +103,9 @@
   </ItemGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'MitsubishiRx' or '$(MSBuildProjectName)' == 'MitsubishiRx.Reactive'">
+    <Description>Reactive Mitsubishi MELSEC PLC driver using MC Protocol and SLMP over Ethernet and serial transports.</Description>
+    <PackageReleaseNotes>Mitsubishi MC Protocol and SLMP support for 1E, 3E, 4E, 1C, 3C, and 4C frames with reactive logical tags.</PackageReleaseNotes>
+    <PackageTags>Mitsubishi;MELSEC;MC Protocol;SLMP;PLC;Ethernet;serial;IoT;reactive;observable</PackageTags>
     <PackageIcon>mitplclogo.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
@@ -63,6 +116,9 @@
   </ItemGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'ModbusRx' or '$(MSBuildProjectName)' == 'ModbusRx.Reactive'">
+    <Description>Reactive Modbus driver for TCP, UDP, RTU, ASCII, master, slave, and gateway communications.</Description>
+    <PackageReleaseNotes>Modbus transport, logical-tag, and contiguous coil/register bulk operations across supported target frameworks.</PackageReleaseNotes>
+    <PackageTags>Modbus;TCP;UDP;RTU;ASCII;master;slave;coils;registers;PLC;IoT;reactive</PackageTags>
     <PackageIcon>ModbusRx.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
@@ -73,6 +129,9 @@
   </ItemGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'OmronPlcRx' or '$(MSBuildProjectName)' == 'OmronPlcRx.Reactive'">
+    <Description>Reactive Omron PLC driver for FINS, Host Link, Toolbus, Ethernet, and serial communications.</Description>
+    <PackageReleaseNotes>Omron logical-tag support with FINS, Host Link, Toolbus, Ethernet, serial, and bulk memory-area operations.</PackageReleaseNotes>
+    <PackageTags>Omron;FINS;Host Link;Toolbus;PLC;Ethernet;serial;memory area;IoT;reactive</PackageTags>
     <PackageIcon>OmronPLCRx-icon.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
@@ -83,6 +142,9 @@
   </ItemGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'S7PlcRx' or '$(MSBuildProjectName)' == 'S7PlcRx.Reactive'">
+    <Description>Reactive Siemens S7 PLC driver for S7-200, S7-300, S7-400, S7-1200, and S7-1500 controllers.</Description>
+    <PackageReleaseNotes>Siemens S7 logical-tag communication, native multi-variable operations, and reactive observation across supported target frameworks.</PackageReleaseNotes>
+    <PackageTags>Siemens;S7;S7-200;S7-300;S7-400;S7-1200;S7-1500;PLC;IoT;reactive</PackageTags>
     <PackageIcon>S7PlcRx.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
@@ -93,6 +155,9 @@
   </ItemGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SerialPortRx' or '$(MSBuildProjectName)' == 'SerialPortRx.Reactive'">
+    <Description>Reactive, cross-platform serial-port driver with asynchronous observable streams and source-generated helpers.</Description>
+    <PackageReleaseNotes>Cross-platform serial communication for .NET 8 through .NET 11 with Windows-specific framework targets, async observables, and generated streams.</PackageReleaseNotes>
+    <PackageTags>SerialPort;serial;cross-platform;IoT;reactive;observable;async;source generator</PackageTags>
     <PackageIcon>serlogo.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
@@ -103,6 +168,9 @@
   </ItemGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'TwinCATRx' or '$(MSBuildProjectName)' == 'TwinCATRx.Reactive' or '$(MSBuildProjectName)' == 'TwinCATRx.Core' or '$(MSBuildProjectName)' == 'TwinCATRx.Core.Reactive'">
+    <Description>Reactive Beckhoff TwinCAT ADS PLC driver with core and Windows ADS integrations.</Description>
+    <PackageReleaseNotes>Beckhoff TwinCAT ADS logical-tag communication, structured-variable access, reactive observation, and grouped bulk operations.</PackageReleaseNotes>
+    <PackageTags>Beckhoff;TwinCAT;ADS;PLC;structured variables;IoT;reactive;observable</PackageTags>
     <PackageIcon>TwinCATRx.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
@@ -126,17 +194,17 @@
     <Using Include="System.Object" Alias="Lock"/>
   </ItemGroup>
   
-  <ItemGroup Condition="'$(IsTestProject)' != 'true'">
+  <ItemGroup Condition="'$(IsPackable)' != 'false'">
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(IsTestProject)' == 'true'">
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)..\LICENSE" Pack="true" PackagePath="LICENSE" />
   </ItemGroup>
-
-  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-  </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="StyleSharp.Analyzers" PrivateAssets="all" />

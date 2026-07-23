@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace CP.IoT.Core;
+namespace IoT.DriverCore.Core;
 
 /// <summary>Represents the outcome of an operation without requiring exceptions for expected failures.</summary>
 /// <typeparam name="T">The success payload type.</typeparam>
