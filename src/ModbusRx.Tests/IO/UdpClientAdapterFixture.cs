@@ -4,10 +4,10 @@
 
 using System;
 using System.Threading.Tasks;
-using CP.IO.Ports;
-using ModbusRx.IO;
+using IoT.DriverCore.ModbusRx.IO;
+using IoT.DriverCore.Serial;
 
-namespace ModbusRx.UnitTests.IO;
+namespace IoT.DriverCore.ModbusRx.UnitTests.IO;
 
 /// <summary>Tests the UdpClientAdapterFixture behavior.</summary>
 public class UdpClientAdapterFixture

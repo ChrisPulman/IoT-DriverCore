@@ -6,14 +6,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using ModbusRx.Data;
-using ModbusRx.IO;
-using ModbusRx.Message;
-using ModbusRx.UnitTests.Message;
-using ModbusRx.Utility;
+using IoT.DriverCore.ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.IO;
+using IoT.DriverCore.ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.UnitTests.Message;
+using IoT.DriverCore.ModbusRx.Utility;
 using Moq;
 
-namespace ModbusRx.UnitTests.IO;
+namespace IoT.DriverCore.ModbusRx.UnitTests.IO;
 
 /// <summary>Tests the ModbusSerialTransportFixture behavior.</summary>
 public class ModbusSerialTransportFixture

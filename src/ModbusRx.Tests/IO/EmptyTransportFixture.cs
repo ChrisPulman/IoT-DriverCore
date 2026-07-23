@@ -4,11 +4,11 @@
 
 using System;
 using System.Threading.Tasks;
-using ModbusRx.Data;
-using ModbusRx.IO;
-using ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.IO;
+using IoT.DriverCore.ModbusRx.Message;
 
-namespace ModbusRx.UnitTests.IO;
+namespace IoT.DriverCore.ModbusRx.UnitTests.IO;
 
 /// <summary>Tests empty transport behavior.</summary>
 public class EmptyTransportFixture

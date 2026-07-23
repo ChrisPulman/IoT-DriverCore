@@ -1,5 +1,5 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System;
@@ -9,7 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TUnitAssertions = TUnit.Assertions.Assert;
 
-namespace ModbusRx.Testing;
+namespace IoT.DriverCore.ModbusRx.Testing;
 
 /// <summary>Provides xUnit-style assertion helpers backed by TUnit assertions.</summary>
 internal static class TUnitAssert
@@ -65,15 +65,7 @@ internal static class TUnitAssert
     /// <summary>Asserts that two object values are equal.</summary>
     /// <param name="expected">The expected value.</param>
     /// <param name="actual">The actual value.</param>
-    internal static void Equal(object? expected, object? actual)
-    {
-        if (AreEqual(expected, actual))
-        {
-            return;
-        }
-
-        Fail($"Expected: {Format(expected)}{Environment.NewLine}Actual:   {Format(actual)}");
-    }
+    internal static void Equal(object? expected, object? actual) => Equal<object?>(expected, actual);
 
     /// <summary>Asserts that two values are not equal.</summary>
     /// <typeparam name="T">The value type to compare.</typeparam>

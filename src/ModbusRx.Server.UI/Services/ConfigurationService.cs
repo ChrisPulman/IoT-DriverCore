@@ -1,19 +1,23 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using IoT.DriverCore.ModbusRx.Server.UI.Data;
 using Microsoft.EntityFrameworkCore;
-using ModbusRx.Server.UI.Data;
 
-namespace ModbusRx.Server.UI.Services;
+namespace IoT.DriverCore.ModbusRx.Server.UI.Services;
 
 /// <summary>Service for managing Modbus client configurations.</summary>
 /// <remarks>
 /// Initializes a new instance of the <see cref="ConfigurationService"/> class.
 /// </remarks>
 /// <param name="context">The database context.</param>
-public class ConfigurationService(ModbusServerContext context)
+/// <param name="timeProvider">The clock used to timestamp configuration changes.</param>
+public class ConfigurationService(ModbusServerContext context, TimeProvider timeProvider)
 {
+    /// <summary>The clock used to timestamp configuration changes.</summary>
+    private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+
     /// <summary>Gets all client configurations.</summary>
     /// <returns>A list of client configurations.</returns>
     public Task<List<ModbusClientConfiguration>> GetClientConfigurationsAsync() => context.ClientConfigurations
@@ -36,11 +40,12 @@ public class ConfigurationService(ModbusServerContext context)
             throw new ArgumentNullException(nameof(configuration));
         }
 
-        configuration.ModifiedAt = DateTimeOffset.UtcNow;
+        var timestamp = _timeProvider.GetUtcNow();
+        configuration.ModifiedAt = timestamp;
 
         if (configuration.Id == 0)
         {
-            configuration.CreatedAt = DateTimeOffset.UtcNow;
+            configuration.CreatedAt = timestamp;
             _ = context.ClientConfigurations.Add(configuration);
         }
         else
@@ -93,7 +98,7 @@ public class ConfigurationService(ModbusServerContext context)
             throw new ArgumentNullException(nameof(configuration));
         }
 
-        configuration.ModifiedAt = DateTime.UtcNow;
+        configuration.ModifiedAt = _timeProvider.GetUtcNow();
         _ = context.ServerConfigurations.Update(configuration);
         await context.SaveChangesAsync();
         return configuration;
@@ -119,7 +124,7 @@ public class ConfigurationService(ModbusServerContext context)
         }
 
         configuration.IsEnabled = enabled;
-        configuration.ModifiedAt = DateTimeOffset.UtcNow;
+        configuration.ModifiedAt = _timeProvider.GetUtcNow();
         await context.SaveChangesAsync();
         return true;
     }

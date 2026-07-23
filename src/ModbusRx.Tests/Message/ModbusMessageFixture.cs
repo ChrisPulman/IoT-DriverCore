@@ -4,9 +4,9 @@
 
 using System.Linq;
 using System.Reflection;
-using ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.Message;
 
-namespace ModbusRx.UnitTests.Message;
+namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the ModbusMessageFixture behavior.</summary>
 public class ModbusMessageFixture

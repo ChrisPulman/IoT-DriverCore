@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Device;
 
-namespace ModbusRx.UnitTests.Device;
+namespace IoT.DriverCore.ModbusRx.UnitTests.Device;
 
 /// <summary>Tests the TcpConnectionEventArgsFixture behavior.</summary>
 public class TcpConnectionEventArgsFixture

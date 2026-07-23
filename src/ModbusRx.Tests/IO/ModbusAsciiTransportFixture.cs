@@ -5,11 +5,11 @@
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using ModbusRx.IO;
-using ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.IO;
+using IoT.DriverCore.ModbusRx.Message;
 using Moq;
 
-namespace ModbusRx.UnitTests.IO;
+namespace IoT.DriverCore.ModbusRx.UnitTests.IO;
 
 /// <summary>Tests the ModbusAsciiTransportFixture behavior.</summary>
 public class ModbusAsciiTransportFixture

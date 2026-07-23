@@ -4,11 +4,11 @@
 
 using System;
 using System.Threading.Tasks;
-using ModbusRx.Device;
-using ModbusRx.IO;
+using IoT.DriverCore.ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.IO;
 using Moq;
 
-namespace ModbusRx.UnitTests.Device;
+namespace IoT.DriverCore.ModbusRx.UnitTests.Device;
 
 /// <summary>Tests the ModbusMasterFixture behavior.</summary>
 public class ModbusMasterFixture

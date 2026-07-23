@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.Message;
 
-namespace ModbusRx.UnitTests.Message;
+namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the WriteSingleRegisterRequestResponseFixture behavior.</summary>
 public class WriteSingleRegisterRequestResponseFixture

@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.Data;
 
-namespace ModbusRx.UnitTests.Data;
+namespace IoT.DriverCore.ModbusRx.UnitTests.Data;
 
 /// <summary>Tests the RegisterCollectionFixture behavior.</summary>
 public class RegisterCollectionFixture

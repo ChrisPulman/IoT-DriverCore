@@ -4,9 +4,9 @@
 
 using System;
 using System.Collections.Generic;
-using ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.Data;
 
-namespace ModbusRx.UnitTests.Data;
+namespace IoT.DriverCore.ModbusRx.UnitTests.Data;
 
 /// <summary>Tests the DiscreteCollectionFixture behavior.</summary>
 public class DiscreteCollectionFixture

@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFrameworks>net48;net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>ModbusRx.Reactive</RootNamespace>
+    <RootNamespace>IoT.DriverCore.ModbusRx.Reactive</RootNamespace>
     <DefineConstants>$(DefineConstants);REACTIVE_SHIM</DefineConstants>
   </PropertyGroup>
 
@@ -31,7 +31,7 @@
     <Using Include="ReactiveUI.Primitives.Reactive.Signals.Signal" Alias="Observable" />
     <Using Include="ReactiveUI.Primitives.Disposables.MultipleDisposable" Alias="CompositeDisposable" />
     <Using Include="ReactiveUI.Primitives.Disposables.Scope" Alias="Disposable" />
-    <Using Include="ModbusRx.Reactive.NumericConstants" Static="true" />
+    <Using Include="IoT.DriverCore.ModbusRx.Reactive.NumericConstants" Static="true" />
   </ItemGroup>
 
   <Import Project="..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets" Condition="Exists('..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets')" />

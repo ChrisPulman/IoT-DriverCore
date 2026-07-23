@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.Message;
 
-namespace ModbusRx.UnitTests.Message;
+namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the WriteMultipleRegistersResponseFixture behavior.</summary>
 public class WriteMultipleRegistersResponseFixture

@@ -6,13 +6,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using ModbusRx.Data;
-using ModbusRx.IO;
-using ModbusRx.Message;
-using ModbusRx.Utility;
+using IoT.DriverCore.ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.IO;
+using IoT.DriverCore.ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.Utility;
 using Moq;
 
-namespace ModbusRx.UnitTests.IO;
+namespace IoT.DriverCore.ModbusRx.UnitTests.IO;
 
 /// <summary>Tests the ModbusRtuTransportFixture behavior.</summary>
 public class ModbusRtuTransportFixture
@@ -142,6 +142,25 @@ public class ModbusRtuTransportFixture
         byte[] frame = { 17, Modbus.ReadCoils, 0, 19, 0, 37, 14, 132 };
 
         Assert.False(transport.ChecksumsMatch(message, frame));
+    }
+
+    /// <summary>Verifies a function-23 request retains an identical CRC after parsing.</summary>
+    [TUnit.Core.Test]
+    public void ReadWriteMultipleRegistersRequest_RoundTripsCrc()
+    {
+        var request = new ReadWriteMultipleRegistersRequest(
+            Num.Value5,
+            Num.Value3,
+            Num.Value6,
+            Num.Value14,
+            new RegisterCollection(Num.Value255, Num.Value255, Num.Value255));
+        using var transport = new ModbusRtuTransport(StreamResource);
+        var frame = transport.BuildMessageFrame(request);
+
+        var parsed = ModbusMessageFactory.CreateModbusRequest(frame);
+
+        Assert.Equal(request.MessageFrame, parsed.MessageFrame);
+        Assert.True(transport.ChecksumsMatch(parsed, frame));
     }
 
     /// <summary>Reads the response.</summary>

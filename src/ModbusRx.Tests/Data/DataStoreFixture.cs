@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Collections.Generic;
-using ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.Data;
 
-namespace ModbusRx.UnitTests.Data;
+namespace IoT.DriverCore.ModbusRx.UnitTests.Data;
 
 /// <summary>Tests the DataStoreFixture behavior.</summary>
 public class DataStoreFixture

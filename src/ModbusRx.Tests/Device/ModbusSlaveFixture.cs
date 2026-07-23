@@ -7,12 +7,12 @@ using System.IO.Ports;
 #endif
 
 using System.Linq;
-using ModbusRx.Data;
-using ModbusRx.Device;
-using ModbusRx.Message;
-using ModbusRx.UnitTests.Message;
+using IoT.DriverCore.ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.UnitTests.Message;
 
-namespace ModbusRx.UnitTests.Device;
+namespace IoT.DriverCore.ModbusRx.UnitTests.Device;
 
 /// <summary>Tests the ModbusSlaveFixture behavior.</summary>
 public class ModbusSlaveFixture

@@ -1,10 +1,10 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System.ComponentModel.DataAnnotations;
 
-namespace ModbusRx.Server.UI.Data;
+namespace IoT.DriverCore.ModbusRx.Server.UI.Data;
 
 /// <summary>Entity representing a Modbus client configuration.</summary>
 public sealed class ModbusClientConfiguration
@@ -49,8 +49,8 @@ public sealed class ModbusClientConfiguration
     public string? AdditionalConfig { get; set; }
 
     /// <summary>Gets or sets when this configuration was created.</summary>
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; }
 
     /// <summary>Gets or sets when this configuration was last modified.</summary>
-    public DateTimeOffset ModifiedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset ModifiedAt { get; set; }
 }

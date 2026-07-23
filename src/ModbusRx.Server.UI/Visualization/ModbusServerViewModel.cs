@@ -1,18 +1,17 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System.Collections.ObjectModel;
-using System.Reactive.Concurrency;
-using ModbusRx.Data;
-using ModbusRx.Device;
-using ModbusRx.Server.UI.Data;
-using ModbusRx.Server.UI.Services;
+using IoT.DriverCore.ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Server.UI.Data;
+using IoT.DriverCore.ModbusRx.Server.UI.Services;
 using ReactiveUI;
 using ReactiveUI.SourceGenerators;
-using MainModbusServerExtensions = global::ModbusRx.ModbusServerExtensions;
+using MainModbusServerExtensions = global::IoT.DriverCore.ModbusRx.ModbusServerExtensions;
 
-namespace ModbusRx.Server.UI.Visualization;
+namespace IoT.DriverCore.ModbusRx.Server.UI.Visualization;
 
 /// <summary>ViewModel for Modbus server visualization using ReactiveUI.</summary>
 public partial class ModbusServerViewModel : ReactiveObject, IDisposable
@@ -31,6 +30,9 @@ public partial class ModbusServerViewModel : ReactiveObject, IDisposable
 
     /// <summary>The configuration persistence service.</summary>
     private readonly ConfigurationService _configurationService;
+
+    /// <summary>Schedules updates on the UI thread.</summary>
+    private readonly Action<Action> _dispatchToUi;
 
     /// <summary>The hosted Modbus server.</summary>
     private ModbusServer? _server;
@@ -84,9 +86,11 @@ public partial class ModbusServerViewModel : ReactiveObject, IDisposable
 
     /// <summary>Initializes a new instance of the <see cref="ModbusServerViewModel"/> class.</summary>
     /// <param name="configurationService">The configuration service.</param>
-    public ModbusServerViewModel(ConfigurationService configurationService)
+    /// <param name="dispatchToUi">Schedules an action on the UI thread.</param>
+    public ModbusServerViewModel(ConfigurationService configurationService, Action<Action> dispatchToUi)
     {
-        _configurationService = configurationService;
+        _configurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
+        _dispatchToUi = dispatchToUi ?? throw new ArgumentNullException(nameof(dispatchToUi));
 
         HoldingRegisters = [];
         InputRegisters = [];
@@ -311,8 +315,7 @@ public partial class ModbusServerViewModel : ReactiveObject, IDisposable
         // Start data observation
         var subscription = MainModbusServerExtensions
             .ObserveDataChanges(_server, DataObservationIntervalMilliseconds)
-            .ObserveOn(DispatcherScheduler.Current)
-            .Subscribe(UpdateData);
+            .Subscribe(data => _dispatchToUi(() => UpdateData(data)));
         _disposables.Add(subscription);
 
         // Monitor simulation mode changes

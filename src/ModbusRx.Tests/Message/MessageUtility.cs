@@ -5,7 +5,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace ModbusRx.UnitTests.Message;
+namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the MessageUtility behavior.</summary>
 public static class MessageUtility

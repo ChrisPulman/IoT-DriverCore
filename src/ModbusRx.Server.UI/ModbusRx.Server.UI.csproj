@@ -23,12 +23,8 @@
     </PackageReference>
   </ItemGroup>
 
-  <ItemGroup Condition="Exists('..\..\..\SerialPortRx\src\SerialPortRx\SerialPortRx.csproj')">
-    <ProjectReference Include="..\..\..\SerialPortRx\src\SerialPortRx\SerialPortRx.csproj" />
-  </ItemGroup>
-
-  <ItemGroup Condition="!Exists('..\..\..\SerialPortRx\src\SerialPortRx\SerialPortRx.csproj')">
-    <PackageReference Include="SerialPortRx" PrivateAssets="analyzers" />
+  <ItemGroup>
+    <ProjectReference Include="..\SerialPortRx\SerialPortRx.csproj" />
   </ItemGroup>
 
   <ItemGroup>

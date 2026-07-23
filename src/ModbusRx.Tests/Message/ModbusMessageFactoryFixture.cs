@@ -3,10 +3,10 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using ModbusRx.Data;
-using ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.Message;
 
-namespace ModbusRx.UnitTests.Message;
+namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the ModbusMessageFactoryFixture behavior.</summary>
 public class ModbusMessageFactoryFixture
