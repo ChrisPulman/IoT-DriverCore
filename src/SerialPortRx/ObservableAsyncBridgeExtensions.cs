@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace CP.IO.Ports.Reactive;
+namespace IoT.DriverCore.Serial.Reactive;
 #else
-namespace CP.IO.Ports;
+namespace IoT.DriverCore.Serial;
 #endif
 
 /// <summary>Compatibility bridge between classic observables and ReactiveUI.Primitives async observables.</summary>

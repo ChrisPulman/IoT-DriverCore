@@ -1,18 +1,25 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
-    <RootNamespace>CP.IO.Ports.Tests</RootNamespace>
+    <TargetFrameworks>net481;net8.0;net9.0;net10.0;net9.0-windows10.0.19041.0</TargetFrameworks>
+    <RootNamespace>IoT.DriverCore.Serial.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <TestTfmsInParallel>false</TestTfmsInParallel>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(TargetFramework.StartsWith('net4'))">
+    <EnableTUnitPolyfills>false</EnableTUnitPolyfills>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="TUnit" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="coverlet.collector" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,8 +35,8 @@
     <Using Include="System.Text" />
     <Using Include="System.Threading" />
     <Using Include="System.Threading.Tasks" />
-    <Using Include="CP.IO.Ports.SourceGeneration" />
-    <Using Include="CP.IO.Ports.SourceGenerators" />
+    <Using Include="IoT.DriverCore.Serial.SourceGeneration" />
+    <Using Include="IoT.DriverCore.Serial.SourceGenerators" />
     <Using Include="Microsoft.CodeAnalysis" />
     <Using Include="Microsoft.CodeAnalysis.CSharp" />
     <Using Include="ReactiveUI.Primitives" />

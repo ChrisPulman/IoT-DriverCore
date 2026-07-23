@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace CP.IO.Ports.Tests;
+namespace IoT.DriverCore.Serial.Tests;
 
 /// <summary>Tests for the serial reactive stream source generator.</summary>
 public sealed class SerialPortReactiveStreamGeneratorTests
@@ -13,7 +13,7 @@ public sealed class SerialPortReactiveStreamGeneratorTests
     public async Task Generator_CreatesPropertyAndObservableStreamsAsync()
     {
         const string source = """
-using CP.IO.Ports.SourceGeneration;
+using IoT.DriverCore.Serial.SourceGeneration;
 
 namespace GeneratedTests;
 
@@ -80,7 +80,7 @@ public partial class DeviceState
     public async Task Generator_UsesReactiveSerialPortNamespaceForReactiveOnlyConsumersAsync()
     {
         const string source = """
-using CP.IO.Ports.SourceGeneration;
+using IoT.DriverCore.Serial.SourceGeneration;
 
 namespace GeneratedTests;
 
@@ -134,13 +134,13 @@ public partial class DeviceState
 
         await Assert
             .That(generatedSource)
-            .Contains("ConnectReactiveSerialPort(global::CP.IO.Ports.Reactive.ISerialPortRx serialPort)");
+            .Contains("ConnectReactiveSerialPort(global::IoT.DriverCore.Serial.Reactive.ISerialPortRx serialPort)");
         await Assert
             .That(generatedSource)
-            .Contains("global::CP.IO.Ports.Reactive.ObservableAsyncBridgeExtensions.ToAsyncObservable");
+            .Contains("global::IoT.DriverCore.Serial.Reactive.ObservableAsyncBridgeExtensions.ToAsyncObservable");
         await Assert
             .That(generatedSource)
-            .Contains("global::CP.IO.Ports.Reactive.SourceGeneration.SerialPortReactiveValueConverter");
+            .Contains("global::IoT.DriverCore.Serial.Reactive.SourceGeneration.SerialPortReactiveValueConverter");
     }
 
     /// <summary>
@@ -152,7 +152,7 @@ public partial class DeviceState
     public async Task Generator_EmitsInternalMarkersForLibraryAndConsumerCompilationsAsync()
     {
         const string librarySource = """
-using CP.IO.Ports.SourceGeneration;
+using IoT.DriverCore.Serial.SourceGeneration;
 
 namespace GeneratedLibrary;
 
@@ -162,7 +162,7 @@ public partial class DeviceState
 }
 """;
         const string consumerSource = """
-using CP.IO.Ports.SourceGeneration;
+using IoT.DriverCore.Serial.SourceGeneration;
 
 namespace GeneratedConsumer;
 
@@ -185,7 +185,7 @@ public sealed partial class Consumer
         var libraryErrors = GetErrors(generatedLibraryCompilation, libraryGeneratorDiagnostics);
         await Assert.That(libraryErrors).IsEmpty();
 
-        await using var libraryImage = new MemoryStream();
+        using var libraryImage = new MemoryStream();
         var libraryEmit = generatedLibraryCompilation.Emit(libraryImage);
         await Assert.That(libraryEmit.Success).IsTrue();
 
@@ -213,6 +213,78 @@ public sealed partial class Consumer
         await Assert.That(markerSource).Contains("internal sealed class SerialPortReactiveStreamAttribute");
         await Assert.That(markerConflicts).IsEmpty();
         await Assert.That(consumerErrors).IsEmpty();
+    }
+
+    /// <summary>Verifies invalid targets report both public generator diagnostics.</summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Test]
+    public async Task Generator_InvalidTargets_ReportDiagnosticsAsync()
+    {
+        const string source = """
+using IoT.DriverCore.Serial.SourceGeneration;
+
+[SerialPortReactiveStream("Value", typeof(int))]
+public class NonPartialDevice
+{
+}
+
+[SerialPortReactiveStream("", typeof(int))]
+public partial class InvalidPropertyDevice
+{
+}
+""";
+        var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview);
+        var compilation = CreateCompilation(source, parseOptions);
+        var driver = CSharpGeneratorDriver.Create(
+            [new SerialPortReactiveStreamGenerator().AsSourceGenerator()],
+            parseOptions: parseOptions);
+
+        var result = driver.RunGenerators(compilation).GetRunResult();
+        var diagnosticIds = result.Diagnostics.Select(static diagnostic => diagnostic.Id).ToList();
+
+        await Assert.That(diagnosticIds).Contains("SPRX001");
+        await Assert.That(diagnosticIds).Contains("SPRX002");
+        await Assert.That(result.GeneratedTrees.Count(static tree =>
+            tree.FilePath.EndsWith("SerialPortReactiveStreams.g.cs", StringComparison.Ordinal))).IsEqualTo(0);
+    }
+
+    /// <summary>Verifies every source and matching option is emitted for a global-namespace target.</summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Test]
+    public async Task Generator_AllSourcesAndMatchOptions_AreEmittedAsync()
+    {
+        const string source = """
+using IoT.DriverCore.Serial.SourceGeneration;
+
+[SerialPortReactiveStream("Character", typeof(char), Source = SerialPortReactiveSource.DataReceived)]
+[SerialPortReactiveStream("RawByte", typeof(byte), Source = SerialPortReactiveSource.DataReceivedBytes)]
+[SerialPortReactiveStream("ReadByte", typeof(int), Source = SerialPortReactiveSource.BytesReceived)]
+[SerialPortReactiveStream("OpenState", typeof(bool), Source = SerialPortReactiveSource.IsOpen)]
+[SerialPortReactiveStream("Line", typeof(string), "^ok:(.*)$", GroupName = null, GroupNumber = 2, IgnoreCase = true)]
+public partial class RootDevice
+{
+}
+""";
+        var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview);
+        var compilation = CreateCompilation(source, parseOptions);
+        var driver = CSharpGeneratorDriver.Create(
+            [new SerialPortReactiveStreamGenerator().AsSourceGenerator()],
+            parseOptions: parseOptions);
+
+        _ = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
+        var errors = GetErrors(outputCompilation, diagnostics);
+        var generatedSource = outputCompilation.SyntaxTrees.Single(static tree =>
+            tree.FilePath.EndsWith(
+                "RootDevice.SerialPortReactiveStreams.g.cs",
+                StringComparison.Ordinal)).ToString();
+
+        await Assert.That(errors).IsEmpty();
+        await Assert.That(generatedSource).Contains("serialPort.DataReceived");
+        await Assert.That(generatedSource).Contains("serialPort.DataReceivedBytes");
+        await Assert.That(generatedSource).Contains("serialPort.BytesReceived");
+        await Assert.That(generatedSource).Contains("serialPort.IsOpenObservable");
+        await Assert.That(generatedSource).Contains("\"^ok:(.*)$\", null, 2, true");
+        await Assert.That(generatedSource).DoesNotContain("namespace ;");
     }
 
     /// <summary>Returns all error diagnostics from a generated compilation.</summary>

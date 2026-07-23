@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace CP.IO.Ports.Reactive;
+namespace IoT.DriverCore.Serial.Reactive;
 #else
-namespace CP.IO.Ports;
+namespace IoT.DriverCore.Serial;
 #endif
 
 /// <summary>Implements a cohesive portion of the reactive serial port.</summary>
@@ -548,6 +548,9 @@ public partial class SerialPortRx
         /// <summary>Signals cancellation to the owned receive loop.</summary>
         private readonly CancellationTokenSource _cancellation = new();
 
+        /// <summary>Tracks whether the receive lifetime has been disposed.</summary>
+        private bool _disposed;
+
         /// <summary>Initializes a new instance of the <see cref="DataReceptionLifetime"/> class.</summary>
         /// <param name="owner">The serial port wrapper that owns the receive loop.</param>
         /// <param name="pollingIntervalMilliseconds">The idle polling delay.</param>
@@ -561,8 +564,14 @@ public partial class SerialPortRx
         /// <inheritdoc/>
         public void Dispose()
         {
+            if (_disposed)
+            {
+                return;
+            }
+
             _cancellation.Cancel();
             _cancellation.Dispose();
+            _disposed = true;
         }
     }
 }

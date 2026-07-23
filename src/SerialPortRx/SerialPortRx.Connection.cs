@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace CP.IO.Ports.Reactive;
+namespace IoT.DriverCore.Serial.Reactive;
 #else
-namespace CP.IO.Ports;
+namespace IoT.DriverCore.Serial;
 #endif
 
 /// <summary>Implements a cohesive portion of the reactive serial port.</summary>
@@ -17,13 +17,13 @@ public partial class SerialPortRx
         var dis = new CompositeDisposable();
 
         // Check that the port exists
-        if (!PortExists(PortName))
+        if (_connectionFactory is null && !PortExists(PortName))
         {
             obs.OnError(new InvalidOperationException($"Serial Port {PortName} does not exist"));
             return dis;
         }
 
-        SerialPort port;
+        ISerialPortConnection port;
         try
         {
             var newLine = NewLine;
@@ -31,17 +31,18 @@ public partial class SerialPortRx
             var readTimeout = ReadTimeout;
             var writeTimeout = WriteTimeout;
             var encoding = Encoding;
-
-            port = new(PortName, BaudRate, Parity, DataBits, StopBits)
-            {
-                NewLine = newLine,
-                Handshake = handshake,
-                ReadTimeout = readTimeout,
-                WriteTimeout = writeTimeout,
-                Encoding = encoding,
-                ReadBufferSize = _readBufferSize,
-                WriteBufferSize = _writeBufferSize,
-            };
+            port = _connectionFactory?.Invoke(this) ??
+                new SystemSerialPortConnection(
+                    new SerialPort(PortName, BaudRate, Parity, DataBits, StopBits)
+                    {
+                        NewLine = newLine,
+                        Handshake = handshake,
+                        ReadTimeout = readTimeout,
+                        WriteTimeout = writeTimeout,
+                        Encoding = encoding,
+                        ReadBufferSize = _readBufferSize,
+                        WriteBufferSize = _writeBufferSize,
+                    });
         }
         catch (Exception ex)
         {
@@ -49,13 +50,21 @@ public partial class SerialPortRx
             return dis;
         }
 #if HasWindows
-        dis.Add(SerialPortRxMixins.PinChangedObserver(port).Subscribe(_pinChanged));
+        void OnPinChanged(object? _, SerialPinChangedEventArgs eventArgs) => _pinChanged.OnNext(eventArgs);
+        port.PinChanged += OnPinChanged;
+        dis.Add(Disposable.Create(() => port.PinChanged -= OnPinChanged));
 #endif
 
         dis.Add(port);
         _serialPort = port;
         try
         {
+            if (_connectionFactory is not null)
+            {
+                port.ReadBufferSize = _readBufferSize;
+                port.WriteBufferSize = _writeBufferSize;
+            }
+
             port.Open();
             port.BreakState = _breakState;
             port.DiscardNull = _discardNull;
@@ -87,8 +96,10 @@ public partial class SerialPortRx
         Thread.Sleep(OpenStabilizationDelayMilliseconds);
 
         // Subscribe to port errors
-        dis.Add(SerialPortRxMixins.ErrorReceivedObserver(port).Subscribe(
-            e => ReportError(new InvalidOperationException(e.EventArgs.EventType.ToString()))));
+        void OnErrorReceived(object? _, SerialPortConnectionErrorEventArgs eventArgs) =>
+            ReportError(eventArgs.Exception);
+        port.ErrorReceived += OnErrorReceived;
+        dis.Add(Disposable.Create(() => port.ErrorReceived -= OnErrorReceived));
 
         // Get the stream of data from the serial port using the DataReceived event
         // Only subscribe if EnableAutoDataReceive is true (allows sync reads when false)
@@ -96,31 +107,33 @@ public partial class SerialPortRx
         {
             var receiveBuffer = ArrayPool<byte>.Shared.Rent(Math.Max(1, ReadBufferSize));
             dis.Add(Disposable.Create(() => ArrayPool<byte>.Shared.Return(receiveBuffer)));
-            dis.Add(SerialPortRxMixins.DataReceivedObserver(port).Subscribe(
-                eventPattern =>
+            void OnDataReceived(object? _, EventArgs __)
+            {
+                _ = __;
+                try
                 {
-                    try
+                    lock (_autoReceiveLock)
                     {
-                        lock (_autoReceiveLock)
-                        {
-                            _ = SerialPortReceiveProcessor.DrainAndPublish(
-                                () => port.BytesToRead,
-                                receiveBuffer,
-                                port.Read,
-                                _dataReceivedBytes.OnNext,
-                                _dataReceived.OnNext,
-                                _dataReceivedBatches.OnNext);
-                        }
+                        _ = SerialPortReceiveProcessor.DrainAndPublish(
+                            () => port.BytesToRead,
+                            receiveBuffer,
+                            port.Read,
+                            _dataReceivedBytes.OnNext,
+                            _dataReceived.OnNext,
+                            _dataReceivedBatches.OnNext);
                     }
-                    catch (OperationCanceledException)
-                    {
-                    }
-                    catch (Exception ex)
-                    {
-                        ReportError(ex);
-                    }
-                },
-                obs.OnError));
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    ReportError(ex);
+                }
+            }
+
+            port.DataReceived += OnDataReceived;
+            dis.Add(Disposable.Create(() => port.DataReceived -= OnDataReceived));
         }
 
         // setup Write streams
@@ -458,12 +471,12 @@ public partial class SerialPortRx
     {
         ArgumentGuard.ThrowIfNull(buffer, nameof(buffer));
         EnsureOpen();
+        var readTask = FirstValueAsync(_bytesRead);
         _readBytes.OnNext((buffer, offset, count));
 
         // Use timeout if configured, otherwise wait indefinitely
         if (ReadTimeout > 0)
         {
-            var readTask = FirstValueAsync(_bytesRead);
             var timeoutTask = Task.Delay(ReadTimeout);
             var completed = await Task.WhenAny(readTask, timeoutTask).ConfigureAwait(false);
             if (completed != readTask)
@@ -474,7 +487,7 @@ public partial class SerialPortRx
             return await readTask.ConfigureAwait(false);
         }
 
-        return await FirstValueAsync(_bytesRead).ConfigureAwait(false);
+        return await readTask.ConfigureAwait(false);
     }
 
     /// <summary>Reads bytes from the SerialPort input buffer into a byte array at the specified offset.</summary>

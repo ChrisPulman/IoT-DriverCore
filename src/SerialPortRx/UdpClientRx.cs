@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace CP.IO.Ports.Reactive;
+namespace IoT.DriverCore.Serial.Reactive;
 #else
-namespace CP.IO.Ports;
+namespace IoT.DriverCore.Serial;
 #endif
 
 /// <summary>Provides a reactive wrapper around <see cref="UdpClient"/>.</summary>
@@ -45,8 +45,11 @@ public class UdpClientRx : IReceiveBatchPortRx
     /// <summary>Tracks whether this instance has been disposed.</summary>
     private bool _disposedValue;
 
-    /// <summary>The next write offset in the reusable receive buffer.</summary>
-    private int _bufferOffset;
+    /// <summary>The first unread byte in the reusable receive buffer.</summary>
+    private int _bufferStart;
+
+    /// <summary>The number of unread bytes in the reusable receive buffer.</summary>
+    private int _bufferCount;
 
     /// <summary>Initializes a new instance of the <see cref="UdpClientRx"/> class.</summary>
     public UdpClientRx()
@@ -328,23 +331,28 @@ public class UdpClientRx : IReceiveBatchPortRx
         return Task.Run(
             () =>
             {
-                if (_bufferOffset == 0)
+                if (_bufferCount == 0)
                 {
-                    _bufferOffset = Client.Receive(_buffer);
+                    _bufferStart = 0;
+                    _bufferCount = Client.Receive(_buffer);
                 }
 
-                if (_bufferOffset < count)
+                if (_bufferCount < count)
                 {
                     throw new InvalidOperationException("Not enough bytes in the bytes received.");
                 }
 
-                Buffer.BlockCopy(_buffer, 0, buffer, offset, count);
-                _bufferOffset -= count;
-                Buffer.BlockCopy(_buffer, count, _buffer, 0, _bufferOffset);
+                Buffer.BlockCopy(_buffer, _bufferStart, buffer, offset, count);
+                _bufferStart += count;
+                _bufferCount -= count;
+                if (_bufferCount == 0)
+                {
+                    _bufferStart = 0;
+                }
 
                 for (var i = 0; i < count; i++)
                 {
-                    var item = buffer[i];
+                    var item = buffer[offset + i];
                     _bytesReceived.OnNext(item);
                 }
 
@@ -428,10 +436,9 @@ public class UdpClientRx : IReceiveBatchPortRx
                                 _dataReceived.OnNext(datagram[i]);
                             }
 
-                            // Batched chunk stream (copy to separate array to keep immutability semantics)
-                            var chunk = new byte[datagram.Length];
-                            Array.Copy(datagram, chunk, datagram.Length);
-                            _dataChunks.OnNext(chunk);
+                            // ReceiveAsync owns this right-sized array for the completed datagram.
+                            // publishing it directly avoids an otherwise redundant per-datagram copy.
+                            _dataChunks.OnNext(datagram);
                         }
                     }
                     catch (Exception ex)

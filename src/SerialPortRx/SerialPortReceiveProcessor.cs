@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace CP.IO.Ports.Reactive;
+namespace IoT.DriverCore.Serial.Reactive;
 #else
-namespace CP.IO.Ports;
+namespace IoT.DriverCore.Serial;
 #endif
 
 /// <summary>Reads a raw serial receive batch and publishes its byte and character views.</summary>
@@ -73,10 +73,18 @@ internal static class SerialPortReceiveProcessor
         Action<byte[]> publishBatch)
     {
         var totalBytesRead = 0;
-        while (getAvailableBytes() > 0)
+        while (true)
         {
+            // Read availability once per batch. Serial ports commonly implement this as a native
+            // query, so repeating it before the read doubles the hot-path transport calls.
+            var availableBytes = getAvailableBytes();
+            if (availableBytes <= 0)
+            {
+                break;
+            }
+
             var bytesRead = ReadAndPublish(
-                getAvailableBytes(),
+                availableBytes,
                 buffer,
                 read,
                 publishByte,

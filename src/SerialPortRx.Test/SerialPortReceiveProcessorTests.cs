@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace CP.IO.Ports.Tests;
+namespace IoT.DriverCore.Serial.Tests;
 
 /// <summary>Tests raw-byte processing used by automatic serial receive events.</summary>
 public sealed class SerialPortReceiveProcessorTests
@@ -103,6 +103,42 @@ public sealed class SerialPortReceiveProcessorTests
 
         buffer[0] = 0;
         await Assert.That(batches[0]).IsEquivalentTo(ExpectedMultiChunkBatches[0]);
+    }
+
+    /// <summary>Verifies draining makes one availability request per batch plus its terminating probe.</summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Test]
+    public async Task DrainAndPublish_UsesOneAvailabilityRequestPerBatchPlusTerminatingProbeAsync()
+    {
+        byte[] source = [1, Two, Three, Four, Five];
+        var sourceOffset = 0;
+        var availabilityRequests = 0;
+        var readRequests = 0;
+        var publishedBatches = new List<byte[]>();
+
+        var bytesRead = SerialPortReceiveProcessor.DrainAndPublish(
+            () =>
+            {
+                availabilityRequests++;
+                return source.Length - sourceOffset;
+            },
+            new byte[Two],
+            (destination, offset, count) =>
+            {
+                readRequests++;
+                Array.Copy(source, sourceOffset, destination, offset, count);
+                sourceOffset += count;
+                return count;
+            },
+            _ => { },
+            _ => { },
+            publishedBatches.Add);
+
+        await Assert.That(bytesRead).IsEqualTo(source.Length);
+        await Assert.That(readRequests).IsEqualTo(Three);
+        await Assert.That(availabilityRequests).IsEqualTo(readRequests + 1);
+        await Assert.That(publishedBatches.Count).IsEqualTo(readRequests);
+        await Assert.That(publishedBatches.SelectMany(batch => batch)).IsEquivalentTo(source);
     }
 
     /// <summary>Verifies all transport adapters expose the common batch receive contract.</summary>

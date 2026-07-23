@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace CP.IO.Ports.Reactive.SourceGeneration;
+namespace IoT.DriverCore.Serial.Reactive.SourceGeneration;
 #else
-namespace CP.IO.Ports.SourceGeneration;
+namespace IoT.DriverCore.Serial.SourceGeneration;
 #endif
 
 /// <summary>Converts generated serial stream values into strongly typed reactive properties.</summary>

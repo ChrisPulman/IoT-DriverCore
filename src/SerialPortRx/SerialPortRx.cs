@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace CP.IO.Ports.Reactive;
+namespace IoT.DriverCore.Serial.Reactive;
 #else
-namespace CP.IO.Ports;
+namespace IoT.DriverCore.Serial;
 #endif
 
 /// <summary>Serial Port Rx.</summary>
@@ -96,6 +96,9 @@ public partial class SerialPortRx : ISerialPortRx, IReceiveBatchPortRx
     private readonly object _observableCacheLock = new();
 #endif
 
+    /// <summary>The optional connection factory used by deterministic in-memory ports.</summary>
+    private readonly Func<SerialPortRx, ISerialPortConnection>? _connectionFactory;
+
     /// <summary>The active port subscription collection.</summary>
     private CompositeDisposable _disposablePort = [];
 
@@ -145,8 +148,8 @@ public partial class SerialPortRx : ISerialPortRx, IReceiveBatchPortRx
     private IObservableAsync<SerialPinChangedEventArgs>? _cachedPinChangedAsync;
 #endif
 
-    /// <summary>The wrapped serial port.</summary>
-    private SerialPort? _serialPort;
+    /// <summary>The wrapped serial port connection.</summary>
+    private ISerialPortConnection? _serialPort;
 
     /// <summary>The cached break-state setting.</summary>
     private bool _breakState;
@@ -244,6 +247,14 @@ public partial class SerialPortRx : ISerialPortRx, IReceiveBatchPortRx
     /// <summary>Initializes a new instance of the <see cref="SerialPortRx"/> class.</summary>
     public SerialPortRx()
     {
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="SerialPortRx"/> class.</summary>
+    /// <param name="connectionFactory">Creates a fresh connection for each open operation.</param>
+    internal SerialPortRx(Func<SerialPortRx, ISerialPortConnection> connectionFactory)
+    {
+        ArgumentGuard.ThrowIfNull(connectionFactory, nameof(connectionFactory));
+        _connectionFactory = connectionFactory;
     }
 
     /// <summary>Gets indicates that no timeout should occur.</summary>

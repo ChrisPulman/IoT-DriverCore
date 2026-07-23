@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace CP.IO.Ports.Tests;
+namespace IoT.DriverCore.Serial.Tests;
 
 /// <summary>Tests for SerialPortRx mixin helpers.</summary>
 public sealed class SerialPortRxMixinsTests
@@ -101,6 +101,141 @@ public sealed class SerialPortRxMixinsTests
 
         await Assert.That(request.Command).IsEqualTo("G0");
         await Assert.That(request.Completion).IsEqualTo(completion);
+    }
+
+    /// <summary>Verifies every async buffer overload forwards marker-delimited values.</summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Test]
+    public async Task BufferUntil_AsyncOverloads_ForwardDelimitedValuesAsync()
+    {
+        using var source = new ReplaySignal<char>(0);
+        var asyncSource = ObservableAsyncBridgeExtensions.ToAsyncObservable(source);
+        var asyncStart = ObservableAsync.Return('[');
+        var asyncEnd = ObservableAsync.Return(']');
+        var asyncDefault = ObservableAsync.Return("default");
+        var values = new List<string>();
+        using var subscriptions = new CompositeDisposable
+        {
+            ObservableAsyncBridgeExtensions.ToObservable(
+                SerialPortRxMixins.BufferUntil(asyncSource, asyncStart, asyncEnd, Hundred)).Subscribe(values.Add),
+        };
+        subscriptions.Add(ObservableAsyncBridgeExtensions.ToObservable(
+            SerialPortRxMixins.BufferUntil(asyncSource, asyncStart, asyncEnd, Hundred, null)).Subscribe(values.Add));
+        subscriptions.Add(ObservableAsyncBridgeExtensions.ToObservable(
+            SerialPortRxMixins.BufferUntil(asyncSource, asyncStart, asyncEnd, asyncDefault, Hundred))
+            .Subscribe(values.Add));
+        subscriptions.Add(ObservableAsyncBridgeExtensions.ToObservable(
+            SerialPortRxMixins.BufferUntil(asyncSource, asyncStart, asyncEnd, asyncDefault, Hundred, null))
+            .Subscribe(values.Add));
+
+        source.OnNext('x');
+        source.OnNext('[');
+        source.OnNext('A');
+        source.OnNext(']');
+
+        await Assert.That(values.Count).IsEqualTo(Four);
+        await Assert.That(values.All(value => value == "[A]")).IsTrue();
+    }
+
+    /// <summary>Verifies the default-value buffer overload emits after its timeout.</summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Test]
+    public async Task BufferUntil_WithDefaultValue_EmitsOnTimeoutAsync()
+    {
+        using var source = new ReplaySignal<char>(0);
+        var values = new List<string>();
+        using var subscription = SerialPortRxMixins.BufferUntil(
+            source,
+            Observable.Return('['),
+            Observable.Return(']'),
+            Observable.Return("timeout"),
+            1).Subscribe(values.Add);
+        using var resetSource = new ReplaySignal<char>(0);
+        using var resetSubscription = SerialPortRxMixins.BufferUntil(
+            resetSource,
+            Observable.Return('['),
+            Observable.Return(']'),
+            1).Subscribe();
+        resetSource.OnNext('[');
+        resetSource.OnNext('A');
+
+        await Task.Delay(TwentyFive);
+
+        await Assert.That(values).Contains("timeout");
+    }
+
+    /// <summary>Verifies async serial mixins forward every public in-memory port stream.</summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Test]
+    public async Task AsyncPortMixins_ForwardInMemoryPortStreamsAsync()
+    {
+        using var pair = new InMemoryPortRxPair();
+        using var readPair = new InMemoryPortRxPair();
+        readPair.Second.EnableAutoDataReceive = false;
+        var characters = new List<char>();
+        var bytes = new List<byte>();
+        var lines = new List<string>();
+        var errors = new List<Exception>();
+        var states = new List<bool>();
+        var readBytes = new List<int>();
+        using var subscriptions = new CompositeDisposable
+        {
+            ObservableAsyncBridgeExtensions.ToObservable(
+                SerialPortRxMixins.DataReceivedAsyncObservable(pair.Second)).Subscribe(characters.Add),
+        };
+        subscriptions.Add(ObservableAsyncBridgeExtensions.ToObservable(
+            SerialPortRxMixins.DataReceivedBytesAsyncObservable(pair.Second)).Subscribe(bytes.Add));
+        subscriptions.Add(ObservableAsyncBridgeExtensions.ToObservable(
+            SerialPortRxMixins.LinesAsyncObservable(pair.Second)).Subscribe(lines.Add));
+        subscriptions.Add(ObservableAsyncBridgeExtensions.ToObservable(
+            SerialPortRxMixins.ErrorReceivedAsyncObservable(pair.Second)).Subscribe(errors.Add));
+        subscriptions.Add(ObservableAsyncBridgeExtensions.ToObservable(
+            SerialPortRxMixins.IsOpenAsyncObservable(pair.Second)).Subscribe(states.Add));
+        subscriptions.Add(ObservableAsyncBridgeExtensions.ToObservable(
+            SerialPortRxMixins.BytesReceivedAsyncObservable(readPair.Second)).Subscribe(readBytes.Add));
+        await pair.First.OpenAsync();
+        await pair.Second.OpenAsync();
+        await readPair.First.OpenAsync();
+        await readPair.Second.OpenAsync();
+
+        pair.First.WriteLine(HelloText);
+        pair.InjectSecondError(new IOException("injected"));
+        readPair.First.Write([ByteLetterA], 0, 1);
+        _ = await readPair.Second.ReadAsync(new byte[1], 0, 1);
+
+        await Assert.That(characters).Contains('H');
+        await Assert.That(bytes).Contains(ByteLetterH);
+        await Assert.That(lines).Contains(HelloText);
+        await Assert.That(errors.Count).IsEqualTo(1);
+        await Assert.That(states).Contains(true);
+        await Assert.That(readBytes).Contains(LetterA);
+    }
+
+    /// <summary>Verifies interval, port-name, and raw system event observer helpers are subscribable.</summary>
+    /// <param name="cancellationToken">The TUnit timeout cancellation token.</param>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Test]
+    [Timeout(5000)]
+    public async Task MonitoringMixins_EmitAndSystemObserversSubscribeAsync(CancellationToken cancellationToken)
+    {
+        using var pair = new InMemoryPortRxPair();
+        await pair.First.OpenAsync();
+        var openValue = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var openSubscription = SerialPortRxMixins.WhileIsOpen(pair.First, TimeSpan.FromMilliseconds(1))
+            .Subscribe(value => openValue.TrySetResult(value));
+        using var asyncOpenSubscription = ObservableAsyncBridgeExtensions.ToObservable(
+            SerialPortRxMixins.WhileIsOpenAsyncObservable(pair.First, TimeSpan.FromMilliseconds(1)))
+            .Subscribe();
+        var names = await FirstValueAsync(
+            ObservableAsyncBridgeExtensions.ToObservable(SerialPortRxMixins.PortNamesAsyncObservable(1, 1)));
+        using var systemPort = new SerialPort();
+        using var dataSubscription = SerialPortRxMixins.DataReceivedObserver(systemPort).Subscribe();
+        using var errorSubscription = SerialPortRxMixins.ErrorReceivedObserver(systemPort).Subscribe();
+
+        await Assert.That(await openValue.Task.WaitAsync(TimeSpan.FromSeconds(Two), cancellationToken)).IsTrue();
+        await Assert.That(names.Length).IsGreaterThanOrEqualTo(1);
+        await Assert.That(SerialPortRxMixins.PortNamesAsyncObservable()).IsNotNull();
+        await Assert.That(SerialPortRxMixins.PortNamesAsyncObservable(Hundred)).IsNotNull();
     }
 
     /// <summary>Returns the first value observed from an observable sequence.</summary>

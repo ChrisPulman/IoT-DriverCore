@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-global using static CP.IO.Ports.Tests.TestValues;
+global using static IoT.DriverCore.Serial.Tests.TestValues;
 
-namespace CP.IO.Ports.Tests;
+namespace IoT.DriverCore.Serial.Tests;
 
 /// <summary>Named values shared by tests.</summary>
 internal static class TestValues
@@ -23,6 +23,9 @@ internal static class TestValues
 
     /// <summary>Gets the byte value for C.</summary>
     internal const byte ByteLetterC = 67;
+
+    /// <summary>Gets the byte value for H.</summary>
+    internal const byte ByteLetterH = 72;
 
     /// <summary>Gets the byte value seven.</summary>
     internal const byte ByteSeven = 7;
@@ -86,6 +89,9 @@ internal static class TestValues
 
     /// <summary>Gets the integer value five hundred.</summary>
     internal const int FiveHundred = 500;
+
+    /// <summary>Gets the integer value one thousand.</summary>
+    internal const int Thousand = 1000;
 
     /// <summary>Gets the integer value one thousand twenty-four.</summary>
     internal const int OneThousandTwentyFour = 1024;

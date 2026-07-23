@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace CP.IO.Ports;
+namespace IoT.DriverCore.Serial;
 
 /// <summary>Provides argument validation that is available on every supported target framework.</summary>
 internal static class ArgumentGuard

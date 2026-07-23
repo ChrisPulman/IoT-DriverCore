@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace CP.IO.Ports.Reactive;
+namespace IoT.DriverCore.Serial.Reactive;
 #else
-namespace CP.IO.Ports;
+namespace IoT.DriverCore.Serial;
 #endif
 
 /// <summary>Provides a reactive wrapper around <see cref="TcpClient"/>.</summary>
@@ -192,7 +192,7 @@ public class TcpClientRx : IReceiveBatchPortRx
         {
             for (var i = 0; i < read; i++)
             {
-                var item = buffer[i];
+                var item = buffer[offset + i];
                 _bytesReceived.OnNext(item);
             }
         }

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>$(LibraryTargetFrameworks)</TargetFrameworks>
-    <RootNamespace>CP.IO.Ports</RootNamespace>
+    <RootNamespace>IoT.DriverCore.Serial</RootNamespace>
   </PropertyGroup>
   <PropertyGroup Condition="$(TargetFramework.EndsWith('-windows10.0.19041.0')) or $(TargetFramework.StartsWith('net4'))">
     <DefineConstants>HasWindows</DefineConstants>

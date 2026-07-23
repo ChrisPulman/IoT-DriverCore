@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace CP.IO.Ports.SourceGenerators;
+namespace IoT.DriverCore.Serial.SourceGenerators;
 
 /// <summary>Generates reactive serial-port properties and observable streams.</summary>
 public sealed partial class SerialPortReactiveStreamGenerator
