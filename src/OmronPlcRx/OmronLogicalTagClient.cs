@@ -8,26 +8,29 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 #if REACTIVE_SHIM
-using OmronPlcRx.Reactive.Tags;
+using IoT.DriverCore.OmronPlcRx.Reactive.Tags;
 #else
-using OmronPlcRx.Tags;
+using IoT.DriverCore.OmronPlcRx.Tags;
 #endif
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive;
+namespace IoT.DriverCore.OmronPlcRx.Reactive;
 
 #else
-namespace OmronPlcRx;
+namespace IoT.DriverCore.OmronPlcRx;
 
 #endif
 
 /// <summary>Composes an Omron PLC facade with the shared logical-tag catalog and persistence contracts.</summary>
-public sealed partial class OmronLogicalTagClient : ILogicalTagClient, IDisposable
+public sealed partial class OmronLogicalTagClient : IManagedLogicalTagClient, IDisposable
 {
     /// <summary>Omron PLC facade used for protocol operations.</summary>
     private readonly IOmronPlcRx _plc;
+
+    /// <summary>Optional native grouped FINS operation provider.</summary>
+    private readonly IOmronLogicalBatchOperations? _batchOperations;
 
     /// <summary>Indicates whether this instance owns the catalog lifetime.</summary>
     private readonly bool _ownsCatalog;
@@ -84,6 +87,7 @@ public sealed partial class OmronLogicalTagClient : ILogicalTagClient, IDisposab
         bool ownsCatalog)
     {
         _plc = plc ?? throw new ArgumentNullException(nameof(plc));
+        _batchOperations = plc as IOmronLogicalBatchOperations;
         Catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _store = store;
         _ownsCatalog = ownsCatalog;
@@ -160,13 +164,13 @@ public sealed partial class OmronLogicalTagClient : ILogicalTagClient, IDisposab
     }
 
     /// <summary>Removes a logical tag from the Omron facade and catalog.</summary>
-    /// <param name="tagName">Logical tag name.</param>
+    /// <param name="name">Logical tag name.</param>
     /// <returns>True when either registration was removed; otherwise false.</returns>
-    public bool RemoveTag(string tagName)
+    public bool RemoveTag(string name)
     {
         ThrowIfDisposed();
-        var removedFromPlc = _plc.RemoveTagItem(tagName);
-        var removedFromCatalog = Catalog.TryRemove(tagName, out _);
+        var removedFromPlc = _plc.RemoveTagItem(name);
+        var removedFromCatalog = Catalog.TryRemove(name, out _);
         return removedFromPlc || removedFromCatalog;
     }
 
@@ -353,8 +357,7 @@ public sealed partial class OmronLogicalTagClient : ILogicalTagClient, IDisposab
             throw new ArgumentNullException(nameof(tagNames));
         }
 
-        var tasks = tagNames.Select(name => ReadAsync(name, cancellationToken)).ToArray();
-        return await Task.WhenAll(tasks).ConfigureAwait(false);
+        return await ReadManyCoreAsync(tagNames, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -403,8 +406,7 @@ public sealed partial class OmronLogicalTagClient : ILogicalTagClient, IDisposab
             throw new ArgumentNullException(nameof(values));
         }
 
-        var tasks = values.Select(value => WriteAsync(value, cancellationToken)).ToArray();
-        return await Task.WhenAll(tasks).ConfigureAwait(false);
+        return await WriteManyCoreAsync(values, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

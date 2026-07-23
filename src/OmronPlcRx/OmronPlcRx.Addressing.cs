@@ -4,15 +4,15 @@
 
 using System;
 #if REACTIVE_SHIM
-using OmronPlcRx.Reactive.Enums;
+using IoT.DriverCore.OmronPlcRx.Reactive.Enums;
 #else
-using OmronPlcRx.Enums;
+using IoT.DriverCore.OmronPlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive;
+namespace IoT.DriverCore.OmronPlcRx.Reactive;
 #else
-namespace OmronPlcRx;
+namespace IoT.DriverCore.OmronPlcRx;
 #endif
 
 /// <summary>Contains PLC tag address parsing helpers.</summary>

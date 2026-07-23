@@ -6,17 +6,17 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 #if REACTIVE_SHIM
-using OmronPlcRx.Reactive.Core;
-using OmronPlcRx.Reactive.Tags;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core;
+using IoT.DriverCore.OmronPlcRx.Reactive.Tags;
 #else
-using OmronPlcRx.Core;
-using OmronPlcRx.Tags;
+using IoT.DriverCore.OmronPlcRx.Core;
+using IoT.DriverCore.OmronPlcRx.Tags;
 #endif
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive;
+namespace IoT.DriverCore.OmronPlcRx.Reactive;
 #else
-namespace OmronPlcRx;
+namespace IoT.DriverCore.OmronPlcRx;
 #endif
 
 /// <summary>Contains typed tag-entry polling behavior.</summary>
@@ -33,6 +33,11 @@ public sealed partial class OmronPlcRx
         /// <param name="ct">Cancellation token.</param>
         /// <returns>True if the value changed; otherwise false.</returns>
         Task<bool> ReadAsync(OmronPLCConnection plc, CancellationToken ct);
+
+        /// <summary>Updates the cached tag value from a grouped operation.</summary>
+        /// <param name="value">New boxed value.</param>
+        /// <returns>True when the value changed; otherwise false.</returns>
+        bool UpdateValue(object? value);
     }
 
     /// <summary>Represents a typed tag entry.</summary>
@@ -48,6 +53,20 @@ public sealed partial class OmronPlcRx
         {
             var newValue = await ReadValueAsync(plc, ct).ConfigureAwait(false);
             return UpdateValue(newValue);
+        }
+
+        /// <summary>Updates the cached tag value.</summary>
+        /// <param name="value">The new value.</param>
+        /// <returns>True when the cached value changed.</returns>
+        public bool UpdateValue(object? value)
+        {
+            if (Equals(value, Tag.Value) || Tag is not PlcTag<T> plcTag)
+            {
+                return false;
+            }
+
+            plcTag.Value = value is null ? default : (T)value;
+            return true;
         }
 
         /// <summary>Reads a value from the PLC.</summary>
@@ -103,20 +122,6 @@ public sealed partial class OmronPlcRx
                 .ReadWordsAsync(address, (ushort)wordCount, ToWordType(area), ct)
                 .ConfigureAwait(false);
             return PlcTagValueCodec.GetStringFromWords(words.Values, length, wordCount);
-        }
-
-        /// <summary>Updates the cached tag value.</summary>
-        /// <param name="newValue">The new value.</param>
-        /// <returns>True when the cached value changed.</returns>
-        private bool UpdateValue(object newValue)
-        {
-            if (Equals(newValue, Tag.Value) || Tag is not PlcTag<T> plcTag)
-            {
-                return false;
-            }
-
-            plcTag.Value = (T)newValue;
-            return true;
         }
     }
 }

@@ -8,21 +8,21 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 #if REACTIVE_SHIM
-using OmronPlcRx.Reactive.Core;
-using OmronPlcRx.Reactive.Core.Converters;
-using OmronPlcRx.Reactive.Core.Types;
-using OmronPlcRx.Reactive.Enums;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Converters;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Types;
+using IoT.DriverCore.OmronPlcRx.Reactive.Enums;
 #else
-using OmronPlcRx.Core;
-using OmronPlcRx.Core.Converters;
-using OmronPlcRx.Core.Types;
-using OmronPlcRx.Enums;
+using IoT.DriverCore.OmronPlcRx.Core;
+using IoT.DriverCore.OmronPlcRx.Core.Converters;
+using IoT.DriverCore.OmronPlcRx.Core.Types;
+using IoT.DriverCore.OmronPlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive;
+namespace IoT.DriverCore.OmronPlcRx.Reactive;
 #else
-namespace OmronPlcRx;
+namespace IoT.DriverCore.OmronPlcRx;
 #endif
 
 /// <summary>Converts tag values to and from PLC word representations.</summary>

@@ -5,9 +5,9 @@
 using System;
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Results;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Results;
 #else
-namespace OmronPlcRx.Results;
+namespace IoT.DriverCore.OmronPlcRx.Results;
 #endif
 
 /// <summary>Result of a Read Clock operation.</summary>

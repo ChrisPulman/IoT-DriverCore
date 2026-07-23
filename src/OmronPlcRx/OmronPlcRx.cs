@@ -7,26 +7,26 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Signals;
 #if REACTIVE_SHIM
-using OmronPlcRx.Reactive.Core;
-using OmronPlcRx.Reactive.Enums;
-using OmronPlcRx.Reactive.Results;
-using OmronPlcRx.Reactive.Tags;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core;
+using IoT.DriverCore.OmronPlcRx.Reactive.Enums;
+using IoT.DriverCore.OmronPlcRx.Reactive.Results;
+using IoT.DriverCore.OmronPlcRx.Reactive.Tags;
 #else
-using OmronPlcRx.Core;
-using OmronPlcRx.Enums;
-using OmronPlcRx.Results;
-using OmronPlcRx.Tags;
+using IoT.DriverCore.OmronPlcRx.Core;
+using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.DriverCore.OmronPlcRx.Results;
+using IoT.DriverCore.OmronPlcRx.Tags;
 #endif
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive;
+namespace IoT.DriverCore.OmronPlcRx.Reactive;
 
 #else
-namespace OmronPlcRx;
+namespace IoT.DriverCore.OmronPlcRx;
 
 #endif
 
@@ -114,6 +114,33 @@ public sealed partial class OmronPlcRx : IOmronPlcRx
             });
         _pollInterval = pollInterval ?? TimeSpan.FromMilliseconds(ProtocolConstants.OneHundred);
         _pollLoop = Task.Run(PollLoopAsync);
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="OmronPlcRx"/> class.</summary>
+    /// <param name="plc">Injected FINS connection used by deterministic transports and tests.</param>
+    /// <param name="pollInterval">Polling interval.</param>
+    internal OmronPlcRx(OmronPLCConnection plc, TimeSpan pollInterval)
+        : this(plc, pollInterval, true)
+    {
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="OmronPlcRx"/> class with explicit polling control.</summary>
+    /// <param name="plc">Injected FINS connection used by deterministic transports and tests.</param>
+    /// <param name="pollInterval">Polling interval.</param>
+    /// <param name="startPolling">Whether to run the background polling loop.</param>
+    internal OmronPlcRx(
+        OmronPLCConnection plc,
+        TimeSpan pollInterval,
+        bool startPolling)
+    {
+        _plc = plc ?? throw new ArgumentNullException(nameof(plc));
+        if (pollInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pollInterval));
+        }
+
+        _pollInterval = pollInterval;
+        _pollLoop = startPolling ? Task.Run(PollLoopAsync) : Task.CompletedTask;
     }
 
     /// <inheritdoc />
@@ -329,7 +356,7 @@ public sealed partial class OmronPlcRx : IOmronPlcRx
         _errors.OnCompleted();
         _tagChanged.Dispose();
         _errors.Dispose();
-        _plc.Dispose();
+        ((IDisposable)_plc).Dispose();
         _cts.Dispose();
     }
 

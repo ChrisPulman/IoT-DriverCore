@@ -5,9 +5,9 @@
 using System;
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Tags;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Tags;
 #else
-namespace OmronPlcRx.Tags;
+namespace IoT.DriverCore.OmronPlcRx.Tags;
 #endif
 
 /// <summary>Represents a typed PLC tag binding.</summary>

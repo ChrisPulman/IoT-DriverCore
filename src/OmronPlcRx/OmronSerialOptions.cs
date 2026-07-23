@@ -6,9 +6,9 @@ using System;
 using System.IO.Ports;
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive;
+namespace IoT.DriverCore.OmronPlcRx.Reactive;
 #else
-namespace OmronPlcRx;
+namespace IoT.DriverCore.OmronPlcRx;
 #endif
 
 /// <summary>Gets or sets the omron serial options value.</summary>
@@ -84,7 +84,11 @@ public sealed record OmronSerialOptions
     /// <summary>Validates this options instance.</summary>
     public void Validate()
     {
+#if NET7_0_OR_GREATER
+        if (!Enum.IsDefined(Protocol))
+#else
         if (!Enum.IsDefined(typeof(OmronSerialProtocol), Protocol))
+#endif
         {
             throw new ArgumentOutOfRangeException(nameof(Protocol), "The serial protocol is invalid.");
         }

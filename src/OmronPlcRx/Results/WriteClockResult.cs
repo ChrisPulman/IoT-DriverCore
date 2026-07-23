@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Results;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Results;
 #else
-namespace OmronPlcRx.Results;
+namespace IoT.DriverCore.OmronPlcRx.Results;
 #endif
 
 /// <summary>Result of a Write Clock operation.</summary>

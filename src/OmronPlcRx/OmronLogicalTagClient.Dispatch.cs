@@ -8,20 +8,20 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 #if REACTIVE_SHIM
-using OmronPlcRx.Reactive.Core.Types;
-using OmronPlcRx.Reactive.Tags;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Types;
+using IoT.DriverCore.OmronPlcRx.Reactive.Tags;
 #else
-using OmronPlcRx.Core.Types;
-using OmronPlcRx.Tags;
+using IoT.DriverCore.OmronPlcRx.Core.Types;
+using IoT.DriverCore.OmronPlcRx.Tags;
 #endif
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive;
+namespace IoT.DriverCore.OmronPlcRx.Reactive;
 
 #else
-namespace OmronPlcRx;
+namespace IoT.DriverCore.OmronPlcRx;
 
 #endif
 

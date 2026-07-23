@@ -5,9 +5,9 @@
 using System;
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive;
+namespace IoT.DriverCore.OmronPlcRx.Reactive;
 #else
-namespace OmronPlcRx;
+namespace IoT.DriverCore.OmronPlcRx;
 #endif
 
 /// <summary>Represents errors that occur during Omron PLC communication or processing.</summary>
