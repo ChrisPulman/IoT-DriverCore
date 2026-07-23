@@ -4,7 +4,7 @@
 
 using System.Text;
 
-namespace MitsubishiRx;
+namespace IoT.DriverCore.MitsubishiRx;
 
 /// <summary>Provides common source emission helpers.</summary>
 internal static partial class MitsubishiTagClientEmitter

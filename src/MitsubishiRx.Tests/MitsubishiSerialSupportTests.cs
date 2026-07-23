@@ -4,10 +4,10 @@
 
 #if REACTIVE_SHIM
 
-namespace MitsubishiRx.Reactive.Tests;
+namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace MitsubishiRx.Tests;
+namespace IoT.DriverCore.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiSerialSupportTests type.</summary>
@@ -36,9 +36,8 @@ internal sealed class MitsubishiSerialSupportTests
     [Test]
     internal async Task LibraryShouldDefineReactiveSerialOptionsTypeAsync()
     {
-        var assembly = typeof(MitsubishiRx).Assembly;
-        var serialOptionsType = assembly.GetType("MitsubishiRx.MitsubishiSerialOptions");
-        await Assert.That(serialOptionsType is not null).IsTrue();
+        await Assert.That(typeof(MitsubishiSerialOptions).FullName)
+            .IsEqualTo("IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions");
     }
 
     /// <summary>Executes the LibraryProjectShouldReferenceSerialportRxPackage operation.</summary>

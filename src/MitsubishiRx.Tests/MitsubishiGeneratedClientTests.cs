@@ -2,15 +2,17 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+#if NET10_0_OR_GREATER
 using System.IO.Compression;
+#endif
 using Microsoft.CodeAnalysis;
 
 #if REACTIVE_SHIM
 
-namespace MitsubishiRx.Reactive.Tests;
+namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace MitsubishiRx.Tests;
+namespace IoT.DriverCore.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiGeneratedClientTests type.</summary>
@@ -70,7 +72,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         await Assert.That(
             result.Generated.Contains(
                 "public static GeneratedMitsubishiTagClient Generated(this " +
-                "global::MitsubishiRx.MitsubishiRx owner) => new(owner);"))
+                "global::IoT.DriverCore.MitsubishiRx.MitsubishiRx owner) => new(owner);"))
             .IsTrue();
     }
 
@@ -80,7 +82,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
     internal async Task IncrementalGeneratorEmitsPropertyBindingHelpersAsync()
     {
         const string source = """
-        using MitsubishiRx;
+        using IoT.DriverCore.MitsubishiRx;
 
         namespace Consumer;
 
@@ -108,13 +110,13 @@ internal sealed partial class MitsubishiGeneratedClientTests
         await Assert.That(
             result.Generated.Contains(
                 "MotorSpeedObservable => LogicalTags.Observe(" +
-                "new global::CP.IoT.Core.LogicalTagKey<float>(\"Line1.MotorSpeed\"))",
+                "new global::IoT.DriverCore.Core.LogicalTagKey<float>(\"Line1.MotorSpeed\"))",
                 StringComparison.Ordinal))
             .IsTrue();
         await Assert.That(
             result.Generated.Contains(
                 "MotorSpeedObservableAsync => LogicalTags.ObserveAsync(" +
-                "new global::CP.IoT.Core.LogicalTagKey<float>(\"Line1.MotorSpeed\")",
+                "new global::IoT.DriverCore.Core.LogicalTagKey<float>(\"Line1.MotorSpeed\")",
                 StringComparison.Ordinal))
             .IsTrue();
         await Assert.That(result.Generated.Contains("ReadMotorSpeedAsync", StringComparison.Ordinal)).IsTrue();
@@ -176,6 +178,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         }
     }
 
+#if NET10_0_OR_GREATER
     /// <summary>Executes the MitsubishiRxPackageShouldContainGeneratorAnalyzerAsset operation.</summary>
     /// <returns>The MitsubishiRxPackageShouldContainGeneratorAnalyzerAsset operation result.</returns>
     [Test]
@@ -190,4 +193,5 @@ internal sealed partial class MitsubishiGeneratedClientTests
                 StringComparison.OrdinalIgnoreCase));
         await Assert.That(hasAnalyzer).IsTrue();
     }
+#endif
 }

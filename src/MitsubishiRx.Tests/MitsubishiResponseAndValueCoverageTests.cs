@@ -2,14 +2,14 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 
 #if REACTIVE_SHIM
 
-namespace MitsubishiRx.Reactive.Tests;
+namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace MitsubishiRx.Tests;
+namespace IoT.DriverCore.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides response and value coverage tests.</summary>

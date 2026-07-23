@@ -1,67 +1,52 @@
 // Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
-using System.Collections.Concurrent;
-
 #if REACTIVE_SHIM
 
-namespace MitsubishiRx.Reactive.Tests;
+namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace MitsubishiRx.Tests;
+namespace IoT.DriverCore.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the FakeTransport type.</summary>
 internal sealed class FakeTransport : IMitsubishiTransport
 {
-    /// <summary>Stores the _responses field.</summary>
-    private readonly ConcurrentQueue<byte[]> _responses;
-
-    /// <summary>Stores the _responseFactory field.</summary>
-    private readonly Func<MitsubishiTransportRequest, byte[]>? _responseFactory;
-
-    /// <summary>Stores the _connected field.</summary>
-    private bool _connected;
+    /// <summary>Stores the production simulator used by legacy transport-focused tests.</summary>
+    private readonly MitsubishiSimulatorTransport _simulator;
 
     /// <summary>Initializes a new instance of the <see cref="FakeTransport"/> class.</summary>
     /// <param name="responses">The queued responses.</param>
     public FakeTransport(IEnumerable<byte[]> responses)
     {
-        _responses = new(responses);
+        _simulator = new(responses);
     }
 
     /// <summary>Initializes a new instance of the <see cref="FakeTransport"/> class.</summary>
     /// <param name="responseFactory">The response factory.</param>
     public FakeTransport(Func<MitsubishiTransportRequest, byte[]> responseFactory)
     {
-        _responses = new();
-        _responseFactory = responseFactory;
+        _simulator = new(responseFactory);
     }
 
     /// <summary>Gets stores the IsConnected field.</summary>
-    public bool IsConnected => _connected;
+    public bool IsConnected => _simulator.IsConnected;
 
     /// <summary>Gets the Requests property.</summary>
-    internal List<MitsubishiTransportRequest> Requests { get; } = new();
+    internal IReadOnlyList<MitsubishiTransportRequest> Requests => _simulator.Requests;
 
     /// <summary>Executes the ConnectAsync operation.</summary>
     /// <param name="options">The options parameter.</param>
     /// <param name="cancellationToken">The cancellationToken parameter.</param>
     /// <returns>The ConnectAsync operation result.</returns>
     public ValueTask ConnectAsync(MitsubishiClientOptions options, CancellationToken cancellationToken = default)
-    {
-        _connected = true;
-        return ValueTask.CompletedTask;
-    }
+        => _simulator.ConnectAsync(options, cancellationToken);
 
     /// <summary>Executes the DisconnectAsync operation.</summary>
     /// <param name="cancellationToken">The cancellationToken parameter.</param>
     /// <returns>The DisconnectAsync operation result.</returns>
     public ValueTask DisconnectAsync(CancellationToken cancellationToken = default)
-    {
-        _connected = false;
-        return ValueTask.CompletedTask;
-    }
+        => _simulator.DisconnectAsync(cancellationToken);
 
     /// <summary>Executes the ExchangeAsync operation.</summary>
     /// <param name="request">The request parameter.</param>
@@ -70,28 +55,13 @@ internal sealed class FakeTransport : IMitsubishiTransport
     public ValueTask<byte[]> ExchangeAsync(
         MitsubishiTransportRequest request,
         CancellationToken cancellationToken = default)
-    {
-        Requests.Add(request);
-        if (_responses.TryDequeue(out var response))
-        {
-            return ValueTask.FromResult(response);
-        }
-
-        if (_responseFactory is not null)
-        {
-            return ValueTask.FromResult(_responseFactory(request));
-        }
-
-        throw new InvalidOperationException("No fake response queued.");
-    }
+        => _simulator.ExchangeAsync(request, cancellationToken);
 
     /// <summary>Executes the Dispose operation.</summary>
     public void Dispose()
-    {
-        _connected = false;
-    }
+        => _simulator.Dispose();
 
     /// <summary>Executes the DisposeAsync operation.</summary>
     /// <returns>The DisposeAsync operation result.</returns>
-    public ValueTask DisposeAsync() => DisconnectAsync();
+    public ValueTask DisposeAsync() => _simulator.DisposeAsync();
 }

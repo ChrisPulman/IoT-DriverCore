@@ -5,7 +5,7 @@
 using System.Collections.Generic;
 using System.Text.Json;
 
-namespace MitsubishiRx;
+namespace IoT.DriverCore.MitsubishiRx;
 
 /// <summary>Contains schema-model types used by the Mitsubishi tag source generator.</summary>
 public sealed partial class MitsubishiTagClientGenerator

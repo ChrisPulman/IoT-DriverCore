@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace MitsubishiRx;
+namespace IoT.DriverCore.MitsubishiRx;
 
 /// <summary>Emits strongly typed Mitsubishi tag client source.</summary>
 internal static partial class MitsubishiTagClientEmitter
@@ -31,7 +31,7 @@ internal static partial class MitsubishiTagClientEmitter
     private const string ReturnDefault = "            return default;";
 
     /// <summary>Generated field declaration for the backing Mitsubishi PLC client.</summary>
-    private const string OwnerField = "    private readonly global::MitsubishiRx.MitsubishiRx _owner;";
+    private const string OwnerField = "    private readonly global::IoT.DriverCore.MitsubishiRx.MitsubishiRx _owner;";
 
     /// <summary>Converts a schema name into a valid C# identifier.</summary>
     /// <param name="value">Schema name.</param>
@@ -119,7 +119,7 @@ internal static partial class MitsubishiTagClientEmitter
             builder,
             $"    public global::System.IObservable<{binding.PropertyType}> " +
             $"{binding.PropertyName}Observable => {binding.ClientMemberName}" +
-            $".Observe(new global::CP.IoT.Core.LogicalTagKey<{binding.PropertyType}>(" +
+            $".Observe(new global::IoT.DriverCore.Core.LogicalTagKey<{binding.PropertyType}>(" +
             $"\"{escapedTagName}\"));");
         AppendMemberDocumentation(builder, $"Asynchronously observes updates for the {binding.TagName} logical tag.");
         AppendLine(
@@ -127,25 +127,25 @@ internal static partial class MitsubishiTagClientEmitter
             string.Concat(
                 $"    public global::System.Collections.Generic.IAsyncEnumerable<{binding.PropertyType}> ",
                 $"{binding.PropertyName}ObservableAsync => {binding.ClientMemberName}",
-                $".ObserveAsync(new global::CP.IoT.Core.LogicalTagKey<{binding.PropertyType}>(",
+                $".ObserveAsync(new global::IoT.DriverCore.Core.LogicalTagKey<{binding.PropertyType}>(",
                 $"\"{escapedTagName}\"), ",
                 "global::System.Threading.CancellationToken.None);"));
         AppendMemberDocumentation(builder, $"Reads the {binding.TagName} logical tag.");
         AppendLine(
             builder,
             string.Concat(
-                "    public global::System.Threading.Tasks.Task<global::CP.IoT.Core.",
+                "    public global::System.Threading.Tasks.Task<global::IoT.DriverCore.Core.",
                 $"TagOperationResult<{binding.PropertyType}>> Read{binding.PropertyName}Async(",
                 "global::System.Threading.CancellationToken cancellationToken = default) => ",
                 $"{binding.ClientMemberName}.ReadAsync(",
-                $"new global::CP.IoT.Core.LogicalTagKey<{binding.PropertyType}>(",
+                $"new global::IoT.DriverCore.Core.LogicalTagKey<{binding.PropertyType}>(",
                 $"\"{escapedTagName}\"), ",
                 "cancellationToken);"));
         AppendMemberDocumentation(builder, $"Writes the {binding.TagName} logical tag.");
         AppendLine(
             builder,
             string.Concat(
-                "    public global::System.Threading.Tasks.Task<global::CP.IoT.Core.",
+                "    public global::System.Threading.Tasks.Task<global::IoT.DriverCore.Core.",
                 $"TagOperationResult<{binding.PropertyType}>> Write{binding.PropertyName}Async(",
                 $"{binding.PropertyType} value, ",
                 "global::System.Threading.CancellationToken cancellationToken = default) => ",
@@ -164,10 +164,10 @@ internal static partial class MitsubishiTagClientEmitter
         AppendLine(builder, "using System.Linq;");
         AppendLine(builder, "using System.Threading;");
         AppendLine(builder, "using System.Threading.Tasks;");
-        AppendLine(builder, "using CP.IoT.Core;");
+        AppendLine(builder, "using IoT.DriverCore.Core;");
         AppendLine(builder, "using ReactiveUI.Primitives;");
         AppendLine(builder);
-        AppendLine(builder, "namespace MitsubishiRx;");
+        AppendLine(builder, "namespace IoT.DriverCore.MitsubishiRx;");
         AppendLine(builder);
         AppendGeneratedClientExtensions(builder);
         AppendGeneratedClient(builder);
@@ -199,7 +199,7 @@ internal static partial class MitsubishiTagClientEmitter
         AppendLine(
             builder,
             "    public static GeneratedMitsubishiTagClient Generated(" +
-            "this global::MitsubishiRx.MitsubishiRx owner) => new(owner);");
+            "this global::IoT.DriverCore.MitsubishiRx.MitsubishiRx owner) => new(owner);");
         AppendLine(builder, "}");
         AppendLine(builder);
     }
@@ -214,7 +214,7 @@ internal static partial class MitsubishiTagClientEmitter
         AppendLine(builder, OwnerField);
         AppendLine(builder);
         AppendMemberDocumentation(builder, "Initializes a generated tag client.");
-        AppendLine(builder, "    public GeneratedMitsubishiTagClient(global::MitsubishiRx.MitsubishiRx owner)");
+        AppendLine(builder, "    public GeneratedMitsubishiTagClient(global::IoT.DriverCore.MitsubishiRx.MitsubishiRx owner)");
         AppendLine(builder, IndentedOpenBrace);
         AppendLine(builder, "        _owner = owner ?? throw new ArgumentNullException(nameof(owner));");
         AppendLine(builder, "        Tags = new TagsClient(owner);");
@@ -242,7 +242,7 @@ internal static partial class MitsubishiTagClientEmitter
         AppendLine(builder, "{");
         AppendLine(builder, OwnerField);
         AppendMemberDocumentation(builder, "Initializes the generated tag accessor collection.");
-        AppendLine(builder, "    public TagsClient(global::MitsubishiRx.MitsubishiRx owner) => _owner = owner;");
+        AppendLine(builder, "    public TagsClient(global::IoT.DriverCore.MitsubishiRx.MitsubishiRx owner) => _owner = owner;");
 
         foreach (var tag in tags)
         {
@@ -268,7 +268,7 @@ internal static partial class MitsubishiTagClientEmitter
         AppendLine(builder, "{");
         AppendLine(builder, OwnerField);
         AppendMemberDocumentation(builder, "Initializes the generated group accessor collection.");
-        AppendLine(builder, "    public GroupsClient(global::MitsubishiRx.MitsubishiRx owner) => _owner = owner;");
+        AppendLine(builder, "    public GroupsClient(global::IoT.DriverCore.MitsubishiRx.MitsubishiRx owner) => _owner = owner;");
         foreach (var group in groups)
         {
             string propertyName = SanitizeIdentifier(group.Name);
@@ -300,7 +300,7 @@ internal static partial class MitsubishiTagClientEmitter
         AppendLine(builder, "{");
         AppendLine(builder, OwnerField);
         AppendMemberDocumentation(builder, $"Initializes the {tagName} tag accessor.");
-        AppendLine(builder, $"    public {nestedType}(global::MitsubishiRx.MitsubishiRx owner) => _owner = owner;");
+        AppendLine(builder, $"    public {nestedType}(global::IoT.DriverCore.MitsubishiRx.MitsubishiRx owner) => _owner = owner;");
         AppendMemberDocumentation(builder, $"Reads the {tagName} tag.");
         AppendLine(
             builder,
@@ -357,7 +357,7 @@ internal static partial class MitsubishiTagClientEmitter
         AppendLine(builder, "{");
         AppendLine(builder, OwnerField);
         AppendMemberDocumentation(builder, $"Initializes the {groupName} group accessor.");
-        AppendLine(builder, $"    public {nestedType}(global::MitsubishiRx.MitsubishiRx owner) => _owner = owner;");
+        AppendLine(builder, $"    public {nestedType}(global::IoT.DriverCore.MitsubishiRx.MitsubishiRx owner) => _owner = owner;");
     }
 
     /// <summary>Appends the generated group read members.</summary>

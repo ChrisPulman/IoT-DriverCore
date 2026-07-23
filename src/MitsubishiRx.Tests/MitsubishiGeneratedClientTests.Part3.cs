@@ -4,16 +4,16 @@
 
 using System.Diagnostics;
 using System.Linq.Expressions;
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
 #if REACTIVE_SHIM
 
-namespace MitsubishiRx.Reactive.Tests;
+namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace MitsubishiRx.Tests;
+namespace IoT.DriverCore.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides Mitsubishi generated-client test helpers.</summary>
@@ -30,7 +30,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         await Assert.That(
             generated.Contains(
                 "public static GeneratedMitsubishiTagClient Generated(this " +
-                "global::MitsubishiRx.MitsubishiRx owner) => new(owner);"))
+                "global::IoT.DriverCore.MitsubishiRx.MitsubishiRx owner) => new(owner);"))
             .IsTrue();
         await Assert.That(
             generated.Contains("public sealed partial class GeneratedMitsubishiTagClient"))
@@ -145,7 +145,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
     /// <returns>The source text.</returns>
     private static string CreateSchemaMarkerSource(string schema)
         => $$"""
-        using MitsubishiRx;
+        using IoT.DriverCore.MitsubishiRx;
 
         /// <summary>Provides the SchemaMarker type.</summary>
         [MitsubishiTagClientSchema({{ToLiteral(schema)}})]
@@ -159,7 +159,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         => $$"""
         using System;
         using System.Threading.Tasks;
-        using MitsubishiRx;
+        using IoT.DriverCore.MitsubishiRx;
 
         /// <summary>Provides the SchemaMarker type.</summary>
         [MitsubishiTagClientSchema({{ToLiteral(schema)}})]
@@ -171,7 +171,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
             /// <summary>Executes the ExecuteAsync operation.</summary>
             /// <param name="client">The client parameter.</param>
             /// <returns>The ExecuteAsync operation result.</returns>
-            public static async Task ExecuteAsync(global::MitsubishiRx.MitsubishiRx client)
+            public static async Task ExecuteAsync(global::IoT.DriverCore.MitsubishiRx.MitsubishiRx client)
             {
                 _ = client.Generated().Tags.MotorSpeed;
                 _ = client.Generated().Groups.Line1;
@@ -249,7 +249,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
             programPath,
             """
             using System.Threading.Tasks;
-            using MitsubishiRx;
+            using IoT.DriverCore.MitsubishiRx;
 
             /// <summary>Provides the SchemaMarker type.</summary>
             [MitsubishiTagClientSchema(
@@ -263,7 +263,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
                 /// <summary>Executes the ExecuteAsync operation.</summary>
                 /// <param name="client">The client parameter.</param>
                 /// <returns>The ExecuteAsync operation result.</returns>
-                public static async Task ExecuteAsync(global::MitsubishiRx.MitsubishiRx client)
+                public static async Task ExecuteAsync(global::IoT.DriverCore.MitsubishiRx.MitsubishiRx client)
                 {
                     _ = client.Generated().Tags.MotorSpeed;
                     _ = await client.Generated().Tags.MotorSpeed.ReadAsync();
@@ -411,15 +411,18 @@ internal sealed partial class MitsubishiGeneratedClientTests
             string repoRoot = GetRepositoryRoot();
             string projectPath = Path.Combine(repoRoot, "src", "MitsubishiRx", "MitsubishiRx.csproj");
             string outputDirectory = CreateTemporaryDirectory();
+            string targetFramework = GetCurrentTargetFramework();
 
             await PackLocalDependencyAsync(
-                Path.Combine(repoRoot, "..", "IoT_PlcDrivers", "src", "CP.IoT.Core", "CP.IoT.Core.csproj"),
+                Path.Combine(repoRoot, "src", "CP.IoT.Core", "CP.IoT.Core.csproj"),
                 outputDirectory,
-                repoRoot).ConfigureAwait(false);
+                repoRoot,
+                targetFramework).ConfigureAwait(false);
             await PackLocalDependencyAsync(
-                Path.Combine(repoRoot, "..", "SerialPortRx", "src", "SerialPortRx", "SerialPortRx.csproj"),
+                Path.Combine(repoRoot, "src", "SerialPortRx", "SerialPortRx.csproj"),
                 outputDirectory,
-                repoRoot).ConfigureAwait(false);
+                repoRoot,
+                targetFramework).ConfigureAwait(false);
 
             var pack = await RunDotNetAsync(
                 "pack",
@@ -427,6 +430,8 @@ internal sealed partial class MitsubishiGeneratedClientTests
                 repoRoot,
                 "-c",
                 "Release",
+                "-f",
+                targetFramework,
                 "--no-build",
                 "--no-restore",
                 "-o",
@@ -455,11 +460,13 @@ internal sealed partial class MitsubishiGeneratedClientTests
     /// <param name="projectPath">The dependency project path.</param>
     /// <param name="outputDirectory">The local package source directory.</param>
     /// <param name="workingDirectory">The pack working directory.</param>
+    /// <param name="targetFramework">The test's active target framework.</param>
     /// <returns>A task that completes when the dependency package has been created.</returns>
     private static async Task PackLocalDependencyAsync(
         string projectPath,
         string outputDirectory,
-        string workingDirectory)
+        string workingDirectory,
+        string targetFramework)
     {
         var pack = await RunDotNetAsync(
             "pack",
@@ -467,6 +474,8 @@ internal sealed partial class MitsubishiGeneratedClientTests
             workingDirectory,
             "-c",
             "Release",
+            "-f",
+            targetFramework,
             "--no-build",
             "--no-restore",
             "-o",
@@ -479,6 +488,22 @@ internal sealed partial class MitsubishiGeneratedClientTests
         }
 
         throw new InvalidOperationException(pack.Output);
+    }
+
+    /// <summary>Gets the target framework that produced the active test assembly.</summary>
+    /// <returns>The SDK target framework moniker used by the active test assembly.</returns>
+    private static string GetCurrentTargetFramework()
+    {
+        const string FrameworkNamePrefix = ".NETCoreApp,Version=v";
+        string frameworkName = AppContext.TargetFrameworkName
+            ?? throw new InvalidOperationException("The active test target framework is unavailable.");
+
+        if (!frameworkName.StartsWith(FrameworkNamePrefix, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Unsupported test target framework '{frameworkName}'.");
+        }
+
+        return $"net{frameworkName.Substring(FrameworkNamePrefix.Length)}";
     }
 
     /// <summary>Executes the RunDotNetAsync operation.</summary>
