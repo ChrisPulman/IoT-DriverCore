@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Core.Results;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Results;
 #else
-namespace OmronPlcRx.Core.Results;
+namespace IoT.DriverCore.OmronPlcRx.Core.Results;
 #endif
 
 /// <summary>Represents the s en dm es sa ge re su lt type.</summary>

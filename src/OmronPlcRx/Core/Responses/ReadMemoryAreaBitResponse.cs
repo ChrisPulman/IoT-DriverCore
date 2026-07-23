@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using OmronPlcRx.Reactive.Core.Requests;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Requests;
 #else
-using OmronPlcRx.Core.Requests;
+using IoT.DriverCore.OmronPlcRx.Core.Requests;
 #endif
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Core.Responses;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Responses;
 #else
-namespace OmronPlcRx.Core.Responses;
+namespace IoT.DriverCore.OmronPlcRx.Core.Responses;
 #endif
 
 /// <summary>Represents the r ea dm em or ya re ab it re sp on se type.</summary>

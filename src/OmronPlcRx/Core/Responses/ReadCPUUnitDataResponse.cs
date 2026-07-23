@@ -7,9 +7,9 @@ using System.Collections.Generic;
 using System.Text;
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Core.Responses;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Responses;
 #else
-namespace OmronPlcRx.Core.Responses;
+namespace IoT.DriverCore.OmronPlcRx.Core.Responses;
 #endif
 
 /// <summary>Represents the r ea dc pu un it da ta re sp on se type.</summary>
@@ -36,15 +36,14 @@ internal static class ReadCPUUnitDataResponse
     /// <returns>The result produced by the operation.</returns>
     internal static CPUUnitDataResult ExtractData(FINSResponse response)
     {
-        if (response.Data?.Length < TotalResponseLength)
+        const int expected = TotalResponseLength;
+        var data = response.Data;
+        if (data is null || data.Length < expected)
         {
-            var actual = response.Data.Length;
-            const int expected = TotalResponseLength;
+            var actual = data?.Length ?? 0;
             throw new FINSException(
                 $"The Response Data Length of '{actual}' was too short - Expecting a Length of '{expected}'");
         }
-
-        var data = response.Data;
 
         return new CPUUnitDataResult
         {
@@ -80,13 +79,8 @@ internal static class ReadCPUUnitDataResponse
     /// <param name="index">The i nd ex value.</param>
     /// <param name="length">The l en gt h value.</param>
     /// <returns>The result produced by the operation.</returns>
-    private static byte[] SubArray(byte[]? data, int index, int length)
+    private static byte[] SubArray(byte[] data, int index, int length)
     {
-        if (data is null)
-        {
-            throw new ArgumentNullException(nameof(data));
-        }
-
         var result = new byte[length];
         Array.Copy(data, index, result, 0, length);
         return result;

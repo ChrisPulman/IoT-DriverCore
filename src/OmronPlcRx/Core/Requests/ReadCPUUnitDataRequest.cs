@@ -4,15 +4,15 @@
 
 using System.Collections.Generic;
 #if REACTIVE_SHIM
-using OmronPlcRx.Reactive.Core.Enums;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Enums;
 #else
-using OmronPlcRx.Core.Enums;
+using IoT.DriverCore.OmronPlcRx.Core.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Core.Requests;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Requests;
 #else
-namespace OmronPlcRx.Core.Requests;
+namespace IoT.DriverCore.OmronPlcRx.Core.Requests;
 #endif
 
 /// <summary>Represents the r ea dc pu un it da ta re qu es t type.</summary>

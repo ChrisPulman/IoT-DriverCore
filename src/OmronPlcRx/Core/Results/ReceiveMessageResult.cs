@@ -5,9 +5,9 @@
 using System;
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Core.Results;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Results;
 #else
-namespace OmronPlcRx.Core.Results;
+namespace IoT.DriverCore.OmronPlcRx.Core.Results;
 #endif
 
 /// <summary>Represents the r ec ei ve me ss ag er es ul t type.</summary>

@@ -5,17 +5,17 @@
 using System;
 using System.Collections.Generic;
 #if REACTIVE_SHIM
-using OmronPlcRx.Reactive.Core.Enums;
-using OmronPlcRx.Reactive.Enums;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Enums;
+using IoT.DriverCore.OmronPlcRx.Reactive.Enums;
 #else
-using OmronPlcRx.Core.Enums;
-using OmronPlcRx.Enums;
+using IoT.DriverCore.OmronPlcRx.Core.Enums;
+using IoT.DriverCore.OmronPlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Core.Requests;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Requests;
 #else
-namespace OmronPlcRx.Core.Requests;
+namespace IoT.DriverCore.OmronPlcRx.Core.Requests;
 #endif
 
 /// <summary>Represents the w ri te me mo ry ar ea bi tr eq ue st type.</summary>

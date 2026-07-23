@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Enums;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Enums;
 #else
-namespace OmronPlcRx.Enums;
+namespace IoT.DriverCore.OmronPlcRx.Enums;
 #endif
 
 /// <summary>Bit-addressable PLC memory areas.</summary>

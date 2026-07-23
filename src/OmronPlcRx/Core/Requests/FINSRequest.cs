@@ -5,15 +5,15 @@
 using System;
 using System.Collections.Generic;
 #if REACTIVE_SHIM
-using OmronPlcRx.Reactive.Core.Channels;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Channels;
 #else
-using OmronPlcRx.Core.Channels;
+using IoT.DriverCore.OmronPlcRx.Core.Channels;
 #endif
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Core.Requests;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Requests;
 #else
-namespace OmronPlcRx.Core.Requests;
+namespace IoT.DriverCore.OmronPlcRx.Core.Requests;
 #endif
 
 /// <summary>Represents the f in sr eq ue st type.</summary>

@@ -4,17 +4,17 @@
 
 using System;
 #if REACTIVE_SHIM
-using OmronPlcRx.Reactive.Core.Converters;
-using OmronPlcRx.Reactive.Core.Requests;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Converters;
+using IoT.DriverCore.OmronPlcRx.Reactive.Core.Requests;
 #else
-using OmronPlcRx.Core.Converters;
-using OmronPlcRx.Core.Requests;
+using IoT.DriverCore.OmronPlcRx.Core.Converters;
+using IoT.DriverCore.OmronPlcRx.Core.Requests;
 #endif
 
 #if REACTIVE_SHIM
-namespace OmronPlcRx.Reactive.Core.Responses;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Responses;
 #else
-namespace OmronPlcRx.Core.Responses;
+namespace IoT.DriverCore.OmronPlcRx.Core.Responses;
 #endif
 
 /// <summary>Represents the r ea dc yc le ti me re sp on se type.</summary>
@@ -29,15 +29,14 @@ internal static class ReadCycleTimeResponse
     /// <returns>The result produced by the operation.</returns>
     internal static CycleTimeResult ExtractCycleTime(ReadCycleTimeRequest request, FINSResponse response)
     {
-        if (response.Data?.Length < CycleTimeItemLength * ProtocolConstants.Three)
+        const int expected = CycleTimeItemLength * ProtocolConstants.Three;
+        var data = response.Data;
+        if (data is null || data.Length < expected)
         {
-            var actual = response.Data.Length;
-            const int expected = CycleTimeItemLength * ProtocolConstants.Three;
+            var actual = data?.Length ?? 0;
             throw new FINSException(
                 $"The Response Data Length of '{actual}' was too short - Expecting a Length of '{expected}'");
         }
-
-        var data = response.Data;
 
         return new CycleTimeResult
         {
@@ -56,11 +55,6 @@ internal static class ReadCycleTimeResponse
     /// <returns>The result produced by the operation.</returns>
     private static double GetCycleTime(byte[] bytes)
     {
-        if (bytes.Length != 4)
-        {
-            throw new ArgumentOutOfRangeException(nameof(bytes), "The Cycle Time Bytes Array Length must be 4");
-        }
-
         Array.Reverse(bytes);
         var cycleTimeValue = BCDConverter.ToUInt32(bytes);
 
@@ -72,13 +66,8 @@ internal static class ReadCycleTimeResponse
     /// <param name="index">The i nd ex value.</param>
     /// <param name="length">The l en gt h value.</param>
     /// <returns>The result produced by the operation.</returns>
-    private static byte[] SubArray(byte[]? data, int index, int length)
+    private static byte[] SubArray(byte[] data, int index, int length)
     {
-        if (data is null)
-        {
-            throw new ArgumentNullException(nameof(data), "The Data Array cannot be null");
-        }
-
         var result = new byte[length];
         Array.Copy(data, index, result, 0, length);
         return result;
