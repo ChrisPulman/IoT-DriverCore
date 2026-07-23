@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace S7PlcRx.Tests.Testing;
+namespace IoT.DriverCore.S7PlcRx.Tests.Testing;
 
 /// <summary>Provides the NUnit-compatible assertion surface backed by TUnit assertions.</summary>
 public static class Assert

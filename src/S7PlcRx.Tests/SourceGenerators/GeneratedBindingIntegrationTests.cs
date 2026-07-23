@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace S7PlcRx.Tests.SourceGenerators;
+namespace IoT.DriverCore.S7PlcRx.Tests.SourceGenerators;
 
 /// <summary>Exercises generated members in a real consumer compilation.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
@@ -22,7 +22,7 @@ public sealed class GeneratedBindingIntegrationTests
     {
         System.Diagnostics.Debug.WriteLine(DebuggerDisplay);
         const string source = """
-            using S7PlcRx.SourceGeneration;
+            using IoT.DriverCore.S7PlcRx.SourceGeneration;
 
             namespace Consumer;
 
@@ -51,7 +51,7 @@ public sealed class GeneratedBindingIntegrationTests
     {
         System.Diagnostics.Debug.WriteLine(DebuggerDisplay);
         const string source = """
-            using S7PlcRx.SourceGeneration;
+            using IoT.DriverCore.S7PlcRx.SourceGeneration;
 
             namespace Consumer;
 

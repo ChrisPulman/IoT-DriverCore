@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace S7PlcRx.Tests.Testing;
+namespace IoT.DriverCore.S7PlcRx.Tests.Testing;
 
 /// <summary>Represents a predicate-based value constraint.</summary>
 /// <param name="predicate">Describes parameter predicate for helper member 49.</param>

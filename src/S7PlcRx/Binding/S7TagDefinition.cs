@@ -3,10 +3,10 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Binding;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Binding;
 
 #else
-namespace S7PlcRx.Binding;
+namespace IoT.DriverCore.S7PlcRx.Binding;
 
 #endif
 

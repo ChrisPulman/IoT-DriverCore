@@ -4,9 +4,9 @@
 
 using TUnit.Core.Interfaces;
 
-[assembly: ParallelLimiter<S7PlcRx.Tests.Testing.SerialTestParallelLimit>]
+[assembly: ParallelLimiter<SerialTestParallelLimit>]
 
-namespace S7PlcRx.Tests.Testing;
+namespace IoT.DriverCore.S7PlcRx.Tests.Testing;
 
 /// <summary>Limits the test assembly to one concurrently executing test.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]

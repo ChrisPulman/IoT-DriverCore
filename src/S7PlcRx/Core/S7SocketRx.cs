@@ -8,9 +8,9 @@ using DateTime = System.DateTime;
 using Timer = System.Threading.Timer;
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Core;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Core;
 #else
-namespace S7PlcRx.Core;
+namespace IoT.DriverCore.S7PlcRx.Core;
 #endif
 
 /// <summary>
@@ -83,6 +83,9 @@ internal partial class S7SocketRx : IDisposable
 
     /// <summary>Defines the Connection Restart Delay Milliseconds value.</summary>
     private const int ConnectionRestartDelayMilliseconds = 1_000;
+
+    /// <summary>Maximum time allowed for tracked background work to stop during disposal.</summary>
+    private const int BackgroundShutdownTimeoutMilliseconds = 3_000;
 
     /// <summary>Defines the Consecutive Error Restart Threshold value.</summary>
     private const int ConsecutiveErrorRestartThreshold = 6;
@@ -348,6 +351,15 @@ internal partial class S7SocketRx : IDisposable
     /// <summary>Stores the shared byte-buffer pool used by this instance.</summary>
     private readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
 
+    /// <summary>Coordinates background work with the lifetime of this connection.</summary>
+    private readonly CancellationTokenSource _lifetimeCancellation = new();
+
+    /// <summary>Synchronizes creation and capture of tracked background tasks.</summary>
+    private readonly object _lifecycleSync = new();
+
+    /// <summary>Stores the TCP port used for S7 connection and availability probes.</summary>
+    private readonly int _s7TcpPort = S7TcpPort;
+
     /// <summary>Stores the e tr i c s used by this instance.</summary>
     private readonly ConnectionMetrics _metrics = new();
 
@@ -363,6 +375,15 @@ internal partial class S7SocketRx : IDisposable
     /// <summary>Stores the d is po sa b l e used by this instance.</summary>
     private IDisposable _disposable;
 
+    /// <summary>Tracks the currently active availability probe.</summary>
+    private Task _availabilityProbeTask = Task.CompletedTask;
+
+    /// <summary>Tracks the currently active availability observation and connection initialization.</summary>
+    private Task _availabilityObservationTask = Task.CompletedTask;
+
+    /// <summary>Tracks the currently active connection restart.</summary>
+    private Task _restartTask = Task.CompletedTask;
+
     /// <summary>Stores the d is po se dv al u e used by this instance.</summary>
     private bool _disposedValue;
 
@@ -377,6 +398,9 @@ internal partial class S7SocketRx : IDisposable
 
     /// <summary>Stores the s oc k e t used by this instance.</summary>
     private Socket? _socket;
+
+    /// <summary>Stores the socket owned by an in-progress connection attempt.</summary>
+    private Socket? _connectionAttemptSocket;
 
     /// <summary>Stores the l as ts uc ce ss fu lo pe ra ti o n used by this instance.</summary>
     private DateTime _lastSuccessfulOperation = DateTime.MinValue;

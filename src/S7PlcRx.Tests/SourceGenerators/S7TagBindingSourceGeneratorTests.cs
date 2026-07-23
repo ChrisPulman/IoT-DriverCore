@@ -3,14 +3,14 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
+using IoT.DriverCore.S7PlcRx.SourceGeneration;
+using IoT.DriverCore.S7PlcRx.SourceGenerators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using S7PlcRx.SourceGeneration;
-using S7PlcRx.SourceGenerators;
 using ReflectionAssembly = System.Reflection.Assembly;
 
-namespace S7PlcRx.Tests.SourceGenerators;
+namespace IoT.DriverCore.S7PlcRx.Tests.SourceGenerators;
 
 /// <summary>Tests for S7 tag binding source generation.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
@@ -30,7 +30,7 @@ public sealed class S7TagBindingSourceGeneratorTests
     {
         System.Diagnostics.Debug.WriteLine(DebuggerDisplay);
         const string source = """
-            using S7PlcRx.SourceGeneration;
+            using IoT.DriverCore.S7PlcRx.SourceGeneration;
 
             namespace Demo;
 
@@ -52,9 +52,9 @@ public sealed class S7TagBindingSourceGeneratorTests
         var generated = string.Join("\n---\n", result.GeneratedTrees.Select(static tree => tree.GetText().ToString()));
 
         await TUnit.Assertions.Assert.That(generated)
-            .Contains("global::S7PlcRx.Binding.S7TagRuntimeBinding.Bind");
+            .Contains("global::IoT.DriverCore.S7PlcRx.Binding.S7TagRuntimeBinding.Bind");
         await TUnit.Assertions.Assert.That(generated)
-            .Contains("new global::S7PlcRx.Binding.S7TagDefinition");
+            .Contains("new global::IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition");
         await TUnit.Assertions.Assert.That(generated).Contains("nameof(Temperature)");
         await TUnit.Assertions.Assert.That(generated).Contains("\"DB1.DBD0\"");
         await TUnit.Assertions.Assert.That(generated).Contains("S7TagDirection.ReadOnly");
@@ -71,7 +71,7 @@ public sealed class S7TagBindingSourceGeneratorTests
     {
         System.Diagnostics.Debug.WriteLine(DebuggerDisplay);
         const string source = """
-            using S7PlcRx.SourceGeneration;
+            using IoT.DriverCore.S7PlcRx.SourceGeneration;
 
             namespace Demo;
 
@@ -101,7 +101,7 @@ public sealed class S7TagBindingSourceGeneratorTests
     {
         System.Diagnostics.Debug.WriteLine(DebuggerDisplay);
         const string source = """
-            using S7PlcRx.SourceGeneration;
+            using IoT.DriverCore.S7PlcRx.SourceGeneration;
 
             [S7PlcBinding]
             public class MachineTags
@@ -139,7 +139,9 @@ public sealed class S7TagBindingSourceGeneratorTests
         {
             MetadataReference.CreateFromFile(typeof(object).GetTypeInfo().Assembly.Location),
             MetadataReference.CreateFromFile(typeof(IDisposable).GetTypeInfo().Assembly.Location),
-#if !NETFRAMEWORK
+#if NETFRAMEWORK
+            MetadataReference.CreateFromFile(typeof(IAsyncEnumerable<>).GetTypeInfo().Assembly.Location),
+#else
             MetadataReference.CreateFromFile(System.Reflection.Assembly.Load("System.Runtime").Location),
 #endif
             MetadataReference.CreateFromFile(ReflectionAssembly.Load("netstandard").Location),

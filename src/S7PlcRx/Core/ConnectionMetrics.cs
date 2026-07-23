@@ -5,9 +5,9 @@
 using TimeSpan = System.TimeSpan;
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Core;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Core;
 #else
-namespace S7PlcRx.Core;
+namespace IoT.DriverCore.S7PlcRx.Core;
 #endif
 
 /// <summary>

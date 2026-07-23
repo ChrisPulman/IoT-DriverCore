@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace S7PlcRx.Tests.Testing;
+namespace IoT.DriverCore.S7PlcRx.Tests.Testing;
 
 /// <summary>Represents an asynchronous exception constraint.</summary>
 /// <param name="exceptionType">Describes parameter exceptionType for helper member 77.</param>

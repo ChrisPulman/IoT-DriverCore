@@ -5,9 +5,9 @@
 using System.Collections.Concurrent;
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.BatchOperations;
+namespace IoT.DriverCore.S7PlcRx.Reactive.BatchOperations;
 #else
-namespace S7PlcRx.BatchOperations;
+namespace IoT.DriverCore.S7PlcRx.BatchOperations;
 #endif
 
 /// <summary>Represents a thread-safe queue for managing batch requests.</summary>

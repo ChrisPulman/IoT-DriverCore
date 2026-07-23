@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Core;
+using IoT.DriverCore.S7PlcRx.Reactive.Core;
 #else
-using S7PlcRx.Core;
+using IoT.DriverCore.S7PlcRx.Core;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.BatchOperations;
+namespace IoT.DriverCore.S7PlcRx.Reactive.BatchOperations;
 #else
-namespace S7PlcRx.BatchOperations;
+namespace IoT.DriverCore.S7PlcRx.BatchOperations;
 #endif
 
 /// <summary>Represents a single request to be processed as part of a batch operation.</summary>

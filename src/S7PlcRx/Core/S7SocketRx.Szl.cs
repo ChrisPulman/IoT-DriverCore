@@ -6,17 +6,17 @@ using System.Diagnostics;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Enums;
-using S7PlcRx.Reactive.PlcTypes;
+using IoT.DriverCore.S7PlcRx.Reactive.Enums;
+using IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
 #else
-using S7PlcRx.Enums;
-using S7PlcRx.PlcTypes;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.PlcTypes;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Core;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Core;
 #else
-namespace S7PlcRx.Core;
+namespace IoT.DriverCore.S7PlcRx.Core;
 #endif
 
 /// <summary>Provides S7 socket connection functionality.</summary>
@@ -137,41 +137,81 @@ internal partial class S7SocketRx
     /// </param>
     protected virtual void Dispose(bool disposing)
     {
-        if (_disposedValue)
+        Task[] backgroundTasks;
+        lock (_lifecycleSync)
+        {
+            if (_disposedValue)
+            {
+                return;
+            }
+
+            _disposedValue = true;
+            if (!disposing)
+            {
+                return;
+            }
+
+            _lifetimeCancellation.Cancel();
+            _connectionAttemptSocket?.Dispose();
+            _connectionAttemptSocket = null;
+            backgroundTasks = [_availabilityProbeTask, _availabilityObservationTask, _restartTask];
+        }
+
+        // Stop connection/retry loops before disposing subjects.
+        try
+        {
+            _disposable?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            LogError($"Subscription disposal failed: {ex.Message}", _timeProvider);
+        }
+
+        _metricsTimer?.Dispose();
+        CloseSocketOptimized(_socket, _timeProvider);
+        _socket = null;
+        DrainBackgroundTasks(backgroundTasks, _timeProvider);
+
+        try
+        {
+            _socketExceptionSubject?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            LogError($"Socket exception subject disposal failed: {ex.Message}", _timeProvider);
+        }
+
+        _metricsSubject?.Dispose();
+        _connectionLock.Dispose();
+        _lifetimeCancellation.Dispose();
+    }
+
+    /// <summary>Waits briefly for owned background work to observe cancellation and finish.</summary>
+    /// <param name="backgroundTasks">The tasks captured when disposal started.</param>
+    /// <param name="timeProvider">The time provider used for diagnostics.</param>
+    private static void DrainBackgroundTasks(IEnumerable<Task> backgroundTasks, TimeProvider timeProvider)
+    {
+        var currentTaskId = Task.CurrentId;
+        var activeTasks = backgroundTasks
+            .Where(task => !task.IsCompleted && task.Id != currentTaskId)
+            .Distinct()
+            .ToArray();
+        if (activeTasks.Length == 0)
         {
             return;
         }
 
-        if (disposing)
+        try
         {
-            // Stop connection/retry loops before disposing subjects
-            try
+            if (!Task.WaitAll(activeTasks, BackgroundShutdownTimeoutMilliseconds))
             {
-                _disposable?.Dispose();
+                LogError("Timed out while stopping S7 background work.", timeProvider);
             }
-            catch (Exception ex)
-            {
-                LogError($"Subscription disposal failed: {ex.Message}", _timeProvider);
-            }
-
-            _metricsTimer?.Dispose();
-            CloseSocketOptimized(_socket, _timeProvider);
-            _socket = null;
-
-            try
-            {
-                _socketExceptionSubject?.Dispose();
-            }
-            catch (Exception ex)
-            {
-                LogError($"Socket exception subject disposal failed: {ex.Message}", _timeProvider);
-            }
-
-            _metricsSubject?.Dispose();
-            _connectionLock?.Dispose();
         }
-
-        _disposedValue = true;
+        catch (AggregateException ex)
+        {
+            LogError($"S7 background work stopped with an error: {ex.Flatten().InnerException?.Message}", timeProvider);
+        }
     }
 
     /// <summary>Logs an error message to the debug output when a debugger is attached.</summary>

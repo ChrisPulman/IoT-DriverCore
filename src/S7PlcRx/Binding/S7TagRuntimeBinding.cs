@@ -5,16 +5,16 @@
 using System.Collections.Concurrent;
 using Timer = System.Threading.Timer;
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.PlcTypes;
+using IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
 #else
-using S7PlcRx.PlcTypes;
+using IoT.DriverCore.S7PlcRx.PlcTypes;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Binding;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Binding;
 
 #else
-namespace S7PlcRx.Binding;
+namespace IoT.DriverCore.S7PlcRx.Binding;
 
 #endif
 

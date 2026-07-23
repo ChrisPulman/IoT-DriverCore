@@ -5,15 +5,15 @@
 using System.Diagnostics;
 using System.Net.Sockets;
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Enums;
+using IoT.DriverCore.S7PlcRx.Reactive.Enums;
 #else
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Core;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Core;
 #else
-namespace S7PlcRx.Core;
+namespace IoT.DriverCore.S7PlcRx.Core;
 #endif
 
 /// <summary>Provides S7 socket connection functionality.</summary>
@@ -70,6 +70,37 @@ internal partial class S7SocketRx
             TimeSpan.FromSeconds(MetricsReportIntervalSeconds));
 
         _disposable = Connect.Subscribe();
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="S7SocketRx"/> class around an existing socket.</summary>
+    /// <param name="ip">The IP address represented by the socket.</param>
+    /// <param name="plcType">The PLC CPU type.</param>
+    /// <param name="rack">The PLC rack number.</param>
+    /// <param name="slot">The PLC slot number.</param>
+    /// <param name="socket">The socket owned by this connection.</param>
+    /// <param name="timeProvider">The time provider used for diagnostics.</param>
+    /// <param name="port">The TCP port used by connection and availability probes.</param>
+    internal S7SocketRx(
+        string ip,
+        CpuType plcType,
+        short rack,
+        short slot,
+        Socket socket,
+        TimeProvider timeProvider,
+        int port = S7TcpPort)
+    {
+        IP = ip ?? throw new ArgumentNullException(nameof(ip));
+        PLCType = plcType;
+        Rack = rack;
+        Slot = slot;
+        _socket = socket ?? throw new ArgumentNullException(nameof(socket));
+        _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        _s7TcpPort = port;
+        DataReadLength = GetOptimalDataReadLength(plcType);
+        _initComplete = true;
+        _isConnected = socket.Connected;
+        _isAvailable = socket.Connected;
+        _disposable = Disposable.Empty;
     }
 
     /// <summary>

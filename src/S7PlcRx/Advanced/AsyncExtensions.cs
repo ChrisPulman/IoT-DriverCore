@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Advanced;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Advanced;
 #else
-namespace S7PlcRx.Advanced;
+namespace IoT.DriverCore.S7PlcRx.Advanced;
 #endif
 
 /// <summary>

@@ -7,16 +7,16 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.PlcTypes;
+using IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
 #else
-using S7PlcRx.PlcTypes;
+using IoT.DriverCore.S7PlcRx.PlcTypes;
 #endif
 using TimeSpan = System.TimeSpan;
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Core;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Core;
 #else
-namespace S7PlcRx.Core;
+namespace IoT.DriverCore.S7PlcRx.Core;
 #endif
 
 /// <summary>Provides S7 socket connection functionality.</summary>
@@ -149,45 +149,59 @@ internal partial class S7SocketRx
     /// and re-establish the connection. If the object has been disposed, the operation is not performed. Any exceptions
     /// encountered during the restart process are logged. This method is intended for internal use and is not
     /// thread-safe.</remarks>
-    private void RestartConnection() =>
-        Task.Run(async () =>
+    private void RestartConnection()
+    {
+        lock (_lifecycleSync)
         {
-            if (_disposedValue)
+            if (_disposedValue || !_restartTask.IsCompleted)
             {
                 return;
             }
 
-            if (Interlocked.CompareExchange(ref _restartInProgress, 1, 0) != 0)
-            {
-                return;
-            }
+            _restartTask = Task.Run(RestartConnectionAsync);
+        }
+    }
 
-            try
-            {
-                LogWarning("Restarting connection due to failures", _timeProvider);
-                var socket = _socket;
-                _socket = null;
-                _initComplete = false;
-                _isConnected = false;
-                CloseSocketOptimized(socket, _timeProvider);
+    /// <summary>Restarts the connection while honoring the owning transport lifetime.</summary>
+    /// <returns>A task representing the restart operation.</returns>
+    private async Task RestartConnectionAsync()
+    {
+        if (_disposedValue || Interlocked.CompareExchange(ref _restartInProgress, 1, 0) != 0)
+        {
+            return;
+        }
 
-                await Task.Delay(ConnectionRestartDelayMilliseconds).ConfigureAwait(false);
+        try
+        {
+            LogWarning("Restarting connection due to failures", _timeProvider);
+            var socket = _socket;
+            _socket = null;
+            _initComplete = false;
+            _isConnected = false;
+            CloseSocketOptimized(socket, _timeProvider);
 
-                if (!_disposedValue)
-                {
-                    _disposable?.Dispose();
-                    _disposable = Connect.Subscribe();
-                }
-            }
-            catch (Exception ex)
+            await Task.Delay(
+                ConnectionRestartDelayMilliseconds,
+                _lifetimeCancellation.Token).ConfigureAwait(false);
+
+            if (!_disposedValue && !_lifetimeCancellation.IsCancellationRequested)
             {
-                LogError($"Connection restart failed: {ex.Message}", _timeProvider);
+                _disposable?.Dispose();
+                _disposable = Connect.Subscribe();
             }
-            finally
-            {
-                _ = Interlocked.Exchange(ref _restartInProgress, 0);
-            }
-        });
+        }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            LogError($"Connection restart failed: {ex.Message}", _timeProvider);
+        }
+        finally
+        {
+            _ = Interlocked.Exchange(ref _restartInProgress, 0);
+        }
+    }
 
     /// <summary>Reports the current set of collected metrics to subscribed observers.</summary>
     /// <remarks>Any exceptions encountered during reporting are logged and do not propagate to the caller.</remarks>
@@ -203,6 +217,11 @@ internal partial class S7SocketRx
         }
     }
 
+    /// <summary>Determines whether the owning transport is stopping or has been disposed.</summary>
+    /// <returns><see langword="true"/> when no new background work should be performed.</returns>
+    private bool LifecycleIsStopped() =>
+        _disposedValue || _lifetimeCancellation.IsCancellationRequested;
+
     /// <summary>Asynchronously checks whether the configured IP address is reachable.</summary>
     /// <remarks>Returns <see langword="false"/> if the IP address is not set or is invalid, or if the ping
     /// operation fails due to network errors or exceptions.</remarks>
@@ -212,7 +231,7 @@ internal partial class S7SocketRx
     /// </returns>
     private async Task<bool> CheckAvailabilityOptimizedAsync()
     {
-        if (string.IsNullOrWhiteSpace(IP))
+        if (LifecycleIsStopped() || string.IsNullOrWhiteSpace(IP))
         {
             return false;
         }
@@ -240,7 +259,7 @@ internal partial class S7SocketRx
             LogError($"Ping failed: {ex.Message}", _timeProvider);
         }
 
-        return await CheckPortAvailabilityAsync().ConfigureAwait(false);
+        return !LifecycleIsStopped() && await CheckPortAvailabilityAsync().ConfigureAwait(false);
     }
 
     /// <summary>Stores the c he ck po rt av ai la bi li ty as y n c value.</summary>
@@ -248,21 +267,15 @@ internal partial class S7SocketRx
     private async Task<bool> CheckPortAvailabilityAsync()
     {
         using var probeSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        probeSocket.Blocking = false;
 
         try
         {
-            var server = new IPEndPoint(IPAddress.Parse(IP), S7TcpPort);
+            var server = new IPEndPoint(IPAddress.Parse(IP), _s7TcpPort);
 #if NETFRAMEWORK
-            var connectTask = Task.Factory.FromAsync(
-                (callback, state) => probeSocket.BeginConnect(server, callback, state),
-                probeSocket.EndConnect,
-                null);
-            var timeoutTask = Task.Delay(PortProbeTimeoutMs);
-            var completedTask = await Task.WhenAny(connectTask, timeoutTask).ConfigureAwait(false);
-            return completedTask == connectTask && probeSocket.Connected;
+            return await ConnectProbeNetFrameworkAsync(probeSocket, server).ConfigureAwait(false);
 #else
-            using var cts = new CancellationTokenSource(PortProbeTimeoutMs);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
+            cts.CancelAfter(PortProbeTimeoutMs);
             await probeSocket.ConnectAsync(server, cts.Token).ConfigureAwait(false);
             return probeSocket.Connected;
 #endif
@@ -280,6 +293,70 @@ internal partial class S7SocketRx
             return false;
         }
     }
+
+#if NETFRAMEWORK
+    /// <summary>Connects a .NET Framework probe without disposing a socket that still has pending native I/O.</summary>
+    /// <param name="socket">The probe socket.</param>
+    /// <param name="endpoint">The remote endpoint.</param>
+    /// <returns><see langword="true"/> when the probe connects before the timeout.</returns>
+    private Task<bool> ConnectProbeNetFrameworkAsync(
+        Socket socket,
+        EndPoint endpoint)
+        => ConnectSocketNetFrameworkAsync(
+            socket,
+            endpoint,
+            PortProbeTimeoutMs,
+            _lifetimeCancellation.Token);
+
+    /// <summary>Connects a .NET Framework socket with bounded, lifetime-aware blocking work.</summary>
+    /// <param name="socket">The socket to connect.</param>
+    /// <param name="endpoint">The remote endpoint.</param>
+    /// <param name="timeoutMilliseconds">The connection timeout in milliseconds.</param>
+    /// <param name="cancellationToken">The owning transport lifetime token.</param>
+    /// <returns><see langword="true"/> when the socket connects before cancellation or timeout.</returns>
+    private async Task<bool> ConnectSocketNetFrameworkAsync(
+        Socket socket,
+        EndPoint endpoint,
+        int timeoutMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        using var cancellationRegistration = cancellationToken.Register(
+            () => CloseSocketOptimized(socket, _timeProvider));
+        var connectTask = Task.Run(() =>
+        {
+            try
+            {
+                socket.Connect(endpoint);
+                return socket.Connected;
+            }
+            catch (ObjectDisposedException)
+            {
+                return false;
+            }
+            catch (SocketException)
+            {
+                return false;
+            }
+        });
+
+        using var timeoutCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var timeoutTask = Task.Delay(timeoutMilliseconds, timeoutCancellation.Token);
+        var completedTask = await Task.WhenAny(connectTask, timeoutTask).ConfigureAwait(false);
+        if (!ReferenceEquals(completedTask, connectTask))
+        {
+            CloseSocketOptimized(socket, _timeProvider);
+        }
+        else
+        {
+            timeoutCancellation.Cancel();
+        }
+
+        var connected = await connectTask.ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return connected;
+    }
+#endif
 
     /// <summary>Determines whether the underlying socket connection is currently active.</summary>
     /// <remarks>This method performs a lightweight check to verify the connection status. If the connection

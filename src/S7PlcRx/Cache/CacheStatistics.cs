@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Cache;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Cache;
 #else
-namespace S7PlcRx.Cache;
+namespace IoT.DriverCore.S7PlcRx.Cache;
 #endif
 
 /// <summary>

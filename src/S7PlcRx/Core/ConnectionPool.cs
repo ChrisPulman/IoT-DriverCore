@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Enterprise;
+using IoT.DriverCore.S7PlcRx.Reactive.Enterprise;
 #else
-using S7PlcRx.Enterprise;
+using IoT.DriverCore.S7PlcRx.Enterprise;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Core;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Core;
 #else
-namespace S7PlcRx.Core;
+namespace IoT.DriverCore.S7PlcRx.Core;
 #endif
 
 /// <summary>
@@ -67,6 +67,23 @@ public class ConnectionPool : IDisposable
             _connections.Add(plc);
             addedConnections++;
         }
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="ConnectionPool"/> class from existing PLC connections.</summary>
+    /// <param name="connections">The existing PLC connections owned by the pool.</param>
+    /// <param name="poolConfig">The pool configuration.</param>
+    internal ConnectionPool(
+        IEnumerable<IRxS7> connections,
+        ConnectionPoolConfig poolConfig)
+    {
+        _config = poolConfig ?? throw new ArgumentNullException(nameof(poolConfig));
+
+        if (connections is null)
+        {
+            throw new ArgumentNullException(nameof(connections));
+        }
+
+        _connections.AddRange(connections.Take(poolConfig.MaxConnections));
     }
 
     /// <summary>Gets the maximum number of connections in the pool.</summary>

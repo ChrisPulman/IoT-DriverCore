@@ -7,7 +7,7 @@ using System.Globalization;
 using TUnit.Assertions.Extensions;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace S7PlcRx.Tests.Testing;
+namespace IoT.DriverCore.S7PlcRx.Tests.Testing;
 
 /// <summary>Provides value comparison and TUnit assertion helpers for the adapter.</summary>
 internal static class AssertionHelpers

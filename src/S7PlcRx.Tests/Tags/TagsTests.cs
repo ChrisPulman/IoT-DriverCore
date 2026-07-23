@@ -2,10 +2,10 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using PlcTag = global::S7PlcRx.Tag;
-using TagCollection = global::S7PlcRx.Tags;
+using PlcTag = global::IoT.DriverCore.S7PlcRx.Tag;
+using TagCollection = global::IoT.DriverCore.S7PlcRx.Tags;
 
-namespace S7PlcRx.Tests.Tags;
+namespace IoT.DriverCore.S7PlcRx.Tests.Tags;
 
 /// <summary>Tests for `Tags` collection helpers.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]

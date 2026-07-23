@@ -6,9 +6,9 @@ using System.Diagnostics;
 using System.Net.Sockets;
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Core;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Core;
 #else
-namespace S7PlcRx.Core;
+namespace IoT.DriverCore.S7PlcRx.Core;
 #endif
 
 /// <summary>Provides S7 socket connection functionality.</summary>
@@ -103,9 +103,11 @@ internal partial class S7SocketRx
     /// is successfully established and initialized; otherwise, <see langword="false"/>.</returns>
     private async Task<bool> InitializeSiemensConnectionOptimizedAsync()
     {
-        await _connectionLock.WaitAsync();
+        var lockTaken = false;
         try
         {
+            await _connectionLock.WaitAsync(_lifetimeCancellation.Token).ConfigureAwait(false);
+            lockTaken = true;
             if (_disposedValue)
             {
                 return false;
@@ -118,22 +120,18 @@ internal partial class S7SocketRx
 
             foreach (var profile in new[] { TsapProfile.PG, TsapProfile.OP, TsapProfile.PGAlt })
             {
+                _lifetimeCancellation.Token.ThrowIfCancellationRequested();
                 var attemptSocket = await ConnectWithProfileAsync(profile).ConfigureAwait(false);
-                if (attemptSocket is not null)
+                if (attemptSocket is not null && TryAdoptConnectionSocket(attemptSocket))
                 {
-                    var oldSocket = _socket;
-                    _socket = attemptSocket;
-                    CloseSocketOptimized(oldSocket, _timeProvider);
-                    _initComplete = true;
-                    _isConnected = true;
-                    _lastSuccessfulOperation = _timeProvider.GetUtcNow().UtcDateTime;
-                    _consecutiveErrors = 0;
-                    _consecutiveAvailabilityFailures = 0;
-                    LogInfo($"Successfully connected to {PLCType} at {IP}:102 with PDU length {DataReadLength}", _timeProvider);
                     return true;
                 }
             }
 
+            return false;
+        }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
             return false;
         }
         catch (Exception ex)
@@ -145,7 +143,7 @@ internal partial class S7SocketRx
         {
             try
             {
-                if (!_disposedValue)
+                if (lockTaken)
                 {
                     _ = _connectionLock.Release();
                 }
@@ -155,6 +153,46 @@ internal partial class S7SocketRx
                 // Teardown race: dispose may win while an async connect is completing.
             }
         }
+    }
+
+    /// <summary>Transfers a successfully initialized socket into the active connection.</summary>
+    /// <param name="attemptSocket">The initialized connection-attempt socket.</param>
+    /// <returns><see langword="true"/> when ownership was transferred.</returns>
+    private bool TryAdoptConnectionSocket(Socket attemptSocket)
+    {
+        Socket? oldSocket;
+        lock (_lifecycleSync)
+        {
+            if (LifecycleIsStopped())
+            {
+                if (ReferenceEquals(_connectionAttemptSocket, attemptSocket))
+                {
+                    _connectionAttemptSocket = null;
+                }
+
+                CloseSocketOptimized(attemptSocket, _timeProvider);
+                return false;
+            }
+
+            oldSocket = _socket;
+            _socket = attemptSocket;
+            if (ReferenceEquals(_connectionAttemptSocket, attemptSocket))
+            {
+                _connectionAttemptSocket = null;
+            }
+
+            _initComplete = true;
+            _isConnected = true;
+            _lastSuccessfulOperation = _timeProvider.GetUtcNow().UtcDateTime;
+            _consecutiveErrors = 0;
+            _consecutiveAvailabilityFailures = 0;
+        }
+
+        CloseSocketOptimized(oldSocket, _timeProvider);
+        LogInfo(
+            $"Successfully connected to {PLCType} at {IP}:{_s7TcpPort} with PDU length {DataReadLength}",
+            _timeProvider);
+        return true;
     }
 
     /// <summary>Performs an optimized asynchronous handshake using the specified TSAP profile.</summary>

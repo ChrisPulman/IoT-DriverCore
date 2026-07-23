@@ -4,17 +4,17 @@
 
 using System.Buffers;
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Enums;
-using S7PlcRx.Reactive.PlcTypes;
+using IoT.DriverCore.S7PlcRx.Reactive.Enums;
+using IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
 #else
-using S7PlcRx.Enums;
-using S7PlcRx.PlcTypes;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.PlcTypes;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Core;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Core;
 #else
-namespace S7PlcRx.Core;
+namespace IoT.DriverCore.S7PlcRx.Core;
 #endif
 
 /// <summary>
@@ -50,8 +50,11 @@ internal static class S7MultiVar
     /// <summary>Defines the response offset of the parameter length low byte.</summary>
     private const int ResponseParameterLengthLowOffset = 14;
 
-    /// <summary>Defines the response offset from which the parameter section is measured.</summary>
-    private const int ResponseDataBaseOffset = 17;
+    /// <summary>
+    /// Defines the fixed response length through the two-byte S7 AckData error field. The parameter section follows
+    /// this header and the data section follows the declared parameter length.
+    /// </summary>
+    private const int ResponseDataBaseOffset = 19;
 
     /// <summary>Defines the number of bits contained in one byte.</summary>
     private const int BitsPerByte = 8;

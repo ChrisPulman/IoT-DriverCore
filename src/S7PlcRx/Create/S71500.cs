@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive;
+namespace IoT.DriverCore.S7PlcRx.Reactive;
 #else
-namespace S7PlcRx;
+namespace IoT.DriverCore.S7PlcRx;
 #endif
 
 /// <summary>Creates connections to Siemens S7-1500 PLC devices.</summary>

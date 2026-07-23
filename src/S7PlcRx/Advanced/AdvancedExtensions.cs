@@ -4,21 +4,21 @@
 
 using System.Collections.Concurrent;
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.BatchOperations;
-using S7PlcRx.Reactive.Enums;
-using S7PlcRx.Reactive.Performance;
-using S7PlcRx.Reactive.Production;
+using IoT.DriverCore.S7PlcRx.Reactive.BatchOperations;
+using IoT.DriverCore.S7PlcRx.Reactive.Enums;
+using IoT.DriverCore.S7PlcRx.Reactive.Performance;
+using IoT.DriverCore.S7PlcRx.Reactive.Production;
 #else
-using S7PlcRx.BatchOperations;
-using S7PlcRx.Enums;
-using S7PlcRx.Performance;
-using S7PlcRx.Production;
+using IoT.DriverCore.S7PlcRx.BatchOperations;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Performance;
+using IoT.DriverCore.S7PlcRx.Production;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Advanced;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Advanced;
 #else
-namespace S7PlcRx.Advanced;
+namespace IoT.DriverCore.S7PlcRx.Advanced;
 #endif
 
 /// <summary>
@@ -87,10 +87,19 @@ public static class AdvancedExtensions
 
         foreach (var variable in variables)
         {
-            if (!plc.TagList.ContainsKey(variable))
+            if (plc.TagList.ContainsKey(variable))
             {
-                _ = TagOperations.GetTag(plc, variable).SetPolling(true);
+                continue;
             }
+
+            var registration = TagOperations.AddUpdateTagItem(plc, typeof(T), variable, variable)
+                .SetPolling(true);
+            if (plc.TagList.ContainsKey(variable) || registration.Tag is not Tag tag)
+            {
+                continue;
+            }
+
+            plc.TagList.Add(tag);
         }
 
         return plc.ObserveAll
@@ -461,7 +470,7 @@ public static class AdvancedExtensions
     /// <param name="diagnostics">The diagnostics to update.</param>
     private static void CollectTagMetrics(IRxS7 plc, ProductionDiagnostics diagnostics)
     {
-        var allTags = plc.TagList.OfType<Tag>().ToList();
+        var allTags = plc.TagList.ToList();
         var inactiveTags = allTags.Count(tag => tag.DoNotPoll);
         diagnostics.TagMetrics = new ProductionTagMetrics
         {
