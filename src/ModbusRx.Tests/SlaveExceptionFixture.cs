@@ -4,9 +4,9 @@
 
 using System;
 using System.IO;
-using ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.Message;
 
-namespace ModbusRx.UnitTests;
+namespace IoT.DriverCore.ModbusRx.UnitTests;
 
 /// <summary>Tests the SlaveExceptionFixture behavior.</summary>
 public class SlaveExceptionFixture

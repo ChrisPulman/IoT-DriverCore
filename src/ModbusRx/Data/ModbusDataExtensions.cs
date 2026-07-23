@@ -7,9 +7,9 @@ using System.Numerics;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Data;
+namespace IoT.DriverCore.ModbusRx.Reactive.Data;
 #else
-namespace ModbusRx.Data;
+namespace IoT.DriverCore.ModbusRx.Data;
 #endif
 
 /// <summary>High-performance data conversion extensions optimized for different target frameworks.</summary>

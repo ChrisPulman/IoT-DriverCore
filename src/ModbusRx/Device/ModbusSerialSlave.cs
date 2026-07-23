@@ -4,25 +4,25 @@
 
 using System.Diagnostics;
 #if REACTIVE_SHIM
-using CP.IO.Ports.Reactive;
+using IoT.DriverCore.Serial.Reactive;
 #else
-using CP.IO.Ports;
+using IoT.DriverCore.Serial;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.IO;
+using IoT.DriverCore.ModbusRx.Reactive.IO;
 #else
-using ModbusRx.IO;
+using IoT.DriverCore.ModbusRx.IO;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Message;
+using IoT.DriverCore.ModbusRx.Reactive.Message;
 #else
-using ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.Message;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Device;
+namespace IoT.DriverCore.ModbusRx.Reactive.Device;
 #else
-namespace ModbusRx.Device;
+namespace IoT.DriverCore.ModbusRx.Device;
 #endif
 
 /// <summary>Modbus serial slave device.</summary>
@@ -118,55 +118,76 @@ public sealed class ModbusSerialSlave : ModbusSlave
         {
             try
             {
-                try
+                // read request and build message
+                var transport = SerialTransport
+                    ?? throw new InvalidOperationException("The serial transport is not initialized.");
+                var frame = await transport.ReadRequestAsync().ConfigureAwait(false);
+                var request = ModbusMessageFactory.CreateModbusRequest(frame);
+
+                if (transport.CheckFrame && !transport.ChecksumsMatch(request, frame))
                 {
-                    // read request and build message
-                    var transport = SerialTransport
-                        ?? throw new InvalidOperationException("The serial transport is not initialized.");
-                    var frame = await transport.ReadRequestAsync();
-                    var request = ModbusMessageFactory.CreateModbusRequest(frame);
-
-                    if (transport.CheckFrame && !transport.ChecksumsMatch(request, frame))
-                    {
-                        var msg = $"Checksums failed to match {string.Join(", ", request.MessageFrame)} " +
-                                  $"!= {string.Join(", ", frame)}.";
-                        Debug.WriteLine(msg);
-                        throw new IOException(msg);
-                    }
-
-                    // only service requests addressed to this particular slave
-                    if (request.SlaveAddress != UnitId)
-                    {
-                        Debug.WriteLine(
-                            $"NModbus Slave {UnitId} ignoring request intended for NModbus Slave " +
-                            $"{request.SlaveAddress}");
-                        continue;
-                    }
-
-                    // perform action
-                    var response = ApplyRequest(request);
-
-                    // write response
-                    SerialTransport.Write(response);
-                }
-                catch (IOException ioe)
-                {
-                    Debug.WriteLine($"IO Exception encountered while listening for requests - {ioe.Message}");
-                    SerialTransport?.DiscardInBuffer();
-                }
-                catch (TimeoutException te)
-                {
-                    Debug.WriteLine($"Timeout Exception encountered while listening for requests - {te.Message}");
-                    SerialTransport?.DiscardInBuffer();
+                    var msg = $"Checksums failed to match {string.Join(", ", request.MessageFrame)} " +
+                              $"!= {string.Join(", ", frame)}.";
+                    Debug.WriteLine(msg);
+                    throw new IOException(msg);
                 }
 
-                // TODO better exception handling here, missing FormatException, NotImplemented...
+                // only service requests addressed to this particular slave
+                if (request.SlaveAddress != UnitId)
+                {
+                    Debug.WriteLine(
+                        $"NModbus Slave {UnitId} ignoring request intended for NModbus Slave " +
+                        $"{request.SlaveAddress}");
+                    continue;
+                }
+
+                // perform action
+                var response = ApplyRequest(request);
+
+                // write response
+                transport.Write(response);
             }
-            catch (InvalidOperationException)
+            catch (ObjectDisposedException)
             {
-                // when the underlying transport is disposed
+                // Disposing the serial resource is the terminal lifecycle signal.
                 break;
             }
+            catch (InvalidOperationException) when (IsDisposed)
+            {
+                // ModbusDevice disposal clears the transport; complete the loop normally.
+                break;
+            }
+            catch (Exception exception) when (IsRecoverableRequestException(exception))
+            {
+                Debug.WriteLine(
+                    $"Recoverable serial request exception encountered while listening - {exception.Message}");
+                if (!TryDiscardInBuffer())
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    /// <summary>Determines whether a request failure permits the slave to process the next frame.</summary>
+    /// <param name="exception">The exception raised while decoding or handling a request.</param>
+    /// <returns><c>true</c> when the pending serial input can safely be discarded and processing continued.</returns>
+    private static bool IsRecoverableRequestException(Exception exception) =>
+        exception is IOException or TimeoutException or FormatException or ArgumentException or
+        NotSupportedException or NotImplementedException;
+
+    /// <summary>Discards a malformed request while tolerating concurrent disposal.</summary>
+    /// <returns><c>true</c> when the receive buffer was discarded.</returns>
+    private bool TryDiscardInBuffer()
+    {
+        try
+        {
+            SerialTransport?.DiscardInBuffer();
+            return true;
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
         }
     }
 }

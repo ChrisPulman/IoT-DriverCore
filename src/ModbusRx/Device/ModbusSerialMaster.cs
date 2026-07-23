@@ -3,30 +3,30 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using CP.IO.Ports.Reactive;
+using IoT.DriverCore.Serial.Reactive;
 #else
-using CP.IO.Ports;
+using IoT.DriverCore.Serial;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Data;
+using IoT.DriverCore.ModbusRx.Reactive.Data;
 #else
-using ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.Data;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.IO;
+using IoT.DriverCore.ModbusRx.Reactive.IO;
 #else
-using ModbusRx.IO;
+using IoT.DriverCore.ModbusRx.IO;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Message;
+using IoT.DriverCore.ModbusRx.Reactive.Message;
 #else
-using ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.Message;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Device;
+namespace IoT.DriverCore.ModbusRx.Reactive.Device;
 #else
-namespace ModbusRx.Device;
+namespace IoT.DriverCore.ModbusRx.Device;
 #endif
 
 /// <summary>Modbus serial master device.</summary>

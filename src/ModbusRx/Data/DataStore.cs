@@ -6,9 +6,9 @@ using System.Collections.ObjectModel;
 using System.Runtime.CompilerServices;
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Data;
+namespace IoT.DriverCore.ModbusRx.Reactive.Data;
 #else
-namespace ModbusRx.Data;
+namespace IoT.DriverCore.ModbusRx.Data;
 #endif
 
 /// <summary>
@@ -20,6 +20,21 @@ public class DataStore : IDisposable
 {
     /// <summary>Stores the lock value.</summary>
     private readonly ReaderWriterLockSlim _lock = new();
+
+    /// <summary>Stores the number of completed range reads.</summary>
+    private long _readOperations;
+
+    /// <summary>Stores the number of completed range writes.</summary>
+    private long _writeOperations;
+
+    /// <summary>Stores the number of copied range elements.</summary>
+    private long _elementCopies;
+
+    /// <summary>Stores the number of read-result collections created.</summary>
+    private long _resultCollectionAllocations;
+
+    /// <summary>Stores the number of non-indexable write inputs materialized.</summary>
+    private long _inputMaterializations;
 
     /// <summary>Initializes a new instance of the <see cref="DataStore" /> class.</summary>
     public DataStore()
@@ -71,6 +86,16 @@ public class DataStore : IDisposable
     /// <summary>Gets the reader-writer lock for more granular access control.</summary>
     public ReaderWriterLockSlim Lock { get; } = new();
 
+    /// <summary>Gets a deterministic snapshot of data-store range-operation work.</summary>
+    /// <remarks>The counters describe logical operations; they do not use wall-clock measurements.</remarks>
+    /// <returns>The current range-operation counters.</returns>
+    public DataStoreOperationMetrics GetOperationMetrics() => new(
+        Interlocked.Read(ref _readOperations),
+        Interlocked.Read(ref _writeOperations),
+        Interlocked.Read(ref _elementCopies),
+        Interlocked.Read(ref _resultCollectionAllocations),
+        Interlocked.Read(ref _inputMaterializations));
+
     /// <summary>Disposes the DataStore and releases resources.</summary>
     public void Dispose()
     {
@@ -112,15 +137,13 @@ public class DataStore : IDisposable
             throw new InvalidModbusRequestException(Modbus.IllegalDataAddress);
         }
 
-        TU[] dataToRetrieve;
-
+        var result = resultFactory();
         _lock.EnterReadLock();
         try
         {
-            dataToRetrieve = new TU[count];
-            for (var i = 0; i < dataToRetrieve.Length; i++)
+            for (var i = 0; i < count; i++)
             {
-                dataToRetrieve[i] = dataSource[startIndex + i];
+                result.Add(dataSource[startIndex + i]);
             }
         }
         finally
@@ -128,12 +151,7 @@ public class DataStore : IDisposable
             _lock.ExitReadLock();
         }
 
-        var result = resultFactory();
-        for (var i = 0; i < count; i++)
-        {
-            result.Add(dataToRetrieve[i]);
-        }
-
+        RecordRead(count);
         var dataStoreEventArgs = DataStoreEventArgs.CreateDataStoreEventArgs(
             startAddress,
             dataSource.ModbusDataType,
@@ -159,7 +177,7 @@ public class DataStore : IDisposable
             throw new ArgumentNullException(nameof(destination));
         }
 
-        var materializedItems = MaterializeItems(items);
+        var materializedItems = MaterializeItems(items, out var materialized);
         var startIndex = startAddress + 1;
 
         if (startIndex < 0 || destination.Count < startIndex + materializedItems.Count)
@@ -176,6 +194,8 @@ public class DataStore : IDisposable
         {
             _lock.ExitWriteLock();
         }
+
+        RecordWrite(materializedItems.Count, materialized);
 
         var dataStoreEventArgs = DataStoreEventArgs.CreateDataStoreEventArgs(
             startAddress,
@@ -211,22 +231,16 @@ public class DataStore : IDisposable
             throw new InvalidModbusRequestException(Modbus.IllegalDataAddress);
         }
 
-        TU[] dataToRetrieve;
+        var result = new T();
         lock (syncRoot)
         {
-            dataToRetrieve = new TU[count];
-            for (var i = 0; i < dataToRetrieve.Length; i++)
+            for (var i = 0; i < count; i++)
             {
-                dataToRetrieve[i] = dataSource[startIndex + i];
+                result.Add(dataSource[startIndex + i]);
             }
         }
 
-        var result = new T();
-        for (var i = 0; i < count; i++)
-        {
-            result.Add(dataToRetrieve[i]);
-        }
-
+        dataStore.RecordRead(count);
         dataStoreEventArgs = DataStoreEventArgs.CreateDataStoreEventArgs(
             startAddress,
             dataSource.ModbusDataType,
@@ -252,7 +266,7 @@ public class DataStore : IDisposable
     {
         DataStoreEventArgs dataStoreEventArgs;
         var startIndex = startAddress + 1;
-        var materializedItems = MaterializeItems(items);
+        var materializedItems = MaterializeItems(items, out var materialized);
 
         if (startIndex < 0 || destination.Count < startIndex + materializedItems.Count)
         {
@@ -263,6 +277,8 @@ public class DataStore : IDisposable
         {
             Update(materializedItems, destination, startIndex);
         }
+
+        dataStore.RecordWrite(materializedItems.Count, materialized);
 
         dataStoreEventArgs = DataStoreEventArgs.CreateDataStoreEventArgs(
             startAddress,
@@ -280,7 +296,7 @@ public class DataStore : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void Update<T>(IEnumerable<T> items, IList<T> destination, int startIndex)
     {
-        var materializedItems = MaterializeItems(items);
+        var materializedItems = MaterializeItems(items, out _);
 
         if (startIndex < 0 || destination.Count < startIndex + materializedItems.Count)
         {
@@ -308,10 +324,49 @@ public class DataStore : IDisposable
         _lock.Dispose();
     }
 
-    /// <summary>Executes the Materialize Items operation.</summary>
+    /// <summary>Returns indexable input without duplicating existing lists and arrays.</summary>
     /// <typeparam name="T">The T type.</typeparam>
     /// <param name="items">The items value.</param>
-    /// <returns>The result.</returns>
-    private static IReadOnlyList<T> MaterializeItems<T>(IEnumerable<T> items) =>
-        (items as IReadOnlyList<T>) ?? new List<T>(items);
+    /// <param name="materialized">Receives whether the input was materialized.</param>
+    /// <returns>An indexable view of the input.</returns>
+    private static IReadOnlyList<T> MaterializeItems<T>(IEnumerable<T> items, out bool materialized)
+    {
+        if (items is null)
+        {
+            throw new ArgumentNullException(nameof(items));
+        }
+
+        if (items is not IReadOnlyList<T> indexedItems)
+        {
+            materialized = true;
+            return new List<T>(items);
+        }
+
+        materialized = false;
+        return indexedItems;
+    }
+
+    /// <summary>Records one completed range read.</summary>
+    /// <param name="elementCount">The number of elements copied to the result.</param>
+    private void RecordRead(int elementCount)
+    {
+        _ = Interlocked.Increment(ref _readOperations);
+        _ = Interlocked.Increment(ref _resultCollectionAllocations);
+        _ = Interlocked.Add(ref _elementCopies, elementCount);
+    }
+
+    /// <summary>Records one completed range write.</summary>
+    /// <param name="elementCount">The number of elements written.</param>
+    /// <param name="materialized">Whether the input was materialized once.</param>
+    private void RecordWrite(int elementCount, bool materialized)
+    {
+        _ = Interlocked.Increment(ref _writeOperations);
+        _ = Interlocked.Add(ref _elementCopies, elementCount);
+        if (!materialized)
+        {
+            return;
+        }
+
+        _ = Interlocked.Increment(ref _inputMaterializations);
+    }
 }

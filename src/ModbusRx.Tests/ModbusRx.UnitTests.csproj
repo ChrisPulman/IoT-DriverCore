@@ -13,14 +13,9 @@
     <UseAppHost>false</UseAppHost>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(CI)' == 'true'">
-    <TargetFrameworks>net8.0</TargetFrameworks>
-    <UseAppHost>false</UseAppHost>
-    <DisableTransitiveFrameworkReferences>true</DisableTransitiveFrameworkReferences>
-  </PropertyGroup>
-
   <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
     <PlatformTarget>x86</PlatformTarget>
+    <EnableTUnitPolyfills>false</EnableTUnitPolyfills>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,11 +25,11 @@
     <PackageReference Include="ReactiveUI.Primitives.Async" />
     <PackageReference Include="TUnit" />
     <PackageReference Include="TUnit.Assertions" />
-    <PackageReference Include="coverlet.collector" />
   </ItemGroup>
 
   <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
     <PackageReference Include="PolySharp" />
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
     <PackageReference Include="System.Memory" />
   </ItemGroup>
 
@@ -49,7 +44,7 @@
     <Using Include="ReactiveUI.Primitives.Reactive" />
     <Using Include="ReactiveUI.Primitives.Async.Reactive" />
     <Using Include="ReactiveUI.Primitives.Reactive.Signals.Signal" Alias="Observable" />
-    <Using Include="ModbusRx.UnitTests.Testing.Assert" Alias="Assert" />
+    <Using Include="IoT.DriverCore.ModbusRx.UnitTests.Testing.Assert" Alias="Assert" />
     <Using Include="TUnit.Assertions.Extensions" />
   </ItemGroup>
 

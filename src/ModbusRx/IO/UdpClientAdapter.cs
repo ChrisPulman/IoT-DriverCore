@@ -3,20 +3,20 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using CP.IO.Ports.Reactive;
+using IoT.DriverCore.Serial.Reactive;
 #else
-using CP.IO.Ports;
+using IoT.DriverCore.Serial;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Unme.Common;
+using IoT.DriverCore.ModbusRx.Reactive.Unme.Common;
 #else
-using ModbusRx.Unme.Common;
+using IoT.DriverCore.ModbusRx.Unme.Common;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.IO;
+namespace IoT.DriverCore.ModbusRx.Reactive.IO;
 #else
-namespace ModbusRx.IO;
+namespace IoT.DriverCore.ModbusRx.IO;
 #endif
 
 /// <summary>Concrete Implementor - http://en.wikipedia.org/wiki/Bridge_Pattern.</summary>

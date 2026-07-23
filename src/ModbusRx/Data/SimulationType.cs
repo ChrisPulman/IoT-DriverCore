@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Data;
+namespace IoT.DriverCore.ModbusRx.Reactive.Data;
 #else
-namespace ModbusRx.Data;
+namespace IoT.DriverCore.ModbusRx.Data;
 #endif
 
 /// <summary>Types of simulation patterns available.</summary>

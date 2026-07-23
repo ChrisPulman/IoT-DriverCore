@@ -5,20 +5,20 @@
 using System.Diagnostics;
 using System.Text;
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Message;
+using IoT.DriverCore.ModbusRx.Reactive.Message;
 #else
-using ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.Message;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Utility;
+using IoT.DriverCore.ModbusRx.Reactive.Utility;
 #else
-using ModbusRx.Utility;
+using IoT.DriverCore.ModbusRx.Utility;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.IO;
+namespace IoT.DriverCore.ModbusRx.Reactive.IO;
 #else
-namespace ModbusRx.IO;
+namespace IoT.DriverCore.ModbusRx.IO;
 #endif
 
 /// <summary>Refined Abstraction - http://en.wikipedia.org/wiki/Bridge_Pattern.</summary>

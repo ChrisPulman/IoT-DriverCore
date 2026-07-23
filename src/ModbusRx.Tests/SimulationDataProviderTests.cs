@@ -5,9 +5,9 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.Data;
 
-namespace ModbusRx.UnitTests;
+namespace IoT.DriverCore.ModbusRx.UnitTests;
 
 /// <summary>Unit tests for SimulationDataProvider.</summary>
 public class SimulationDataProviderTests
@@ -259,7 +259,7 @@ public class SimulationDataProviderTests
         for (var retry = 0; retry < maxRetries && !simulation1Succeeded; retry++)
         {
             await Task.Delay(baseWaitTime);
-            var currentData = CopyFirst(dataStore1.HoldingRegisters, Num.Value5);
+            var currentData = CopyFirst(dataStore1, Num.Value5);
 
             // CountingUp should produce sequential values starting from 0
             simulation1Succeeded = ContainsPositiveValue(currentData) || HasVariation(currentData);
@@ -277,7 +277,7 @@ public class SimulationDataProviderTests
         for (var retry = 0; retry < maxRetries && !simulation2Succeeded; retry++)
         {
             await Task.Delay(baseWaitTime);
-            var currentData = CopyFirst(dataStore2.HoldingRegisters, Num.Value5);
+            var currentData = CopyFirst(dataStore2, Num.Value5);
 
             // Random should produce varied values
             simulation2Succeeded = ContainsPositiveValue(currentData) || HasVariation(currentData);
@@ -286,8 +286,8 @@ public class SimulationDataProviderTests
         provider.Stop();
 
         // Assert - Get final values for comparison
-        var values1 = CopyFirst(dataStore1.HoldingRegisters, Num.Value10);
-        var values2 = CopyFirst(dataStore2.HoldingRegisters, Num.Value10);
+        var values1 = CopyFirst(dataStore1, Num.Value10);
+        var values2 = CopyFirst(dataStore2, Num.Value10);
 
         // More flexible assertion - different simulation types should produce different results
         var patternsAreDifferent = !SequenceEqual(values1, values2) ||
@@ -297,23 +297,31 @@ public class SimulationDataProviderTests
     }
 
     /// <summary>Copies the first values from a sequence.</summary>
-    /// <param name="values">The source values.</param>
+    /// <param name="dataStore">The source data store.</param>
     /// <param name="count">The maximum number of values to copy.</param>
     /// <returns>The copied values.</returns>
-    private static ushort[] CopyFirst(IEnumerable<ushort> values, int count)
+    private static ushort[] CopyFirst(DataStore dataStore, int count)
     {
-        var result = new List<ushort>(count);
-        foreach (var value in values)
+        dataStore.Lock.EnterReadLock();
+        try
         {
-            if (result.Count == count)
+            var result = new List<ushort>(count);
+            foreach (var value in dataStore.HoldingRegisters)
             {
-                break;
+                if (result.Count == count)
+                {
+                    break;
+                }
+
+                result.Add(value);
             }
 
-            result.Add(value);
+            return result.ToArray();
         }
-
-        return result.ToArray();
+        finally
+        {
+            dataStore.Lock.ExitReadLock();
+        }
     }
 
     /// <summary>Determines whether values contain more than one distinct value.</summary>

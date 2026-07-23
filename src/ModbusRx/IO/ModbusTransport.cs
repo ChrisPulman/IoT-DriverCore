@@ -5,20 +5,20 @@
 using System.Diagnostics;
 using SystemTimeProvider = System.TimeProvider;
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Message;
+using IoT.DriverCore.ModbusRx.Reactive.Message;
 #else
-using ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.Message;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Unme.Common;
+using IoT.DriverCore.ModbusRx.Reactive.Unme.Common;
 #else
-using ModbusRx.Unme.Common;
+using IoT.DriverCore.ModbusRx.Unme.Common;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.IO;
+namespace IoT.DriverCore.ModbusRx.Reactive.IO;
 #else
-namespace ModbusRx.IO;
+namespace IoT.DriverCore.ModbusRx.IO;
 #endif
 
 /// <summary>Modbus transport. Abstraction - http://en.wikipedia.org/wiki/Bridge_Pattern.</summary>
@@ -320,7 +320,7 @@ public abstract class ModbusTransport : IDisposable
     {
         while (true)
         {
-            var response = ReadResponseAsync(responseFactory).Result;
+            var response = ReadResponseAsync(responseFactory).GetAwaiter().GetResult();
             if (TryHandleAcknowledgeResponse(response) || ShouldRetryResponse(message, response))
             {
                 continue;

@@ -7,9 +7,9 @@ using System.Buffers;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.IO;
+namespace IoT.DriverCore.ModbusRx.Reactive.IO;
 #else
-namespace ModbusRx.IO;
+namespace IoT.DriverCore.ModbusRx.IO;
 #endif
 
 /// <summary>High-performance buffer manager for Modbus message processing with cross-platform compatibility.</summary>
@@ -31,15 +31,31 @@ public sealed class ModbusBufferManager : IDisposable
     /// <summary>Stores the disposed value.</summary>
     private bool _disposed;
 
-#if NET8_0_OR_GREATER
+    /// <summary>Stores successful buffer rents.</summary>
+    private long _rentOperations;
+
+    /// <summary>Stores successful buffer returns.</summary>
+    private long _returnOperations;
+
+    /// <summary>Stores arrays allocated on platforms without an array pool.</summary>
+    private long _dedicatedAllocations;
+
+    /// <summary>Stores tracked copy calls.</summary>
+    private long _copyOperations;
+
+    /// <summary>Stores elements copied by tracked copy calls.</summary>
+    private long _copiedElements;
+
     /// <summary>Initializes a new instance of the <see cref="ModbusBufferManager"/> class.</summary>
     public ModbusBufferManager()
     {
+#if NET8_0_OR_GREATER
         _bytePool = ArrayPool<byte>.Shared;
         _ushortPool = ArrayPool<ushort>.Shared;
         _boolPool = ArrayPool<bool>.Shared;
-    }
 #endif
+        _dedicatedAllocations = 0;
+    }
 
     /// <summary>Copies data efficiently between arrays.</summary>
     /// <typeparam name="T">The type of data to copy.</typeparam>
@@ -113,6 +129,31 @@ public sealed class ModbusBufferManager : IDisposable
         Array.Clear(array, 0, array.Length);
     }
 
+    /// <summary>Copies data and records deterministic operation and element-copy counts.</summary>
+    /// <typeparam name="T">The type of data to copy.</typeparam>
+    /// <param name="source">The source array.</param>
+    /// <param name="sourceIndex">The source index.</param>
+    /// <param name="destination">The destination array.</param>
+    /// <param name="destinationIndex">The destination index.</param>
+    /// <param name="length">The requested element count.</param>
+    /// <returns>The number of copied elements.</returns>
+    public int CopyDataAndTrack<T>(T[] source, int sourceIndex, T[] destination, int destinationIndex, int length)
+    {
+        var copied = CopyData(source, sourceIndex, destination, destinationIndex, length);
+        _ = Interlocked.Increment(ref _copyOperations);
+        _ = Interlocked.Add(ref _copiedElements, copied);
+        return copied;
+    }
+
+    /// <summary>Gets a deterministic snapshot of buffer-manager work.</summary>
+    /// <returns>The current operation counters.</returns>
+    public ModbusBufferMetrics GetMetrics() => new(
+        Interlocked.Read(ref _rentOperations),
+        Interlocked.Read(ref _returnOperations),
+        Interlocked.Read(ref _dedicatedAllocations),
+        Interlocked.Read(ref _copyOperations),
+        Interlocked.Read(ref _copiedElements));
+
     /// <summary>Rents a byte buffer from the pool or creates a new one.</summary>
     /// <param name="minimumLength">The minimum length required.</param>
     /// <returns>A rented buffer that should be returned when finished.</returns>
@@ -126,10 +167,13 @@ public sealed class ModbusBufferManager : IDisposable
             }
 
 #if NET8_0_OR_GREATER
-            return _bytePool.Rent(minimumLength);
+            var buffer = _bytePool.Rent(minimumLength);
 #else
-            return new byte[minimumLength];
+            var buffer = new byte[minimumLength];
+            _ = Interlocked.Increment(ref _dedicatedAllocations);
 #endif
+            _ = Interlocked.Increment(ref _rentOperations);
+            return buffer;
         }
     }
 
@@ -146,10 +190,13 @@ public sealed class ModbusBufferManager : IDisposable
             }
 
 #if NET8_0_OR_GREATER
-            return _ushortPool.Rent(minimumLength);
+            var buffer = _ushortPool.Rent(minimumLength);
 #else
-            return new ushort[minimumLength];
+            var buffer = new ushort[minimumLength];
+            _ = Interlocked.Increment(ref _dedicatedAllocations);
 #endif
+            _ = Interlocked.Increment(ref _rentOperations);
+            return buffer;
         }
     }
 
@@ -166,10 +213,13 @@ public sealed class ModbusBufferManager : IDisposable
             }
 
 #if NET8_0_OR_GREATER
-            return _boolPool.Rent(minimumLength);
+            var buffer = _boolPool.Rent(minimumLength);
 #else
-            return new bool[minimumLength];
+            var buffer = new bool[minimumLength];
+            _ = Interlocked.Increment(ref _dedicatedAllocations);
 #endif
+            _ = Interlocked.Increment(ref _rentOperations);
+            return buffer;
         }
     }
 
@@ -239,6 +289,7 @@ public sealed class ModbusBufferManager : IDisposable
             }
 
             returnAction?.Invoke(buffer, clearArray);
+            _ = Interlocked.Increment(ref _returnOperations);
         }
     }
 }

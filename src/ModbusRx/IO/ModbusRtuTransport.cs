@@ -4,20 +4,20 @@
 
 using System.Diagnostics;
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Message;
+using IoT.DriverCore.ModbusRx.Reactive.Message;
 #else
-using ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.Message;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Utility;
+using IoT.DriverCore.ModbusRx.Reactive.Utility;
 #else
-using ModbusRx.Utility;
+using IoT.DriverCore.ModbusRx.Utility;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.IO;
+namespace IoT.DriverCore.ModbusRx.Reactive.IO;
 #else
-namespace ModbusRx.IO;
+namespace IoT.DriverCore.ModbusRx.IO;
 #endif
 
 /// <summary>Refined Abstraction - http://en.wikipedia.org/wiki/Bridge_Pattern.</summary>
@@ -28,6 +28,12 @@ internal sealed class ModbusRtuTransport : ModbusSerialTransport
 
     /// <summary>Defines the Response Frame Start Length value.</summary>
     internal const int ResponseFrameStartLength = 4;
+
+    /// <summary>Defines the function-23 request header bytes that follow the common request prefix.</summary>
+    private const int ReadWriteRequestHeaderRemainderLength = 4;
+
+    /// <summary>Defines the CRC byte count appended to every RTU frame.</summary>
+    private const int CrcLength = 2;
 
     /// <summary>Initializes a new instance of the Modbus Rtu Transport class.</summary>
     /// <param name="streamResource">The stream Resource value.</param>
@@ -80,16 +86,15 @@ internal sealed class ModbusRtuTransport : ModbusSerialTransport
             return 1;
         }
 
+        if (IsVariableLengthReadResponse(functionCode))
+        {
+            return frameStart[2] + 1;
+        }
+
         try
         {
             return functionCode switch
             {
-                Modbus.ReadCoils or
-                Modbus.ReadInputs or
-                Modbus.ReadHoldingRegisters or
-                Modbus.ReadInputRegisters
-                    => frameStart[2] + 1,
-
                 Modbus.WriteSingleCoil or
                 Modbus.WriteSingleRegister or
                 Modbus.WriteMultipleCoils or
@@ -115,9 +120,25 @@ internal sealed class ModbusRtuTransport : ModbusSerialTransport
         var frameBytes = new byte[count];
         for (var i = 0; i < count; i++)
         {
-            var br = StreamResource.ReadAsync(frameBytes, i, 1).Result;
+            int br;
+            try
+            {
+                br = StreamResource.ReadAsync(frameBytes, i, 1).GetAwaiter().GetResult();
+            }
+            catch (TimeoutException error)
+            {
+                throw new TimeoutException(
+                    $"The RTU stream timed out while reading byte {i + 1} of {count}.",
+                    error);
+            }
+
             if (br != 1)
             {
+                if (br == 0 && StreamResource.ReadTimeout > 0)
+                {
+                    throw new TimeoutException($"The stream timed out while reading byte at position {i}.");
+                }
+
                 throw new IOException($"Unable to read byte at position {i}");
             }
         }
@@ -154,12 +175,34 @@ internal sealed class ModbusRtuTransport : ModbusSerialTransport
     internal override Task<byte[]> ReadRequestAsync()
     {
         var frameStart = Read(RequestFrameStartLength);
+        if (frameStart[1] == Modbus.ReadWriteMultipleRegisters)
+        {
+            var extendedHeader = Read(ReadWriteRequestHeaderRemainderLength);
+            var payloadByteCount = extendedHeader[NumericConstants.Three];
+            var readWriteFrameEnd = Read(payloadByteCount + CrcLength);
+            var extendedFrameStart = CombineFrames(frameStart, extendedHeader);
+            var readWriteFrame = CombineFrames(extendedFrameStart, readWriteFrameEnd);
+            ModbusDiagnostics.Write($"Slave RX: {string.Join(", ", readWriteFrame)}");
+            return Task.FromResult(readWriteFrame);
+        }
+
         var frameEnd = Read(RequestBytesToRead(frameStart));
         var frame = CombineFrames(frameStart, frameEnd);
         ModbusDiagnostics.Write($"Slave RX: {string.Join(", ", frame)}");
 
         return Task.FromResult(frame);
     }
+
+    /// <summary>Determines whether the response includes a byte-count-prefixed payload.</summary>
+    /// <param name="functionCode">The Modbus function code.</param>
+    /// <returns><c>true</c> when the response length is encoded in the frame; otherwise, <c>false</c>.</returns>
+    private static bool IsVariableLengthReadResponse(byte functionCode) =>
+        functionCode is
+            Modbus.ReadCoils or
+            Modbus.ReadInputs or
+            Modbus.ReadHoldingRegisters or
+            Modbus.ReadInputRegisters or
+            Modbus.ReadWriteMultipleRegisters;
 
     /// <summary>Combines frame segments into a single message frame.</summary>
     /// <param name="frameStart">The first frame segment.</param>

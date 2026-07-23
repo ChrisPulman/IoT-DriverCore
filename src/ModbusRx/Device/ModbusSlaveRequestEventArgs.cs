@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Message;
+using IoT.DriverCore.ModbusRx.Reactive.Message;
 #else
-using ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.Message;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Device;
+namespace IoT.DriverCore.ModbusRx.Reactive.Device;
 #else
-namespace ModbusRx.Device;
+namespace IoT.DriverCore.ModbusRx.Device;
 #endif
 
 /// <summary>Modbus Slave request event args containing information on the message.</summary>

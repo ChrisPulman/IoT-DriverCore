@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Device;
+namespace IoT.DriverCore.ModbusRx.Reactive.Device;
 #else
-namespace ModbusRx.Device;
+namespace IoT.DriverCore.ModbusRx.Device;
 #endif
 
 /// <summary>Provides Tcp Connection Event Args functionality.</summary>

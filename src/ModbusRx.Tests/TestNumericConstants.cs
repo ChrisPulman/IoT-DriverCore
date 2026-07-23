@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace ModbusRx.UnitTests;
+namespace IoT.DriverCore.ModbusRx.UnitTests;
 
 /// <summary>Provides named numeric values shared by unit tests.</summary>
 internal static class TestNumericConstants

@@ -6,7 +6,7 @@ using System;
 using System.IO.Ports;
 using System.Threading.Tasks;
 
-namespace ModbusRx.UnitTests;
+namespace IoT.DriverCore.ModbusRx.UnitTests;
 
 /// <summary>Tests for reactive serial masters (RTU/ASCII) in Create.</summary>
 public class ReactiveSerialMasterTests

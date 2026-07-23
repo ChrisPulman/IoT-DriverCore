@@ -4,15 +4,15 @@
 
 using System.Collections.ObjectModel;
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Utility;
+using IoT.DriverCore.ModbusRx.Reactive.Utility;
 #else
-using ModbusRx.Utility;
+using IoT.DriverCore.ModbusRx.Utility;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Data;
+namespace IoT.DriverCore.ModbusRx.Reactive.Data;
 #else
-namespace ModbusRx.Data;
+namespace IoT.DriverCore.ModbusRx.Data;
 #endif
 
 /// <summary>Event args for read write actions performed on the DataStore.</summary>

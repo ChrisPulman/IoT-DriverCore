@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using ModbusRx.Utility;
+using IoT.DriverCore.ModbusRx.Utility;
 
-namespace ModbusRx.UnitTests.Utility;
+namespace IoT.DriverCore.ModbusRx.UnitTests.Utility;
 
 /// <summary>Tests the ModbusUtilityFixture behavior.</summary>
 public class ModbusUtilityFixture

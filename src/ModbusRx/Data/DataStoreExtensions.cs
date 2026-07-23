@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Data;
+namespace IoT.DriverCore.ModbusRx.Reactive.Data;
 #else
-namespace ModbusRx.Data;
+namespace IoT.DriverCore.ModbusRx.Data;
 #endif
 
 /// <summary>High-performance extensions for DataStore operations using optimized techniques.</summary>
@@ -308,11 +308,6 @@ public static class DataStoreExtensions
 
         var data1 = ReadHoldingRegistersOptimized(dataStore, startAddress, count);
         var data2 = ReadHoldingRegistersOptimized(store2, startAddress, count);
-
-        if (data1.Length != data2.Length)
-        {
-            return false;
-        }
 
         for (var i = 0; i < data1.Length; i++)
         {

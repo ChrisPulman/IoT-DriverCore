@@ -5,9 +5,9 @@
 using System.Collections.ObjectModel;
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Data;
+namespace IoT.DriverCore.ModbusRx.Reactive.Data;
 #else
-namespace ModbusRx.Data;
+namespace IoT.DriverCore.ModbusRx.Data;
 #endif
 
 /// <summary>A 1 origin collection represetative of the Modbus Data Model.</summary>

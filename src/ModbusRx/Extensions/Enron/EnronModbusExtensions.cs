@@ -3,20 +3,20 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Device;
+using IoT.DriverCore.ModbusRx.Reactive.Device;
 #else
-using ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Device;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Utility;
+using IoT.DriverCore.ModbusRx.Reactive.Utility;
 #else
-using ModbusRx.Utility;
+using IoT.DriverCore.ModbusRx.Utility;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Extensions.Enron;
+namespace IoT.DriverCore.ModbusRx.Reactive.Extensions.Enron;
 #else
-namespace ModbusRx.Extensions.Enron;
+namespace IoT.DriverCore.ModbusRx.Extensions.Enron;
 #endif
 
 /// <summary>Utility extensions for the Enron Modbus dialect.</summary>

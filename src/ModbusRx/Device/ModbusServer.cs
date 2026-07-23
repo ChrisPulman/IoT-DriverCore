@@ -7,20 +7,20 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 #if REACTIVE_SHIM
-using CP.IO.Ports.Reactive;
+using IoT.DriverCore.Serial.Reactive;
 #else
-using CP.IO.Ports;
+using IoT.DriverCore.Serial;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Data;
+using IoT.DriverCore.ModbusRx.Reactive.Data;
 #else
-using ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.Data;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Device;
+namespace IoT.DriverCore.ModbusRx.Reactive.Device;
 #else
-namespace ModbusRx.Device;
+namespace IoT.DriverCore.ModbusRx.Device;
 #endif
 
 /// <summary>
@@ -106,7 +106,7 @@ public sealed class ModbusServer : IDisposable
             .Where(_ => _isRunning.Value)
             .SelectMany(_ => Observable.FromAsync(async () =>
             {
-                await UpdateDataFromClientSafelyAsync(master, slaveAddress, name, false).ConfigureAwait(false);
+                await UpdateDataFromClientAsync(master, slaveAddress).ConfigureAwait(false);
                 return true;
             }))
             .Subscribe(_ => { });
@@ -142,7 +142,7 @@ public sealed class ModbusServer : IDisposable
             .Where(_ => _isRunning.Value)
             .SelectMany(_ => Observable.FromAsync(async () =>
             {
-                await UpdateDataFromClientSafelyAsync(master, slaveAddress, name, true).ConfigureAwait(false);
+                await UpdateDataFromClientAsync(master, slaveAddress).ConfigureAwait(false);
                 return true;
             }))
             .Subscribe(_ => { });
@@ -374,29 +374,6 @@ public sealed class ModbusServer : IDisposable
         }
 
         throw new ArgumentException("The value cannot be null, empty, or whitespace.", parameterName);
-    }
-
-    /// <summary>Updates from a client and reports communication failures.</summary>
-    /// <param name="master">The client master.</param>
-    /// <param name="slaveAddress">The slave address.</param>
-    /// <param name="name">The client name.</param>
-    /// <param name="isUdp">Whether the client uses UDP.</param>
-    /// <returns>A task representing the update.</returns>
-    private async Task UpdateDataFromClientSafelyAsync(
-        ModbusIpMaster master,
-        byte slaveAddress,
-        string name,
-        bool isUdp)
-    {
-        try
-        {
-            await UpdateDataFromClientAsync(master, slaveAddress).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            var transport = isUdp ? "UDP " : string.Empty;
-            ModbusDiagnostics.Write($"Error reading from {transport}client {name}: {ex.Message}");
-        }
     }
 
     /// <summary>Executes the Update Data From Client operation.</summary>

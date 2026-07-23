@@ -6,10 +6,10 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using ModbusRx.Data;
-using ModbusRx.UnitTests.Message;
+using IoT.DriverCore.ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.UnitTests.Message;
 
-namespace ModbusRx.UnitTests.Utility;
+namespace IoT.DriverCore.ModbusRx.UnitTests.Utility;
 
 /// <summary>Tests the CollectionUtilityFixture behavior.</summary>
 public class CollectionUtilityFixture

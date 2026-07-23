@@ -6,15 +6,15 @@ using System.Collections.ObjectModel;
 using System.Net;
 using System.Text;
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Utility;
+using IoT.DriverCore.ModbusRx.Reactive.Utility;
 #else
-using ModbusRx.Utility;
+using IoT.DriverCore.ModbusRx.Utility;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Data;
+namespace IoT.DriverCore.ModbusRx.Reactive.Data;
 #else
-namespace ModbusRx.Data;
+namespace IoT.DriverCore.ModbusRx.Data;
 #endif
 
 /// <summary>Collection of 16 bit registers.</summary>

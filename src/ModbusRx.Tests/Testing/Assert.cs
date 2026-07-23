@@ -8,7 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace ModbusRx.UnitTests.Testing;
+namespace IoT.DriverCore.ModbusRx.UnitTests.Testing;
 
 /// <summary>Provides xUnit-compatible assertion helpers that throw on failure so TUnit can detect them.</summary>
 internal static class Assert

@@ -7,23 +7,23 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Net.Sockets;
 #if REACTIVE_SHIM
-using CP.IO.Ports.Reactive;
+using IoT.DriverCore.Serial.Reactive;
 #else
-using CP.IO.Ports;
+using IoT.DriverCore.Serial;
 #endif
 #if TIMER
     using System.Timers;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.IO;
+using IoT.DriverCore.ModbusRx.Reactive.IO;
 #else
-using ModbusRx.IO;
+using IoT.DriverCore.ModbusRx.IO;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Device;
+namespace IoT.DriverCore.ModbusRx.Reactive.Device;
 #else
-namespace ModbusRx.Device;
+namespace IoT.DriverCore.ModbusRx.Device;
 #endif
 
 /// <summary>Modbus TCP slave device.</summary>
@@ -38,6 +38,9 @@ public sealed class ModbusTcpSlave : ModbusSlave
 
     /// <summary>Stores the server value.</summary>
     private TcpListener? _server;
+
+    /// <summary>Stores whether an accept loop currently owns the TCP listener.</summary>
+    private bool _isListening;
 
 #if TIMER
         private Timer _timer;
@@ -84,6 +87,18 @@ public sealed class ModbusTcpSlave : ModbusSlave
         }
     }
 
+    /// <summary>Gets a value indicating whether this slave currently owns an active accept loop.</summary>
+    public bool IsListening
+    {
+        get
+        {
+            lock (_serverLock)
+            {
+                return _isListening;
+            }
+        }
+    }
+
     /// <summary>Gets the server.</summary>
     /// <value>The server.</value>
     /// <remarks>This property is not thread safe, it should only be consumed within a lock.</remarks>
@@ -113,18 +128,46 @@ public sealed class ModbusTcpSlave : ModbusSlave
     public override async Task ListenAsync()
     {
         Debug.WriteLine("Start Modbus Tcp Server.");
-
-        // TODO: add state {stoped, listening} and check it before starting
-        Server.Start();
-
-        while (true)
+        TcpListener server;
+        lock (_serverLock)
         {
-            var client = await Server.AcceptTcpClientAsync().ConfigureAwait(false);
-            var masterConnection = new ModbusMasterTcpConnection(new(client), this);
-            masterConnection.ModbusMasterTcpConnectionClosed += OnMasterConnectionClosedHandler;
-            var endpoint = client.Client.RemoteEndPoint?.ToString()
-                ?? throw new InvalidOperationException("The TCP client does not have a remote endpoint.");
-            _ = _masters.TryAdd(endpoint, masterConnection);
+            if (_isListening)
+            {
+                return;
+            }
+
+            server = Server;
+            _isListening = true;
+        }
+
+        try
+        {
+            server.Start();
+
+            while (true)
+            {
+                var client = await server.AcceptTcpClientAsync().ConfigureAwait(false);
+                var masterConnection = new ModbusMasterTcpConnection(new(client), this);
+                masterConnection.ModbusMasterTcpConnectionClosed += OnMasterConnectionClosedHandler;
+                var endpoint = client.Client.RemoteEndPoint?.ToString()
+                    ?? throw new InvalidOperationException("The TCP client does not have a remote endpoint.");
+                _ = _masters.TryAdd(endpoint, masterConnection);
+            }
+        }
+        catch (ObjectDisposedException) when (IsStopping(server))
+        {
+            // Disposal stops the listener and completes the accept loop normally.
+        }
+        catch (SocketException) when (IsStopping(server))
+        {
+            // TcpListener.Stop unblocks AcceptTcpClientAsync with a socket error.
+        }
+        finally
+        {
+            lock (_serverLock)
+            {
+                _isListening = false;
+            }
         }
     }
 
@@ -138,32 +181,37 @@ public sealed class ModbusTcpSlave : ModbusSlave
     {
         try
         {
-            if (disposing)
+            if (!disposing)
             {
-                lock (_serverLock)
+                return;
+            }
+
+            lock (_serverLock)
+            {
+                var server = _server;
+                if (server is null)
                 {
-                    var server = _server;
-                    if (server is not null)
-                    {
-                        server.Stop();
-                        _server = null;
+                    return;
+                }
+
+                _isListening = false;
+                server.Stop();
+                _server = null;
 
 #if TIMER
-                        if (_timer is not null)
-                        {
-                            _timer.Dispose();
-                            _timer = null;
-                        }
+                if (_timer is not null)
+                {
+                    _timer.Dispose();
+                    _timer = null;
+                }
 #endif
 
-                        foreach (var key in _masters.Keys)
-                        {
-                            if (_masters.TryRemove(key, out var connection))
-                            {
-                                connection.ModbusMasterTcpConnectionClosed -= OnMasterConnectionClosedHandler;
-                                connection.Dispose();
-                            }
-                        }
+                foreach (var key in _masters.Keys)
+                {
+                    if (_masters.TryRemove(key, out var connection))
+                    {
+                        connection.ModbusMasterTcpConnectionClosed -= OnMasterConnectionClosedHandler;
+                        connection.Dispose();
                     }
                 }
             }
@@ -191,12 +239,23 @@ public sealed class ModbusTcpSlave : ModbusSlave
     /// <param name="e">The e value.</param>
     private void OnMasterConnectionClosedHandler(object? sender, TcpConnectionEventArgs e)
     {
-        if (!_masters.TryRemove(e.EndPoint, out var _))
+        if (!_masters.TryRemove(e.EndPoint, out var connection))
         {
-            var msg = $"EndPoint {e.EndPoint} cannot be removed, it does not exist.";
-            throw new ArgumentException(msg);
+            return;
         }
 
+        connection.ModbusMasterTcpConnectionClosed -= OnMasterConnectionClosedHandler;
         Debug.WriteLine($"Removed Master {e.EndPoint}");
+    }
+
+    /// <summary>Determines whether an accept-loop exception was caused by disposal.</summary>
+    /// <param name="server">The listener owned by the accept loop.</param>
+    /// <returns><c>true</c> when the listener was stopped or replaced.</returns>
+    private bool IsStopping(TcpListener server)
+    {
+        lock (_serverLock)
+        {
+            return !_isListening || !ReferenceEquals(_server, server);
+        }
     }
 }

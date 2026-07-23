@@ -7,12 +7,12 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using ModbusRx.Data;
-using ModbusRx.Device;
-using ReactiveModbusServer = ModbusRx.Reactive.Device.ModbusServer;
-using ReactiveModbusServerExtensions = ModbusRx.Reactive.ModbusServerExtensions;
+using IoT.DriverCore.ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.Device;
+using ReactiveModbusServer = IoT.DriverCore.ModbusRx.Reactive.Device.ModbusServer;
+using ReactiveModbusServerExtensions = IoT.DriverCore.ModbusRx.Reactive.ModbusServerExtensions;
 
-namespace ModbusRx.UnitTests;
+namespace IoT.DriverCore.ModbusRx.UnitTests;
 
 /// <summary>Unit tests for ModbusServer.</summary>
 public class ModbusServerTests
@@ -391,7 +391,7 @@ public class ModbusServerTests
     /// <returns>The available UDP port.</returns>
     private static int GetAvailableUdpPort()
     {
-        using var udpClient = new CP.IO.Ports.UdpClientRx(0);
+        using var udpClient = new IoT.DriverCore.Serial.UdpClientRx(0);
         return ((IPEndPoint)udpClient.Client.LocalEndPoint!).Port;
     }
 
