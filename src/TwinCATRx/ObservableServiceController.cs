@@ -1,17 +1,22 @@
 // Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
-#if WINDOWS
 using System.ComponentModel;
 using System.ServiceProcess;
+#if !NETFRAMEWORK
+using System.Runtime.Versioning;
+#endif
 
 #if REACTIVE_SHIM
-namespace CP.TwinCatRx.Reactive;
+namespace IoT.DriverCore.TwinCATRx.Reactive;
 #else
-namespace CP.TwinCatRx;
+namespace IoT.DriverCore.TwinCATRx;
 #endif
 
 /// <summary>Observable Service Controller.</summary>
+#if !NETFRAMEWORK
+[SupportedOSPlatform("windows")]
+#endif
 public class ObservableServiceController : IObservableServiceController
 {
     /// <summary>Stores the default service refresh interval in seconds.</summary>
@@ -24,17 +29,30 @@ public class ObservableServiceController : IObservableServiceController
     private readonly Signal<ServiceControllerStatus> _statusChanged = new();
 
     /// <summary>Stores the wrapped service controller.</summary>
-    private ServiceController? _serviceController;
+    private IServiceControllerRuntime? _serviceController;
 
     /// <summary>Initializes a new instance of the <see cref="ObservableServiceController"/> class.</summary>
     /// <param name="service">The service.</param>
-    public ObservableServiceController(ServiceController service) =>
-        CreateObject(service, TimeSpan.FromSeconds(DefaultRefreshIntervalSeconds));
+    public ObservableServiceController(ServiceController service)
+        : this(service, TimeSpan.FromSeconds(DefaultRefreshIntervalSeconds))
+    {
+    }
 
     /// <summary>Initializes a new instance of the <see cref="ObservableServiceController"/> class.</summary>
     /// <param name="service">The service.</param>
     /// <param name="interval">The interval.</param>
-    public ObservableServiceController(ServiceController service, TimeSpan interval) => CreateObject(service, interval);
+    public ObservableServiceController(ServiceController service, TimeSpan interval)
+        : this(new ServiceControllerRuntime(service), Observable.Interval(interval))
+    {
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="ObservableServiceController"/> class.</summary>
+    /// <param name="service">The replaceable service runtime.</param>
+    /// <param name="refreshTicks">The refresh trigger sequence.</param>
+    internal ObservableServiceController(
+        IServiceControllerRuntime service,
+        IObservable<long> refreshTicks) =>
+        CreateObject(service, refreshTicks);
 
     /// <summary>Gets a value indicating whether the is disposed.</summary>
     public bool IsDisposed => _cleanup.IsDisposed;
@@ -63,27 +81,9 @@ public class ObservableServiceController : IObservableServiceController
     /// <summary>Gets the services.</summary>
     /// <returns>A Value.</returns>
     public static IObservable<ObservableServiceController> GetServices() =>
-        Observable.Create<ObservableServiceController>(o =>
-            {
-                var d = new CompositeDisposable();
-                try
-                {
-                    foreach (var sc in ServiceController.GetServices())
-                    {
-                        var service = new ObservableServiceController(sc);
-                        _ = service.DisposeWith(d);
-                        o.OnNext(service);
-                    }
-                }
-                catch (PlatformNotSupportedException)
-                {
-                    // ServiceController may not be supported on certain Windows environments (e.g., Nano/containers).
-                    // Treat as no services available and complete the sequence gracefully.
-                    o.OnCompleted();
-                }
-
-                return d;
-            });
+        GetServices(
+            ServiceControllerSource.Instance,
+            TimeSpan.FromSeconds(DefaultRefreshIntervalSeconds));
 
     /// <summary>Releases managed and unmanaged resources.</summary>
     public void Dispose()
@@ -141,6 +141,37 @@ public class ObservableServiceController : IObservableServiceController
         _serviceController?.WaitForStatus(ServiceControllerStatus.Stopped);
     }
 
+    /// <summary>Gets observable service wrappers from a replaceable source.</summary>
+    /// <param name="source">The service source.</param>
+    /// <param name="refreshInterval">The refresh interval.</param>
+    /// <returns>The service wrappers.</returns>
+    internal static IObservable<ObservableServiceController> GetServices(
+        IServiceControllerSource source,
+        TimeSpan refreshInterval) =>
+        Observable.Create<ObservableServiceController>(o =>
+            {
+                var d = new CompositeDisposable();
+                try
+                {
+                    foreach (var serviceRuntime in source.GetServices())
+                    {
+                        var service = new ObservableServiceController(
+                            serviceRuntime,
+                            Observable.Interval(refreshInterval));
+                        _ = service.DisposeWith(d);
+                        o.OnNext(service);
+                    }
+                }
+                catch (PlatformNotSupportedException)
+                {
+                    // ServiceController may not be supported on certain Windows environments (e.g., Nano/containers).
+                    // Treat as no services available and complete the sequence gracefully.
+                    o.OnCompleted();
+                }
+
+                return d;
+            });
+
     /// <summary>Releases unmanaged and - optionally - managed resources.</summary>
     /// <param name="disposing">
     /// <c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only
@@ -160,15 +191,15 @@ public class ObservableServiceController : IObservableServiceController
 
     /// <summary>Creates the object.</summary>
     /// <param name="service">The service.</param>
-    /// <param name="interval">The interval.</param>
-    private void CreateObject(ServiceController service, TimeSpan interval)
+    /// <param name="refreshTicks">The refresh trigger sequence.</param>
+    private void CreateObject(IServiceControllerRuntime service, IObservable<long> refreshTicks)
     {
         _serviceController = service;
         _ = _serviceController.DisposeWith(_cleanup);
         var serviceControllerIsDisposed = false;
         _serviceController.Disposed += (e, o) => serviceControllerIsDisposed = true;
 
-        _ = ObservableBridgeExtensions.SubscribeTo(Observable.Interval(interval).Retry(int.MaxValue), _ =>
+        _ = ObservableBridgeExtensions.SubscribeTo(refreshTicks.Retry(int.MaxValue), _ =>
         {
             try
             {
@@ -196,4 +227,3 @@ public class ObservableServiceController : IObservableServiceController
         }).DisposeWith(_cleanup);
     }
 }
-#endif

@@ -3,25 +3,25 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
-#if WINDOWS
-using System.Runtime.InteropServices;
 using System.ServiceProcess;
+#if !NETFRAMEWORK
+using System.Runtime.Versioning;
 #endif
 #if REACTIVE_SHIM
-using CP.TwinCatRx.Core.Reactive;
-using CoreTwinCatRxExtensions = CP.TwinCatRx.Core.Reactive.TwinCatRxExtensions;
-using RxNotification = CP.TwinCatRx.Core.Reactive.INotification;
+using IoT.DriverCore.TwinCATRx.Core.Reactive;
+using CoreTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
+using RxNotification = IoT.DriverCore.TwinCATRx.Core.Reactive.INotification;
 #else
-using CP.TwinCatRx.Core;
-using CoreTwinCatRxExtensions = CP.TwinCatRx.Core.TwinCatRxExtensions;
-using RxNotification = CP.TwinCatRx.Core.INotification;
+using IoT.DriverCore.TwinCATRx.Core;
+using CoreTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions;
+using RxNotification = IoT.DriverCore.TwinCATRx.Core.INotification;
 #endif
 using TwinCAT.Ads;
 
 #if REACTIVE_SHIM
-namespace CP.TwinCatRx.Reactive;
+namespace IoT.DriverCore.TwinCATRx.Reactive;
 #else
-namespace CP.TwinCatRx;
+namespace IoT.DriverCore.TwinCATRx;
 #endif
 
 /// <summary>Observable TwinCAT ADS Client.</summary>
@@ -37,7 +37,7 @@ public partial class RxTcAdsClient
     /// <param name="type">The native value type.</param>
     /// <param name="length">The optional array or string length.</param>
     /// <returns>The native value, or null when no handle is available.</returns>
-    private static object? ReadNativeValue(AdsClient client, uint? handle, Type type, int length)
+    private static object? ReadNativeValue(IAdsClientRuntime client, uint? handle, Type type, int length)
     {
         if (handle is null)
         {
@@ -67,9 +67,9 @@ public partial class RxTcAdsClient
     private IDisposable InitializeConnection(IObserver<Unit> observer)
     {
         ResetConnectionState();
-        var client = new AdsClient();
+        var client = _platform.CreateAdsClient();
         _ = client.DisposeWith(ConnectionLifetime);
-        var codeGenerator = new CodeGenerator();
+        var codeGenerator = _platform.CreateCodeGenerator();
         _codeGenerator = codeGenerator;
         _ = codeGenerator.DisposeWith(ConnectionLifetime);
         ConnectAdsClient(client, codeGenerator, observer);
@@ -100,7 +100,10 @@ public partial class RxTcAdsClient
     /// <param name="codeGenerator">The PLC symbol code generator.</param>
     /// <param name="observer">The initialization observer.</param>
     [RequiresUnreferencedCode("Loads ADS symbols for dynamic PLC type generation.")]
-    private void ConnectAdsClient(AdsClient client, CodeGenerator codeGenerator, IObserver<Unit> observer)
+    private void ConnectAdsClient(
+        IAdsClientRuntime client,
+        ICodeGenerator codeGenerator,
+        IObserver<Unit> observer)
     {
         try
         {
@@ -114,7 +117,7 @@ public partial class RxTcAdsClient
                 client.Connect(settings.AdsAddress, settings.Port);
             }
 
-            _ = codeGenerator.LoadSymbols(settings.AdsAddress, settings.Port);
+            _platform.LoadSymbols(codeGenerator, settings.AdsAddress, settings.Port);
         }
         catch (Exception error)
         {
@@ -136,32 +139,35 @@ public partial class RxTcAdsClient
     /// <param name="observer">The initialization observer.</param>
     private void MonitorServiceStatus(IObserver<Unit> observer)
     {
-#if WINDOWS
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+#if NETFRAMEWORK
+        if (_platform.IsWindowsServiceMonitoringSupported)
+#else
+        if (OperatingSystem.IsWindows() && _platform.IsWindowsServiceMonitoringSupported)
+#endif
         {
             MonitorWindowsService(observer);
             return;
         }
-#else
-        _ = observer;
-#endif
+
         _serviceStatus.OnNext(ServiceStatus.Running);
     }
 
-#if WINDOWS
     /// <summary>Monitors the TwinCAT system service on Windows.</summary>
     /// <param name="observer">The initialization observer.</param>
+#if !NETFRAMEWORK
+    [SupportedOSPlatform("windows")]
+#endif
     private void MonitorWindowsService(IObserver<Unit> observer)
     {
         var statuses = new Dictionary<string, ServiceControllerStatus>(StringComparer.OrdinalIgnoreCase);
-        var services = ObservableServiceController.GetServices()
+        var services = _platform.GetServices()
             .Where(service => string.Equals(service.ServiceName, "TcSysSrv", StringComparison.OrdinalIgnoreCase))
             .Retry(int.MaxValue);
         _ = ObservableBridgeExtensions.SubscribeTo(
             services,
             service => ObserveService(service, statuses, observer)).DisposeWith(ConnectionLifetime);
         _ = ObservableBridgeExtensions.SubscribeTo(
-            Observable.Interval(TimeSpan.FromSeconds(1)).Retry(int.MaxValue),
+            _platform.Interval(TimeSpan.FromSeconds(1)).Retry(int.MaxValue),
             _ => PublishServiceStatus(statuses)).DisposeWith(ConnectionLifetime);
     }
 
@@ -169,8 +175,11 @@ public partial class RxTcAdsClient
     /// <param name="service">The service to observe.</param>
     /// <param name="statuses">The current service statuses.</param>
     /// <param name="observer">The initialization observer.</param>
+#if !NETFRAMEWORK
+    [SupportedOSPlatform("windows")]
+#endif
     private void ObserveService(
-        ObservableServiceController service,
+        IObservableServiceController service,
         Dictionary<string, ServiceControllerStatus> statuses,
         IObserver<Unit> observer)
     {
@@ -187,8 +196,11 @@ public partial class RxTcAdsClient
     /// <param name="service">The service to start.</param>
     /// <param name="status">The current service status.</param>
     /// <param name="observer">The initialization observer.</param>
+#if !NETFRAMEWORK
+    [SupportedOSPlatform("windows")]
+#endif
     private void EnsureServiceRunning(
-        ObservableServiceController service,
+        IObservableServiceController service,
         ServiceControllerStatus status,
         IObserver<Unit> observer)
     {
@@ -203,28 +215,30 @@ public partial class RxTcAdsClient
 
     /// <summary>Publishes the current TwinCAT service state.</summary>
     /// <param name="statuses">The current service statuses.</param>
+#if !NETFRAMEWORK
+    [SupportedOSPlatform("windows")]
+#endif
     private void PublishServiceStatus(Dictionary<string, ServiceControllerStatus> statuses)
     {
         var running = !statuses.TryGetValue("TcSysSrv", out var status) ||
             status == ServiceControllerStatus.Running;
         _serviceStatus.OnNext(running ? ServiceStatus.Running : ServiceStatus.Faulted);
     }
-#endif
 
     /// <summary>Polls and publishes the native ADS client state.</summary>
     /// <param name="client">The native ADS client.</param>
     /// <param name="observer">The initialization observer.</param>
-    private void MonitorAdsState(AdsClient client, IObserver<Unit> observer)
+    private void MonitorAdsState(IAdsClientRuntime client, IObserver<Unit> observer)
     {
         _ = ObservableBridgeExtensions.SubscribeTo(
-            Observable.Interval(TimeSpan.FromSeconds(1)).Retry(int.MaxValue),
+            _platform.Interval(TimeSpan.FromSeconds(1)).Retry(int.MaxValue),
             _ => ReadAdsState(client, observer)).DisposeWith(ConnectionLifetime);
     }
 
     /// <summary>Reads and publishes the native ADS client state.</summary>
     /// <param name="client">The native ADS client.</param>
     /// <param name="observer">The initialization observer.</param>
-    private void ReadAdsState(AdsClient client, IObserver<Unit> observer)
+    private void ReadAdsState(IAdsClientRuntime client, IObserver<Unit> observer)
     {
         try
         {
@@ -242,7 +256,7 @@ public partial class RxTcAdsClient
     /// <param name="observer">The initialization observer.</param>
     [RequiresUnreferencedCode("Invokes dynamic code generation and reflection to materialize PLC types.")]
     [RequiresDynamicCode("Invokes dynamic code generation and reflection to materialize PLC types.")]
-    private void MonitorInitialization(AdsClient client, IObserver<Unit> observer)
+    private void MonitorInitialization(IAdsClientRuntime client, IObserver<Unit> observer)
     {
         var statuses = _clientState.DistinctUntilChanged().CombineLatest(
             _serviceStatus.DistinctUntilChanged(),
@@ -265,7 +279,7 @@ public partial class RxTcAdsClient
     /// <param name="observer">The initialization observer.</param>
     [RequiresUnreferencedCode("Invokes dynamic code generation and reflection to materialize PLC types.")]
     [RequiresDynamicCode("Invokes dynamic code generation and reflection to materialize PLC types.")]
-    private void CompleteInitialization(AdsClient client, IObserver<Unit> observer)
+    private void CompleteInitialization(IAdsClientRuntime client, IObserver<Unit> observer)
     {
         try
         {
@@ -292,7 +306,7 @@ public partial class RxTcAdsClient
     /// <summary>Requests the PLC run state when it is connected but stopped.</summary>
     /// <param name="client">The native ADS client.</param>
     /// <param name="observer">The initialization observer.</param>
-    private void TryStartPlcProgram(AdsClient client, IObserver<Unit> observer)
+    private void TryStartPlcProgram(IAdsClientRuntime client, IObserver<Unit> observer)
     {
         try
         {
@@ -306,7 +320,7 @@ public partial class RxTcAdsClient
 
     /// <summary>Composes the queued ADS write loop.</summary>
     /// <param name="client">The native ADS client.</param>
-    private void MonitorWrites(AdsClient client)
+    private void MonitorWrites(IAdsClientRuntime client)
     {
         _ = ObservableBridgeExtensions.SubscribeTo(_writePLC, request =>
         {
@@ -331,7 +345,7 @@ public partial class RxTcAdsClient
 
     /// <summary>Composes the queued ADS read loop.</summary>
     /// <param name="client">The native ADS client.</param>
-    private void MonitorReads(AdsClient client)
+    private void MonitorReads(IAdsClientRuntime client)
     {
         _ = ObservableBridgeExtensions.SubscribeTo(_readPLC.Retry(int.MaxValue), request =>
         {
@@ -373,12 +387,12 @@ public partial class RxTcAdsClient
 
     /// <summary>Schedules all configured notification reads.</summary>
     /// <param name="client">The native ADS client.</param>
-    private void ScheduleNotifications(AdsClient client)
+    private void ScheduleNotifications(IAdsClientRuntime client)
     {
         foreach (var notification in Settings?.Notifications ?? [])
         {
             _ = ObservableBridgeExtensions.SubscribeTo(
-                Observable.Interval(TimeSpan.FromMilliseconds(notification.UpdateRate)).Retry(int.MaxValue),
+                _platform.Interval(TimeSpan.FromMilliseconds(notification.UpdateRate)).Retry(int.MaxValue),
                 _ => ReadNotification(client, notification)).DisposeWith(ConnectionLifetime);
         }
     }
@@ -386,7 +400,7 @@ public partial class RxTcAdsClient
     /// <summary>Reads one configured notification.</summary>
     /// <param name="client">The native ADS client.</param>
     /// <param name="notification">The configured notification.</param>
-    private void ReadNotification(AdsClient client, RxNotification notification)
+    private void ReadNotification(IAdsClientRuntime client, RxNotification notification)
     {
         if (notification.Variable is null ||
             !client.IsConnected ||

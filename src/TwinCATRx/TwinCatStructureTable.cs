@@ -9,9 +9,9 @@ using CP.Collections;
 #endif
 
 #if REACTIVE_SHIM
-namespace CP.TwinCatRx.Reactive;
+namespace IoT.DriverCore.TwinCATRx.Reactive;
 #else
-namespace CP.TwinCatRx;
+namespace IoT.DriverCore.TwinCATRx;
 #endif
 
 /// <summary>Owns the ADS subscription that feeds a structured HashTableRx instance.</summary>

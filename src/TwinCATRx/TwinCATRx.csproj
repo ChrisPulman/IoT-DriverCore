@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <PackageId>CP.TwinCATRx</PackageId>
     <Title>TwinCATRx</Title>
-    <RootNamespace>CP.TwinCatRx</RootNamespace>
+    <RootNamespace>IoT.DriverCore.TwinCATRx</RootNamespace>
   </PropertyGroup>
   
   <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
@@ -34,8 +34,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>TwinCATRx.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\TwinCATRx.Core\TwinCATRx.Core.csproj" />
-    <ProjectReference Include="..\TwinCATRx.Generators\TwinCATRx.Generators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
+    <ProjectReference Include="..\TwinCATRx.Generators\TwinCATRx.Generators.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\CP.IoT.Core\CP.IoT.Core.csproj" />
   </ItemGroup>
 

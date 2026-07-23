@@ -9,9 +9,9 @@ using CP.Collections;
 #endif
 
 #if REACTIVE_SHIM
-namespace CP.TwinCatRx.Reactive;
+namespace IoT.DriverCore.TwinCATRx.Reactive;
 #else
-namespace CP.TwinCatRx;
+namespace IoT.DriverCore.TwinCATRx;
 #endif
 
 /// <summary>Reads the interface-based client link stored on a TwinCAT structure table.</summary>

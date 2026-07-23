@@ -3,7 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 #if REACTIVE_SHIM
 using CP.Collections.Reactive;
 #else
@@ -11,13 +11,13 @@ using CP.Collections;
 #endif
 
 #if REACTIVE_SHIM
-namespace CP.TwinCatRx.Reactive;
+namespace IoT.DriverCore.TwinCATRx.Reactive;
 #else
-namespace CP.TwinCatRx;
+namespace IoT.DriverCore.TwinCATRx;
 #endif
 
 /// <summary>Maps logical CP.IoT tags onto an event-driven TwinCAT ADS client.</summary>
-public sealed partial class TwinCatLogicalTagClient : ILogicalTagClient, IDisposable
+public sealed partial class TwinCatLogicalTagClient : IManagedLogicalTagClient, IDisposable
 {
     /// <summary>Stores the member-path metadata key.</summary>
     private const string MemberAddressMetadata = "MemberAddress";

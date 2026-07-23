@@ -4,15 +4,15 @@
 
 using System.Diagnostics.CodeAnalysis;
 #if REACTIVE_SHIM
-using CP.TwinCatRx.Core.Reactive;
+using IoT.DriverCore.TwinCATRx.Core.Reactive;
 #else
-using CP.TwinCatRx.Core;
+using IoT.DriverCore.TwinCATRx.Core;
 #endif
 
 #if REACTIVE_SHIM
-namespace CP.TwinCatRx.Reactive;
+namespace IoT.DriverCore.TwinCATRx.Reactive;
 #else
-namespace CP.TwinCatRx;
+namespace IoT.DriverCore.TwinCATRx;
 #endif
 
 /// <summary>Interface for Rx Tc Ads Client.</summary>

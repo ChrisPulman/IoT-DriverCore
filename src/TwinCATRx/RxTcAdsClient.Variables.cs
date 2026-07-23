@@ -5,21 +5,20 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 #if REACTIVE_SHIM
-using CP.TwinCatRx.Core.Reactive;
-using CoreTwinCatRxExtensions = CP.TwinCatRx.Core.Reactive.TwinCatRxExtensions;
-using RxNotification = CP.TwinCatRx.Core.Reactive.INotification;
+using IoT.DriverCore.TwinCATRx.Core.Reactive;
+using CoreTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
+using RxNotification = IoT.DriverCore.TwinCATRx.Core.Reactive.INotification;
 #else
-using CP.TwinCatRx.Core;
-using CoreTwinCatRxExtensions = CP.TwinCatRx.Core.TwinCatRxExtensions;
-using RxNotification = CP.TwinCatRx.Core.INotification;
+using IoT.DriverCore.TwinCATRx.Core;
+using CoreTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions;
+using RxNotification = IoT.DriverCore.TwinCATRx.Core.INotification;
 #endif
-using TwinCAT.Ads;
 using TwinCAT.TypeSystem;
 
 #if REACTIVE_SHIM
-namespace CP.TwinCatRx.Reactive;
+namespace IoT.DriverCore.TwinCATRx.Reactive;
 #else
-namespace CP.TwinCatRx;
+namespace IoT.DriverCore.TwinCATRx;
 #endif
 
 /// <summary>Observable TwinCAT ADS Client.</summary>
@@ -166,14 +165,16 @@ public partial class RxTcAdsClient
     /// <returns>A Value.</returns>
     [RequiresUnreferencedCode("Invokes dynamic code generation and reflection to materialize PLC types.")]
     [RequiresDynamicCode("Invokes dynamic code generation and reflection to materialize PLC types.")]
-    private Exception? CreateNotificationVariables(IList<RxNotification>? notifications, AdsClient client)
+    private Exception? CreateNotificationVariables(
+        IList<RxNotification>? notifications,
+        IAdsClientRuntime client)
     {
         if (notifications is null)
         {
             return null;
         }
 
-        var isTwinCat3 = client.Address?.Port >= TwinCat3Port;
+        var isTwinCat3 = client.Port >= TwinCat3Port;
         for (var i = 0; i < notifications.Count; i++)
         {
             var notification = notifications[i];
@@ -201,7 +202,10 @@ public partial class RxTcAdsClient
     /// <param name="isTwinCat3">Whether TwinCAT 3 packing should be used.</param>
     [RequiresUnreferencedCode("Invokes dynamic code generation and reflection to materialize PLC types.")]
     [RequiresDynamicCode("Invokes dynamic code generation and reflection to materialize PLC types.")]
-    private void CreateNotificationVariable(RxNotification notification, AdsClient client, bool isTwinCat3)
+    private void CreateNotificationVariable(
+        RxNotification notification,
+        IAdsClientRuntime client,
+        bool isTwinCat3)
     {
         var notificationVariable = notification.Variable ?? string.Empty;
         if (string.IsNullOrWhiteSpace(notificationVariable))
@@ -249,7 +253,9 @@ public partial class RxTcAdsClient
             var generatedSource = _codeGenerator.CreateCSharpCodeString(nodeEmulator, isTwinCat3: isTwinCat3);
             generatedCode += $"{identifier}.dll${generatedSource}";
             _code.Add(generatedCode);
-            return CoreTwinCatRxExtensions.GetType(dataTypesFileName, $"TwinCATRx.{notificationType}");
+            return CoreTwinCatRxExtensions.GetType(
+                dataTypesFileName,
+                $"IoT.DriverCore.TwinCATRx.{notificationType}");
         }
 
         return TryResolvePlcType(notificationType, out var type) ? type : null;
@@ -261,14 +267,16 @@ public partial class RxTcAdsClient
     /// <returns>A Value.</returns>
     [RequiresUnreferencedCode("May rely on dynamic type generation depending on PLC type definitions.")]
     [RequiresDynamicCode("May rely on dynamic type generation depending on PLC type definitions.")]
-    private Exception? CreateWriteVariables(IList<IWriteVariable>? writeVariables, AdsClient client)
+    private Exception? CreateWriteVariables(
+        IList<IWriteVariable>? writeVariables,
+        IAdsClientRuntime client)
     {
         if (writeVariables is null)
         {
             return null;
         }
 
-        var isTC3 = client.Address?.Port >= TwinCat3Port;
+        var isTC3 = client.Port >= TwinCat3Port;
         foreach (var writeVariable in writeVariables)
         {
             try
@@ -290,7 +298,10 @@ public partial class RxTcAdsClient
     /// <param name="isTwinCat3">Whether TwinCAT 3 packing should be used.</param>
     [RequiresUnreferencedCode("May rely on dynamic type generation depending on PLC type definitions.")]
     [RequiresDynamicCode("May rely on dynamic type generation depending on PLC type definitions.")]
-    private void CreateWriteVariable(IWriteVariable writeVariable, AdsClient client, bool isTwinCat3)
+    private void CreateWriteVariable(
+        IWriteVariable writeVariable,
+        IAdsClientRuntime client,
+        bool isTwinCat3)
     {
         var variable = writeVariable.Variable ?? string.Empty;
         if (string.IsNullOrEmpty(variable))

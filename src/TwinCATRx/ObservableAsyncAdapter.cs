@@ -5,9 +5,9 @@
 using ReactiveUI.Primitives.Async;
 
 #if REACTIVE_SHIM
-namespace CP.TwinCatRx.Reactive;
+namespace IoT.DriverCore.TwinCATRx.Reactive;
 #else
-namespace CP.TwinCatRx;
+namespace IoT.DriverCore.TwinCATRx;
 #endif
 
 /// <summary>Adapts an observable sequence to the async observable contract.</summary>

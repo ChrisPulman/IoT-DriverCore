@@ -6,9 +6,9 @@ using System.Runtime.ExceptionServices;
 using ReactiveUI.Primitives.Async;
 
 #if REACTIVE_SHIM
-namespace CP.TwinCatRx.Reactive;
+namespace IoT.DriverCore.TwinCATRx.Reactive;
 #else
-namespace CP.TwinCatRx;
+namespace IoT.DriverCore.TwinCATRx;
 #endif
 
 /// <summary>Observable bridge helpers.</summary>

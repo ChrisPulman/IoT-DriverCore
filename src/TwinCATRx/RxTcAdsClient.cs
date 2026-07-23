@@ -4,16 +4,16 @@
 
 using System.Diagnostics.CodeAnalysis;
 #if REACTIVE_SHIM
-using CP.TwinCatRx.Core.Reactive;
+using IoT.DriverCore.TwinCATRx.Core.Reactive;
 #else
-using CP.TwinCatRx.Core;
+using IoT.DriverCore.TwinCATRx.Core;
 #endif
 using TwinCAT.Ads;
 
 #if REACTIVE_SHIM
-namespace CP.TwinCatRx.Reactive;
+namespace IoT.DriverCore.TwinCATRx.Reactive;
 #else
-namespace CP.TwinCatRx;
+namespace IoT.DriverCore.TwinCATRx;
 #endif
 
 /// <summary>Observable TwinCAT ADS Client.</summary>
@@ -67,6 +67,9 @@ public partial class RxTcAdsClient : IRxTcAdsClient
     /// <summary>Maps write ADS handles to variable names.</summary>
     private readonly Dictionary<uint, string> _writeVariablesByHandle = [];
 
+    /// <summary>Stores replaceable platform dependencies.</summary>
+    private readonly IRxTcAdsPlatform _platform;
+
     /// <summary>Stores the time provider used to obtain the current time.</summary>
     private readonly TimeProvider _timeProvider;
 
@@ -74,7 +77,7 @@ public partial class RxTcAdsClient : IRxTcAdsClient
     private CompositeDisposable? _cleanup;
 
     /// <summary>Stores the dynamic PLC code generator.</summary>
-    private CodeGenerator? _codeGenerator;
+    private ICodeGenerator? _codeGenerator;
 
     /// <summary>Stores the active PLC initialization subscription.</summary>
     private IDisposable? _plcCleanup;
@@ -84,15 +87,24 @@ public partial class RxTcAdsClient : IRxTcAdsClient
 
     /// <summary>Initializes a new instance of the <see cref="RxTcAdsClient"/> class.</summary>
     public RxTcAdsClient()
+        : this(TimeProvider.System, RxTcAdsPlatform.CreateDefault())
     {
-        _timeProvider = TimeProvider.System;
     }
 
     /// <summary>Initializes a new instance of the <see cref="RxTcAdsClient"/> class.</summary>
     /// <param name="timeProvider">The time provider.</param>
     public RxTcAdsClient(TimeProvider timeProvider)
+        : this(timeProvider, RxTcAdsPlatform.CreateDefault())
     {
-        _timeProvider = timeProvider;
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="RxTcAdsClient"/> class.</summary>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="platform">The replaceable platform dependencies.</param>
+    internal RxTcAdsClient(TimeProvider timeProvider, IRxTcAdsPlatform platform)
+    {
+        _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        _platform = platform ?? throw new ArgumentNullException(nameof(platform));
     }
 
     /// <summary>Gets codes this instance.</summary>
