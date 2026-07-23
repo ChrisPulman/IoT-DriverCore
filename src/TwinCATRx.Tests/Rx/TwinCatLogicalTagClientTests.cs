@@ -1,15 +1,15 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 #if NET9_0_OR_GREATER
 using System.Diagnostics.CodeAnalysis;
 #endif
 using System.Reactive.Subjects;
-using CP.IoT.Core;
-using LeanBridge = CP.TwinCatRx.ObservableBridgeExtensions;
+using IoT.DriverCore.Core;
+using LeanBridge = IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions;
 
-namespace TwinCATRx.Tests.Rx;
+namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
 
 /// <summary>Tests the CP.IoT logical-tag adapter over the event-driven TwinCAT client.</summary>
 public sealed class TwinCatLogicalTagClientTests
@@ -152,10 +152,17 @@ public sealed class TwinCatLogicalTagClientTests
             using var client = new TwinCatLogicalTagClient(native, store: store);
             await client.InitializeStoreAsync();
 
-            var tag = new LogicalTag(SpeedName, DirectAddress, "DINT", accessMode: LogicalTagAccessMode.Read);
+            var tag = new LogicalTag(
+                SpeedName,
+                DirectAddress,
+                "DINT",
+                new LogicalTagOptions { AccessMode = LogicalTagAccessMode.Read });
             await client.UpsertTagAsync(tag);
             var persisted = await client.GetTagAsync(SpeedName);
-            var edited = tag.With(description: "Line speed", accessMode: LogicalTagAccessMode.ReadWrite);
+            var options = tag.CurrentOptions();
+            options.Description = "Line speed";
+            options.AccessMode = LogicalTagAccessMode.ReadWrite;
+            var edited = tag.WithOptions(options);
             await TUnitAssert.That(await client.EditTagAsync(edited)).IsTrue();
             await TUnitAssert.That(persisted!.Address).IsEqualTo(DirectAddress);
 
@@ -193,10 +200,13 @@ public sealed class TwinCatLogicalTagClientTests
             name,
             $"{StructureRoot}.{member}",
             member == CountName ? "DINT" : "BOOL",
-            metadata: new Dictionary<string, string>
+            new LogicalTagOptions
             {
-                ["TwinCAT.StructureRoot"] = StructureRoot,
-                ["TwinCAT.MemberAddress"] = member,
+                Metadata = new Dictionary<string, string>
+                {
+                    ["TwinCAT.StructureRoot"] = StructureRoot,
+                    ["TwinCAT.MemberAddress"] = member,
+                },
             });
 
     /// <summary>Creates a current logical tag value.</summary>
@@ -204,7 +214,7 @@ public sealed class TwinCatLogicalTagClientTests
     /// <param name="value">The payload.</param>
     /// <returns>The logical value.</returns>
     private static LogicalTagValue CreateValue(string name, object value) =>
-        new(name, value, DateTimeOffset.UtcNow, "Good");
+        new(name, value, TimeProvider.System.GetUtcNow(), "Good");
 
     /// <summary>Simple reflected structure used by HashTableRx.</summary>
     private sealed class TestStructure

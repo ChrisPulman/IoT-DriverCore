@@ -1,17 +1,17 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using ReactiveUI.Primitives.Async;
-using ReactiveBridge = CP.TwinCatRx.Reactive.ObservableBridgeExtensions;
-using ReactiveClient = CP.TwinCatRx.Reactive.IRxTcAdsClient;
-using ReactiveSettings = CP.TwinCatRx.Core.Reactive.ISettings;
+using ReactiveBridge = IoT.DriverCore.TwinCATRx.Reactive.ObservableBridgeExtensions;
+using ReactiveClient = IoT.DriverCore.TwinCATRx.Reactive.IRxTcAdsClient;
+using ReactiveSettings = IoT.DriverCore.TwinCATRx.Core.Reactive.ISettings;
 using ReactiveUnit = System.Reactive.Unit;
-using Settings = CP.TwinCatRx.Core.Reactive.Settings;
+using Settings = IoT.DriverCore.TwinCATRx.Core.Reactive.Settings;
 
-namespace TwinCATRx.Tests.Rx;
+namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
 
 /// <summary>Deterministic System.Reactive fake used to exercise the Reactive package.</summary>
 public sealed class ReactiveRxFakeClient : ReactiveClient

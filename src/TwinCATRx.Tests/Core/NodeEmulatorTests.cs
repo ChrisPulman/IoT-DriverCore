@@ -1,11 +1,11 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using CP.TwinCatRx.Core;
+using IoT.DriverCore.TwinCATRx.Core;
 
-namespace TwinCATRx.Tests.Core;
+namespace IoT.DriverCore.TwinCATRx.Tests.Core;
 
 /// <summary>Tests for NodeEmulator.</summary>
 public class NodeEmulatorTests
@@ -15,7 +15,7 @@ public class NodeEmulatorTests
     [Test]
     public async Task Dispose_Clears_StateAsync()
     {
-        var type = typeof(Settings).Assembly.GetType("CP.TwinCatRx.Core.NodeEmulator")
+        var type = typeof(Settings).Assembly.GetType("IoT.DriverCore.TwinCATRx.Core.NodeEmulator")
             ?? throw new InvalidOperationException("NodeEmulator was not found.");
         var n = Activator.CreateInstance(type)
             ?? throw new InvalidOperationException("NodeEmulator could not be created.");

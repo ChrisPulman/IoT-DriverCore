@@ -1,10 +1,10 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
 
-namespace TwinCATRx.Tests.Rx;
+namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
 
 /// <summary>Exercises the generated lean and System.Reactive attribute surfaces.</summary>
 public class GeneratedAttributeCoverageTests
@@ -61,8 +61,8 @@ public class GeneratedAttributeCoverageTests
     /// <param name="attributeNamespace">The generated attribute namespace.</param>
     /// <returns>The test task.</returns>
     [Test]
-    [Arguments("CP.TwinCatRx")]
-    [Arguments("CP.TwinCatRx.Reactive")]
+    [Arguments("IoT.DriverCore.TwinCATRx")]
+    [Arguments("IoT.DriverCore.TwinCATRx.Reactive")]
     public async Task Generated_Attributes_Expose_Expected_StateAsync(string attributeNamespace)
     {
         var assembly = typeof(GeneratedStreams).Assembly;

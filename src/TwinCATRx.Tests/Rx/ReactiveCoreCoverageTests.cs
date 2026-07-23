@@ -1,19 +1,19 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System.Reactive.Concurrency;
 using System.Reflection;
 using System.Text;
-using ReactiveCodeGenerator = CP.TwinCatRx.Core.Reactive.CodeGenerator;
-using ReactiveCoreExtensions = CP.TwinCatRx.Core.Reactive.TwinCatRxExtensions;
-using ReactiveDirectoryExtensions = CP.TwinCatRx.Core.Reactive.DirectoryInfoExtensions;
-using ReactiveNode = CP.TwinCatRx.Core.Reactive.INodeEmulator;
-using ReactiveSettings = CP.TwinCatRx.Core.Reactive.Settings;
-using ReactiveSimpleTypeException = CP.TwinCatRx.Core.Reactive.SimpleTypeException;
-using ReactiveUnsupportedTypeException = CP.TwinCatRx.Core.Reactive.UnsuportedTypeException;
+using ReactiveCodeGenerator = IoT.DriverCore.TwinCATRx.Core.Reactive.CodeGenerator;
+using ReactiveCoreExtensions = IoT.DriverCore.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
+using ReactiveDirectoryExtensions = IoT.DriverCore.TwinCATRx.Core.Reactive.DirectoryInfoExtensions;
+using ReactiveNode = IoT.DriverCore.TwinCATRx.Core.Reactive.INodeEmulator;
+using ReactiveSettings = IoT.DriverCore.TwinCATRx.Core.Reactive.Settings;
+using ReactiveSimpleTypeException = IoT.DriverCore.TwinCATRx.Core.Reactive.SimpleTypeException;
+using ReactiveUnsupportedTypeException = IoT.DriverCore.TwinCATRx.Core.Reactive.UnsuportedTypeException;
 
-namespace TwinCATRx.Tests.Rx;
+namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
 
 /// <summary>Exercises linked source in the Reactive core assembly.</summary>
 public class ReactiveCoreCoverageTests
@@ -179,7 +179,7 @@ public class ReactiveCoreCoverageTests
     public async Task Internal_Language_And_Node_Helpers_Work_Through_ReflectionAsync()
     {
         var assembly = typeof(ReactiveSettings).Assembly;
-        var languageType = assembly.GetType("CP.TwinCatRx.Core.Reactive.CSharpLanguage")
+        var languageType = assembly.GetType("IoT.DriverCore.TwinCATRx.Core.Reactive.CSharpLanguage")
             ?? throw new TypeLoadException("CSharpLanguage was not found.");
         var language = Activator.CreateInstance(languageType, nonPublic: true)
             ?? throw new InvalidOperationException("CSharpLanguage could not be created.");
@@ -191,7 +191,7 @@ public class ReactiveCoreCoverageTests
             language,
             ["class ReactiveSample { }", Microsoft.CodeAnalysis.SourceCodeKind.Regular]);
         var compilation = createLibraryCompilation.Invoke(language, ["ReactiveCoverage", true]);
-        var nodeType = assembly.GetType("CP.TwinCatRx.Core.Reactive.NodeEmulator")
+        var nodeType = assembly.GetType("IoT.DriverCore.TwinCATRx.Core.Reactive.NodeEmulator")
             ?? throw new TypeLoadException("NodeEmulator was not found.");
         var node = Activator.CreateInstance(nodeType)
             ?? throw new InvalidOperationException("NodeEmulator could not be created.");
@@ -215,7 +215,7 @@ public class ReactiveCoreCoverageTests
     /// <returns>The write task.</returns>
     private static Task WriteEmptyFileAsync(string path)
     {
-#if NET48
+#if NETFRAMEWORK
         return Task.Run(() => File.WriteAllText(path, string.Empty));
 #else
         return File.WriteAllTextAsync(path, string.Empty);

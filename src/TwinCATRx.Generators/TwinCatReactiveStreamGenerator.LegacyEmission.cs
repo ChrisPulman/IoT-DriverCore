@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.Text;
 using Microsoft.CodeAnalysis;
 
-namespace CP.TwinCatRx.SourceGenerators;
+namespace IoT.DriverCore.TwinCATRx.SourceGenerators;
 
 /// <summary>Generates TwinCAT reactive stream binding members.</summary>
 public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerator
@@ -123,22 +123,22 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
     /// <param name="property">The legacy property specification.</param>
     private static void AppendLegacyLogicalTagMembers(StringBuilder sb, LegacyReactivePropertySpec property)
     {
-        _ = sb.Append("    public global::CP.IoT.Core.LogicalTag ").Append(property.PropertyName)
-            .Append("Tag => new global::CP.IoT.Core.LogicalTag(nameof(").Append(property.PropertyName)
+        _ = sb.Append("    public global::IoT.DriverCore.Core.LogicalTag ").Append(property.PropertyName)
+            .Append("Tag => new global::IoT.DriverCore.Core.LogicalTag(nameof(").Append(property.PropertyName)
             .Append("), \"").Append(Escape(property.Variable)).Append("\", typeof(").Append(property.TypeName)
             .Append(").FullName ?? typeof(").Append(property.TypeName).AppendLine(").Name);")
             .Append(AsyncResultMethodPrefix).Append(property.TypeName).Append(">> Read")
             .Append(property.PropertyName)
             .AppendLine("Async(System.Threading.CancellationToken cancellationToken = default) =>")
-            .Append("        global::CP.IoT.Core.LogicalTagContractHelpers.ReadAsync<")
-            .Append(property.TypeName).Append(">(RequireTwinCatRxLogicalTags(), nameof(")
-            .Append(property.PropertyName).AppendLine("), cancellationToken);")
+            .Append("        ");
+        _ = AppendTypedLogicalTagOperation(sb, "ReadAsync", property.TypeName, property.PropertyName)
+            .AppendLine(", cancellationToken);")
             .Append(AsyncResultMethodPrefix).Append(property.TypeName).Append(">> Write")
             .Append(property.PropertyName).Append("Async(").Append(property.TypeName)
             .AppendLine(" value, System.Threading.CancellationToken cancellationToken = default) =>")
-            .Append("        global::CP.IoT.Core.LogicalTagContractHelpers.WriteAsync(")
-            .Append("RequireTwinCatRxLogicalTags(), nameof(").Append(property.PropertyName)
-            .AppendLine("), value, cancellationToken);")
+            .Append("        ");
+        _ = AppendTypedLogicalTagOperation(sb, "WriteAsync", property.TypeName, property.PropertyName)
+            .AppendLine(", value, cancellationToken);")
             .AppendLine();
     }
 
@@ -276,21 +276,21 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
                 _ = sb.Append(AsyncResultMethodPrefix).Append(property.TypeName).Append(">> ")
                     .Append(property.ReadMethodName)
                     .AppendLine("Async(System.Threading.CancellationToken cancellationToken = default) =>")
-                    .Append("        global::CP.IoT.Core.LogicalTagContractHelpers.ReadAsync<")
-                    .Append(property.TypeName).Append(">(RequireTwinCatRxLogicalTags(), nameof(")
-                    .Append(property.PropertyName).AppendLine("), cancellationToken);");
+                    .Append("        ");
+                _ = AppendTypedLogicalTagOperation(sb, "ReadAsync", property.TypeName, property.PropertyName)
+                    .AppendLine(", cancellationToken);");
             }
 
             if (property.IsWritable)
             {
                 _ = sb.Append("    public async System.Threading.Tasks.Task<")
-                    .Append("global::CP.IoT.Core.TagOperationResult<").Append(property.TypeName).Append(">> ")
+                    .Append("global::IoT.DriverCore.Core.TagOperationResult<").Append(property.TypeName).Append(">> ")
                     .Append(property.WriteMethodName).Append("Async(").Append(property.TypeName)
                     .AppendLine(" value, System.Threading.CancellationToken cancellationToken = default)")
                     .AppendLine(ClassOpenBrace)
-                    .Append("        var result = await global::CP.IoT.Core.LogicalTagContractHelpers.WriteAsync(")
-                    .Append("RequireTwinCatRxLogicalTags(), nameof(").Append(property.PropertyName)
-                    .AppendLine("), value, cancellationToken).ConfigureAwait(false);");
+                    .Append("        var result = await ");
+                _ = AppendTypedLogicalTagOperation(sb, "WriteAsync", property.TypeName, property.PropertyName)
+                    .AppendLine(", value, cancellationToken).ConfigureAwait(false);");
                 if (property.Kind == WriteOnlyKind)
                 {
                     _ = sb.AppendLine("        if (result.Succeeded)")
@@ -331,18 +331,21 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
             accessMode = "ReadWrite";
         }
 
-        _ = sb.Append("    public global::CP.IoT.Core.LogicalTag ").Append(property.PropertyName)
-            .Append("Tag => new global::CP.IoT.Core.LogicalTag(nameof(").Append(property.PropertyName)
+        _ = sb.Append("    public global::IoT.DriverCore.Core.LogicalTag ").Append(property.PropertyName)
+            .Append("Tag => new global::IoT.DriverCore.Core.LogicalTag(nameof(").Append(property.PropertyName)
             .Append("), \"").Append(Escape(logicalAddress)).Append("\", typeof(").Append(property.TypeName)
-            .Append(").FullName ?? typeof(").Append(property.TypeName).Append(").Name");
+            .Append(").FullName ?? typeof(").Append(property.TypeName)
+            .Append(").Name, new global::IoT.DriverCore.Core.LogicalTagOptions")
+            .AppendLine()
+            .AppendLine("        {");
 
         var writeAddress = GetWriteAddress(property);
         if (structuredTarget is not null ||
             !string.Equals(writeAddress, property.Address, StringComparison.OrdinalIgnoreCase))
         {
-            _ = sb.AppendLine(", metadata: new System.Collections.Generic.Dictionary<string, string>(" +
+            _ = sb.AppendLine("            Metadata = new System.Collections.Generic.Dictionary<string, string>(" +
                     "StringComparer.Ordinal)")
-                .AppendLine(BlockOpenBrace);
+                .AppendLine("            {");
             if (structuredTarget is not null)
             {
                 _ = sb.Append("            [\"StructureRoot\"] = \"")
@@ -355,11 +358,34 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
                 _ = sb.Append("            [\"WriteAddress\"] = \"").Append(Escape(writeAddress)).AppendLine("\",");
             }
 
-            _ = sb.Append("        }");
+            _ = sb.AppendLine("            },");
         }
 
-        _ = sb.Append(", accessMode: global::CP.IoT.Core.LogicalTagAccessMode.").Append(accessMode).AppendLine(");");
+        _ = sb.Append("            AccessMode = global::IoT.DriverCore.Core.LogicalTagAccessMode.")
+            .Append(accessMode).AppendLine(",")
+            .AppendLine("        });");
     }
+
+    /// <summary>Appends a typed logical-tag mixin call through the generated client.</summary>
+    /// <param name="sb">The generated source builder.</param>
+    /// <param name="operation">The logical-tag mixin operation name.</param>
+    /// <param name="typeName">The generated property type.</param>
+    /// <param name="propertyName">The generated property name.</param>
+    /// <returns>The supplied <paramref name="sb"/> for continued emission.</returns>
+    private static StringBuilder AppendTypedLogicalTagOperation(
+        StringBuilder sb,
+        string operation,
+        string typeName,
+        string propertyName) =>
+        sb.Append("global::IoT.DriverCore.Core.LogicalTagMixins.")
+            .Append(operation)
+            .Append('<')
+            .Append(typeName)
+            .Append(">(RequireTwinCatRxLogicalTags(), new global::IoT.DriverCore.Core.LogicalTagKey<")
+            .Append(typeName)
+            .Append(">(nameof(")
+            .Append(propertyName)
+            .Append("))");
 
     /// <summary>Appends live logical-tag registry initialization for generated properties.</summary>
     /// <param name="sb">The generated source builder.</param>

@@ -1,12 +1,12 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using CP.TwinCatRx.Core;
-using CoreTwinCatRxExtensions = CP.TwinCatRx.Core.TwinCatRxExtensions;
+using IoT.DriverCore.TwinCATRx.Core;
+using CoreTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions;
 
-namespace TwinCATRx.Tests.Core;
+namespace IoT.DriverCore.TwinCATRx.Tests.Core;
 
 /// <summary>Exercises deterministic core extension branches.</summary>
 public class CoreExtensionsDeterministicCoverageTests
@@ -185,7 +185,7 @@ public class CoreExtensionsDeterministicCoverageTests
     [Test]
     public async Task NodeEmulator_Disposes_Children_And_Is_IdempotentAsync()
     {
-        var nodeType = typeof(Settings).Assembly.GetType("CP.TwinCatRx.Core.NodeEmulator")
+        var nodeType = typeof(Settings).Assembly.GetType("IoT.DriverCore.TwinCATRx.Core.NodeEmulator")
             ?? throw new InvalidOperationException("NodeEmulator was not found.");
         var node = Activator.CreateInstance(nodeType)
             ?? throw new InvalidOperationException("NodeEmulator could not be created.");
@@ -211,7 +211,7 @@ public class CoreExtensionsDeterministicCoverageTests
     /// <returns>The write task.</returns>
     private static Task WriteEmptyFileAsync(string path)
     {
-#if NET48
+#if NETFRAMEWORK
         return Task.Run(() => File.WriteAllText(path, string.Empty));
 #else
         return File.WriteAllTextAsync(path, string.Empty);

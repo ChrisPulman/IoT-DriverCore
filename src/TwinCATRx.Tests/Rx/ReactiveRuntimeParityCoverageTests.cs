@@ -1,5 +1,5 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 #if NET9_0_OR_GREATER
@@ -7,15 +7,15 @@ using System.Diagnostics.CodeAnalysis;
 #endif
 using System.Reflection;
 using CP.Collections.Reactive;
-using CP.TwinCatRx.Reactive;
+using IoT.DriverCore.TwinCATRx.Reactive;
 using ReactiveUI.Primitives.Disposables;
-using ReactiveClient = CP.TwinCatRx.Reactive.RxTcAdsClient;
-using ReactiveCoreExtensions = CP.TwinCatRx.Core.Reactive.TwinCatRxExtensions;
-using ReactiveExtensions = CP.TwinCatRx.Reactive.TwinCatRxExtensions;
-using ReactiveInterface = CP.TwinCatRx.Reactive.IRxTcAdsClient;
-using ReactiveSettings = CP.TwinCatRx.Core.Reactive.Settings;
+using ReactiveClient = IoT.DriverCore.TwinCATRx.Reactive.RxTcAdsClient;
+using ReactiveCoreExtensions = IoT.DriverCore.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
+using ReactiveExtensions = IoT.DriverCore.TwinCATRx.Reactive.TwinCatRxExtensions;
+using ReactiveInterface = IoT.DriverCore.TwinCATRx.Reactive.IRxTcAdsClient;
+using ReactiveSettings = IoT.DriverCore.TwinCATRx.Core.Reactive.Settings;
 
-namespace TwinCATRx.Tests.Rx;
+namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
 
 /// <summary>Deterministic parity coverage for the System.Reactive runtime surface.</summary>
 public class ReactiveRuntimeParityCoverageTests
@@ -280,7 +280,7 @@ public class ReactiveRuntimeParityCoverageTests
     {
         var table = new HashTableRx(false);
         table.SetStructure(new TestStructure { Value = 1 });
-        table.Tag[nameof(CP.TwinCatRx.Reactive.RxTcAdsClient)] = client;
+        table.Tag[nameof(IoT.DriverCore.TwinCATRx.Reactive.RxTcAdsClient)] = client;
         table.Tag["Variable"] = variable;
         return table;
     }

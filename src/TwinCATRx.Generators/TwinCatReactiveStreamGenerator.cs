@@ -7,56 +7,56 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace CP.TwinCatRx.SourceGenerators;
+namespace IoT.DriverCore.TwinCATRx.SourceGenerators;
 
 /// <summary>Generates TwinCAT reactive stream binding members.</summary>
 [Generator(LanguageNames.CSharp)]
 public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerator
 {
     /// <summary>Stores the legacy stream attribute metadata name.</summary>
-    private const string TwinCatReactiveStreamAttributeName = "CP.TwinCatRx.TwinCatReactiveStreamAttribute";
+    private const string TwinCatReactiveStreamAttributeName = "IoT.DriverCore.TwinCATRx.TwinCatReactiveStreamAttribute";
 
     /// <summary>Stores the Reactive legacy stream attribute metadata name.</summary>
     private const string ReactiveTwinCatReactiveStreamAttributeName =
-        "CP.TwinCatRx.Reactive.TwinCatReactiveStreamAttribute";
+        "IoT.DriverCore.TwinCATRx.Reactive.TwinCatReactiveStreamAttribute";
 
     /// <summary>Stores the PLC connection attribute metadata name.</summary>
-    private const string TwinCatPlcConnectionAttributeName = "CP.TwinCatRx.TwinCatPlcConnectionAttribute";
+    private const string TwinCatPlcConnectionAttributeName = "IoT.DriverCore.TwinCATRx.TwinCatPlcConnectionAttribute";
 
     /// <summary>Stores the Reactive PLC connection attribute metadata name.</summary>
     private const string ReactiveTwinCatPlcConnectionAttributeName =
-        "CP.TwinCatRx.Reactive.TwinCatPlcConnectionAttribute";
+        "IoT.DriverCore.TwinCATRx.Reactive.TwinCatPlcConnectionAttribute";
 
     /// <summary>Stores the direct notification attribute metadata name.</summary>
-    private const string DirectNotificationAttributeName = "CP.TwinCatRx.DirectNotificationAttribute";
+    private const string DirectNotificationAttributeName = "IoT.DriverCore.TwinCATRx.DirectNotificationAttribute";
 
     /// <summary>Stores the Reactive direct notification attribute metadata name.</summary>
-    private const string ReactiveDirectNotificationAttributeName = "CP.TwinCatRx.Reactive.DirectNotificationAttribute";
+    private const string ReactiveDirectNotificationAttributeName = "IoT.DriverCore.TwinCATRx.Reactive.DirectNotificationAttribute";
 
     /// <summary>Stores the structured notification attribute metadata name.</summary>
-    private const string StructuredNotificationAttributeName = "CP.TwinCatRx.StructuredNotificationAttribute";
+    private const string StructuredNotificationAttributeName = "IoT.DriverCore.TwinCATRx.StructuredNotificationAttribute";
 
     /// <summary>Stores the Reactive structured notification attribute metadata name.</summary>
     private const string ReactiveStructuredNotificationAttributeName =
-        "CP.TwinCatRx.Reactive.StructuredNotificationAttribute";
+        "IoT.DriverCore.TwinCATRx.Reactive.StructuredNotificationAttribute";
 
     /// <summary>Stores the write-only attribute metadata name.</summary>
-    private const string WriteOnlyAttributeName = "CP.TwinCatRx.WriteOnlyAttribute";
+    private const string WriteOnlyAttributeName = "IoT.DriverCore.TwinCATRx.WriteOnlyAttribute";
 
     /// <summary>Stores the Reactive write-only attribute metadata name.</summary>
-    private const string ReactiveWriteOnlyAttributeName = "CP.TwinCatRx.Reactive.WriteOnlyAttribute";
+    private const string ReactiveWriteOnlyAttributeName = "IoT.DriverCore.TwinCATRx.Reactive.WriteOnlyAttribute";
 
     /// <summary>Stores the lean library namespace.</summary>
-    private const string LeanLibraryNamespace = "CP.TwinCatRx";
+    private const string LeanLibraryNamespace = "IoT.DriverCore.TwinCATRx";
 
     /// <summary>Stores the Reactive library namespace.</summary>
-    private const string ReactiveLibraryNamespace = "CP.TwinCatRx.Reactive";
+    private const string ReactiveLibraryNamespace = "IoT.DriverCore.TwinCATRx.Reactive";
 
     /// <summary>Stores the lean core namespace.</summary>
-    private const string LeanCoreNamespace = "CP.TwinCatRx.Core";
+    private const string LeanCoreNamespace = "IoT.DriverCore.TwinCATRx.Core";
 
     /// <summary>Stores the Reactive core namespace.</summary>
-    private const string ReactiveCoreNamespace = "CP.TwinCatRx.Core.Reactive";
+    private const string ReactiveCoreNamespace = "IoT.DriverCore.TwinCATRx.Core.Reactive";
 
     /// <summary>Stores the lean collections namespace.</summary>
     private const string LeanCollectionsNamespace = "CP.Collections";
@@ -131,7 +131,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
 
     /// <summary>Stores the generated asynchronous result method prefix.</summary>
     private const string AsyncResultMethodPrefix =
-        "    public System.Threading.Tasks.Task<global::CP.IoT.Core.TagOperationResult<";
+        "    public System.Threading.Tasks.Task<global::IoT.DriverCore.Core.TagOperationResult<";
 
     /// <summary>Stores the generated trimming-annotation prefix.</summary>
     private const string RequiresUnreferencedCodePrefix = "    [RequiresUnreferencedCode(";
@@ -150,7 +150,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
     private const string AttributeSource = """
 // <auto-generated/>
 #nullable enable
-namespace CP.TwinCatRx;
+namespace IoT.DriverCore.TwinCATRx;
 
 [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
 internal sealed class TwinCatReactiveStreamAttribute : System.Attribute
@@ -278,7 +278,9 @@ internal sealed class WriteOnlyAttribute : System.Attribute
             ctx.AddSource(
                 "TwinCatReactiveStreamAttribute.Reactive.g.cs",
                 SourceText.From(
-                    AttributeSource.Replace("namespace CP.TwinCatRx;", "namespace CP.TwinCatRx.Reactive;"),
+                    AttributeSource.Replace(
+                        "namespace IoT.DriverCore.TwinCATRx;",
+                        "namespace IoT.DriverCore.TwinCATRx.Reactive;"),
                     Encoding.UTF8));
         });
 

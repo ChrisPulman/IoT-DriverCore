@@ -1,5 +1,5 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 #if NET9_0_OR_GREATER
@@ -7,12 +7,12 @@ using System.Diagnostics.CodeAnalysis;
 #endif
 using System.Reflection;
 using CP.Collections;
-using CP.TwinCatRx;
-using CP.TwinCatRx.Core;
+using IoT.DriverCore.TwinCATRx;
+using IoT.DriverCore.TwinCATRx.Core;
 using ReactiveUI.Primitives.Disposables;
-using LeanTwinCatRxExtensions = CP.TwinCatRx.TwinCatRxExtensions;
+using LeanTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.TwinCatRxExtensions;
 
-namespace TwinCATRx.Tests.Rx;
+namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
 
 /// <summary>Deterministic coverage tests for disconnected lean client behavior.</summary>
 public class LeanRxClientCoverageTests
@@ -174,7 +174,7 @@ public class LeanRxClientCoverageTests
     {
         using var client = new RxTcAdsClient();
         var settings = new Settings();
-        CP.TwinCatRx.Core.TwinCatRxExtensions.AddNotification(
+        IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.AddNotification(
             settings,
             ArrayVariable,
             cycleTime: 100,

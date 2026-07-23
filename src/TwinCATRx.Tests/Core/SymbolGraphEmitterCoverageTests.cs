@@ -1,5 +1,5 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 #if !NETFRAMEWORK
@@ -8,10 +8,10 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text;
 using TwinCAT.TypeSystem;
-using LeanCodeGenerator = CP.TwinCatRx.Core.CodeGenerator;
-using ReactiveCodeGenerator = CP.TwinCatRx.Core.Reactive.CodeGenerator;
+using LeanCodeGenerator = IoT.DriverCore.TwinCATRx.Core.CodeGenerator;
+using ReactiveCodeGenerator = IoT.DriverCore.TwinCATRx.Core.Reactive.CodeGenerator;
 
-namespace TwinCATRx.Tests.Core;
+namespace IoT.DriverCore.TwinCATRx.Tests.Core;
 
 /// <summary>Exercises symbol graph traversal and C# emission without loading live ADS symbols.</summary>
 public class SymbolGraphEmitterCoverageTests
@@ -150,8 +150,8 @@ public class SymbolGraphEmitterCoverageTests
     private static object CreateNodeGraph(Assembly assembly, ISymbol symbol)
     {
         var nodeType = Required<Type>(assembly.GetType(assembly == typeof(LeanCodeGenerator).Assembly
-            ? "CP.TwinCatRx.Core.NodeEmulator"
-            : "CP.TwinCatRx.Core.Reactive.NodeEmulator"));
+            ? "IoT.DriverCore.TwinCATRx.Core.NodeEmulator"
+            : "IoT.DriverCore.TwinCATRx.Core.Reactive.NodeEmulator"));
         var node = Required<object>(Activator.CreateInstance(nodeType));
         Required<PropertyInfo>(nodeType.GetProperty("Text")).SetValue(node, symbol.InstanceName);
         Required<PropertyInfo>(nodeType.GetProperty("Tag")).SetValue(node, symbol);

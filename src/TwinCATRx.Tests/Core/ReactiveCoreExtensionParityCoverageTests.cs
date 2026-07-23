@@ -1,12 +1,12 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using ReactiveCoreExtensions = CP.TwinCatRx.Core.Reactive.TwinCatRxExtensions;
-using ReactiveNode = CP.TwinCatRx.Core.Reactive.INodeEmulator;
-using ReactiveSettings = CP.TwinCatRx.Core.Reactive.Settings;
+using ReactiveCoreExtensions = IoT.DriverCore.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
+using ReactiveNode = IoT.DriverCore.TwinCATRx.Core.Reactive.INodeEmulator;
+using ReactiveSettings = IoT.DriverCore.TwinCATRx.Core.Reactive.Settings;
 
-namespace TwinCATRx.Tests.Core;
+namespace IoT.DriverCore.TwinCATRx.Tests.Core;
 
 /// <summary>Closes deterministic extension parity gaps in the Reactive Core package.</summary>
 public class ReactiveCoreExtensionParityCoverageTests
@@ -57,7 +57,7 @@ public class ReactiveCoreExtensionParityCoverageTests
     [Test]
     public async Task Settings_And_Assembly_Helpers_Match_Lean_CoreAsync()
     {
-        CP.TwinCatRx.Core.Reactive.ISettings? nullSettings = null;
+        IoT.DriverCore.TwinCATRx.Core.Reactive.ISettings? nullSettings = null;
         ReactiveCoreExtensions.AddNotification(nullSettings, ".Ignored");
         ReactiveCoreExtensions.AddWriteVariable(nullSettings, ".Ignored");
 
@@ -85,7 +85,7 @@ public class ReactiveCoreExtensionParityCoverageTests
     [Test]
     public async Task Node_Disposal_Matches_Lean_CoreAsync()
     {
-        var nodeType = typeof(ReactiveSettings).Assembly.GetType("CP.TwinCatRx.Core.Reactive.NodeEmulator")
+        var nodeType = typeof(ReactiveSettings).Assembly.GetType("IoT.DriverCore.TwinCATRx.Core.Reactive.NodeEmulator")
             ?? throw new InvalidOperationException("Reactive NodeEmulator was not found.");
         var node = Activator.CreateInstance(nodeType)
             ?? throw new InvalidOperationException("Reactive NodeEmulator could not be created.");

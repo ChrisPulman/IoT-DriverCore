@@ -1,16 +1,16 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
 using CP.Collections;
-using CP.TwinCatRx;
-using CP.TwinCatRx.Core;
-using CoreApi = CP.TwinCatRx.Core.TwinCatRxExtensions;
-using ObservableBridge = CP.TwinCatRx.ObservableBridgeExtensions;
-using TwinCatRxApi = CP.TwinCatRx.TwinCatRxExtensions;
+using IoT.DriverCore.TwinCATRx;
+using IoT.DriverCore.TwinCATRx.Core;
+using CoreApi = IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions;
+using ObservableBridge = IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions;
+using TwinCatRxApi = IoT.DriverCore.TwinCATRx.TwinCatRxExtensions;
 
-namespace TwinCATRx.TestConsole;
+namespace IoT.DriverCore.TwinCATRx.TestConsole;
 
 /// <summary>The main entry point for the application.</summary>
 internal static class Program
@@ -226,7 +226,7 @@ internal static class Program
     /// <param name="value">The observed value.</param>
     private static void PrintObservedPressure(float value) =>
         Output.WriteLine(
-            $"{DateTimeOffset.Now:HH':'mm':'ss'.'fff} {PressureHighVariables.FullObservedVariable} = {value:F3}");
+            $"{TimeProvider.System.GetLocalNow():HH':'mm':'ss'.'fff} {PressureHighVariables.FullObservedVariable} = {value:F3}");
 
     /// <summary>Waits until the ADS client has completed initialization.</summary>
     /// <param name="client">The ADS client.</param>

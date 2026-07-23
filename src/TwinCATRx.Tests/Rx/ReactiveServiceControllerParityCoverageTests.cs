@@ -1,14 +1,20 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
 using System.ServiceProcess;
-using ReactiveServiceController = CP.TwinCatRx.Reactive.ObservableServiceController;
+#if !NETFRAMEWORK
+using System.Runtime.Versioning;
+#endif
+using ReactiveServiceController = IoT.DriverCore.TwinCATRx.Reactive.ObservableServiceController;
 
-namespace TwinCATRx.Tests.Rx;
+namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
 
 /// <summary>Non-live lifecycle parity tests for the Reactive service wrapper.</summary>
+#if !NETFRAMEWORK
+[SupportedOSPlatform("windows")]
+#endif
 public class ReactiveServiceControllerParityCoverageTests
 {
     /// <summary>Verifies null-state getters and disposed commands never query Windows services.</summary>

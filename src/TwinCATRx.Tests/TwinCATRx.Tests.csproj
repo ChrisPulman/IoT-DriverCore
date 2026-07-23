@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>net48;net9.0-windows10.0.19041.0;net11.0-windows10.0.19041.0</TargetFrameworks>
+    <TargetFrameworks>net48;net481;net8.0;net9.0;net10.0;net11.0;net9.0-windows10.0.19041.0;net11.0-windows10.0.19041.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -12,8 +12,9 @@
     <UseAppHost>false</UseAppHost>
     <TUnitAssertionsImplicitUsings>false</TUnitAssertionsImplicitUsings>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
+  <PropertyGroup Condition="$(TargetFramework.StartsWith('net4'))">
     <PlatformTarget>x86</PlatformTarget>
+    <EnableTUnitPolyfills>false</EnableTUnitPolyfills>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,7 +24,6 @@
     <PackageReference Include="ReactiveUI.Primitives.Async" />
     <PackageReference Include="TUnit" />
     <PackageReference Include="TUnit.Assertions" />
-    <PackageReference Include="coverlet.collector" />
   </ItemGroup>
 
   <ItemGroup>
@@ -36,7 +36,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="CP.TwinCatRx" />
+    <Using Include="IoT.DriverCore.TwinCATRx" />
     <Using Include="ReactiveUI.Primitives" />
     <Using Include="ReactiveUI.Primitives.Async" />
     <Using Include="ReactiveUI.Primitives.Extensions" />

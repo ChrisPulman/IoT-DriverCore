@@ -1,18 +1,18 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 #if NET9_0_OR_GREATER
 using System.Diagnostics.CodeAnalysis;
 #endif
 using CP.Collections;
-using CP.TwinCatRx;
-using CP.TwinCatRx.Core;
-using LeanTwinCatRxExtensions = CP.TwinCatRx.TwinCatRxExtensions;
+using IoT.DriverCore.TwinCATRx;
+using IoT.DriverCore.TwinCATRx.Core;
+using LeanTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.TwinCatRxExtensions;
 
-namespace TwinCATRx.Tests.Rx;
+namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
 
-/// <summary>Tests for TwinCatRx extensions in CP.TwinCatRx.</summary>
+/// <summary>Tests for TwinCatRx extensions in IoT.DriverCore.TwinCATRx.</summary>
 public class TwinCatRxExtensionsRxTests
 {
     /// <summary>The value attached to the matching test variable.</summary>

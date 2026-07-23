@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <PackageId>CP.TwinCATRx.Reactive</PackageId>
     <Title>TwinCATRx.Reactive</Title>
-    <RootNamespace>CP.TwinCatRx.Reactive</RootNamespace>
+    <RootNamespace>IoT.DriverCore.TwinCATRx.Reactive</RootNamespace>
     <DefineConstants>$(DefineConstants);REACTIVE_SHIM</DefineConstants>
   </PropertyGroup>
 
@@ -39,7 +39,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TwinCATRx.Core.Reactive\TwinCATRx.Core.Reactive.csproj" />
-    <ProjectReference Include="..\TwinCATRx.Generators\TwinCATRx.Generators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
+    <ProjectReference Include="..\TwinCATRx.Generators\TwinCATRx.Generators.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\CP.IoT.Core\CP.IoT.Core.csproj" />
   </ItemGroup>
 

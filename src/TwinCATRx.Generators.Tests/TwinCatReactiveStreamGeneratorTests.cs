@@ -1,13 +1,13 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System.Collections.Immutable;
-using CP.TwinCatRx.SourceGenerators;
+using IoT.DriverCore.TwinCATRx.SourceGenerators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
-namespace TwinCATRx.SourceGenerators.Tests;
+namespace IoT.DriverCore.TwinCATRx.SourceGenerators.Tests;
 
 /// <summary>Exercises deterministic source-generator inputs through the Roslyn generator driver.</summary>
 public class TwinCatReactiveStreamGeneratorTests
@@ -28,9 +28,9 @@ public class TwinCatReactiveStreamGeneratorTests
         await TUnitAssert.That(result.Diagnostics.Length).IsEqualTo(0);
         await TUnitAssert.That(result.GeneratedSources.Length).IsEqualTo(AttributeSourceCount);
         await TUnitAssert.That(GetSource(result, "TwinCatReactiveStreamAttribute.Lean.g.cs"))
-            .Contains("namespace CP.TwinCatRx;");
+            .Contains("namespace IoT.DriverCore.TwinCATRx;");
         await TUnitAssert.That(GetSource(result, "TwinCatReactiveStreamAttribute.Reactive.g.cs"))
-            .Contains("namespace CP.TwinCatRx.Reactive;");
+            .Contains("namespace IoT.DriverCore.TwinCATRx.Reactive;");
     }
 
     /// <summary>Verifies invalid stream and connection values are ignored without generator diagnostics.</summary>
@@ -39,7 +39,7 @@ public class TwinCatReactiveStreamGeneratorTests
     public async Task Invalid_Attribute_Values_Are_Ignored_Without_DiagnosticsAsync()
     {
         const string source = """
-            using CP.TwinCatRx;
+            using IoT.DriverCore.TwinCATRx;
 
             [TwinCatReactiveStream("", typeof(int))]
             internal partial class EmptyStream;
@@ -75,7 +75,7 @@ public class TwinCatReactiveStreamGeneratorTests
     public async Task Lean_Legacy_Stream_Emits_Sanitized_And_Escaped_BindingsAsync()
     {
         const string source = """
-            using CP.TwinCatRx;
+            using IoT.DriverCore.TwinCATRx;
 
             namespace Generator.Samples;
 
@@ -101,7 +101,7 @@ public class TwinCatReactiveStreamGeneratorTests
         await TUnitAssert.That(generated).Contains("MotorChanges => _motorSpeedSubject;");
         await TUnitAssert.That(generated).Contains("MAIN.Path\\\\Segment\\\"Quoted");
         await TUnitAssert.That(generated).Contains("id\\\\part\\\"quoted");
-        await TUnitAssert.That(generated).Contains("global::CP.TwinCatRx.IRxTcAdsClient");
+        await TUnitAssert.That(generated).Contains("global::IoT.DriverCore.TwinCATRx.IRxTcAdsClient");
     }
 
     /// <summary>Verifies Reactive legacy bindings use the System.Reactive-compatible API aliases.</summary>
@@ -110,7 +110,7 @@ public class TwinCatReactiveStreamGeneratorTests
     public async Task Reactive_Legacy_Stream_Uses_Reactive_Api_SurfaceAsync()
     {
         const string source = """
-            [CP.TwinCatRx.Reactive.TwinCatReactiveStream(".Reactive", typeof(long), Id = "reactive")]
+            [IoT.DriverCore.TwinCATRx.Reactive.TwinCatReactiveStream(".Reactive", typeof(long), Id = "reactive")]
             internal partial class ReactiveStreams;
             """;
 
@@ -119,9 +119,9 @@ public class TwinCatReactiveStreamGeneratorTests
 
         await TUnitAssert.That(result.Diagnostics.Length).IsEqualTo(0);
         await TUnitAssert.That(generated).DoesNotContain("namespace ");
-        await TUnitAssert.That(generated).Contains("global::CP.TwinCatRx.Reactive.IRxTcAdsClient");
-        await TUnitAssert.That(generated).Contains("global::CP.TwinCatRx.Reactive.ObservableBridgeExtensions");
-        await TUnitAssert.That(generated).Contains("global::CP.TwinCatRx.Reactive.TwinCatRxExtensions");
+        await TUnitAssert.That(generated).Contains("global::IoT.DriverCore.TwinCATRx.Reactive.IRxTcAdsClient");
+        await TUnitAssert.That(generated).Contains("global::IoT.DriverCore.TwinCATRx.Reactive.ObservableBridgeExtensions");
+        await TUnitAssert.That(generated).Contains("global::IoT.DriverCore.TwinCATRx.Reactive.TwinCatRxExtensions");
         await TUnitAssert.That(generated).Contains(
             "Observe<long>(client, \".Reactive\", \"reactive\", static value =>");
     }
@@ -132,7 +132,7 @@ public class TwinCatReactiveStreamGeneratorTests
     public async Task Lean_Connection_Emits_All_Property_VariantsAsync()
     {
         const string source = """
-            using CP.TwinCatRx;
+            using IoT.DriverCore.TwinCATRx;
             namespace Generator.Samples;
 
             [TwinCatPlcConnection("1.2.3.4.5.6", 851, SettingsId = "Line\"One")]
@@ -172,7 +172,7 @@ public class TwinCatReactiveStreamGeneratorTests
 
         await TUnitAssert.That(result.Diagnostics.Length).IsEqualTo(0);
         await TUnitAssert.That(generated).Contains("using CP.Collections;");
-        await TUnitAssert.That(generated).Contains("using CP.TwinCatRx.Core;");
+        await TUnitAssert.That(generated).Contains("using IoT.DriverCore.TwinCATRx.Core;");
         await TUnitAssert.That(generated).Contains("AdsAddress = \"1.2.3.4.5.6\"");
         await TUnitAssert.That(generated).Contains("Port = 851");
         await TUnitAssert.That(generated).Contains("SettingsId = \"Line\\\"One\"");
@@ -187,8 +187,8 @@ public class TwinCatReactiveStreamGeneratorTests
         await TUnitAssert.That(generated).Contains("WriteCommand(int value)");
         await TUnitAssert.That(generated).Contains("AddTwinCatRxStructuredWrite");
         await TUnitAssert.That(generated).Contains("TryWriteTwinCatRxStructure");
-        await TUnitAssert.That(generated).DoesNotContain("StaticValueObservable");
-        await TUnitAssert.That(generated).DoesNotContain("WriteDirect(global::System.Int32 value)");
+        await AssertLogicalTagContractAsync(generated);
+        await AssertUnsupportedGeneratedMembersAreAbsentAsync(generated);
     }
 
     /// <summary>Verifies Reactive PLC connections consistently select Reactive aliases and generated members.</summary>
@@ -199,16 +199,16 @@ public class TwinCatReactiveStreamGeneratorTests
         const string source = """
             namespace Generator.ReactiveSamples
             {
-                [CP.TwinCatRx.Reactive.TwinCatPlcConnection("reactive-address", 852)]
+                [IoT.DriverCore.TwinCATRx.Reactive.TwinCatPlcConnection("reactive-address", 852)]
                 internal partial class ReactiveConnection
                 {
-                    [CP.TwinCatRx.Reactive.DirectNotification(".Value", WriteAddress = ".WriteValue")]
+                    [IoT.DriverCore.TwinCATRx.Reactive.DirectNotification(".Value", WriteAddress = ".WriteValue")]
                     public int Value { get; }
 
-                    [CP.TwinCatRx.Reactive.StructuredNotification(".Structure", "Nested.Value")]
+                    [IoT.DriverCore.TwinCATRx.Reactive.StructuredNotification(".Structure", "Nested.Value")]
                     public int NestedValue { get; }
 
-                    [CP.TwinCatRx.Reactive.WriteOnly(".Only")]
+                    [IoT.DriverCore.TwinCATRx.Reactive.WriteOnly(".Only")]
                     public string Only { get; }
                 }
             }
@@ -219,9 +219,9 @@ public class TwinCatReactiveStreamGeneratorTests
 
         await TUnitAssert.That(result.Diagnostics.Length).IsEqualTo(0);
         await TUnitAssert.That(generated).Contains("using CP.Collections.Reactive;");
-        await TUnitAssert.That(generated).Contains("using CP.TwinCatRx.Core.Reactive;");
-        await TUnitAssert.That(generated).Contains("global::CP.TwinCatRx.Reactive.IRxTcAdsClient");
-        await TUnitAssert.That(generated).Contains("global::CP.TwinCatRx.Reactive.RxTcAdsClient");
+        await TUnitAssert.That(generated).Contains("using IoT.DriverCore.TwinCATRx.Core.Reactive;");
+        await TUnitAssert.That(generated).Contains("global::IoT.DriverCore.TwinCATRx.Reactive.IRxTcAdsClient");
+        await TUnitAssert.That(generated).Contains("global::IoT.DriverCore.TwinCATRx.Reactive.RxTcAdsClient");
         await TUnitAssert.That(generated).Contains("AdsAddress = \"reactive-address\"");
         await TUnitAssert.That(generated).Contains("Port = 852");
         await TUnitAssert.That(generated).Contains("SettingsId = \"ReactiveConnection\"");
@@ -238,7 +238,7 @@ public class TwinCatReactiveStreamGeneratorTests
     public async Task Edge_Case_Names_And_Addresses_Use_FallbacksAsync()
     {
         const string source = """
-            using CP.TwinCatRx;
+            using IoT.DriverCore.TwinCATRx;
 
             [TwinCatReactiveStream(".BlankName", typeof(int), PropertyName = "", ObservableName = "")]
             internal partial class BlankNameStream;
@@ -308,6 +308,26 @@ public class TwinCatReactiveStreamGeneratorTests
         }
 
         return runResult.Results[0];
+    }
+
+    /// <summary>Verifies generated logical-tag members use the current core contract.</summary>
+    /// <param name="generated">The generated source to inspect.</param>
+    /// <returns>The assertion task.</returns>
+    private static async Task AssertLogicalTagContractAsync(string generated)
+    {
+        await TUnitAssert.That(generated).Contains("new global::IoT.DriverCore.Core.LogicalTagOptions");
+        await TUnitAssert.That(generated).Contains("global::IoT.DriverCore.Core.LogicalTagMixins.ReadAsync<int>");
+        await TUnitAssert.That(generated).Contains("global::IoT.DriverCore.Core.LogicalTagMixins.WriteAsync<int>");
+        await TUnitAssert.That(generated).DoesNotContain("LogicalTagContractHelpers");
+    }
+
+    /// <summary>Verifies ignored and read-only inputs do not create unsupported generated members.</summary>
+    /// <param name="generated">The generated source to inspect.</param>
+    /// <returns>The assertion task.</returns>
+    private static async Task AssertUnsupportedGeneratedMembersAreAbsentAsync(string generated)
+    {
+        await TUnitAssert.That(generated).DoesNotContain("StaticValueObservable");
+        await TUnitAssert.That(generated).DoesNotContain("WriteDirect(global::System.Int32 value)");
     }
 
     /// <summary>Gets the current runtime reference assemblies for an in-memory compilation.</summary>

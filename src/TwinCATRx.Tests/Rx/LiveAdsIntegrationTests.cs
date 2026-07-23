@@ -1,6 +1,7 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
+
 #if LIVE_ADS_TESTS
 using System;
 using System.Collections.Generic;
@@ -9,14 +10,14 @@ using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using CP.Collections;
-using CP.TwinCatRx.Core;
+using IoT.DriverCore.TwinCATRx.Core;
 using TwinCAT.Ads;
 using TwinCAT.TypeSystem;
-using CoreTwinCatRxExtensions = CP.TwinCatRx.Core.TwinCatRxExtensions;
-using ObservableBridge = CP.TwinCatRx.ObservableBridgeExtensions;
-using RuntimeTwinCatRxExtensions = CP.TwinCatRx.TwinCatRxExtensions;
+using CoreTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions;
+using ObservableBridge = IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions;
+using RuntimeTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.TwinCatRxExtensions;
 
-namespace TwinCATRx.Tests.Rx;
+namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
 
 /// <summary>Live ADS integration tests for a TwinCAT 3 PLC.</summary>
 [Category("LiveAds")]

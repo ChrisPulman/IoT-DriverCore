@@ -1,5 +1,5 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
@@ -7,11 +7,11 @@ using System.Reflection;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Async;
 using ReactiveUI.Primitives.Disposables;
-using ReactiveBridge = CP.TwinCatRx.Reactive.ObservableBridgeExtensions;
-using ReactiveExtensions = CP.TwinCatRx.Reactive.TwinCatRxExtensions;
-using ReactiveRxClient = CP.TwinCatRx.Reactive.RxTcAdsClient;
+using ReactiveBridge = IoT.DriverCore.TwinCATRx.Reactive.ObservableBridgeExtensions;
+using ReactiveExtensions = IoT.DriverCore.TwinCATRx.Reactive.TwinCatRxExtensions;
+using ReactiveRxClient = IoT.DriverCore.TwinCATRx.Reactive.RxTcAdsClient;
 
-namespace TwinCATRx.Tests.Rx;
+namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
 
 /// <summary>Exercises the System.Reactive runtime implementation without a live ADS endpoint.</summary>
 public class ReactiveRuntimeCoverageTests
