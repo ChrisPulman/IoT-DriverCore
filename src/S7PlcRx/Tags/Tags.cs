@@ -5,9 +5,9 @@
 using System.Collections;
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive;
+namespace IoT.DriverCore.S7PlcRx.Reactive;
 #else
-namespace S7PlcRx;
+namespace IoT.DriverCore.S7PlcRx;
 #endif
 
 /// <summary>

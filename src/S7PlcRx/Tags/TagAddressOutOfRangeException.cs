@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive;
+namespace IoT.DriverCore.S7PlcRx.Reactive;
 #else
-namespace S7PlcRx;
+namespace IoT.DriverCore.S7PlcRx;
 #endif
 
 /// <summary>Thrown when a tag address is outside the valid range.</summary>
@@ -16,6 +16,9 @@ namespace S7PlcRx;
 [Serializable]
 public class TagAddressOutOfRangeException : ArgumentOutOfRangeException
 {
+    /// <summary>Stores a parameter name for constructor shapes that otherwise only retain an inner exception.</summary>
+    private readonly string? _parameterName;
+
     /// <summary>Initializes a new instance of the <see cref="TagAddressOutOfRangeException"/> class.</summary>
     /// <param name="tag">The Tag that caused the exception.</param>
     public TagAddressOutOfRangeException(Tag? tag)
@@ -29,8 +32,9 @@ public class TagAddressOutOfRangeException : ArgumentOutOfRangeException
     /// The exception that caused the current exception, or <see langword="null"/> if no inner exception is specified.
     /// </param>
     public TagAddressOutOfRangeException(Tag tag, Exception innerException)
-        : base(nameof(tag.Address), innerException)
+        : base(innerException?.Message, innerException)
     {
+        _parameterName = nameof(tag.Address);
     }
 
     /// <summary>Initializes a new instance of the <see cref="TagAddressOutOfRangeException"/> class.</summary>
@@ -49,9 +53,8 @@ public class TagAddressOutOfRangeException : ArgumentOutOfRangeException
     /// <param name="message">The message that describes the error.</param>
     /// <param name="innerException">The exception that caused the current exception.</param>
     public TagAddressOutOfRangeException(string message, Exception innerException)
-        : base(null, message)
+        : base(message, innerException)
     {
-        _ = innerException ?? throw new ArgumentNullException(nameof(innerException));
     }
 
     /// <summary>Initializes a new instance of the <see cref="TagAddressOutOfRangeException"/> class.</summary>
@@ -87,4 +90,7 @@ public class TagAddressOutOfRangeException : ArgumentOutOfRangeException
         : base(paramName, actualValue, message)
     {
     }
+
+    /// <inheritdoc />
+    public override string? ParamName => _parameterName ?? base.ParamName;
 }
