@@ -7,9 +7,9 @@ using System.Reflection;
 using TwinCAT.Ads;
 
 #if REACTIVE_SHIM
-namespace CP.TwinCatRx.Core.Reactive;
+namespace IoT.DriverCore.TwinCATRx.Core.Reactive;
 #else
-namespace CP.TwinCatRx.Core;
+namespace IoT.DriverCore.TwinCATRx.Core;
 #endif
 
 /// <summary>Observable TwinCAT extensions.</summary>

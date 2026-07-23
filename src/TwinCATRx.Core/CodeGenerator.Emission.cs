@@ -6,9 +6,9 @@ using System.Text;
 using TwinCAT.TypeSystem;
 
 #if REACTIVE_SHIM
-namespace CP.TwinCatRx.Core.Reactive;
+namespace IoT.DriverCore.TwinCATRx.Core.Reactive;
 #else
-namespace CP.TwinCatRx.Core;
+namespace IoT.DriverCore.TwinCATRx.Core;
 #endif
 
 /// <summary>Provides code-emission helpers for <see cref="CodeGenerator"/>.</summary>

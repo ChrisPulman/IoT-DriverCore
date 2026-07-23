@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace CP.TwinCatRx.Core.Reactive;
+namespace IoT.DriverCore.TwinCATRx.Core.Reactive;
 #else
-namespace CP.TwinCatRx.Core;
+namespace IoT.DriverCore.TwinCATRx.Core;
 #endif
 
 /// <summary>Interface for engine settings.</summary>

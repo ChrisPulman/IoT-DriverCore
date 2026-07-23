@@ -7,17 +7,12 @@ using System.Collections;
 #if NET8_0_OR_GREATER
 using System.Diagnostics.CodeAnalysis;
 #endif
-using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.CSharp;
-using TwinCAT;
-using TwinCAT.Ads;
-using TwinCAT.Ads.TypeSystem;
-using TwinCAT.TypeSystem;
 #if REACTIVE_SHIM
-namespace CP.TwinCatRx.Core.Reactive;
+namespace IoT.DriverCore.TwinCATRx.Core.Reactive;
 #else
-namespace CP.TwinCatRx.Core;
+namespace IoT.DriverCore.TwinCATRx.Core;
 #endif
 /// <summary>Code Generator.</summary>
 /// <seealso cref="ICodeGenerator"/>
@@ -121,26 +116,32 @@ public partial class CodeGenerator : ICodeGenerator
     /// <summary>Receives failures caught by compatibility methods.</summary>
     private readonly Action<Exception>? _errorHandler;
 
-    /// <summary>Stores the current ADS client.</summary>
-    private AdsClient? _adsClient;
+    /// <summary>Stores replaceable native symbol operations.</summary>
+    private readonly ICodeGeneratorRuntime _runtime;
 
     /// <summary>Tracks whether this instance has been disposed.</summary>
     private bool _disposedValue;
 
-    /// <summary>Stores the current symbol loader.</summary>
-    private ISymbolLoader? _symbolLoader;
-
     /// <summary>Initializes a new instance of the <see cref="CodeGenerator"/> class.</summary>
     public CodeGenerator()
-        : this(null)
+        : this(null, new CodeGeneratorRuntime())
     {
     }
 
     /// <summary>Initializes a new instance of the <see cref="CodeGenerator"/> class.</summary>
     /// <param name="errorHandler">An optional composable error sink for caught generation failures.</param>
     public CodeGenerator(Action<Exception>? errorHandler)
+        : this(errorHandler, new CodeGeneratorRuntime())
+    {
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="CodeGenerator"/> class.</summary>
+    /// <param name="errorHandler">An optional composable error sink for caught generation failures.</param>
+    /// <param name="runtime">The replaceable native symbol operations.</param>
+    internal CodeGenerator(Action<Exception>? errorHandler, ICodeGeneratorRuntime runtime)
     {
         _errorHandler = errorHandler;
+        _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _disposedValue = false;
     }
 
@@ -419,12 +420,7 @@ public partial class CodeGenerator : ICodeGenerator
     /// </returns>
     public HashSet<INodeEmulator> LoadSymbols(string adsAddress, int port)
     {
-        _adsClient = new();
-        _adsClient.Connect(adsAddress, port);
-        _symbolLoader = SymbolLoaderFactory.Create(_adsClient, SymbolLoaderSettings.Default);
-        BuildSymbolList();
-        _adsClient.Dispose();
-        _adsClient = new();
+        _runtime.LoadSymbols(adsAddress, port, BuildSymbolList);
         return SymbolList;
     }
 
@@ -433,12 +429,7 @@ public partial class CodeGenerator : ICodeGenerator
     /// <returns>A Value.</returns>
     public HashSet<INodeEmulator> LoadSymbols(int port)
     {
-        _adsClient = new();
-        _adsClient.Connect(port);
-        _symbolLoader = SymbolLoaderFactory.Create(_adsClient, SymbolLoaderSettings.Default);
-        BuildSymbolList();
-        _adsClient.Dispose();
-        _adsClient = new();
+        _runtime.LoadSymbols(port, BuildSymbolList);
         return SymbolList;
     }
 
@@ -448,24 +439,8 @@ public partial class CodeGenerator : ICodeGenerator
     /// <param name="variable">The variable.</param>
     /// <param name="variableType">Type of the variable.</param>
     /// <returns>A Value.</returns>
-    public object ReadSymbol(string adsAddress, int port, string variable, Type variableType)
-    {
-        var obj = RuntimeHelpers.GetObjectValue(new object());
-        try
-        {
-            _adsClient = new();
-            _adsClient.Connect(adsAddress, port);
-            obj = RuntimeHelpers.GetObjectValue(
-                _adsClient.ReadAny(_adsClient.CreateVariableHandle(variable), variableType));
-        }
-        finally
-        {
-            _adsClient!.Dispose();
-            _adsClient = new();
-        }
-
-        return obj;
-    }
+    public object ReadSymbol(string adsAddress, int port, string variable, Type variableType) =>
+        _runtime.ReadSymbol(adsAddress, port, variable, variableType);
 
     /// <summary>Searches for the nearest matching symbol list element.</summary>
     /// <param name="symbolName">Name of the symbol.</param>
@@ -504,7 +479,7 @@ public partial class CodeGenerator : ICodeGenerator
     {
         if (!_disposedValue && disposing)
         {
-            _adsClient?.Dispose();
+            _runtime.Dispose();
             SymbolList?.Clear();
         }
 

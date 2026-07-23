@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <PackageId>CP.TwinCATRx.Core</PackageId>
     <Title>TwinCATRx.Core</Title>
-    <RootNamespace>CP.TwinCatRx.Core</RootNamespace>
+    <RootNamespace>IoT.DriverCore.TwinCATRx.Core</RootNamespace>
   </PropertyGroup>
   <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
     <!-- Allow consumers to trim unused APIs from this library -->
@@ -27,6 +27,12 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="System.CodeDom" />
     <PackageReference Include="Mono.Cecil" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>TwinCATRx.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>

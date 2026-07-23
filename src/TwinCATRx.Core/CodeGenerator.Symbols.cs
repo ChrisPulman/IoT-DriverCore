@@ -6,9 +6,9 @@ using System.Text;
 using TwinCAT.TypeSystem;
 
 #if REACTIVE_SHIM
-namespace CP.TwinCatRx.Core.Reactive;
+namespace IoT.DriverCore.TwinCATRx.Core.Reactive;
 #else
-namespace CP.TwinCatRx.Core;
+namespace IoT.DriverCore.TwinCATRx.Core;
 #endif
 
 /// <summary>Provides symbol traversal and source assembly helpers for <see cref="CodeGenerator"/>.</summary>
@@ -19,15 +19,16 @@ public partial class CodeGenerator
     private void ReportFailure(Exception exception) => _errorHandler?.Invoke(exception);
 
     /// <summary>Builds the symbol list.</summary>
-    private void BuildSymbolList()
+    /// <param name="symbols">The symbols to convert.</param>
+    private void BuildSymbolList(IEnumerable<ISymbol>? symbols)
     {
         SymbolList.Clear();
-        if (_symbolLoader is null)
+        if (symbols is null)
         {
             return;
         }
 
-        foreach (var symbol in _symbolLoader.Symbols)
+        foreach (var symbol in symbols)
         {
             _ = SymbolList.Add(CreateNewNode(symbol));
         }

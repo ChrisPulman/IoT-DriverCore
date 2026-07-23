@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <PackageId>CP.TwinCATRx.Core.Reactive</PackageId>
     <Title>TwinCATRx.Core.Reactive</Title>
-    <RootNamespace>CP.TwinCatRx.Core.Reactive</RootNamespace>
+    <RootNamespace>IoT.DriverCore.TwinCATRx.Core.Reactive</RootNamespace>
     <DefineConstants>$(DefineConstants);REACTIVE_SHIM</DefineConstants>
   </PropertyGroup>
 
