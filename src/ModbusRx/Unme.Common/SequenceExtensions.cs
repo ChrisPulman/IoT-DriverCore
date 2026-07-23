@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Unme.Common;
+namespace IoT.DriverCore.ModbusRx.Reactive.Unme.Common;
 #else
-namespace ModbusRx.Unme.Common;
+namespace IoT.DriverCore.ModbusRx.Unme.Common;
 #endif
 
 /// <summary>Provides sequence slicing helpers.</summary>

@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Utility;
+namespace IoT.DriverCore.ModbusRx.Reactive.Utility;
 #else
-namespace ModbusRx.Utility;
+namespace IoT.DriverCore.ModbusRx.Utility;
 #endif
 
 /// <summary>Possible options for <see cref="DiscriminatedUnion{TA, TB}"/>.</summary>

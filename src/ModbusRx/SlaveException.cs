@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Message;
+using IoT.DriverCore.ModbusRx.Reactive.Message;
 #else
-using ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.Message;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive;
+namespace IoT.DriverCore.ModbusRx.Reactive;
 #else
-namespace ModbusRx;
+namespace IoT.DriverCore.ModbusRx;
 #endif
 
 /// <summary>Represents slave errors that occur during communication.</summary>

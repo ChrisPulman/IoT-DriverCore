@@ -7,9 +7,9 @@ using System.Net;
 using System.Text;
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Utility;
+namespace IoT.DriverCore.ModbusRx.Reactive.Utility;
 #else
-namespace ModbusRx.Utility;
+namespace IoT.DriverCore.ModbusRx.Utility;
 #endif
 
 /// <summary>Modbus utility methods with high-performance optimizations.</summary>
