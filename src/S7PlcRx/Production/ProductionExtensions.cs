@@ -5,9 +5,9 @@
 using System.Collections.Concurrent;
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Production;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Production;
 #else
-namespace S7PlcRx.Production;
+namespace IoT.DriverCore.S7PlcRx.Production;
 #endif
 
 /// <summary>

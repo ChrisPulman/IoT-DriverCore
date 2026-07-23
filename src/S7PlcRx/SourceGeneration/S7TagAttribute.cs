@@ -3,10 +3,10 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.SourceGeneration;
+namespace IoT.DriverCore.S7PlcRx.Reactive.SourceGeneration;
 
 #else
-namespace S7PlcRx.SourceGeneration;
+namespace IoT.DriverCore.S7PlcRx.SourceGeneration;
 
 #endif
 

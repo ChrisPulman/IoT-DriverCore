@@ -3,21 +3,21 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Core;
-using S7PlcRx.Reactive.Enums;
-using S7PlcRx.Reactive.PlcTypes;
+using IoT.DriverCore.S7PlcRx.Reactive.Core;
+using IoT.DriverCore.S7PlcRx.Reactive.Enums;
+using IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
 #else
-using S7PlcRx.Core;
-using S7PlcRx.Enums;
-using S7PlcRx.PlcTypes;
+using IoT.DriverCore.S7PlcRx.Core;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.PlcTypes;
 #endif
 
 using TimeSpan = System.TimeSpan;
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive;
+namespace IoT.DriverCore.S7PlcRx.Reactive;
 #else
-namespace S7PlcRx;
+namespace IoT.DriverCore.S7PlcRx;
 #endif
 
 /// <summary>Contains polling members for <see cref="RxS7"/>.</summary>
@@ -312,7 +312,7 @@ public partial class RxS7
             return;
         }
 
-        var tagList = TagList.OfType<Tag>().Where(tag => !tag.DoNotPoll).ToList();
+        var tagList = TagList.ToList().Where(tag => !tag.DoNotPoll).ToList();
         if (tagList.Count == 0 || _pause)
         {
             NotifyPaused(true);

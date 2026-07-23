@@ -4,15 +4,15 @@
 
 using System.Reflection;
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Enums;
+using IoT.DriverCore.S7PlcRx.Reactive.Enums;
 #else
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace S7PlcRx.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>

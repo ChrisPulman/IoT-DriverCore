@@ -5,9 +5,9 @@
 using System.Buffers;
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace S7PlcRx.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>Provides a growable pooled byte buffer.</summary>

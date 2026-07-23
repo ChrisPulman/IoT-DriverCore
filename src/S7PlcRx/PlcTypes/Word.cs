@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Core;
+using IoT.DriverCore.S7PlcRx.Reactive.Core;
 #else
-using S7PlcRx.Core;
+using IoT.DriverCore.S7PlcRx.Core;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace S7PlcRx.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>

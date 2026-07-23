@@ -5,15 +5,15 @@
 using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Core;
+using IoT.DriverCore.S7PlcRx.Reactive.Core;
 #else
-using S7PlcRx.Core;
+using IoT.DriverCore.S7PlcRx.Core;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace S7PlcRx.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>Converts between S7 DWord bytes and unsigned 32-bit values.</summary>

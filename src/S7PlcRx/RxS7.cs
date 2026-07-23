@@ -4,19 +4,19 @@
 
 using System.Diagnostics;
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Core;
-using S7PlcRx.Reactive.Enums;
+using IoT.DriverCore.S7PlcRx.Reactive.Core;
+using IoT.DriverCore.S7PlcRx.Reactive.Enums;
 #else
-using S7PlcRx.Core;
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Core;
+using IoT.DriverCore.S7PlcRx.Enums;
 #endif
 
 using DateTime = System.DateTime;
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive;
+namespace IoT.DriverCore.S7PlcRx.Reactive;
 #else
-namespace S7PlcRx;
+namespace IoT.DriverCore.S7PlcRx;
 #endif
 
 /// <summary>

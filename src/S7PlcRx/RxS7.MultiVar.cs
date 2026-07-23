@@ -5,19 +5,19 @@
 using System.Diagnostics;
 using System.Globalization;
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Core;
-using S7PlcRx.Reactive.Enums;
-using S7PlcRx.Reactive.PlcTypes;
+using IoT.DriverCore.S7PlcRx.Reactive.Core;
+using IoT.DriverCore.S7PlcRx.Reactive.Enums;
+using IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
 #else
-using S7PlcRx.Core;
-using S7PlcRx.Enums;
-using S7PlcRx.PlcTypes;
+using IoT.DriverCore.S7PlcRx.Core;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.PlcTypes;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive;
+namespace IoT.DriverCore.S7PlcRx.Reactive;
 #else
-namespace S7PlcRx;
+namespace IoT.DriverCore.S7PlcRx;
 #endif
 
 /// <summary>Contains multi-variable operation members for <see cref="RxS7"/>.</summary>
@@ -190,7 +190,7 @@ public partial class RxS7
         List<S7MultiVar.ReadResult> parsed,
         VarType[] varTypes,
         int[] arrayLengths,
-        Func<VarType, byte[], int, object?> parseBytes)
+        Func<VarType, byte[], int, Type, object?> parseBytes)
     {
         var dict = new Dictionary<string, object?>(tags.Count, StringComparer.InvariantCultureIgnoreCase);
         for (var i = 0; i < tags.Count && i < parsed.Count; i++)
@@ -202,7 +202,11 @@ public partial class RxS7
                 continue;
             }
 
-            dict[tags[i].Name!] = parseBytes(varTypes[i], result.Data.ToArray(), arrayLengths[i]);
+            dict[tags[i].Name!] = parseBytes(
+                varTypes[i],
+                result.Data.ToArray(),
+                arrayLengths[i],
+                tags[i].Type);
         }
 
         return dict;

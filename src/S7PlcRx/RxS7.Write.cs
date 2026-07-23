@@ -4,15 +4,15 @@
 
 using System.Globalization;
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Enums;
+using IoT.DriverCore.S7PlcRx.Reactive.Enums;
 #else
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive;
+namespace IoT.DriverCore.S7PlcRx.Reactive;
 #else
-namespace S7PlcRx;
+namespace IoT.DriverCore.S7PlcRx;
 #endif
 
 /// <summary>Contains write-operation members for <see cref="RxS7"/>.</summary>

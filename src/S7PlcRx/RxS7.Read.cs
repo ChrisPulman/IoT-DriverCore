@@ -3,17 +3,17 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Enums;
-using S7PlcRx.Reactive.PlcTypes;
+using IoT.DriverCore.S7PlcRx.Reactive.Enums;
+using IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
 #else
-using S7PlcRx.Enums;
-using S7PlcRx.PlcTypes;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.PlcTypes;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive;
+namespace IoT.DriverCore.S7PlcRx.Reactive;
 #else
-namespace S7PlcRx;
+namespace IoT.DriverCore.S7PlcRx;
 #endif
 
 /// <summary>Contains read-operation members for <see cref="RxS7"/>.</summary>
@@ -25,18 +25,18 @@ public partial class RxS7
     /// <returns>A task that represents the asynchronous publish operation.</returns>
     private async Task PublishCpuInfoAsync(IObserver<string[]> observer, CancellationToken cancellationToken)
     {
-        var cpuData = _socketRx.GetSZLData(CpuInformationSzlId);
+        var cpuData = GetSzlDataSynchronized(CpuInformationSzlId);
         while (cpuData.Data.Length == 0 && !cancellationToken.IsCancellationRequested)
         {
             await Task.Delay(SzlRetryDelayMilliseconds, cancellationToken).ConfigureAwait(true);
-            cpuData = _socketRx.GetSZLData(CpuInformationSzlId);
+            cpuData = GetSzlDataSynchronized(CpuInformationSzlId);
         }
 
-        var orderCode = _socketRx.GetSZLData(CpuOrderCodeSzlId);
+        var orderCode = GetSzlDataSynchronized(CpuOrderCodeSzlId);
         while (orderCode.Data.Length == 0 && !cancellationToken.IsCancellationRequested)
         {
             await Task.Delay(SzlRetryDelayMilliseconds, cancellationToken).ConfigureAwait(true);
-            orderCode = _socketRx.GetSZLData(CpuOrderCodeSzlId);
+            orderCode = GetSzlDataSynchronized(CpuOrderCodeSzlId);
         }
 
         if (cpuData.Data.Length < CpuInformationMinimumLength ||
@@ -65,6 +65,17 @@ public partial class RxS7
         };
         observer.OnNext([.. information]);
         observer.OnCompleted();
+    }
+
+    /// <summary>Reads SZL data while excluding concurrent polling and value operations on the shared socket.</summary>
+    /// <param name="szlId">The system status list identifier.</param>
+    /// <returns>The SZL payload and reported size.</returns>
+    private (byte[] Data, ushort Size) GetSzlDataSynchronized(ushort szlId)
+    {
+        lock (_socketLock)
+        {
+            return _socketRx.GetSZLData(szlId);
+        }
     }
 
     /// <summary>
@@ -203,15 +214,34 @@ public partial class RxS7
     /// langword="null"/>.</param>
     /// <param name="varCount">The variables to parse. It must be 1 for scalars; a larger value returns an
     /// array of values.</param>
+    /// <param name="expectedType">The declared CLR type used to preserve signed counter representations.</param>
     /// <returns>An object representing the parsed value(s) according to <paramref name="varType"/> and <paramref
     /// name="varCount"/>. Returns a single value if <paramref name="varCount"/> is 1, or an array of values if greater
     /// than 1. Returns <see langword="null"/> if <paramref name="bytes"/> is <see langword="null"/> or if the type is
     /// not recognized.</returns>
-    private object? ParseBytes(VarType varType, byte[] bytes, int varCount)
+    private object? ParseBytes(VarType varType, byte[] bytes, int varCount, Type expectedType)
     {
         try
         {
-            return bytes is null ? default : RxS7ValueHelpers.ParseNonNullBytes(varType, bytes, varCount);
+            if (bytes is null)
+            {
+                return default;
+            }
+
+            if (varType == VarType.Counter)
+            {
+                if (expectedType == typeof(short))
+                {
+                    return Int.FromByteArray(bytes);
+                }
+
+                if (expectedType == typeof(short[]))
+                {
+                    return Int.ToArray(bytes);
+                }
+            }
+
+            return RxS7ValueHelpers.ParseNonNullBytes(varType, bytes, varCount);
         }
         catch (Exception ex)
         {
@@ -247,7 +277,9 @@ public partial class RxS7
             _lock.Wait();
             var cntBytes = VarTypeToByteLength(varType, tag.ArrayLength!.Value);
             var bytes = ReadMultipleBytes(tag, dataType, db, startByteAdr, cntBytes);
-            return bytes?.Length > 0 ? (T?)ParseBytes(varType, bytes!, tag.ArrayLength!.Value) : default;
+            return bytes?.Length > 0
+                ? (T?)ParseBytes(varType, bytes!, tag.ArrayLength!.Value, typeof(T))
+                : default;
         }
         catch (Exception ex)
         {
@@ -456,11 +488,11 @@ public partial class RxS7
 
         if (tag.Type == typeof(int[]))
         {
-            return Read<int[]>(tag, dataType, 0, startByteAdr, VarType.DWord);
+            return Read<int[]>(tag, dataType, 0, startByteAdr, VarType.DInt);
         }
 
         return tag.Type == typeof(int)
-            ? Read<int>(tag, dataType, 0, startByteAdr, VarType.DWord)
+            ? Read<int>(tag, dataType, 0, startByteAdr, VarType.DInt)
             : Read<uint>(tag, dataType, 0, startByteAdr, VarType.DWord);
     }
 

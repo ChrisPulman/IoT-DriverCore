@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Enums;
+using IoT.DriverCore.S7PlcRx.Reactive.Enums;
 #else
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace S7PlcRx.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>Maps a member to an S7 string with a reserved length.</summary>

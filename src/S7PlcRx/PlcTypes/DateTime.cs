@@ -8,9 +8,9 @@ using SystemDateTimeOffset = System.DateTimeOffset;
 using SystemTimeSpan = System.TimeSpan;
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace S7PlcRx.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>Converts offset-aware values to and from the S7 date-time representation.</summary>
