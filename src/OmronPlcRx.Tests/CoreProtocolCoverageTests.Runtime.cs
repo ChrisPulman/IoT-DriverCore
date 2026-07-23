@@ -2,20 +2,20 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using OmronPlcRx.Core;
-using OmronPlcRx.Core.Requests;
-using OmronPlcRx.Core.Results;
-using OmronPlcRx.Core.Types;
-using OmronPlcRx.Enums;
-using OmronPlcRx.Results;
-using OmronPlcRx.Tags;
+using IoT.DriverCore.OmronPlcRx.Core;
+using IoT.DriverCore.OmronPlcRx.Core.Requests;
+using IoT.DriverCore.OmronPlcRx.Core.Results;
+using IoT.DriverCore.OmronPlcRx.Core.Types;
+using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.DriverCore.OmronPlcRx.Results;
+using IoT.DriverCore.OmronPlcRx.Tags;
 using TUnit.Core;
-using CoreTcpClient = OmronPlcRx.Core.TcpClient;
-using CoreUdpClient = OmronPlcRx.Core.UdpClient;
+using CoreTcpClient = IoT.DriverCore.OmronPlcRx.Core.TcpClient;
+using CoreUdpClient = IoT.DriverCore.OmronPlcRx.Core.UdpClient;
 using NetTcpListener = System.Net.Sockets.TcpListener;
 using NetUdpClient = System.Net.Sockets.UdpClient;
 
-namespace OmronPlcRx.Tests;
+namespace IoT.DriverCore.OmronPlcRx.Tests;
 
 /// <summary>Tests runtime protocol and transport behavior.</summary>
 public sealed partial class CoreProtocolCoverageTests

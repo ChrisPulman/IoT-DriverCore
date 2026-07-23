@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace OmronPlcRx.SourceGenerators;
+namespace IoT.DriverCore.OmronPlcRx.SourceGenerators;
 
 /// <summary>Contains the source generator's syntax and tag models.</summary>
 public sealed partial class PlcTagSourceGenerator

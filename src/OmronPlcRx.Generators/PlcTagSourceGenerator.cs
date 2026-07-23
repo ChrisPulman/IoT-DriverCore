@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace OmronPlcRx.SourceGenerators;
+namespace IoT.DriverCore.OmronPlcRx.SourceGenerators;
 
 /// <summary>Generates PLC tag binding members for attributed fields and properties.</summary>
 [Generator]
@@ -18,15 +18,15 @@ public sealed partial class PlcTagSourceGenerator : IIncrementalGenerator
     /// <summary>Metadata names for supported PLC tag attributes.</summary>
     private static readonly string[] TagAttributeNames =
     [
-        "OmronPlcRx.PlcTagAttribute",
-        "OmronPlcRx.Reactive.PlcTagAttribute",
+        "IoT.DriverCore.OmronPlcRx.PlcTagAttribute",
+        "IoT.DriverCore.OmronPlcRx.Reactive.PlcTagAttribute",
     ];
 
     /// <summary>Metadata names for supported binding-container attributes.</summary>
     private static readonly string[] BindingAttributeNames =
     [
-        "OmronPlcRx.PlcTagBindingAttribute",
-        "OmronPlcRx.Reactive.PlcTagBindingAttribute",
+        "IoT.DriverCore.OmronPlcRx.PlcTagBindingAttribute",
+        "IoT.DriverCore.OmronPlcRx.Reactive.PlcTagBindingAttribute",
     ];
 
     /// <summary>Special types supported by the logical Omron adapter.</summary>
@@ -155,7 +155,7 @@ public sealed partial class PlcTagSourceGenerator : IIncrementalGenerator
     /// <param name="message">Diagnostic message format.</param>
     /// <returns>The configured diagnostic descriptor.</returns>
     private static DiagnosticDescriptor CreateRule(string id, string title, string message) =>
-        new(id, title, message, "OmronPlcRx.SourceGeneration", DiagnosticSeverity.Error, true);
+        new(id, title, message, "IoT.DriverCore.OmronPlcRx.SourceGeneration", DiagnosticSeverity.Error, true);
 
     /// <summary>Resolves available attributes by metadata name.</summary>
     /// <param name="compilation">Current compilation.</param>

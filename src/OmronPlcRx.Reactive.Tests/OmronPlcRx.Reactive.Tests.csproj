@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net481;net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -11,8 +11,15 @@
   <ItemGroup>
     <PackageReference Include="ReactiveUI.Primitives.Reactive" />
     <PackageReference Include="ReactiveUI.Primitives.Async.Reactive" />
-    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" PrivateAssets="all" />
     <PackageReference Include="TUnit" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="$(TargetFramework.StartsWith('net4'))">
+    <EnableTUnitPolyfills>false</EnableTUnitPolyfills>
+  </PropertyGroup>
+
+  <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,6 +34,7 @@
     <Compile
       Include="..\OmronPlcRx.Tests\ReactiveShimProjectTests.cs"
       Link="ReactiveShimProjectTests.cs"
+      Condition="!$(TargetFramework.StartsWith('net4'))"
     />
   </ItemGroup>
 

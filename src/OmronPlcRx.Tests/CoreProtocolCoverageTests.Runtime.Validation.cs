@@ -2,10 +2,10 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using OmronPlcRx.Core;
-using OmronPlcRx.Enums;
+using IoT.DriverCore.OmronPlcRx.Core;
+using IoT.DriverCore.OmronPlcRx.Enums;
 
-namespace OmronPlcRx.Tests;
+namespace IoT.DriverCore.OmronPlcRx.Tests;
 
 /// <summary>Contains invalid-operation assertions for runtime protocol coverage.</summary>
 public sealed partial class CoreProtocolCoverageTests

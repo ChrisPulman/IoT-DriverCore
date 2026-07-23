@@ -3,11 +3,11 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.IO.Ports;
-using OmronPlcRx;
-using OmronPlcRx.Enums;
+using IoT.DriverCore.OmronPlcRx;
+using IoT.DriverCore.OmronPlcRx.Enums;
 using TUnit.Core;
 
-namespace OmronPlcRx.Tests;
+namespace IoT.DriverCore.OmronPlcRx.Tests;
 
 /// <summary>Tests serial Host Link FINS and Toolbus framing behavior.</summary>
 public sealed class SerialHostLinkFinsTests

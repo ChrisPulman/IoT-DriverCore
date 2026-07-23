@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net481;net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -11,14 +11,39 @@
   <ItemGroup>
     <PackageReference Include="ReactiveUI.Primitives" />
     <PackageReference Include="ReactiveUI.Primitives.Async" />
-    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" PrivateAssets="all" />
     <PackageReference Include="TUnit" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="$(TargetFramework.StartsWith('net4'))">
+    <EnableTUnitPolyfills>false</EnableTUnitPolyfills>
+  </PropertyGroup>
+
+  <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
     <Compile Remove="ReactiveFakeOmronPlcRx.cs" />
     <Compile Remove="ReactiveGeneratedMachineState.cs" />
     <Compile Remove="ReactiveShimProjectTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
+    <Compile Remove="CoreProtocolCoverageTests*.cs" />
+    <Compile Remove="FinsResponseValidationCoverageTests.cs" />
+    <Compile Remove="SourceGeneratedPlcStreamsTests.cs" />
+    <Compile Remove="SerialHostLinkFinsTests.cs" />
+    <Compile Remove="OmronLogicalTagClientTests.cs" />
+    <Compile Remove="OmronLogicalTagBulkTests.cs" />
+    <Compile Remove="OmronConnectionResidualCoverageTests.cs" />
+    <Compile Remove="OmronManagedLogicalTagContractTests.cs" />
+    <Compile Remove="OmronParserResidualCoverageTests.cs" />
+    <Compile Remove="OmronSerialChannelSimulatorTests.cs" />
+    <Compile Remove="OmronSocketOverloadCoverageTests.cs" />
+    <Compile Remove="OmronPlcRxDeterministicTests.cs" />
+    <Compile Remove="OmronPlcRxPollingSimulatorTests.cs" />
+    <Compile Remove="OmronTransportLoopbackTests.cs" />
+    <Compile Remove="ScriptedOmronSerialPort.cs" />
   </ItemGroup>
 
   <ItemGroup>

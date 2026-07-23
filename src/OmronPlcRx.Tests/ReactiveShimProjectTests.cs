@@ -6,11 +6,11 @@ using System.IO.Ports;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Async;
 using TUnit.Core;
-using ReactiveBcd16 = global::OmronPlcRx.Reactive.Core.Types.Bcd16;
-using ReactiveOmronSerialOptions = global::OmronPlcRx.Reactive.OmronSerialOptions;
-using ReactiveOmronSerialProtocol = global::OmronPlcRx.Reactive.OmronSerialProtocol;
+using ReactiveBcd16 = global::IoT.DriverCore.OmronPlcRx.Reactive.Core.Types.Bcd16;
+using ReactiveOmronSerialOptions = global::IoT.DriverCore.OmronPlcRx.Reactive.OmronSerialOptions;
+using ReactiveOmronSerialProtocol = global::IoT.DriverCore.OmronPlcRx.Reactive.OmronSerialProtocol;
 
-namespace OmronPlcRx.Reactive.Tests;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Tests;
 
 /// <summary>Tests the shared-source reactive shim project.</summary>
 public sealed class ReactiveShimProjectTests

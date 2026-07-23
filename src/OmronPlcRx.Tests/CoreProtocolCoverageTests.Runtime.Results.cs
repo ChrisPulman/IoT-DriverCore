@@ -2,10 +2,10 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using OmronPlcRx.Results;
+using IoT.DriverCore.OmronPlcRx.Results;
 using TUnit.Core;
 
-namespace OmronPlcRx.Tests;
+namespace IoT.DriverCore.OmronPlcRx.Tests;
 
 /// <summary>Contains result and exception runtime coverage tests.</summary>
 public sealed partial class CoreProtocolCoverageTests
@@ -15,8 +15,8 @@ public sealed partial class CoreProtocolCoverageTests
     [Test]
     public async Task Exceptions_ExposeConstructorValuesAsync()
     {
-        const string finsExceptionMessage = "Exception of type 'OmronPlcRx.FINSException' was thrown.";
-        const string plcExceptionMessage = "Exception of type 'OmronPlcRx.OmronPLCException' was thrown.";
+        const string finsExceptionMessage = "Exception of type 'IoT.DriverCore.OmronPlcRx.FINSException' was thrown.";
+        const string plcExceptionMessage = "Exception of type 'IoT.DriverCore.OmronPlcRx.OmronPLCException' was thrown.";
         const string finsMessage = "fins";
         const string plcMessage = "plc";
         const string innerExceptionMessage = "inner";

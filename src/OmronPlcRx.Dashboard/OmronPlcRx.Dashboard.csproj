@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <RootNamespace>OmronPlcRxDashboard</RootNamespace>
+    <RootNamespace>IoT.DriverCore.OmronPlcRx.Dashboard</RootNamespace>
     <AssemblyName>OmronPlcRx.Dashboard</AssemblyName>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <IsPackable>false</IsPackable>

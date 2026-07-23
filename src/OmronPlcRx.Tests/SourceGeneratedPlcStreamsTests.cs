@@ -2,14 +2,14 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using CP.IO.Ports;
-using CP.IoT.Core;
-using OmronPlcRx.Core.Types;
+using IoT.DriverCore.Core;
+using IoT.DriverCore.OmronPlcRx.Core.Types;
+using IoT.DriverCore.Serial;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Async;
 using TUnit.Core;
 
-namespace OmronPlcRx.Tests;
+namespace IoT.DriverCore.OmronPlcRx.Tests;
 
 /// <summary>Tests source-generated PLC stream binding and async adapters.</summary>
 public sealed class SourceGeneratedPlcStreamsTests

@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using ReactiveBcd16 = global::OmronPlcRx.Reactive.Core.Types.Bcd16;
+using ReactiveBcd16 = global::IoT.DriverCore.OmronPlcRx.Reactive.Core.Types.Bcd16;
 
-namespace OmronPlcRx.Reactive.Tests;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Tests;
 
 /// <summary>Generated reactive PLC tag fixture used by shim tests.</summary>
 public sealed partial class ReactiveGeneratedMachineState

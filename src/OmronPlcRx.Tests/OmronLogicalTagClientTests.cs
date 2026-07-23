@@ -2,12 +2,12 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using CP.IoT.Core;
-using OmronPlcRx.Tags;
+using IoT.DriverCore.Core;
+using IoT.DriverCore.OmronPlcRx.Tags;
 using ReactiveUI.Primitives;
 using TUnit.Core;
 
-namespace OmronPlcRx.Tests;
+namespace IoT.DriverCore.OmronPlcRx.Tests;
 
 /// <summary>Tests the composed logical-tag adapter and modern generated property bindings.</summary>
 public sealed class OmronLogicalTagClientTests

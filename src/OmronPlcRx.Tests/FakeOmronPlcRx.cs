@@ -2,14 +2,14 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using CP.IoT.Core;
-using OmronPlcRx.Enums;
-using OmronPlcRx.Results;
-using OmronPlcRx.Tags;
+using IoT.DriverCore.Core;
+using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.DriverCore.OmronPlcRx.Results;
+using IoT.DriverCore.OmronPlcRx.Tags;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Signals;
 
-namespace OmronPlcRx.Tests;
+namespace IoT.DriverCore.OmronPlcRx.Tests;
 
 /// <summary>In-memory PLC test double used by generated stream tests.</summary>
 public sealed class FakeOmronPlcRx : IOmronPlcRx

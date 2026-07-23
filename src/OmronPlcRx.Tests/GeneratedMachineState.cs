@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using OmronPlcRx.Core.Types;
+using IoT.DriverCore.OmronPlcRx.Core.Types;
 
-namespace OmronPlcRx.Tests;
+namespace IoT.DriverCore.OmronPlcRx.Tests;
 
 /// <summary>Generated PLC tag fixture used by source-generator tests.</summary>
 public sealed partial class GeneratedMachineState

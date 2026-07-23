@@ -46,6 +46,15 @@ public sealed class ABPlcResidualBranchCoverageTests
     /// <summary>The signed 64-bit primitive tag name.</summary>
     private const string Int64TagName = "Int64";
 
+    /// <summary>The single-precision primitive tag name.</summary>
+    private const string SingleTagName = "Single";
+
+    /// <summary>The double-precision primitive tag name.</summary>
+    private const string DoubleTagName = "Double";
+
+    /// <summary>The string primitive tag name.</summary>
+    private const string StringTagName = "String";
+
     /// <summary>Verifies operation metrics include every counted operation and a failure.</summary>
     /// <returns>A task representing the test.</returns>
     [Test]
@@ -106,6 +115,9 @@ public sealed class ABPlcResidualBranchCoverageTests
         await AssertPrimitiveRoundTripAsync(tags.CreateTagType<int>(Int32TagName, Int32TagName), default(int));
         await AssertPrimitiveRoundTripAsync(tags.CreateTagType<ulong>(UInt64TagName, UInt64TagName), default(ulong));
         await AssertPrimitiveRoundTripAsync(tags.CreateTagType<long>(Int64TagName, Int64TagName), default(long));
+        await AssertPrimitiveRoundTripAsync(tags.CreateTagType<float>(SingleTagName, SingleTagName), default(float));
+        await AssertPrimitiveRoundTripAsync(tags.CreateTagType<double>(DoubleTagName, DoubleTagName), default(double));
+        await AssertPrimitiveRoundTripAsync(tags.CreateTagType<string>(StringTagName, StringTagName), MetricVariable);
     }
 
     /// <summary>Verifies facade typed-value operations cover direct and integral-Boolean paths.</summary>

@@ -2,19 +2,19 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using OmronPlcRx.Core;
-using OmronPlcRx.Core.Channels;
-using OmronPlcRx.Core.Requests;
-using OmronPlcRx.Core.Responses;
-using OmronPlcRx.Core.Results;
-using OmronPlcRx.Enums;
-using OmronPlcRx.Tags;
-using CoreTcpClient = OmronPlcRx.Core.TcpClient;
-using CoreUdpClient = OmronPlcRx.Core.UdpClient;
+using IoT.DriverCore.OmronPlcRx.Core;
+using IoT.DriverCore.OmronPlcRx.Core.Channels;
+using IoT.DriverCore.OmronPlcRx.Core.Requests;
+using IoT.DriverCore.OmronPlcRx.Core.Responses;
+using IoT.DriverCore.OmronPlcRx.Core.Results;
+using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.DriverCore.OmronPlcRx.Tags;
+using CoreTcpClient = IoT.DriverCore.OmronPlcRx.Core.TcpClient;
+using CoreUdpClient = IoT.DriverCore.OmronPlcRx.Core.UdpClient;
 using NetTcpListener = System.Net.Sockets.TcpListener;
 using NetUdpClient = System.Net.Sockets.UdpClient;
 
-namespace OmronPlcRx.Tests;
+namespace IoT.DriverCore.OmronPlcRx.Tests;
 
 /// <summary>Provides shared test fixtures and assertions for core protocol coverage.</summary>
 public sealed partial class CoreProtocolCoverageTests
@@ -319,6 +319,9 @@ public sealed partial class CoreProtocolCoverageTests
         /// <summary>Gets or sets a value indicating whether purge should throw.</summary>
         internal bool ThrowDuringPurge { get; set; }
 
+        /// <summary>Gets or sets an initialization exception to inject.</summary>
+        internal Exception? InitializeException { get; set; }
+
         /// <summary>Gets the initialize call count.</summary>
         internal int InitializeCount { get; private set; }
 
@@ -345,7 +348,9 @@ public sealed partial class CoreProtocolCoverageTests
         internal override Task InitializeAsync(int timeout, CancellationToken cancellationToken)
         {
             InitializeCount++;
-            return Task.CompletedTask;
+            return InitializeException is null
+                ? Task.CompletedTask
+                : Task.FromException(InitializeException);
         }
 
         /// <inheritdoc />

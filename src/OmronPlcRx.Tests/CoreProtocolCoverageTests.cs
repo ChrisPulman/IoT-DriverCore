@@ -2,16 +2,16 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using OmronPlcRx.Core;
-using OmronPlcRx.Core.Channels;
-using OmronPlcRx.Core.Converters;
-using OmronPlcRx.Core.Requests;
-using OmronPlcRx.Core.Responses;
-using OmronPlcRx.Core.Types;
-using OmronPlcRx.Enums;
+using IoT.DriverCore.OmronPlcRx.Core;
+using IoT.DriverCore.OmronPlcRx.Core.Channels;
+using IoT.DriverCore.OmronPlcRx.Core.Converters;
+using IoT.DriverCore.OmronPlcRx.Core.Requests;
+using IoT.DriverCore.OmronPlcRx.Core.Responses;
+using IoT.DriverCore.OmronPlcRx.Core.Types;
+using IoT.DriverCore.OmronPlcRx.Enums;
 using TUnit.Core;
 
-namespace OmronPlcRx.Tests;
+namespace IoT.DriverCore.OmronPlcRx.Tests;
 
 /// <summary>Tests deterministic protocol, conversion and validation paths.</summary>
 public sealed partial class CoreProtocolCoverageTests

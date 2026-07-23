@@ -2,18 +2,18 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Signals;
-using ReactiveIOmronPlcRx = global::OmronPlcRx.Reactive.IOmronPlcRx;
-using ReactiveIPlcTag = global::OmronPlcRx.Reactive.Tags.IPlcTag;
-using ReactiveOmronPLCException = global::OmronPlcRx.Reactive.OmronPLCException;
-using ReactivePLCType = global::OmronPlcRx.Reactive.Enums.PlcType;
-using ReactiveReadClockResult = global::OmronPlcRx.Reactive.Results.ReadClockResult;
-using ReactiveReadCycleTimeResult = global::OmronPlcRx.Reactive.Results.ReadCycleTimeResult;
-using ReactiveWriteClockResult = global::OmronPlcRx.Reactive.Results.WriteClockResult;
+using ReactiveIOmronPlcRx = global::IoT.DriverCore.OmronPlcRx.Reactive.IOmronPlcRx;
+using ReactiveIPlcTag = global::IoT.DriverCore.OmronPlcRx.Reactive.Tags.IPlcTag;
+using ReactiveOmronPLCException = global::IoT.DriverCore.OmronPlcRx.Reactive.OmronPLCException;
+using ReactivePLCType = global::IoT.DriverCore.OmronPlcRx.Reactive.Enums.PlcType;
+using ReactiveReadClockResult = global::IoT.DriverCore.OmronPlcRx.Reactive.Results.ReadClockResult;
+using ReactiveReadCycleTimeResult = global::IoT.DriverCore.OmronPlcRx.Reactive.Results.ReadCycleTimeResult;
+using ReactiveWriteClockResult = global::IoT.DriverCore.OmronPlcRx.Reactive.Results.WriteClockResult;
 
-namespace OmronPlcRx.Reactive.Tests;
+namespace IoT.DriverCore.OmronPlcRx.Reactive.Tests;
 
 /// <summary>In-memory reactive PLC test double used by generated stream tests.</summary>
 public sealed class ReactiveFakeOmronPlcRx : ReactiveIOmronPlcRx
@@ -55,7 +55,7 @@ public sealed class ReactiveFakeOmronPlcRx : ReactiveIOmronPlcRx
     public List<Write> Writes { get; } = [];
 
     /// <inheritdoc />
-    public void AddUpdateTagItem<T>(global::OmronPlcRx.Reactive.Tags.PlcTag<T> tag)
+    public void AddUpdateTagItem<T>(global::IoT.DriverCore.OmronPlcRx.Reactive.Tags.PlcTag<T> tag)
     {
         Registrations.Add(new(tag.TagName, tag.Address, typeof(T)));
         _ = GetSubject(tag.TagName);

@@ -1,18 +1,19 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO.Ports;
-using CP.IoT.Core;
-using OmronPlcRx.Enums;
+using IoT.DriverCore.Core;
+using IoT.DriverCore.OmronPlcRx;
+using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.DriverCore.OmronPlcRx.Tags;
 using ReactiveUI;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Disposables;
-using PlcLib = global::OmronPlcRx;
 
-namespace OmronPlcRxDashboard.ViewModels;
+namespace IoT.DriverCore.OmronPlcRx.Dashboard.ViewModels;
 
 /// <summary>Main window view model coordinating connection and tags.</summary>
 public sealed class MainWindowViewModel : ReactiveObject, IDisposable
@@ -27,18 +28,18 @@ public sealed class MainWindowViewModel : ReactiveObject, IDisposable
     private readonly MultipleDisposable _disposables = new();
 
     /// <summary>Stores the current PLC connection.</summary>
-    private PlcLib.OmronPlcRx? _plc;
+    private OmronPlcRx? _plc;
 
     /// <summary>Initializes a new instance of the <see cref="MainWindowViewModel"/> class.</summary>
     public MainWindowViewModel()
     {
         Tags = new(_tags);
         ConnectionMethods = Enum.GetValues<ConnectionMethod>();
-        SerialProtocols = Enum.GetValues<PlcLib.OmronSerialProtocol>();
+        SerialProtocols = Enum.GetValues<OmronSerialProtocol>();
         SerialParities = Enum.GetValues<Parity>();
         SerialStopBits = Enum.GetValues<StopBits>();
         SerialHandshakes = Enum.GetValues<Handshake>();
-        SerialFrameModes = Enum.GetValues<PlcLib.OmronHostLinkFinsFrameMode>();
+        SerialFrameModes = Enum.GetValues<OmronHostLinkFinsFrameMode>();
 
         var canConnect = this.WhenAnyValue(v => v.IsConnected).Select(static isConnected => !isConnected);
         var canDisconnect = this.WhenAnyValue(v => v.IsConnected);
@@ -138,15 +139,15 @@ public sealed class MainWindowViewModel : ReactiveObject, IDisposable
         try
         {
             _plc = Settings.Method == ConnectionMethod.Serial
-                ? new PlcLib.OmronPlcRx(
+                ? new OmronPlcRx(
                     Settings.LocalNodeId,
                     Settings.RemoteNodeId,
                     Settings.ToSerialOptions(),
                     Settings.Timeout,
                     Settings.Retries,
                     TimeSpan.FromMilliseconds(Settings.PollMs))
-                : new PlcLib.OmronPlcRx(
-                    new PlcLib.OmronConnectionOptions(
+                : new OmronPlcRx(
+                    new OmronConnectionOptions(
                         Settings.LocalNodeId,
                         Settings.RemoteNodeId,
                         Settings.Method,
@@ -237,16 +238,16 @@ public sealed class MainWindowViewModel : ReactiveObject, IDisposable
         try
         {
             var valueType = tag.ValueType;
-            var plcTagType = typeof(PlcLib.Tags.PlcTag<>).MakeGenericType(valueType);
+            var plcTagType = typeof(PlcTag<>).MakeGenericType(valueType);
             var plcTag = Activator.CreateInstance(plcTagType, tag.Name, tag.Address);
             _ = GetGenericPlcMethod(
-                    nameof(PlcLib.IOmronPlcRx.AddUpdateTagItem),
+                    nameof(IOmronPlcRx.AddUpdateTagItem),
                     valueType)
                 .Invoke(_plc, [plcTag]);
 
             var tagKey = TagKeyFactory.Create(valueType, tag.Name);
             var observable = GetGenericPlcMethod(
-                    nameof(PlcLib.IOmronPlcRx.Observe),
+                    nameof(IOmronPlcRx.Observe),
                     valueType)
                 .Invoke(_plc, [tagKey]);
             if (observable is not null)
@@ -378,7 +379,7 @@ public sealed class MainWindowViewModel : ReactiveObject, IDisposable
         {
             var valueType = tag.ValueType;
             var method = GetGenericPlcMethod(
-                nameof(PlcLib.IOmronPlcRx.SetValue),
+                nameof(IOmronPlcRx.SetValue),
                 valueType);
             var converted = TypeDescriptor
                 .GetConverter(valueType)
