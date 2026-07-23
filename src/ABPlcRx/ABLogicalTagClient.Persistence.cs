@@ -2,12 +2,12 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 
 #if REACTIVELIST_REACTIVE
-namespace ABPlcRx.Reactive;
+namespace IoT.DriverCore.ABPlcRx.Reactive;
 #else
-namespace ABPlcRx;
+namespace IoT.DriverCore.ABPlcRx;
 #endif
 
 /// <summary>Adapts an Allen-Bradley controller to shared logical-tag contracts through composition.</summary>
@@ -17,11 +17,19 @@ public sealed partial class ABLogicalTagClient
     /// <param name="reader">The CSV reader.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The imported definitions.</returns>
-    public async Task<IReadOnlyList<LogicalTag>> ImportCsvAsync(
+    public Task<IReadOnlyList<LogicalTag>> ImportCsvAsync(
         TextReader reader,
         CancellationToken cancellationToken)
+        => ImportCsvAsync(reader, ',', cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<LogicalTag>> ImportCsvAsync(
+        TextReader reader,
+        char delimiter,
+        CancellationToken cancellationToken)
     {
-        var tags = await LogicalTagCsv.ImportAsync(reader, cancellationToken: cancellationToken)
+        ThrowIfDisposed();
+        var tags = await LogicalTagCsv.ImportAsync(reader, delimiter, cancellationToken)
             .ConfigureAwait(false);
         foreach (var tag in tags)
         {
@@ -36,7 +44,21 @@ public sealed partial class ABLogicalTagClient
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A task that completes after export.</returns>
     public Task ExportCsvAsync(TextWriter writer, CancellationToken cancellationToken) =>
-        LogicalTagCsv.ExportAsync(Catalog.List(), writer, cancellationToken: cancellationToken);
+        ExportCsvAsync(writer, ',', cancellationToken);
+
+    /// <inheritdoc/>
+    public Task ExportCsvAsync(
+        TextWriter writer,
+        char delimiter,
+        CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+        return LogicalTagCsv.ExportAsync(Catalog.List(), writer, delimiter, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task InitializeStoreAsync(CancellationToken cancellationToken) =>
+        GetStore().InitializeAsync(cancellationToken);
 
     /// <summary>Initializes and retains a SQLite store for CRUD operations.</summary>
     /// <param name="store">The SQLite store.</param>
@@ -79,6 +101,10 @@ public sealed partial class ABLogicalTagClient
     public Task<LogicalTag?> GetTagAsync(string tagName, CancellationToken cancellationToken) =>
         GetStore().GetTagAsync(tagName, cancellationToken);
 
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<LogicalTag>> ListTagsAsync(CancellationToken cancellationToken) =>
+        GetStore().ListTagsAsync(cancellationToken);
+
     /// <summary>Upserts a SQLite tag and synchronizes the live catalog.</summary>
     /// <param name="tag">The tag definition.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
@@ -118,6 +144,28 @@ public sealed partial class ABLogicalTagClient
 
         return deleted;
     }
+
+    /// <inheritdoc/>
+    public Task<LogicalTagGroup?> GetGroupAsync(
+        string name,
+        CancellationToken cancellationToken) =>
+        GetStore().GetGroupAsync(name, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<LogicalTagGroup>> ListGroupsAsync(CancellationToken cancellationToken) =>
+        GetStore().ListGroupsAsync(cancellationToken);
+
+    /// <inheritdoc/>
+    public Task UpsertGroupAsync(
+        LogicalTagGroup group,
+        CancellationToken cancellationToken) =>
+        GetStore().UpsertGroupAsync(group, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<bool> DeleteGroupAsync(
+        string name,
+        CancellationToken cancellationToken) =>
+        GetStore().DeleteGroupAsync(name, cancellationToken);
 
     /// <summary>Gets the configured SQLite store.</summary>
     /// <returns>The configured store.</returns>

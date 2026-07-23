@@ -10,7 +10,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace ABPlcRx.SourceGenerators;
+namespace IoT.DriverCore.ABPlcRx.SourceGenerators;
 
 /// <summary>Generates reactive PLC stream models from ABPlcRx source generation attributes.</summary>
 [Generator]
@@ -26,10 +26,10 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
     private const string SourceGenerationNamespaceSuffix = ".SourceGeneration";
 
     /// <summary>The default runtime API namespace.</summary>
-    private const string DefaultApiNamespace = "ABPlcRx";
+    private const string DefaultApiNamespace = "IoT.DriverCore.ABPlcRx";
 
     /// <summary>The System.Reactive-flavoured runtime API namespace.</summary>
-    private const string ReactiveApiNamespace = "ABPlcRx.Reactive";
+    private const string ReactiveApiNamespace = "IoT.DriverCore.ABPlcRx.Reactive";
 
     /// <summary>The number of constructor arguments expected by class-level PLC tag attributes.</summary>
     private const int ClassTagConstructorArgumentCount = 3;
@@ -315,7 +315,7 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
         _ = builder.AppendLine();
         _ = builder.AppendLine(
             "    /// <summary>Gets the shared logical-tag client after streams are attached.</summary>");
-        _ = builder.AppendLine("    public global::CP.IoT.Core.ILogicalTagClient TagClient =>");
+        _ = builder.AppendLine("    public global::IoT.DriverCore.Core.ILogicalTagClient TagClient =>");
         _ = builder.AppendLine("        _abPlcRxTagClient ?? throw new global::System.InvalidOperationException(");
         _ = builder.AppendLine("            \"Call AttachPlcStreams before using generated PLC helpers.\");");
         _ = builder.AppendLine();
@@ -375,26 +375,43 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
             .Append(tag.PropertyName).AppendLine("Observable);");
         _ = builder.AppendLine("#endif");
         _ = builder.AppendLine();
+
+        AppendLogicalTagReadWriteMembers(builder, tag);
+    }
+
+    /// <summary>Appends typed logical-tag read and write helpers for one generated tag.</summary>
+    /// <param name="builder">The target source builder.</param>
+    /// <param name="tag">The tag model.</param>
+    private static void AppendLogicalTagReadWriteMembers(StringBuilder builder, TagModel tag)
+    {
         _ = builder.Append("    /// <summary>Reads ")
             .Append(tag.PropertyName)
             .AppendLine(" by logical tag name.</summary>");
-        _ = builder.Append("    public global::System.Threading.Tasks.Task<global::CP.IoT.Core.TagOperationResult<")
+        _ = builder.Append("    public global::System.Threading.Tasks.Task<global::IoT.DriverCore.Core.TagOperationResult<")
             .Append(tag.ObserveType).Append(">> Read").Append(tag.PropertyName)
             .AppendLine("Async(global::System.Threading.CancellationToken cancellationToken = default) =>");
-        _ = builder.Append("        global::CP.IoT.Core.LogicalTagContractHelpers.ReadAsync<")
-            .Append(tag.ObserveType).Append(">(TagClient, ").Append(ToLiteral(tag.Variable))
-            .AppendLine(", cancellationToken);");
+        _ = builder.Append("        global::IoT.DriverCore.Core.LogicalTagMixins.ReadAsync<")
+            .Append(tag.ObserveType)
+            .Append(">(TagClient, new global::IoT.DriverCore.Core.LogicalTagKey<")
+            .Append(tag.ObserveType)
+            .Append(">(")
+            .Append(ToLiteral(tag.Variable))
+            .AppendLine("), cancellationToken);");
         _ = builder.AppendLine();
         _ = builder.Append("    /// <summary>Writes ")
             .Append(tag.PropertyName)
             .AppendLine(" by logical tag name.</summary>");
-        _ = builder.Append("    public global::System.Threading.Tasks.Task<global::CP.IoT.Core.TagOperationResult<")
+        _ = builder.Append("    public global::System.Threading.Tasks.Task<global::IoT.DriverCore.Core.TagOperationResult<")
             .Append(tag.ObserveType).Append(">> Write").Append(tag.PropertyName).Append("Async(")
             .Append(tag.ObserveType)
             .AppendLine(" value, global::System.Threading.CancellationToken cancellationToken = default) =>");
-        _ = builder.Append("        global::CP.IoT.Core.LogicalTagContractHelpers.WriteAsync<")
-            .Append(tag.ObserveType).Append(">(TagClient, ").Append(ToLiteral(tag.Variable))
-            .AppendLine(", value, cancellationToken);");
+        _ = builder.Append("        global::IoT.DriverCore.Core.LogicalTagMixins.WriteAsync<")
+            .Append(tag.ObserveType)
+            .Append(">(TagClient, new global::IoT.DriverCore.Core.LogicalTagKey<")
+            .Append(tag.ObserveType)
+            .Append(">(")
+            .Append(ToLiteral(tag.Variable))
+            .AppendLine("), value, cancellationToken);");
         _ = builder.AppendLine();
     }
 
@@ -461,20 +478,21 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
                 .Append(tag.RegisterType).AppendLine("));");
         }
 
-        _ = builder.Append("        _abPlcRxTagClient.Catalog.Upsert(new global::CP.IoT.Core.LogicalTag(")
+        _ = builder.Append("        _abPlcRxTagClient.Catalog.Upsert(new global::IoT.DriverCore.Core.LogicalTag(")
             .Append(ToLiteral(tag.Variable)).Append(", ")
             .Append(ToLiteral(tag.TagName)).Append(", ")
-            .Append(ToLiteral(tag.ObserveType)).Append(", ")
+            .Append(ToLiteral(tag.ObserveType))
+            .Append(", new global::IoT.DriverCore.Core.LogicalTagOptions { GroupName = ")
             .Append(ToLiteral(tag.Group));
         if (tag.Bit >= 0)
         {
             _ = builder.Append(
-                    ", metadata: new global::System.Collections.Generic.Dictionary<string, string> { [\"Bit\"] = ")
+                    ", Metadata = new global::System.Collections.Generic.Dictionary<string, string> { [\"Bit\"] = ")
                 .Append(ToLiteral(tag.Bit.ToString(System.Globalization.CultureInfo.InvariantCulture)))
                 .Append(" }");
         }
 
-        _ = builder.AppendLine("));");
+        _ = builder.AppendLine(" }));");
         _ = builder.Append("        ").Append(observableFieldName).Append(" = controller.Observe<")
             .Append(tag.ObserveType).Append(">(").Append(ToLiteral(tag.Variable)).Append(", default(")
             .Append(tag.ObserveType).Append("), ")

@@ -1,14 +1,14 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using ABPlcRx.SourceGeneration;
+using IoT.DriverCore.ABPlcRx.SourceGeneration;
 using ReactiveUI.Primitives.Signals;
 using TUnit.Assertions;
 using TUnit.Core;
 
-namespace ABPlcRx.Tests;
+namespace IoT.DriverCore.ABPlcRx.Tests;
 
 /// <summary>Tests value objects and validation helpers that do not require PLC IO.</summary>
 public sealed class ValueObjectTests
@@ -54,6 +54,9 @@ public sealed class ValueObjectTests
 
     /// <summary>Invalid PLC string payload length.</summary>
     private const int InvalidStringLength = 83;
+
+    /// <summary>The clock used to create timestamp values in tests.</summary>
+    private static readonly TimeProvider Clock = TimeProvider.System;
 
     /// <summary>Sample integer array used by size calculation tests.</summary>
     private static readonly int[] SampleIntegers = [1, 2, 3];
@@ -108,7 +111,7 @@ public sealed class ValueObjectTests
         var inner = new InvalidOperationException("inner");
         var result = CreateResult(
             new StubTag(CounterTagName, SampleTagValue),
-            DateTime.UtcNow,
+            Clock.GetUtcNow().UtcDateTime,
             1,
             PlcTagStatus.ErrBadParam);
 
@@ -213,7 +216,7 @@ public sealed class ValueObjectTests
     /// <summary>Gets the internal data length type.</summary>
     /// <returns>The data length type.</returns>
     private static Type GetDataLengthType() =>
-        typeof(IPlcTag).Assembly.GetType("ABPlcRx.DataLength")
+        typeof(IPlcTag).Assembly.GetType("IoT.DriverCore.ABPlcRx.DataLength")
         ?? throw new TypeLoadException("Could not load ABPlcRx.DataLength.");
 
     /// <summary>Invokes a static method on the internal data length type.</summary>
@@ -322,6 +325,6 @@ public sealed class ValueObjectTests
 
         int IPlcTag.Unlock() => PlcTagStatus.StatusOK;
 
-        PlcTagResult IPlcTag.Write() => null!;
+        PlcTagResult IPlcTag.Write() => ((IPlcTag)this).Read();
     }
 }

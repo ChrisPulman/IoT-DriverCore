@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVELIST_REACTIVE
-namespace ABPlcRx.Reactive.SourceGeneration;
+namespace IoT.DriverCore.ABPlcRx.Reactive.SourceGeneration;
 #else
-namespace ABPlcRx.SourceGeneration;
+namespace IoT.DriverCore.ABPlcRx.SourceGeneration;
 #endif
 
 /// <summary>Describes a PLC tag stream that should be generated for a partial model.</summary>

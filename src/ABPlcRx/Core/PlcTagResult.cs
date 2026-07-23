@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVELIST_REACTIVE
-namespace ABPlcRx.Reactive;
+namespace IoT.DriverCore.ABPlcRx.Reactive;
 #else
-namespace ABPlcRx;
+namespace IoT.DriverCore.ABPlcRx;
 #endif
 
 /// <summary>Result returned by PLC tag operations.</summary>
@@ -66,7 +66,7 @@ public class PlcTagResult
     public static PlcTagResult Reduce(IEnumerable<PlcTagResult> results, TimeProvider timeProvider)
     {
 #if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(results);
+        ArgumentExceptionHelper.ThrowIfNull(results, nameof(results));
 #else
         if (results is null)
         {

@@ -5,9 +5,9 @@
 using libplctag.NativeImport;
 
 #if REACTIVELIST_REACTIVE
-namespace ABPlcRx.Reactive;
+namespace IoT.DriverCore.ABPlcRx.Reactive;
 #else
-namespace ABPlcRx;
+namespace IoT.DriverCore.ABPlcRx;
 #endif
 
 /// <summary>Libplctag-backed native PLC tag adapter.</summary>

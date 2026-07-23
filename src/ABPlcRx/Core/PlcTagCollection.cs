@@ -10,9 +10,9 @@ using SignalFactory = ReactiveUI.Primitives.Signals.Signal;
 #endif
 
 #if REACTIVELIST_REACTIVE
-namespace ABPlcRx.Reactive;
+namespace IoT.DriverCore.ABPlcRx.Reactive;
 #else
-namespace ABPlcRx;
+namespace IoT.DriverCore.ABPlcRx;
 #endif
 
 /// <summary>Plc Tag Collection.</summary>

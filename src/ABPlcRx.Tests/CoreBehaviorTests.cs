@@ -1,14 +1,14 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
 using ReactiveUI.Primitives.Signals;
 using TUnit.Assertions;
 using TUnit.Core;
-using PlcController = ABPlcRx.ABPlcRx;
+using PlcController = IoT.DriverCore.ABPlcRx.ABPlcRx;
 
-namespace ABPlcRx.Tests;
+namespace IoT.DriverCore.ABPlcRx.Tests;
 
 /// <summary>Tests core PLC helper behavior that does not require a live controller.</summary>
 public sealed class CoreBehaviorTests
@@ -310,6 +310,6 @@ public sealed class CoreBehaviorTests
 
         int IPlcTag.Unlock() => PlcTagStatus.StatusOK;
 
-        PlcTagResult IPlcTag.Write() => null!;
+        PlcTagResult IPlcTag.Write() => ((IPlcTag)this).Read();
     }
 }

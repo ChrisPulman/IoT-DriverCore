@@ -5,9 +5,9 @@
 using System.Collections;
 
 #if REACTIVELIST_REACTIVE
-namespace ABPlcRx.Reactive;
+namespace IoT.DriverCore.ABPlcRx.Reactive;
 #else
-namespace ABPlcRx;
+namespace IoT.DriverCore.ABPlcRx;
 #endif
 
 /// <summary>PLC tag bit helper extensions.</summary>
@@ -23,7 +23,7 @@ public static class TagMixins
     public static double ScaleLinear(IPlcTag tag, double minRaw, double maxRaw, double minScale, double maxScale)
     {
 #if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(tag);
+        ArgumentExceptionHelper.ThrowIfNull(tag, nameof(tag));
 #else
         if (tag is null)
         {
@@ -50,7 +50,7 @@ public static class TagMixins
     public static double ScaleSquareRoot(IPlcTag tag, double minRaw, double maxRaw, double minScale, double maxScale)
     {
 #if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(tag);
+        ArgumentExceptionHelper.ThrowIfNull(tag, nameof(tag));
 #else
         if (tag is null)
         {
@@ -74,7 +74,7 @@ public static class TagMixins
     public static void SetBit(IPlcTag<short> source, int bit, bool value)
     {
 #if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(source);
+        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
 #else
         if (source is null)
         {
@@ -111,7 +111,7 @@ public static class TagMixins
     public static bool GetBit(IPlcTag<short> source, int bit)
     {
 #if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(source);
+        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
 #else
         if (source is null)
         {

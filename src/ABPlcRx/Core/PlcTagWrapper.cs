@@ -6,9 +6,9 @@ using System.Collections;
 using System.Text;
 
 #if REACTIVELIST_REACTIVE
-namespace ABPlcRx.Reactive;
+namespace IoT.DriverCore.ABPlcRx.Reactive;
 #else
-namespace ABPlcRx;
+namespace IoT.DriverCore.ABPlcRx;
 #endif
 
 /// <summary>Plc Tag Wrapper.</summary>
@@ -160,7 +160,7 @@ public class PlcTagWrapper
     public void SetBit(int index, bool value)
     {
 #if NET8_0_OR_GREATER
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, _tag.Size * BitsPerByte);
+        ArgumentExceptionHelper.ThrowIfGreaterThanOrEqual(index, _tag.Size * BitsPerByte, nameof(index));
 #else
         if (_tag.Size * BitsPerByte <= index)
         {
@@ -182,7 +182,7 @@ public class PlcTagWrapper
     public void SetBits(BitArray bits)
     {
 #if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(bits);
+        ArgumentExceptionHelper.ThrowIfNull(bits, nameof(bits));
 #else
         if (bits is null)
         {
@@ -264,7 +264,7 @@ public class PlcTagWrapper
     public void SetType(object obj, int offset)
     {
 #if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(obj);
+        ArgumentExceptionHelper.ThrowIfNull(obj, nameof(obj));
 #else
         if (obj is null)
         {

@@ -6,9 +6,9 @@ using System.Collections;
 using System.Reflection;
 
 #if REACTIVELIST_REACTIVE
-namespace ABPlcRx.Reactive;
+namespace IoT.DriverCore.ABPlcRx.Reactive;
 #else
-namespace ABPlcRx;
+namespace IoT.DriverCore.ABPlcRx;
 #endif
 
 /// <summary>Helper Tag.</summary>
@@ -39,7 +39,7 @@ public static class TagHelper
     public static double ScaleLinear(IPlcTag tag, double minRaw, double maxRaw, double minScale, double maxScale)
     {
 #if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(tag);
+        ArgumentExceptionHelper.ThrowIfNull(tag, nameof(tag));
 #else
         if (tag is null)
         {
@@ -60,7 +60,7 @@ public static class TagHelper
     public static double ScaleSquareRoot(IPlcTag tag, double minRaw, double maxRaw, double minScale, double maxScale)
     {
 #if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(tag);
+        ArgumentExceptionHelper.ThrowIfNull(tag, nameof(tag));
 #else
         if (tag is null)
         {
@@ -82,7 +82,7 @@ public static class TagHelper
     public static int BitsToNumber(BitArray bits)
     {
 #if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(bits);
+        ArgumentExceptionHelper.ThrowIfNull(bits, nameof(bits));
 #else
         if (bits is null)
         {

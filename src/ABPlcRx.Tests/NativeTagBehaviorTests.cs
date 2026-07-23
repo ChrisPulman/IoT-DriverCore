@@ -1,15 +1,16 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Buffers.Binary;
 using System.Collections;
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 using ReactiveUI.Primitives.Signals;
 using TUnit.Assertions;
 using TUnit.Core;
-using PlcController = global::ABPlcRx.ABPlcRx;
+using PlcController = global::IoT.DriverCore.ABPlcRx.ABPlcRx;
 
-namespace ABPlcRx.Tests;
+namespace IoT.DriverCore.ABPlcRx.Tests;
 
 /// <summary>Tests PLC/tag behavior through a fake native adapter.</summary>
 public sealed class NativeTagBehaviorTests
@@ -83,6 +84,9 @@ public sealed class NativeTagBehaviorTests
     /// <summary>Sample string value.</summary>
     private const string SampleStringValue = "AB";
 
+    /// <summary>The clock used to create timestamp values in tests.</summary>
+    private static readonly TimeProvider Clock = TimeProvider.System;
+
     /// <summary>Verifies replacement removes and disposes the prior tag before publishing the new tag.</summary>
     /// <returns><see cref="Task"/> representing the test.</returns>
     [Test]
@@ -130,18 +134,18 @@ public sealed class NativeTagBehaviorTests
 
         var writeResults = await client.WriteManyAsync(
         [
-            new LogicalTagValue(counter.Name, SampleIntValue, DateTimeOffset.UtcNow),
-            new LogicalTagValue(total.Name, UpdatedIntValue, DateTimeOffset.UtcNow),
+            new LogicalTagValue(counter.Name, SampleIntValue, Clock.GetUtcNow()),
+            new LogicalTagValue(total.Name, UpdatedIntValue, Clock.GetUtcNow()),
         ]);
         var readResults = await client.ReadManyAsync([counter.Name, total.Name]);
-        var typedRead = await client.ReadAsync<int>(counter.Name);
+        var typedRead = await client.ReadAsync(new LogicalTagKey<int>(counter));
 
         await Assert.That(writeResults.All(result => result.Succeeded)).IsTrue();
         await Assert.That(readResults.All(result => result.Succeeded)).IsTrue();
         await Assert.That(typedRead.Succeeded).IsTrue();
         await Assert.That(typedRead.Value).IsEqualTo(SampleIntValue);
 
-        await using var csv = new StringWriter(System.Globalization.CultureInfo.InvariantCulture);
+        using var csv = new StringWriter(System.Globalization.CultureInfo.InvariantCulture);
         await client.ExportCsvAsync(csv, CancellationToken.None);
         using var csvReader = new StringReader(csv.ToString());
         var imported = await client.ImportCsvAsync(csvReader, CancellationToken.None);
@@ -154,7 +158,9 @@ public sealed class NativeTagBehaviorTests
         {
             var store = new LogicalTagSqliteStore($"Data Source={databasePath};Pooling=False");
             await client.InitializeStoreAsync(store, CancellationToken.None);
-            await client.UpsertTagAsync(counter.With(description: "Persisted"), CancellationToken.None);
+            var persistentOptions = counter.CurrentOptions();
+            persistentOptions.Description = "Persisted";
+            await client.UpsertTagAsync(counter.WithOptions(persistentOptions), CancellationToken.None);
             var stored = await client.GetTagAsync(counter.Name, CancellationToken.None);
             var loaded = await client.LoadTagsAsync(CancellationToken.None);
             var deleted = await client.DeleteTagAsync(counter.Name, CancellationToken.None);
@@ -372,8 +378,8 @@ public sealed class NativeTagBehaviorTests
         await Assert.That(readComposite.Count).IsEqualTo(composite.Count);
         await Assert.That(readComposite.Enabled).IsEqualTo(composite.Enabled);
         await Assert.That(readComposite.Text).IsEqualTo(composite.Text);
-        _ = Assert.Throws<ArgumentException>(() => wrapper.Set(DateTime.UtcNow));
-        _ = Assert.Throws<ArgumentException>(() => wrapper.Get(DateTime.UtcNow));
+        _ = Assert.Throws<ArgumentException>(() => wrapper.Set(Clock.GetUtcNow().UtcDateTime));
+        _ = Assert.Throws<ArgumentException>(() => wrapper.Get(Clock.GetUtcNow().UtcDateTime));
 
         AssertInvalidBitTypeThrows(native);
     }
@@ -522,31 +528,35 @@ public sealed class NativeTagBehaviorTests
         }
 
         void IPlcTagNative.SetFloat32(int handle, int offset, float value) =>
-            WriteBytes(handle, offset, BitConverter.GetBytes(value));
+            BinaryPrimitives.WriteInt32LittleEndian(
+                GetBuffer(handle).AsSpan(offset),
+                BitConverterCompatibility.SingleToInt32Bits(value));
 
         void IPlcTagNative.SetFloat64(int handle, int offset, double value) =>
-            WriteBytes(handle, offset, BitConverter.GetBytes(value));
+            BinaryPrimitives.WriteInt64LittleEndian(
+                GetBuffer(handle).AsSpan(offset),
+                BitConverterCompatibility.DoubleToInt64Bits(value));
 
         void IPlcTagNative.SetInt16(int handle, int offset, short value) =>
-            WriteBytes(handle, offset, BitConverter.GetBytes(value));
+            BinaryPrimitives.WriteInt16LittleEndian(GetBuffer(handle).AsSpan(offset), value);
 
         void IPlcTagNative.SetInt32(int handle, int offset, int value) =>
-            WriteBytes(handle, offset, BitConverter.GetBytes(value));
+            BinaryPrimitives.WriteInt32LittleEndian(GetBuffer(handle).AsSpan(offset), value);
 
         void IPlcTagNative.SetInt64(int handle, int offset, long value) =>
-            WriteBytes(handle, offset, BitConverter.GetBytes(value));
+            BinaryPrimitives.WriteInt64LittleEndian(GetBuffer(handle).AsSpan(offset), value);
 
         void IPlcTagNative.SetInt8(int handle, int offset, sbyte value) =>
             GetBuffer(handle)[offset] = unchecked((byte)value);
 
         void IPlcTagNative.SetUInt16(int handle, int offset, ushort value) =>
-            WriteBytes(handle, offset, BitConverter.GetBytes(value));
+            BinaryPrimitives.WriteUInt16LittleEndian(GetBuffer(handle).AsSpan(offset), value);
 
         void IPlcTagNative.SetUInt32(int handle, int offset, uint value) =>
-            WriteBytes(handle, offset, BitConverter.GetBytes(value));
+            BinaryPrimitives.WriteUInt32LittleEndian(GetBuffer(handle).AsSpan(offset), value);
 
         void IPlcTagNative.SetUInt64(int handle, int offset, ulong value) =>
-            WriteBytes(handle, offset, BitConverter.GetBytes(value));
+            BinaryPrimitives.WriteUInt64LittleEndian(GetBuffer(handle).AsSpan(offset), value);
 
         void IPlcTagNative.SetUInt8(int handle, int offset, byte value) =>
             GetBuffer(handle)[offset] = value;
@@ -572,13 +582,6 @@ public sealed class NativeTagBehaviorTests
 
             return buffer;
         }
-
-        /// <summary>Writes bytes to a native buffer.</summary>
-        /// <param name="handle">The native handle.</param>
-        /// <param name="offset">The byte offset.</param>
-        /// <param name="bytes">The bytes to write.</param>
-        private void WriteBytes(int handle, int offset, byte[] bytes) =>
-            bytes.CopyTo(GetBuffer(handle), offset);
     }
 
     /// <summary>Composite value used by wrapper tests.</summary>
@@ -641,6 +644,6 @@ public sealed class NativeTagBehaviorTests
 
         int IPlcTag.Unlock() => PlcTagStatus.StatusOK;
 
-        PlcTagResult IPlcTag.Write() => null!;
+        PlcTagResult IPlcTag.Write() => ((IPlcTag)this).Read();
     }
 }

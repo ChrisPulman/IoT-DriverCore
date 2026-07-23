@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 
 #if REACTIVE_SHIM
 using SignalFactory = ReactiveUI.Primitives.Reactive.Signals.Signal;
@@ -11,13 +11,13 @@ using SignalFactory = ReactiveUI.Primitives.Signals.Signal;
 #endif
 
 #if REACTIVELIST_REACTIVE
-namespace ABPlcRx.Reactive;
+namespace IoT.DriverCore.ABPlcRx.Reactive;
 #else
-namespace ABPlcRx;
+namespace IoT.DriverCore.ABPlcRx;
 #endif
 
 /// <summary>Adapts an Allen-Bradley controller to shared logical-tag contracts through composition.</summary>
-public sealed partial class ABLogicalTagClient : ILogicalTagClient, IDisposable
+public sealed partial class ABLogicalTagClient : IManagedLogicalTagClient, IDisposable
 {
     /// <summary>Maximum number of addressable bits in supported integral values.</summary>
     private const int MaximumIntegralBitCount = 64;

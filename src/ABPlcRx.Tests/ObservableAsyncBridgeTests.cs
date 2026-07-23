@@ -1,5 +1,5 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Primitives;
@@ -7,7 +7,7 @@ using ReactiveUI.Primitives.Async;
 using TUnit.Assertions;
 using TUnit.Core;
 
-namespace ABPlcRx.Tests;
+namespace IoT.DriverCore.ABPlcRx.Tests;
 
 /// <summary>Tests synchronous-to-async observable bridge behavior.</summary>
 public sealed class ObservableAsyncBridgeTests
@@ -45,7 +45,7 @@ public sealed class ObservableAsyncBridgeTests
         var source = new ManualObservable<int>();
         var asyncObservable = ObservableAsyncBridgeExtensions.ToAsyncObservable(source);
         using var cancellation = new CancellationTokenSource();
-        await cancellation.CancelAsync();
+        await TestCompatibility.CancelAsync(cancellation);
 
         _ = Assert.Throws<OperationCanceledException>(
             () => asyncObservable

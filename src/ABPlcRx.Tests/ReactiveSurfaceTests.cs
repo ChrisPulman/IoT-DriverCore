@@ -1,17 +1,17 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Primitives.Async;
 using TUnit.Assertions;
 using TUnit.Core;
-using PlcController = ABPlcRx.ABPlcRx;
-using ReactiveIPlcTag = ABPlcRx.Reactive.IPlcTag;
-using ReactivePlcController = ABPlcRx.Reactive.ABPlcRx;
-using ReactivePlcTagResult = ABPlcRx.Reactive.PlcTagResult;
-using ReactivePlcType = ABPlcRx.Reactive.PlcType;
+using PlcController = IoT.DriverCore.ABPlcRx.ABPlcRx;
+using ReactiveIPlcTag = IoT.DriverCore.ABPlcRx.Reactive.IPlcTag;
+using ReactivePlcController = IoT.DriverCore.ABPlcRx.Reactive.ABPlcRx;
+using ReactivePlcTagResult = IoT.DriverCore.ABPlcRx.Reactive.PlcTagResult;
+using ReactivePlcType = IoT.DriverCore.ABPlcRx.Reactive.PlcType;
 
-namespace ABPlcRx.Tests;
+namespace IoT.DriverCore.ABPlcRx.Tests;
 
 /// <summary>Tests the high-level reactive PLC facade.</summary>
 public sealed class ReactiveSurfaceTests
@@ -53,7 +53,7 @@ public sealed class ReactiveSurfaceTests
 
         using var subscription = plc.ObserveMany().Subscribe(
             new CaptureObserver<IReadOnlyDictionary<string, object?>>(completion.SetResult));
-        var result = await completion.Task.WaitAsync(TimeSpan.FromSeconds(CompletionTimeoutSeconds));
+        var result = await TestCompatibility.WaitAsync(completion.Task, TimeSpan.FromSeconds(CompletionTimeoutSeconds));
 
         await Assert.That(result.Count).IsEqualTo(0);
     }
@@ -152,7 +152,7 @@ public sealed class ReactiveSurfaceTests
 
         using var subscription = plc.ObserveMany().Subscribe(
             new CaptureObserver<IReadOnlyDictionary<string, object?>>(completion.SetResult));
-        var result = await completion.Task.WaitAsync(TimeSpan.FromSeconds(CompletionTimeoutSeconds));
+        var result = await TestCompatibility.WaitAsync(completion.Task, TimeSpan.FromSeconds(CompletionTimeoutSeconds));
 
         await Assert.That(result.Count).IsEqualTo(0);
     }

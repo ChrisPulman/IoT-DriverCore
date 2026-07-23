@@ -2,12 +2,12 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 
 #if REACTIVELIST_REACTIVE
-namespace ABPlcRx.Reactive;
+namespace IoT.DriverCore.ABPlcRx.Reactive;
 #else
-namespace ABPlcRx;
+namespace IoT.DriverCore.ABPlcRx;
 #endif
 
 /// <summary>Reactive Allen Bradley PLC facade contract.</summary>
@@ -86,7 +86,6 @@ public interface IABPlcRx : IDisposable
     /// </returns>
     IObservable<T?> Observe<T>(string? variable, T? typeWitness, int bit);
 
-#if NET8_0_OR_GREATER
     /// <summary>Observes the specified variable using an async-native observable.</summary>
     /// <typeparam name="T">The PLC type.</typeparam>
     /// <param name="variable">The variable.</param>
@@ -96,31 +95,26 @@ public interface IABPlcRx : IDisposable
     /// An async observable sequence of values of type T.
     /// </returns>
     IObservableAsync<T?> ObserveAsyncObservable<T>(string? variable, T? typeWitness, int bit);
-#endif
 
     /// <summary>Observe values for many variables and emit a latest-value dictionary.</summary>
     /// <param name="variables">One or more variable names to observe.</param>
     /// <returns>Observable sequence of dictionary containing the latest values for each variable.</returns>
     IObservable<IReadOnlyDictionary<string, object?>> ObserveMany(params string[] variables);
 
-#if NET8_0_OR_GREATER
     /// <summary>Observe values for many variables using an async-native observable.</summary>
     /// <param name="variables">One or more variable names to observe.</param>
     /// <returns>Async observable sequence of dictionary containing the latest values for each variable.</returns>
     IObservableAsync<IReadOnlyDictionary<string, object?>> ObserveManyAsyncObservable(params string[] variables);
-#endif
 
     /// <summary>Observe a PLC tag group, emitting the tag whose value changed.</summary>
     /// <param name="groupName">The group name to observe.</param>
     /// <returns>Observable sequence of tags in the group that have changed.</returns>
     IObservable<IPlcTag> ObserveGroup(string groupName);
 
-#if NET8_0_OR_GREATER
     /// <summary>Observe a PLC tag group using an async-native observable.</summary>
     /// <param name="groupName">The group name to observe.</param>
     /// <returns>Async observable sequence of tags in the group that have changed.</returns>
     IObservableAsync<IPlcTag> ObserveGroupAsyncObservable(string groupName);
-#endif
 
     /// <summary>Creates an observer that writes values to a PLC variable when OnNext is called.</summary>
     /// <typeparam name="T">The value type.</typeparam>
@@ -145,7 +139,6 @@ public interface IABPlcRx : IDisposable
         int bit,
         ISequencer? scheduler);
 
-#if NET8_0_OR_GREATER
     /// <summary>Observe a variable with sampling using an async-native observable.</summary>
     /// <typeparam name="T">The value type.</typeparam>
     /// <param name="variable">The variable to observe.</param>
@@ -160,17 +153,14 @@ public interface IABPlcRx : IDisposable
         T? typeWitness,
         int bit,
         ISequencer? scheduler);
-#endif
 
     /// <summary>Streams only error results across all tags.</summary>
     /// <returns>Observable sequence of error results.</returns>
     IObservable<PlcTagResult> ObserveErrors();
 
-#if NET8_0_OR_GREATER
     /// <summary>Streams only error results across all tags using an async-native observable.</summary>
     /// <returns>Async observable sequence of error results.</returns>
     IObservableAsync<PlcTagResult> ObserveErrorsAsyncObservable();
-#endif
 
     /// <summary>Values the specified variable.</summary>
     /// <typeparam name="T">The PLC type.</typeparam>
@@ -267,7 +257,6 @@ public interface IABPlcRx : IDisposable
     /// <returns>Observable sequence of ping result states, deduplicated.</returns>
     IObservable<bool> ObservePing(TimeSpan interval, bool echo, ISequencer? scheduler);
 
-#if NET8_0_OR_GREATER
     /// <summary>Observe ping results on a schedule using an async-native observable.</summary>
     /// <param name="interval">The interval between pings.</param>
     /// <param name="echo">True echo result to standard output.</param>
@@ -277,5 +266,4 @@ public interface IABPlcRx : IDisposable
         TimeSpan interval,
         bool echo,
         ISequencer? scheduler);
-#endif
 }

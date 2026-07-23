@@ -5,9 +5,9 @@
 using System.Runtime.CompilerServices;
 
 #if REACTIVELIST_REACTIVE
-namespace ABPlcRx.Reactive;
+namespace IoT.DriverCore.ABPlcRx.Reactive;
 #else
-namespace ABPlcRx;
+namespace IoT.DriverCore.ABPlcRx;
 #endif
 
 /// <summary>Converts classic observables to cancellation-aware asynchronous sequences.</summary>

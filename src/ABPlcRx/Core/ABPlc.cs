@@ -6,9 +6,9 @@ using System.Collections.ObjectModel;
 using System.Net.NetworkInformation;
 
 #if REACTIVELIST_REACTIVE
-namespace ABPlcRx.Reactive;
+namespace IoT.DriverCore.ABPlcRx.Reactive;
 #else
-namespace ABPlcRx;
+namespace IoT.DriverCore.ABPlcRx;
 #endif
 
 /// <summary>Allen Bradley Plc.</summary>

@@ -4,7 +4,7 @@
 
 using Microsoft.CodeAnalysis;
 
-namespace ABPlcRx.SourceGenerators;
+namespace IoT.DriverCore.ABPlcRx.SourceGenerators;
 
 /// <summary>Contains the private source-generation models.</summary>
 public sealed partial class PlcModelGenerator
