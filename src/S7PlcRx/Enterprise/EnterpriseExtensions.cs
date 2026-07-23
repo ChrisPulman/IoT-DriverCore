@@ -4,15 +4,15 @@
 
 using System.Collections.Concurrent;
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Core;
+using IoT.DriverCore.S7PlcRx.Reactive.Core;
 #else
-using S7PlcRx.Core;
+using IoT.DriverCore.S7PlcRx.Core;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Enterprise;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Enterprise;
 #else
-namespace S7PlcRx.Enterprise;
+namespace IoT.DriverCore.S7PlcRx.Enterprise;
 #endif
 
 /// <summary>Provides enterprise PLC connectivity and symbolic-addressing extensions.</summary>

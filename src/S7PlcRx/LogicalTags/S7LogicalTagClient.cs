@@ -2,21 +2,21 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Binding;
+using IoT.DriverCore.S7PlcRx.Reactive.Binding;
 
-namespace S7PlcRx.Reactive.LogicalTags;
+namespace IoT.DriverCore.S7PlcRx.Reactive.LogicalTags;
 
 #else
-using S7PlcRx.Binding;
+using IoT.DriverCore.S7PlcRx.Binding;
 
-namespace S7PlcRx.LogicalTags;
+namespace IoT.DriverCore.S7PlcRx.LogicalTags;
 
 #endif
 
 /// <summary>Composes an S7 connection with the common logical-tag catalog, persistence, and client contracts.</summary>
-public sealed partial class S7LogicalTagClient : ILogicalTagClient, IDisposable
+public sealed partial class S7LogicalTagClient : IManagedLogicalTagClient, IDisposable
 {
     /// <summary>Defines the number of characters in an array type suffix.</summary>
     private const int ArrayTypeSuffixLength = 2;
@@ -50,6 +50,9 @@ public sealed partial class S7LogicalTagClient : ILogicalTagClient, IDisposable
 
     /// <summary>Stores the time provider used by this client.</summary>
     private readonly TimeProvider _timeProvider;
+
+    /// <summary>Provides concrete S7 multi-variable operations when available.</summary>
+    private readonly IS7LogicalBatchOperations? _batchOperations;
 
     /// <summary>Tracks the logical tags registered with the S7 connection.</summary>
     private readonly HashSet<string> _registeredTags = new(StringComparer.Ordinal);
@@ -104,9 +107,27 @@ public sealed partial class S7LogicalTagClient : ILogicalTagClient, IDisposable
         ILogicalTagCatalog catalog,
         LogicalTagSqliteStore? store,
         TimeProvider timeProvider)
+        : this(plc, catalog, store, timeProvider, batchOperations: null)
+    {
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="S7LogicalTagClient"/> class.</summary>
+    /// <param name="plc">The S7 connection.</param>
+    /// <param name="catalog">The common logical-tag catalog.</param>
+    /// <param name="store">The SQLite store used by persistence forwarding methods, or <see langword="null"/>.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="batchOperations">The optional multi-variable operation adapter.</param>
+    internal S7LogicalTagClient(
+        IRxS7 plc,
+        ILogicalTagCatalog catalog,
+        LogicalTagSqliteStore? store,
+        TimeProvider timeProvider,
+        IS7LogicalBatchOperations? batchOperations)
     {
         _plc = plc ?? throw new ArgumentNullException(nameof(plc));
         _timeProvider = timeProvider;
+        _batchOperations = batchOperations
+            ?? (plc is RxS7 rx ? new RxS7LogicalBatchOperations(rx) : null);
         Catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _store = store;
         Catalog.Changed += OnCatalogChanged;
@@ -226,6 +247,10 @@ public sealed partial class S7LogicalTagClient : ILogicalTagClient, IDisposable
         _store = store ?? throw new ArgumentNullException(nameof(store));
         await store.InitializeAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    /// <inheritdoc/>
+    public Task InitializeStoreAsync(CancellationToken cancellationToken) =>
+        GetStore().InitializeAsync(cancellationToken);
 
     /// <summary>Loads every SQLite tag into the live catalog.</summary>
     /// <returns>The loaded logical tags.</returns>
@@ -447,8 +472,8 @@ public sealed partial class S7LogicalTagClient : ILogicalTagClient, IDisposable
         var pending = CreatePendingReads(names, results);
 
         cancellationToken.ThrowIfCancellationRequested();
-        return _plc is RxS7 rx && pending.Count > 0
-            ? ReadMultiple(rx, pending, results)
+        return _batchOperations is not null && pending.Count > 0
+            ? ReadMultiple(_batchOperations, pending, results)
             : await ReadIndividuallyAsync(pending, results, cancellationToken)
                 .ConfigureAwait(false);
     }
@@ -525,8 +550,8 @@ public sealed partial class S7LogicalTagClient : ILogicalTagClient, IDisposable
         var pending = CreatePendingWrites(materialized, results, nameof(values));
 
         cancellationToken.ThrowIfCancellationRequested();
-        return _plc is RxS7 rx && pending.Count > 0
-            ? WriteMultiple(rx, pending, results)
+        return _batchOperations is not null && pending.Count > 0
+            ? WriteMultiple(_batchOperations, pending, results)
             : await WriteIndividuallyAsync(pending, results, cancellationToken)
                 .ConfigureAwait(false);
     }

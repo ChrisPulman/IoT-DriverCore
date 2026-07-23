@@ -4,15 +4,15 @@
 
 using System.Collections.Concurrent;
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Advanced;
+using IoT.DriverCore.S7PlcRx.Reactive.Advanced;
 #else
-using S7PlcRx.Advanced;
+using IoT.DriverCore.S7PlcRx.Advanced;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Performance;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Performance;
 #else
-namespace S7PlcRx.Performance;
+namespace IoT.DriverCore.S7PlcRx.Performance;
 #endif
 
 /// <summary>Provides high-performance batch operations for a group of PLC tags.</summary>

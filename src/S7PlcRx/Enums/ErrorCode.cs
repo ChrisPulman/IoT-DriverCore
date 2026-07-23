@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Enums;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Enums;
 #else
-namespace S7PlcRx.Enums;
+namespace IoT.DriverCore.S7PlcRx.Enums;
 #endif
 
 /// <summary>Specifies error codes that indicate the result of an operation or the type of error encountered.</summary>

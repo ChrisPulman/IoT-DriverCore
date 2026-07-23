@@ -5,15 +5,15 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Cache;
+using IoT.DriverCore.S7PlcRx.Reactive.Cache;
 #else
-using S7PlcRx.Cache;
+using IoT.DriverCore.S7PlcRx.Cache;
 #endif
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Optimization;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Optimization;
 #else
-namespace S7PlcRx.Optimization;
+namespace IoT.DriverCore.S7PlcRx.Optimization;
 #endif
 
 /// <summary>

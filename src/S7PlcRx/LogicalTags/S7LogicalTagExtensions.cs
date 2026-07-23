@@ -3,16 +3,16 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Globalization;
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 #if REACTIVE_SHIM
-using S7PlcRx.Reactive.Binding;
+using IoT.DriverCore.S7PlcRx.Reactive.Binding;
 
-namespace S7PlcRx.Reactive.LogicalTags;
+namespace IoT.DriverCore.S7PlcRx.Reactive.LogicalTags;
 
 #else
-using S7PlcRx.Binding;
+using IoT.DriverCore.S7PlcRx.Binding;
 
-namespace S7PlcRx.LogicalTags;
+namespace IoT.DriverCore.S7PlcRx.LogicalTags;
 
 #endif
 

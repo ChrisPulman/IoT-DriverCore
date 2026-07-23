@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Enterprise;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Enterprise;
 #else
-namespace S7PlcRx.Enterprise;
+namespace IoT.DriverCore.S7PlcRx.Enterprise;
 #endif
 
 /// <summary>Provides high-availability management for PLC connections.</summary>
@@ -106,9 +106,9 @@ public sealed class HighAvailabilityPlcManager : IDisposable
             return;
         }
 
-        var reason = ActivePLC.IsConnectedValue ? null : "Primary PLC connection lost.";
         try
         {
+            var reason = ActivePLC.IsConnectedValue ? null : "Primary PLC connection lost.";
             if (reason is not null)
             {
                 _ = await PerformFailoverAsync(reason);

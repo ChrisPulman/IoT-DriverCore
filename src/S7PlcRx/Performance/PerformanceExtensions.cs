@@ -6,9 +6,9 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Performance;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Performance;
 #else
-namespace S7PlcRx.Performance;
+namespace IoT.DriverCore.S7PlcRx.Performance;
 #endif
 
 /// <summary>

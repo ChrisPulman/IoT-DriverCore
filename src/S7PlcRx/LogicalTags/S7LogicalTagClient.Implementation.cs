@@ -4,12 +4,12 @@
 
 using System.Globalization;
 using System.Reflection;
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.LogicalTags;
+namespace IoT.DriverCore.S7PlcRx.Reactive.LogicalTags;
 
 #else
-namespace S7PlcRx.LogicalTags;
+namespace IoT.DriverCore.S7PlcRx.LogicalTags;
 
 #endif
 
@@ -139,19 +139,19 @@ public sealed partial class S7LogicalTagClient
     }
 
     /// <summary>Reads pending tag items using the S7 multi-variable operation.</summary>
-    /// <param name="plc">The S7 connection.</param>
+    /// <param name="batchOperations">The S7 batch-operation adapter.</param>
     /// <param name="pending">The pending read items.</param>
     /// <param name="results">The result buffer.</param>
     /// <returns>The populated result buffer.</returns>
     private TagOperationResult<LogicalTagValue>[] ReadMultiple(
-        RxS7 plc,
+        IS7LogicalBatchOperations batchOperations,
         IReadOnlyList<(int Index, LogicalTag Definition, Tag RuntimeTag)> pending,
         TagOperationResult<LogicalTagValue>[] results)
     {
-        _ = _plc;
         try
         {
-            var values = plc.ReadMultiVar(pending.Select(static item => item.RuntimeTag).ToArray());
+            var values = batchOperations.ReadMultiple(
+                pending.Select(static item => item.RuntimeTag).ToArray());
             foreach (var item in pending)
             {
                 var value =
@@ -248,12 +248,12 @@ public sealed partial class S7LogicalTagClient
     }
 
     /// <summary>Writes pending tag items using the S7 multi-variable operation.</summary>
-    /// <param name="plc">The S7 connection.</param>
+    /// <param name="batchOperations">The S7 batch-operation adapter.</param>
     /// <param name="pending">The pending write items.</param>
     /// <param name="results">The result buffer.</param>
     /// <returns>The populated result buffer.</returns>
     private TagOperationResult<LogicalTagValue>[] WriteMultiple(
-        RxS7 plc,
+        IS7LogicalBatchOperations batchOperations,
         IReadOnlyList<(
             int Index,
             LogicalTagValue Requested,
@@ -261,8 +261,8 @@ public sealed partial class S7LogicalTagClient
             Tag RuntimeTag)> pending,
         TagOperationResult<LogicalTagValue>[] results)
     {
-        _ = _plc;
-        var succeeded = plc.WriteMultiVar(pending.Select(static item => item.RuntimeTag).ToArray());
+        var succeeded = batchOperations.WriteMultiple(
+            pending.Select(static item => item.RuntimeTag).ToArray());
         foreach (var item in pending)
         {
             results[item.Index] = succeeded

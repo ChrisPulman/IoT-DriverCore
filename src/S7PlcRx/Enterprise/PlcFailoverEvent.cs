@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace S7PlcRx.Reactive.Enterprise;
+namespace IoT.DriverCore.S7PlcRx.Reactive.Enterprise;
 #else
-namespace S7PlcRx.Enterprise;
+namespace IoT.DriverCore.S7PlcRx.Enterprise;
 #endif
 
 /// <summary>Represents an event that occurs when a programmable logic controller failover takes place.</summary>
