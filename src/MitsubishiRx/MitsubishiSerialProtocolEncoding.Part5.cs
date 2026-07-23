@@ -6,15 +6,15 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-using static MitsubishiRx.Reactive.MitsubishiNumericConstants;
+using static IoT.DriverCore.MitsubishiRx.Reactive.MitsubishiNumericConstants;
 
-namespace MitsubishiRx.Reactive;
+namespace IoT.DriverCore.MitsubishiRx.Reactive;
 
 #else
 
-using static MitsubishiRx.MitsubishiNumericConstants;
+using static IoT.DriverCore.MitsubishiRx.MitsubishiNumericConstants;
 
-namespace MitsubishiRx;
+namespace IoT.DriverCore.MitsubishiRx;
 
 #endif
 

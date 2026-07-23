@@ -4,18 +4,18 @@
 
 using System.IO.Ports;
 #if REACTIVE_SHIM
-using PortRx = CP.IO.Ports.Reactive.SerialPortRx;
+using PortRx = IoT.DriverCore.Serial.Reactive.SerialPortRx;
 #else
-using PortRx = CP.IO.Ports.SerialPortRx;
+using PortRx = IoT.DriverCore.Serial.SerialPortRx;
 #endif
 
 #if REACTIVE_SHIM
 
-namespace MitsubishiRx.Reactive;
+namespace IoT.DriverCore.MitsubishiRx.Reactive;
 
 #else
 
-namespace MitsubishiRx;
+namespace IoT.DriverCore.MitsubishiRx;
 
 #endif
 
@@ -31,24 +31,31 @@ internal sealed class ReactiveSerialPortAdapter : IDisposable
     /// <summary>Initializes a new instance of the ReactiveSerialPortAdapter class.</summary>
     /// <param name="options">The options parameter.</param>
     public ReactiveSerialPortAdapter(MitsubishiSerialOptions options)
+        : this(options, null)
+    {
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="ReactiveSerialPortAdapter"/> class over an optional injected serial endpoint.</summary>
+    /// <param name="options">The serial options.</param>
+    /// <param name="serialPort">The optional deterministic serial endpoint.</param>
+    internal ReactiveSerialPortAdapter(MitsubishiSerialOptions options, PortRx? serialPort)
     {
         ArgumentNullException.ThrowIfNull(options);
-        _serialPort = new(
-            options.PortName,
-            options.BaudRate,
-            options.DataBits,
-            options.Parity,
-            options.StopBits,
-            options.Handshake)
-        {
-            NewLine = options.NewLine,
-            ReadBufferSize = options.ReadBufferSize,
-            WriteBufferSize = options.WriteBufferSize,
-            ReceivedBytesThreshold = 1,
-            EnableAutoDataReceive = true,
-            ReadTimeout = SerialPort.InfiniteTimeout,
-            WriteTimeout = SerialPort.InfiniteTimeout,
-        };
+        _serialPort = serialPort
+            ?? new(
+                options.PortName,
+                options.BaudRate,
+                options.DataBits,
+                options.Parity,
+                options.StopBits,
+                options.Handshake);
+        _serialPort.NewLine = options.NewLine;
+        _serialPort.ReadBufferSize = options.ReadBufferSize;
+        _serialPort.WriteBufferSize = options.WriteBufferSize;
+        _serialPort.ReceivedBytesThreshold = 1;
+        _serialPort.EnableAutoDataReceive = true;
+        _serialPort.ReadTimeout = SerialPort.InfiniteTimeout;
+        _serialPort.WriteTimeout = SerialPort.InfiniteTimeout;
     }
 
     /// <summary>Gets or sets the IsOpen property.</summary>

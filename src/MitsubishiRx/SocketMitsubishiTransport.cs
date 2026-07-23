@@ -7,11 +7,11 @@ using System.Net.Sockets;
 
 #if REACTIVE_SHIM
 
-namespace MitsubishiRx.Reactive;
+namespace IoT.DriverCore.MitsubishiRx.Reactive;
 
 #else
 
-namespace MitsubishiRx;
+namespace IoT.DriverCore.MitsubishiRx;
 
 #endif
 
@@ -236,15 +236,15 @@ internal sealed class SocketMitsubishiTransport : IMitsubishiTransport
             : MitsubishiNumericConstants.Eleven;
         var prefix = await ReceiveExactlyAsync(socket, prefixLength, cancellationToken)
             .ConfigureAwait(false);
-        var totalLength = _options.FrameType switch
+        var responseDataLength = _options.FrameType switch
         {
-            MitsubishiFrameType.ThreeE => prefixLength +
+            MitsubishiFrameType.ThreeE =>
                 BitConverter.ToUInt16(prefix, MitsubishiNumericConstants.Seven),
-            MitsubishiFrameType.FourE => prefixLength +
+            MitsubishiFrameType.FourE =>
                 BitConverter.ToUInt16(prefix, MitsubishiNumericConstants.Eleven),
-            _ => prefixLength,
+            _ => MitsubishiNumericConstants.Two,
         };
-        var remaining = totalLength - prefixLength;
+        var remaining = responseDataLength - MitsubishiNumericConstants.Two;
         if (remaining <= 0)
         {
             return prefix;

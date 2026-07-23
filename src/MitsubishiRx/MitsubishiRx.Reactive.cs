@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 
 #if REACTIVE_SHIM
 
-namespace MitsubishiRx.Reactive;
+namespace IoT.DriverCore.MitsubishiRx.Reactive;
 
 #else
 
-namespace MitsubishiRx;
+namespace IoT.DriverCore.MitsubishiRx;
 
 #endif
 

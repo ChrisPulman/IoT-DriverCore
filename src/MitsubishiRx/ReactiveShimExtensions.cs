@@ -7,7 +7,7 @@
 using System.Reactive.Concurrency;
 using ReactiveUI.Primitives.Extensions;
 
-namespace MitsubishiRx.Reactive;
+namespace IoT.DriverCore.MitsubishiRx.Reactive;
 
 /// <summary>
 /// Provides disambiguation shim extension members that resolve CS0121 ambiguity arising when

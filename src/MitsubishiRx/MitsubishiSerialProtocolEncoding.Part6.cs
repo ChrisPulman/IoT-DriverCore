@@ -6,15 +6,15 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-using static MitsubishiRx.Reactive.MitsubishiNumericConstants;
+using static IoT.DriverCore.MitsubishiRx.Reactive.MitsubishiNumericConstants;
 
-namespace MitsubishiRx.Reactive;
+namespace IoT.DriverCore.MitsubishiRx.Reactive;
 
 #else
 
-using static MitsubishiRx.MitsubishiNumericConstants;
+using static IoT.DriverCore.MitsubishiRx.MitsubishiNumericConstants;
 
-namespace MitsubishiRx;
+namespace IoT.DriverCore.MitsubishiRx;
 
 #endif
 
@@ -217,23 +217,55 @@ internal static partial class MitsubishiSerialProtocolEncoding
     /// <returns>The HasAsciiChecksumFramedMessage operation result.</returns>
     private static bool HasAsciiChecksumFramedMessage(ReadOnlySpan<byte> buffer)
     {
-        if (buffer.Length < 5)
+        if (!TryNormalizeAsciiFrame(buffer, out var normalized))
         {
             return false;
         }
 
-        if (buffer[0] == Cr)
+        if (
+            normalized.Length < Five
+            || normalized[0] is not (Enq or Stx or Ack or Nak))
         {
-            var trimmed = buffer
-                .ToArray()
-                .Where(static value => value is not Cr and not Lf)
-                .ToArray();
-            return trimmed.Length >= 5
-                && (
-                    trimmed[0] == Enq || trimmed[0] == Stx || trimmed[0] == Ack || trimmed[0] == Nak);
+            return false;
         }
 
-        return buffer[0] == Enq || buffer[0] == Stx || buffer[0] == Ack || buffer[0] == Nak;
+        var body = normalized.AsSpan(0, normalized.Length - Two);
+        var expectedChecksum = ComputeChecksum(body.ToArray());
+        var actualChecksum = Encoding.ASCII.GetString(normalized.AsSpan(normalized.Length - Two));
+        return string.Equals(expectedChecksum, actualChecksum, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Normalizes a complete format 1 or format 4 ASCII frame.</summary>
+    /// <param name="buffer">The candidate frame.</param>
+    /// <param name="normalized">The checksum-bearing frame without CR/LF wrappers.</param>
+    /// <returns><see langword="true"/> when the framing wrapper is complete.</returns>
+    private static bool TryNormalizeAsciiFrame(
+        ReadOnlySpan<byte> buffer,
+        out byte[] normalized)
+    {
+        if (buffer.Length < Five)
+        {
+            normalized = [];
+            return false;
+        }
+
+        if (buffer[0] != Cr)
+        {
+            normalized = buffer.ToArray();
+            return true;
+        }
+
+        if (buffer.Length < Nine || buffer[^Two] != Cr || buffer[^1] != Lf)
+        {
+            normalized = [];
+            return false;
+        }
+
+        normalized = buffer
+            .ToArray()
+            .Where(static value => value is not Cr and not Lf)
+            .ToArray();
+        return true;
     }
 
     /// <summary>Executes the HasBinaryFormat5Message operation.</summary>

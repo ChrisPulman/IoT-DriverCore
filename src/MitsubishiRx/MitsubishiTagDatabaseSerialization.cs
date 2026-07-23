@@ -9,11 +9,11 @@ using YamlDotNet.Serialization.NamingConventions;
 
 #if REACTIVE_SHIM
 
-namespace MitsubishiRx.Reactive;
+namespace IoT.DriverCore.MitsubishiRx.Reactive;
 
 #else
 
-namespace MitsubishiRx;
+namespace IoT.DriverCore.MitsubishiRx;
 
 #endif
 

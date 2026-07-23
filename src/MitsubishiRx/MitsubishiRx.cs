@@ -4,11 +4,11 @@
 
 #if REACTIVE_SHIM
 
-namespace MitsubishiRx.Reactive;
+namespace IoT.DriverCore.MitsubishiRx.Reactive;
 
 #else
 
-namespace MitsubishiRx;
+namespace IoT.DriverCore.MitsubishiRx;
 
 #endif
 
@@ -117,9 +117,9 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
     /// <param name="store">The optional SQLite store.</param>
     /// <returns>A logical-tag client retaining Mitsubishi-specific operations.</returns>
     public MitsubishiLogicalTagClient CreateLogicalTagClient(
-        CP.IoT.Core.ILogicalTagCatalog? catalog,
+        IoT.DriverCore.Core.ILogicalTagCatalog? catalog,
         TimeSpan? defaultScanInterval,
-        CP.IoT.Core.LogicalTagSqliteStore? store) => new(this, catalog, defaultScanInterval, store, _timeProvider);
+        IoT.DriverCore.Core.LogicalTagSqliteStore? store) => new(this, catalog, defaultScanInterval, store, _timeProvider);
 
     /// <summary>Executes the ReadGeneratedBitTagAsync operation.</summary>
     /// <param name="tagName">The tagName parameter.</param>

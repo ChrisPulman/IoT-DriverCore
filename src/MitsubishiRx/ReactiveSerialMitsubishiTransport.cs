@@ -4,17 +4,20 @@
 
 #if REACTIVE_SHIM
 
-namespace MitsubishiRx.Reactive;
+namespace IoT.DriverCore.MitsubishiRx.Reactive;
 
 #else
 
-namespace MitsubishiRx;
+namespace IoT.DriverCore.MitsubishiRx;
 
 #endif
 
 /// <summary>Provides the ReactiveSerialMitsubishiTransport type.</summary>
 internal sealed class ReactiveSerialMitsubishiTransport : IMitsubishiTransport
 {
+    /// <summary>Creates serial adapters for connection attempts.</summary>
+    private readonly Func<MitsubishiSerialOptions, ReactiveSerialPortAdapter> _adapterFactory;
+
     /// <summary>Stores the gate field.</summary>
     private readonly SemaphoreSlim _gate = new(1, 1);
 
@@ -23,6 +26,21 @@ internal sealed class ReactiveSerialMitsubishiTransport : IMitsubishiTransport
 
     /// <summary>Stores the options field.</summary>
     private MitsubishiClientOptions? _options;
+
+    /// <summary>Initializes a new instance of the <see cref="ReactiveSerialMitsubishiTransport"/> class using the production serial adapter.</summary>
+    public ReactiveSerialMitsubishiTransport()
+        : this(static options => new ReactiveSerialPortAdapter(options))
+    {
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="ReactiveSerialMitsubishiTransport"/> class using an injected serial adapter factory.</summary>
+    /// <param name="adapterFactory">Creates a fresh adapter for each connection attempt.</param>
+    internal ReactiveSerialMitsubishiTransport(
+        Func<MitsubishiSerialOptions, ReactiveSerialPortAdapter> adapterFactory)
+    {
+        ArgumentNullException.ThrowIfNull(adapterFactory);
+        _adapterFactory = adapterFactory;
+    }
 
     /// <summary>Gets or sets the IsConnected property.</summary>
     public bool IsConnected => _serialPort?.IsOpen ?? false;
@@ -149,7 +167,7 @@ internal sealed class ReactiveSerialMitsubishiTransport : IMitsubishiTransport
         }
 
         ClosePort();
-        _serialPort = new(_options.ResolvedSerial);
+        _serialPort = _adapterFactory(_options.ResolvedSerial);
         await _serialPort.OpenAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
