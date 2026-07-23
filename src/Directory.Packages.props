@@ -45,7 +45,7 @@
 
     <PackageVersion Include="Mono.Cecil" Version="0.11.6" />
     <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
-    <PackageVersion Include="StyleSharp.Analyzers" Version="3.32.0" />
+    <PackageVersion Include="StyleSharp.Analyzers" Version="3.38.1" />
 
     <PackageVersion Include="CP.Nuke.BuildTools" Version="3.0.2" />
     <PackageVersion Include="Nuke.Common" Version="10.1.0" />
