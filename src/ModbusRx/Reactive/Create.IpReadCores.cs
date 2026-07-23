@@ -4,22 +4,29 @@
 
 using System.IO.Ports;
 #if REACTIVE_SHIM
-using CP.IO.Ports.Reactive;
-using ModbusRx.Reactive.Device;
+using IoT.DriverCore.ModbusRx.Reactive.Device;
+using IoT.DriverCore.Serial.Reactive;
 #else
-using CP.IO.Ports;
-using ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Device;
+using IoT.DriverCore.Serial;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive;
+namespace IoT.DriverCore.ModbusRx.Reactive;
 #else
-namespace ModbusRx;
+namespace IoT.DriverCore.ModbusRx;
 #endif
 
 /// <summary>Provides ModbusRx functionality.</summary>
 public static partial class Create
 {
+    /// <summary>Gets or sets the serial-port factory override used by deterministic internal testing.</summary>
+    internal static Func<string, int, int, Parity, StopBits, Handshake, SerialPortRx>?
+        SerialPortFactoryOverride { get; set; }
+
+    /// <summary>Gets or sets the available-port observation override used by deterministic internal testing.</summary>
+    internal static Func<IObservable<string[]>>? SerialPortNamesOverride { get; set; }
+
     /// <summary>Reads coils from an IP master.</summary>
     /// <param name="source">The source master stream.</param>
     /// <param name="startAddress">The starting address.</param>
@@ -103,14 +110,23 @@ public static partial class Create
         int dataBits,
         Parity parity,
         StopBits stopBits,
-        Handshake handshake) =>
-        new(port, baudRate)
-        {
-            DataBits = dataBits,
-            Parity = parity,
-            StopBits = stopBits,
-            Handshake = handshake,
-        };
+        Handshake handshake)
+    {
+        return SerialPortFactoryOverride is not null
+            ? SerialPortFactoryOverride(port, baudRate, dataBits, parity, stopBits, handshake)
+            : new(port, baudRate)
+            {
+                DataBits = dataBits,
+                Parity = parity,
+                StopBits = stopBits,
+                Handshake = handshake,
+            };
+    }
+
+    /// <summary>Gets the current available-port observation source.</summary>
+    /// <returns>The available serial-port name snapshots.</returns>
+    private static IObservable<string[]> ObserveSerialPortNames() =>
+        SerialPortNamesOverride?.Invoke() ?? SerialPortRx.PortNames();
 
     /// <summary>Determines whether any available port name contains the requested port token.</summary>
     /// <param name="portNames">The available port names.</param>

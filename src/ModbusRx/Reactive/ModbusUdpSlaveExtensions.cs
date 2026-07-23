@@ -3,25 +3,25 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Data;
+using IoT.DriverCore.ModbusRx.Reactive.Data;
 #else
-using ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.Data;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Device;
+using IoT.DriverCore.ModbusRx.Reactive.Device;
 #else
-using ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Device;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Message;
+using IoT.DriverCore.ModbusRx.Reactive.Message;
 #else
-using ModbusRx.Message;
+using IoT.DriverCore.ModbusRx.Message;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive;
+namespace IoT.DriverCore.ModbusRx.Reactive;
 #else
-namespace ModbusRx;
+namespace IoT.DriverCore.ModbusRx;
 #endif
     /// <summary>Writes observable values to UDP slave data stores.</summary>
     public sealed class ModbusUdpSlaveExtensions

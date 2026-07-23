@@ -5,9 +5,9 @@
 using System.Net;
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Message;
+namespace IoT.DriverCore.ModbusRx.Reactive.Message;
 #else
-namespace ModbusRx.Message;
+namespace IoT.DriverCore.ModbusRx.Message;
 #endif
 
 /// <summary>Provides ReadHoldingInputRegistersRequest functionality.</summary>

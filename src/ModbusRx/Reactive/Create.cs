@@ -6,20 +6,20 @@ using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
 #if REACTIVE_SHIM
-using CP.IO.Ports.Reactive;
+using IoT.DriverCore.Serial.Reactive;
 #else
-using CP.IO.Ports;
+using IoT.DriverCore.Serial;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Device;
+using IoT.DriverCore.ModbusRx.Reactive.Device;
 #else
-using ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Device;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive;
+namespace IoT.DriverCore.ModbusRx.Reactive;
 #else
-namespace ModbusRx;
+namespace IoT.DriverCore.ModbusRx;
 #endif
     /// <summary>Provides ModbusRx functionality.</summary>
     public static partial class Create
@@ -88,22 +88,9 @@ namespace ModbusRx;
                 throw new ArgumentOutOfRangeException(nameof(unitId));
             }
 
-            return Observable.Create<ModbusTcpSlave>(async observer =>
-             {
-                 var dis = new CompositeDisposable();
-                 var address = IPAddress.Parse(hostAddress);
-                 var slaveListener = new TcpListener(address, FiveHundredTwo);
-                 using var slave = ModbusTcpSlave.CreateTcp(1, slaveListener);
-                 dis.Add(slave);
-                 observer.OnNext(slave);
-                 await slave.ListenAsync();
-
-                 return Disposable.Create(() =>
-                   {
-                       slaveListener.Stop();
-                       dis.Dispose();
-                   });
-             }).Retry(int.MaxValue).Publish().RefCount();
+            var address = IPAddress.Parse(hostAddress);
+            return ObserveSlave(() =>
+                ModbusTcpSlave.CreateTcp(unitId, new TcpListener(address, port)));
         }
 
         /// <summary>Create a UdpIpMaster with the specified host address.</summary>
@@ -147,15 +134,9 @@ namespace ModbusRx;
                 throw new ArgumentOutOfRangeException(nameof(unitId));
             }
 
-            return Observable.Create<ModbusUdpSlave>(async observer =>
-             {
-                 var dis = new CompositeDisposable();
-                 using var slave = ModbusUdpSlave.CreateUdp(unitId, new UdpClientRx(hostAddress, port));
-                 await slave.ListenAsync();
-                 dis.Add(slave);
-                 observer.OnNext(slave);
-                 return Disposable.Create(() => dis.Dispose());
-             }).Retry(int.MaxValue).Publish().RefCount();
+            var address = IPAddress.Parse(hostAddress);
+            return ObserveSlave(() =>
+                ModbusUdpSlave.CreateUdp(unitId, new UdpClientRx(new IPEndPoint(address, port))));
         }
 
         /// <summary>Create a SerialIpMaster with the specified ip address.</summary>
@@ -177,7 +158,7 @@ namespace ModbusRx;
                         observer,
                         state));
                 var comdis = new CompositeDisposable();
-                dis.Add(SerialPortRx.PortNames().SelectMany(x => Observable.FromAsync(async () =>
+                dis.Add(ObserveSerialPortNames().SelectMany(x => Observable.FromAsync(async () =>
                 {
                     try
                     {
@@ -274,5 +255,53 @@ namespace ModbusRx;
             return SerialSlave(
                 new(port, unitId, baudRate, dataBits, parity, stopBits, handshake),
                 ModbusSerialSlave.CreateAscii);
+        }
+
+        /// <summary>Starts a slave when subscribed and owns it for the subscription lifetime.</summary>
+        /// <typeparam name="TSlave">The concrete slave type.</typeparam>
+        /// <param name="factory">Creates the slave for one subscription.</param>
+        /// <returns>A shared observable of the active slave.</returns>
+        private static IObservable<TSlave> ObserveSlave<TSlave>(Func<TSlave> factory)
+            where TSlave : ModbusSlave =>
+            Observable.Create<TSlave>(observer =>
+            {
+                var disposed = 0;
+                var slave = factory();
+                observer.OnNext(slave);
+                _ = RunSlaveAsync(slave, observer, () => Volatile.Read(ref disposed) != 0);
+                return Disposable.Create(() =>
+                {
+                    _ = Interlocked.Exchange(ref disposed, 1);
+                    slave.Dispose();
+                });
+            }).Retry(int.MaxValue).Publish().RefCount();
+
+        /// <summary>Forwards a slave listener failure unless its subscription has ended.</summary>
+        /// <typeparam name="TSlave">The concrete slave type.</typeparam>
+        /// <param name="slave">The active slave.</param>
+        /// <param name="observer">The subscription observer.</param>
+        /// <param name="isDisposed">Reports whether the subscription has ended.</param>
+        /// <returns>A task representing the listener lifetime.</returns>
+        private static async Task RunSlaveAsync<TSlave>(
+            TSlave slave,
+            IObserver<TSlave> observer,
+            Func<bool> isDisposed)
+            where TSlave : ModbusSlave
+        {
+            try
+            {
+                await slave.ListenAsync().ConfigureAwait(false);
+                if (!isDisposed())
+                {
+                    observer.OnCompleted();
+                }
+            }
+            catch (Exception exception)
+            {
+                if (!isDisposed())
+                {
+                    observer.OnError(new ModbusCommunicationException(SlaveFaultMessage, exception));
+                }
+            }
         }
 }

@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Message;
+namespace IoT.DriverCore.ModbusRx.Reactive.Message;
 #else
-namespace ModbusRx.Message;
+namespace IoT.DriverCore.ModbusRx.Message;
 #endif
 
 /// <summary>Abstract Modbus message.</summary>
@@ -47,8 +47,17 @@ public abstract class AbstractModbusMessage
 
     /// <summary>Gets the message frame.</summary>
     /// <value>The message frame.</value>
-    public byte[] MessageFrame =>
-        MessageImpl.MessageFrame;
+    public byte[] MessageFrame
+    {
+        get
+        {
+            var pdu = ProtocolDataUnit;
+            using var frame = new MemoryStream(1 + pdu.Length);
+            frame.WriteByte(SlaveAddress);
+            frame.Write(pdu, 0, pdu.Length);
+            return frame.ToArray();
+        }
+    }
 
     /// <summary>Gets the protocol data unit.</summary>
     /// <value>The protocol data unit.</value>

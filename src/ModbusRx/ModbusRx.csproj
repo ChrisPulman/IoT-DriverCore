@@ -29,7 +29,7 @@
     <Using Include="ReactiveUI.Primitives.Signals.Signal" Alias="Observable" />
     <Using Include="ReactiveUI.Primitives.Disposables.MultipleDisposable" Alias="CompositeDisposable" />
     <Using Include="ReactiveUI.Primitives.Disposables.Scope" Alias="Disposable" />
-    <Using Include="ModbusRx.NumericConstants" Static="true" />
+    <Using Include="IoT.DriverCore.ModbusRx.NumericConstants" Static="true" />
   </ItemGroup>
 
   <ItemGroup>

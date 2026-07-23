@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Device;
+using IoT.DriverCore.ModbusRx.Reactive.Device;
 #else
-using ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Device;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive;
+namespace IoT.DriverCore.ModbusRx.Reactive;
 #else
-namespace ModbusRx;
+namespace IoT.DriverCore.ModbusRx;
 #endif
 
 /// <summary>Provides ModbusRx functionality.</summary>

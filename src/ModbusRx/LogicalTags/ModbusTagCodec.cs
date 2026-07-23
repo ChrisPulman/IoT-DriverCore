@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.LogicalTags;
+namespace IoT.DriverCore.ModbusRx.Reactive.LogicalTags;
 #else
-namespace ModbusRx.LogicalTags;
+namespace IoT.DriverCore.ModbusRx.LogicalTags;
 #endif
 
 /// <summary>Converts supported CLR values to and from raw Modbus points.</summary>
@@ -218,7 +218,7 @@ internal static class ModbusTagCodec
         }
 
         return type == typeof(float)
-            ? BitConverter.ToSingle(bytes, 0)
+            ? (object)BitConverter.ToSingle(bytes, 0)
             : BitConverter.ToDouble(bytes, 0);
     }
 

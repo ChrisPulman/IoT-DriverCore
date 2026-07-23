@@ -4,20 +4,20 @@
 
 using System.IO.Ports;
 #if REACTIVE_SHIM
-using CP.IO.Ports.Reactive;
+using IoT.DriverCore.Serial.Reactive;
 #else
-using CP.IO.Ports;
+using IoT.DriverCore.Serial;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Device;
+using IoT.DriverCore.ModbusRx.Reactive.Device;
 #else
-using ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Device;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive;
+namespace IoT.DriverCore.ModbusRx.Reactive;
 #else
-namespace ModbusRx;
+namespace IoT.DriverCore.ModbusRx;
 #endif
     /// <summary>Provides ModbusRx functionality.</summary>
     public static partial class Create
@@ -80,6 +80,7 @@ namespace ModbusRx;
                     await serial.OpenAsync();
                     serial.ReadTimeout = TenThousand; // Set timeout to 10 seconds
                     master = ModbusSerialMaster.CreateRtu(serial);
+                    dis.Add(master);
                     connected = true;
                     connectionMessageSent = false;
                     observer.OnNext((connected, null, master));
@@ -154,6 +155,7 @@ namespace ModbusRx;
                     observer.OnNext((false, new ModbusCommunicationException("Create Master"), null));
                     var serialport = CreateSerialPort(port, baudRate, dataBits, parity, stopBits, handshake);
                     master = ModbusSerialMaster.CreateAscii(serialport);
+                    dis.Add(master);
                     await serialport.OpenAsync();
                     connected = true;
                     connectionMessageSent = false;

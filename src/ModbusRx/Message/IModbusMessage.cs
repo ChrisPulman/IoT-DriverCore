@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Message;
+namespace IoT.DriverCore.ModbusRx.Reactive.Message;
 #else
-namespace ModbusRx.Message;
+namespace IoT.DriverCore.ModbusRx.Message;
 #endif
 
 /// <summary>A message built by the master (client) that initiates a Modbus transaction.</summary>

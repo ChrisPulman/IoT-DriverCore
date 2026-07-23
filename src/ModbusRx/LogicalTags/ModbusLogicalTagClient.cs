@@ -3,21 +3,21 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Runtime.CompilerServices;
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Device;
+using IoT.DriverCore.ModbusRx.Reactive.Device;
 #else
-using ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Device;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.LogicalTags;
+namespace IoT.DriverCore.ModbusRx.Reactive.LogicalTags;
 #else
-namespace ModbusRx.LogicalTags;
+namespace IoT.DriverCore.ModbusRx.LogicalTags;
 #endif
 
 /// <summary>Composes a raw Modbus master with logical-name catalog, persistence, and observation APIs.</summary>
-public sealed class ModbusLogicalTagClient : ILogicalTagClient, IDisposable
+public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, IDisposable
 {
     /// <summary>The protocol maximum number of bits per read.</summary>
     private const uint MaximumBitReadCount = 2000U;
@@ -272,8 +272,7 @@ public sealed class ModbusLogicalTagClient : ILogicalTagClient, IDisposable
             return TagOperationResult<LogicalTagValue>.Failure($"Logical tag '{value.TagName}' is not registered.");
         }
 
-        if (tag.AccessMode == LogicalTagAccessMode.Read ||
-            tag.DataArea is ModbusDataArea.DiscreteInput or ModbusDataArea.InputRegister)
+        if (tag.AccessMode == LogicalTagAccessMode.Read)
         {
             return TagOperationResult<LogicalTagValue>.Failure($"Logical tag '{value.TagName}' is read-only.");
         }
@@ -310,15 +309,28 @@ public sealed class ModbusLogicalTagClient : ILogicalTagClient, IDisposable
         IReadOnlyCollection<LogicalTagValue> values,
         CancellationToken cancellationToken = default)
     {
+        ThrowIfDisposed();
         if (values is null)
         {
             throw new ArgumentNullException(nameof(values));
         }
 
-        var results = new List<TagOperationResult<LogicalTagValue>>(values.Count);
-        foreach (var value in values)
+        var materialized = values.ToArray();
+        var results = new TagOperationResult<LogicalTagValue>[materialized.Length];
+        var requests = ResolveWriteRequests(materialized, results);
+        if (requests.Count == 0)
         {
-            results.Add(await WriteAsync(value, cancellationToken).ConfigureAwait(false));
+            return results;
+        }
+
+        await _masterGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await WriteGroupsAsync(requests, results, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _ = _masterGate.Release();
         }
 
         return results;
@@ -422,6 +434,50 @@ public sealed class ModbusLogicalTagClient : ILogicalTagClient, IDisposable
         return requests;
     }
 
+    /// <summary>Resolves writable requests and records expected lookup and encoding failures.</summary>
+    /// <param name="values">The requested logical values.</param>
+    /// <param name="results">The result destinations.</param>
+    /// <returns>The encoded writable requests.</returns>
+    private List<ModbusLogicalWritePlanner.Request> ResolveWriteRequests(
+        LogicalTagValue[] values,
+        TagOperationResult<LogicalTagValue>[] results)
+    {
+        var requests = new List<ModbusLogicalWritePlanner.Request>(values.Length);
+        for (var index = 0; index < values.Length; index++)
+        {
+            var value = values[index]
+                ?? throw new ArgumentException("Values cannot contain null entries.", nameof(values));
+            if (!Catalog.TryGet(value.TagName, out var tag) || tag is null)
+            {
+                results[index] = TagOperationResult<LogicalTagValue>.Failure(
+                    $"Logical tag '{value.TagName}' is not registered.");
+            }
+            else if (tag.AccessMode == LogicalTagAccessMode.Read)
+            {
+                results[index] = TagOperationResult<LogicalTagValue>.Failure(
+                    $"Logical tag '{value.TagName}' is read-only.");
+            }
+            else
+            {
+                try
+                {
+                    requests.Add(
+                        new ModbusLogicalWritePlanner.Request(
+                            index,
+                            tag,
+                            value,
+                            ModbusTagCodec.Encode(tag, value.Value)));
+                }
+                catch (Exception exception)
+                {
+                    results[index] = TagOperationResult<LogicalTagValue>.Failure(exception.Message);
+                }
+            }
+        }
+
+        return requests;
+    }
+
     /// <summary>Reads each unit/data-area group through coalesced ranges.</summary>
     /// <param name="requests">The resolved requests.</param>
     /// <param name="results">The result destinations.</param>
@@ -465,6 +521,99 @@ public sealed class ModbusLogicalTagClient : ILogicalTagClient, IDisposable
                 var (end, rangeEnd) = FindRangeEnd(ordered, start);
                 await ReadRangeAsync(ordered, start, end, rangeEnd, results, cancellationToken).ConfigureAwait(false);
                 start = end;
+            }
+        }
+    }
+
+    /// <summary>Writes compatible requests through coalesced native Modbus ranges.</summary>
+    /// <param name="requests">The resolved and encoded requests.</param>
+    /// <param name="results">The result destinations.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task representing the operation.</returns>
+    private async Task WriteGroupsAsync(
+        IEnumerable<ModbusLogicalWritePlanner.Request> requests,
+        TagOperationResult<LogicalTagValue>[] results,
+        CancellationToken cancellationToken)
+    {
+        foreach (var group in requests.GroupBy(static request => (request.Tag.UnitId, request.Tag.DataArea)))
+        {
+            var scheduled = ModbusLogicalWritePlanner.Schedule(group);
+            foreach (var wave in scheduled.GroupBy(static request => request.Wave).OrderBy(static wave => wave.Key))
+            {
+                var ordered = wave
+                    .OrderBy(static request => request.Request.Tag.Address)
+                    .ThenBy(static request => request.Request.Index)
+                    .Select(static request => request.Request)
+                    .ToArray();
+                var start = 0;
+                while (start < ordered.Length)
+                {
+                    var (end, rangeEnd) = ModbusLogicalWritePlanner.FindRangeEnd(ordered, start);
+                    await WriteRangeAsync(ordered, start, end, rangeEnd, results, cancellationToken)
+                        .ConfigureAwait(false);
+                    start = end;
+                }
+            }
+        }
+    }
+
+    /// <summary>Writes one coalesced native range and correlates the outcome to every source item.</summary>
+    /// <param name="requests">The requests ordered by address.</param>
+    /// <param name="start">The inclusive request index.</param>
+    /// <param name="end">The exclusive request index.</param>
+    /// <param name="rangeEnd">The exclusive raw range end.</param>
+    /// <param name="results">The result destinations.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task representing the operation.</returns>
+    private async Task WriteRangeAsync(
+        ModbusLogicalWritePlanner.Request[] requests,
+        int start,
+        int end,
+        uint rangeEnd,
+        TagOperationResult<LogicalTagValue>[] results,
+        CancellationToken cancellationToken)
+    {
+        var first = requests[start].Tag;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var count = checked((int)(rangeEnd - first.Address));
+            Array data = first.DataArea == ModbusDataArea.Coil
+                ? new bool[count]
+                : new ushort[count];
+            for (var index = start; index < end; index++)
+            {
+                var request = requests[index];
+                Array.Copy(request.Data, 0, data, request.Tag.Address - first.Address, request.Data.Length);
+            }
+
+            await WriteRawAsync(
+                first.UnitId,
+                first.DataArea,
+                first.Address,
+                data,
+                forceMultiple: end - start > 1).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            for (var index = start; index < end; index++)
+            {
+                var request = requests[index];
+                results[request.Index] = TagOperationResult<LogicalTagValue>.Success(
+                    new LogicalTagValue(
+                        request.Tag.Name,
+                        request.Requested.Value,
+                        _timeProvider.GetUtcNow(),
+                        "Good"));
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            for (var index = start; index < end; index++)
+            {
+                results[requests[index].Index] = TagOperationResult<LogicalTagValue>.Failure(exception.Message);
             }
         }
     }
@@ -549,21 +698,36 @@ public sealed class ModbusLogicalTagClient : ILogicalTagClient, IDisposable
     /// <param name="data">The encoded raw points.</param>
     /// <returns>A task representing the operation.</returns>
     private Task WriteRawAsync(ModbusLogicalTag tag, Array data)
+        => WriteRawAsync(tag.UnitId, tag.DataArea, tag.Address, data, forceMultiple: false);
+
+    /// <summary>Writes one encoded raw Modbus range.</summary>
+    /// <param name="unitId">The Modbus unit identifier.</param>
+    /// <param name="dataArea">The writable data area.</param>
+    /// <param name="address">The starting address.</param>
+    /// <param name="data">The encoded raw points.</param>
+    /// <param name="forceMultiple">Whether to use the native multiple-write operation for one point.</param>
+    /// <returns>A task representing the operation.</returns>
+    private Task WriteRawAsync(
+        byte unitId,
+        ModbusDataArea dataArea,
+        ushort address,
+        Array data,
+        bool forceMultiple)
     {
-        if (tag.DataArea == ModbusDataArea.Coil)
+        if (dataArea == ModbusDataArea.Coil)
         {
             var values = (bool[])data;
-            return values.Length == 1
-                ? Master.WriteSingleCoilAsync(tag.UnitId, tag.Address, values[0])
-                : Master.WriteMultipleCoilsAsync(tag.UnitId, tag.Address, values);
+            return values.Length == 1 && !forceMultiple
+                ? Master.WriteSingleCoilAsync(unitId, address, values[0])
+                : Master.WriteMultipleCoilsAsync(unitId, address, values);
         }
 
-        if (tag.DataArea == ModbusDataArea.HoldingRegister)
+        if (dataArea == ModbusDataArea.HoldingRegister)
         {
             var values = (ushort[])data;
-            return values.Length == 1
-                ? Master.WriteSingleRegisterAsync(tag.UnitId, tag.Address, values[0])
-                : Master.WriteMultipleRegistersAsync(tag.UnitId, tag.Address, values);
+            return values.Length == 1 && !forceMultiple
+                ? Master.WriteSingleRegisterAsync(unitId, address, values[0])
+                : Master.WriteMultipleRegistersAsync(unitId, address, values);
         }
 
         throw new InvalidOperationException("Modbus input areas cannot be written.");

@@ -3,12 +3,12 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Globalization;
-using CP.IoT.Core;
+using IoT.DriverCore.Core;
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.LogicalTags;
+namespace IoT.DriverCore.ModbusRx.Reactive.LogicalTags;
 #else
-namespace ModbusRx.LogicalTags;
+namespace IoT.DriverCore.ModbusRx.LogicalTags;
 #endif
 
 /// <summary>Maps a logical name to a strongly typed Modbus address.</summary>

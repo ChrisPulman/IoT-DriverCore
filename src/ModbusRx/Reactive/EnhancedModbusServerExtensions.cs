@@ -3,30 +3,78 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Data;
+using IoT.DriverCore.ModbusRx.Reactive.Data;
 #else
-using ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.Data;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Device;
+using IoT.DriverCore.ModbusRx.Reactive.Device;
 #else
-using ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Device;
 #endif
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Utility;
+using IoT.DriverCore.ModbusRx.Reactive.Utility;
 #else
-using ModbusRx.Utility;
+using IoT.DriverCore.ModbusRx.Utility;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive;
+namespace IoT.DriverCore.ModbusRx.Reactive;
 #else
-namespace ModbusRx;
+namespace IoT.DriverCore.ModbusRx;
 #endif
 
 /// <summary>Enhanced reactive extensions for ModbusServer with performance optimizations.</summary>
 public static class EnhancedModbusServerExtensions
 {
+    /// <summary>Observes data-store writes without polling or elapsed-time dependencies.</summary>
+    /// <param name="server">The extension receiver.</param>
+    /// <returns>An observable that emits one snapshot for each completed data-store write.</returns>
+    public static IObservable<ModbusServerDataSnapshot> ObserveDataChangesEventDriven(ModbusServer server) =>
+        ObserveDataChangesEventDriven(server, TimeProvider.System, null);
+
+    /// <summary>Observes data-store writes without polling or elapsed-time dependencies.</summary>
+    /// <param name="server">The extension receiver.</param>
+    /// <param name="timeProvider">The time provider used for snapshot timestamps.</param>
+    /// <param name="metrics">Optional deterministic observation counters.</param>
+    /// <returns>An observable that emits one snapshot for each completed data-store write.</returns>
+    public static IObservable<ModbusServerDataSnapshot> ObserveDataChangesEventDriven(
+        ModbusServer server,
+        TimeProvider? timeProvider,
+        ModbusObservationMetrics? metrics)
+    {
+        if (server is null)
+        {
+            throw new ArgumentNullException(nameof(server));
+        }
+
+        var dataStore = server.DataStore ?? throw new InvalidOperationException("The server data store is not initialized.");
+        var snapshotTimeProvider = timeProvider ?? TimeProvider.System;
+
+        return Observable.Create<ModbusServerDataSnapshot>(observer =>
+        {
+            void OnDataStoreWritten(object? sender, DataStoreEventArgs eventArgs)
+            {
+                try
+                {
+                    _ = sender;
+                    metrics?.RecordWriteNotification(eventArgs);
+                    var snapshot = CreateSnapshot(server, snapshotTimeProvider);
+                    metrics?.RecordSnapshotCreated();
+                    observer.OnNext(snapshot);
+                    metrics?.RecordSnapshotEmitted();
+                }
+                catch (Exception exception)
+                {
+                    observer.OnError(exception);
+                }
+            }
+
+            dataStore.DataStoreWrittenTo += OnDataStoreWritten;
+            return Disposable.Create(() => dataStore.DataStoreWrittenTo -= OnDataStoreWritten);
+        });
+    }
+
     /// <summary>Observes data changes in the server with high-performance optimizations.</summary>
     /// <param name="server">The extension receiver.</param>
     /// <param name="interval">The observation interval in milliseconds.</param>

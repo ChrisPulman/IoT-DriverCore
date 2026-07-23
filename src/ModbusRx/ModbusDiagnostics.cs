@@ -5,9 +5,9 @@
 using System.Diagnostics;
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive;
+namespace IoT.DriverCore.ModbusRx.Reactive;
 #else
-namespace ModbusRx;
+namespace IoT.DriverCore.ModbusRx;
 #endif
 
 /// <summary>Routes Modbus diagnostic messages through the platform debug infrastructure.</summary>

@@ -4,17 +4,17 @@
 
 using System.IO.Ports;
 #if REACTIVE_SHIM
-using CP.IO.Ports.Reactive;
-using ModbusRx.Reactive.Device;
+using IoT.DriverCore.ModbusRx.Reactive.Device;
+using IoT.DriverCore.Serial.Reactive;
 #else
-using CP.IO.Ports;
-using ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Device;
+using IoT.DriverCore.Serial;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive;
+namespace IoT.DriverCore.ModbusRx.Reactive;
 #else
-namespace ModbusRx;
+namespace IoT.DriverCore.ModbusRx;
 #endif
 
 /// <summary>Provides ModbusRx functionality.</summary>
@@ -32,7 +32,7 @@ public static partial class Create
             var state = new SerialSlaveState();
             state.Resources.Add(state.PortResources);
             state.Resources.Add(
-                SerialPortRx.PortNames()
+                ObserveSerialPortNames()
                     .SelectMany(names => Observable.FromAsync(
                         () => UpdateSerialSlaveAsync(
                             names,
@@ -185,7 +185,6 @@ public static partial class Create
         /// <summary>Disposes all serial slave resources.</summary>
         public void Dispose()
         {
-            ListenerTask?.Dispose();
             _portResources.Dispose();
             Resources.Dispose();
         }
@@ -195,7 +194,6 @@ public static partial class Create
         {
             _ = Resources.Remove(_portResources);
             _portResources.Dispose();
-            ListenerTask?.Dispose();
             ListenerTask = null;
             _portResources = [];
             Resources.Add(_portResources);

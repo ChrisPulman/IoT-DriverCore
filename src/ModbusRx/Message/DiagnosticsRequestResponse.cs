@@ -5,15 +5,15 @@
 using System.Diagnostics;
 using System.Net;
 #if REACTIVE_SHIM
-using ModbusRx.Reactive.Data;
+using IoT.DriverCore.ModbusRx.Reactive.Data;
 #else
-using ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.Data;
 #endif
 
 #if REACTIVE_SHIM
-namespace ModbusRx.Reactive.Message;
+namespace IoT.DriverCore.ModbusRx.Reactive.Message;
 #else
-namespace ModbusRx.Message;
+namespace IoT.DriverCore.ModbusRx.Message;
 #endif
 
 /// <summary>Provides Diagnostics Request Response functionality.</summary>
