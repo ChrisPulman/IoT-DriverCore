@@ -3,27 +3,21 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Text;
+using IoT.DriverCore.S7PlcRx.Mock;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace S7PlcRx.Tests;
+namespace IoT.DriverCore.S7PlcRx.Tests;
 
-/// <summary>
-/// Live-PLC integration tests that validate the DecodeTagNames logic against a real
-/// Siemens S7-1500 PLC at 172.16.13.1.
-/// These tests require a physical (or network-accessible) PLC and are marked [Explicit]
-/// so they are excluded from automated CI runs.
-/// </summary>
-[Explicit]
-[Category("LivePLC")]
+/// <summary>Validates DecodeTagNames logic against deterministic simulated S7 DB memory.</summary>
 [NotInParallel]
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
 public sealed class S7PlcRxDecodeTagNamesLivePlcTests
 {
-    /// <summary>Gets the live PLC address.</summary>
-    private const string PlcIp = "172.16.13.1";
-
     /// <summary>Gets the logical tag name used for the tag-name data.</summary>
     private const string TagNames1 = nameof(TagNames1);
+
+    /// <summary>Gets the DB number containing encoded tag names.</summary>
+    private const int TagNamesDbNumber = 102;
 
     /// <summary>Gets the number of bytes before the first tag name.</summary>
     private const int HeaderByteCount = 4;
@@ -55,14 +49,14 @@ public sealed class S7PlcRxDecodeTagNamesLivePlcTests
     /// <summary>Gets the polling interval in milliseconds.</summary>
     private const int PollingIntervalMilliseconds = 5;
 
-    /// <summary>Gets the live PLC connection timeout in seconds.</summary>
-    private const int LivePlcConnectionTimeoutSeconds = 30;
+    /// <summary>Gets the simulator connection timeout in seconds.</summary>
+    private const int SimulatorConnectionTimeoutSeconds = 5;
 
-    /// <summary>Gets the delay used while waiting for PLC data in milliseconds.</summary>
-    private const int PlcDataDelayMilliseconds = 500;
+    /// <summary>Gets the delay used while waiting for simulator data in milliseconds.</summary>
+    private const int PlcDataDelayMilliseconds = 10;
 
     /// <summary>Gets the delay between tag-name read attempts in milliseconds.</summary>
-    private const int TagNameReadRetryDelayMilliseconds = 50;
+    private const int TagNameReadRetryDelayMilliseconds = 1;
 
     /// <summary>Gets the maximum number of tag-name read attempts.</summary>
     private const int MaximumTagNameReadAttempts = 10;
@@ -156,20 +150,25 @@ public sealed class S7PlcRxDecodeTagNamesLivePlcTests
     }
 
     /// <summary>
-    /// Connects to the live PLC, reads DB102 via the DecodeTagNames logic, and asserts
+    /// Connects to the simulator, reads DB102 via the DecodeTagNames logic, and asserts
     /// that all 64 tag names match the expected values exactly.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     [Test]
-    public async Task DecodeTagNames_FromLivePlc_ShouldReturnAllExpectedTagNamesAsync()
+    public async Task DecodeTagNames_FromSimulator_ShouldReturnAllExpectedTagNamesAsync()
     {
         _ = DebuggerDisplay;
-        using var plc = S71500.Create(PlcIp, interval: PollingIntervalMilliseconds);
+        var db102 = CreateTagNameData();
+        using var server = new MockServer();
+        _ = server.RegisterArea(MockServer.SrvAreaDB, TagNamesDbNumber, db102, db102.Length);
+        await TUnitAssert.That(server.Start()).IsEqualTo(0);
+
+        using var plc = S71500.Create(MockServer.Localhost, interval: PollingIntervalMilliseconds);
 
         var connected = await plc.IsConnected
             .Where(x => x)
             .Take(1)
-            .Timeout(TimeSpan.FromSeconds(LivePlcConnectionTimeoutSeconds))
+            .Timeout(TimeSpan.FromSeconds(SimulatorConnectionTimeoutSeconds))
             .FirstAsync();
 
         await TUnitAssert.That(connected).IsTrue();
@@ -200,6 +199,28 @@ public sealed class S7PlcRxDecodeTagNamesLivePlcTests
         {
             await TUnitAssert.That(tagNames[i]).IsEqualTo(ExpectedTagNames[i]);
         }
+    }
+
+    /// <summary>Creates deterministic DB102 tag-name bytes.</summary>
+    /// <returns>The initialized DB102 backing buffer.</returns>
+    private static byte[] CreateTagNameData()
+    {
+        var result = new byte[TotalTagNameBytes];
+        result[TagNameReservedLengthOffset] = (byte)'S';
+        result[TagNameLengthOffset] = (byte)'T';
+        result[TagNameDataOffset] = (byte)'X';
+        result[StxHeaderEndIndex] = FirstValidIsLoggingState;
+
+        for (var i = 0; i < ExpectedTagNames.Length; i++)
+        {
+            var bytes = Encoding.ASCII.GetBytes(ExpectedTagNames[i]);
+            var slotStart = HeaderByteCount + (i * BytesPerTagName);
+            result[slotStart + TagNameReservedLengthOffset] = TagNameReservedLength;
+            result[slotStart + TagNameLengthOffset] = (byte)bytes.Length;
+            Buffer.BlockCopy(bytes, 0, result, slotStart + TagNameDataOffset, bytes.Length);
+        }
+
+        return result;
     }
 
     /// <summary>Determines whether the supplied data begins with the STX header.</summary>

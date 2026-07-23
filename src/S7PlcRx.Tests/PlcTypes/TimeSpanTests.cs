@@ -4,7 +4,7 @@
 
 using System;
 
-namespace S7PlcRx.Tests.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.Tests.PlcTypes;
 
 /// <summary>Tests the S7 TimeSpan (TIME) PlcType.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]

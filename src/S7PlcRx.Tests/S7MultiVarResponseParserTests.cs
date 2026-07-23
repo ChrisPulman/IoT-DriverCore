@@ -3,17 +3,17 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Buffers;
-using S7PlcRx.Core;
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Core;
+using IoT.DriverCore.S7PlcRx.Enums;
 
-namespace S7PlcRx.Tests;
+namespace IoT.DriverCore.S7PlcRx.Tests;
 
 /// <summary>Tests for S7MultiVar response parsing.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
 public class S7MultiVarResponseParserTests
 {
     /// <summary>Length of the fixed response header.</summary>
-    private const int ResponseHeaderLength = 19;
+    private const int ResponseHeaderLength = 21;
 
     /// <summary>Length of the response parameter section.</summary>
     private const int ResponseParameterLength = 2;
@@ -82,7 +82,7 @@ public class S7MultiVarResponseParserTests
         };
 
         // Build minimal frame with:
-        // - paramLength = 2 (so dataStart = 19)
+        // - AckData fixed header = 19 and paramLength = 2 (so dataStart = 21)
         // - data section has 2 items:
         //   item0: rc=0xFF, ts=0x04, bitLen=8 => 1 byte data + 1 pad byte
         //   item1: rc=0xFF, ts=0x04, bitLen=8 => 1 byte data (no need to include final pad)

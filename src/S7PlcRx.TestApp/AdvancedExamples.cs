@@ -1,15 +1,15 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics;
-using S7PlcRx.Advanced;
-using S7PlcRx.Enums;
-using S7PlcRx.Optimization;
-using S7PlcRx.Performance;
-using S7PlcRx.Production;
+using IoT.DriverCore.S7PlcRx.Advanced;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Optimization;
+using IoT.DriverCore.S7PlcRx.Performance;
+using IoT.DriverCore.S7PlcRx.Production;
 
-namespace S7PlcRx.Examples;
+namespace IoT.DriverCore.S7PlcRx.Examples;
 
 /// <summary>
 /// Comprehensive examples demonstrating S7PlcRx optimizations for industrial automation.
@@ -25,6 +25,9 @@ public static class AdvancedExamples
 
     /// <summary>The timeout used by optimized batch-read examples.</summary>
     private const int DefaultBatchTimeoutMilliseconds = 5_000;
+
+    /// <summary>The clock used for diagnostic trace timestamps.</summary>
+    private static readonly TimeProvider Clock = TimeProvider.System;
 
     /// <summary>
     /// Demonstrates basic batch reading optimization for multiple tags.
@@ -246,7 +249,7 @@ public static class AdvancedExamples
 
         var monitoringSubscription = batchObserver.Subscribe(values =>
         {
-            Trace.WriteLine($"[{DateTime.Now:HH':'mm':'ss}] Batch Update:");
+            Trace.WriteLine($"[{Clock.GetLocalNow():HH':'mm':'ss}] Batch Update:");
             foreach (var kvp in values)
             {
                 var valueStr = kvp.Value switch
@@ -503,7 +506,7 @@ public static class AdvancedExamples
     private static IDisposable SubscribeToProcessGroup(HighPerformanceTagGroup<float> processGroup)
         => processGroup.ObserveGroup().Subscribe(processData =>
         {
-            Trace.WriteLine($"   [{DateTime.Now:HH':'mm':'ss}] Process Values:");
+            Trace.WriteLine($"   [{Clock.GetLocalNow():HH':'mm':'ss}] Process Values:");
             foreach (var value in processData)
             {
                 Trace.WriteLine($"     {value.Key}: {value.Value}");

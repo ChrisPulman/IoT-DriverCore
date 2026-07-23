@@ -2,10 +2,10 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using MockS7Plc;
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Mock;
 
-namespace S7PlcRx.Tests;
+namespace IoT.DriverCore.S7PlcRx.Tests;
 
 /// <summary>Basic functionality tests for S7PlcRx.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]

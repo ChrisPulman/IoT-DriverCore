@@ -2,10 +2,10 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using MockS7Plc;
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Mock;
 
-namespace S7PlcRx.Tests;
+namespace IoT.DriverCore.S7PlcRx.Tests;
 
 /// <summary>
 /// Comprehensive tests for S7PlcRx functionality covering all PLC types and operations.
@@ -447,7 +447,6 @@ public class S7PlcRxComprehensiveTests
     public void MemoryUsage_MultipleInstances_ShouldBeReasonable()
     {
         const int instanceCount = 20;
-        const int firstHostOctet = 100;
         const int defaultIntervalMilliseconds = 100;
         const int tagsPerInstance = 5;
         const int tagAddressStride = 2;
@@ -469,7 +468,7 @@ public class S7PlcRxComprehensiveTests
             for (var i = 0; i < instanceCount; i++)
             {
                 var plc = S71500.Create(
-                    $"192.168.1.{firstHostOctet + i}",
+                    MockServer.Localhost,
                     0,
                     1,
                     null,

@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="CP.IoT.Core" />
+    <Using Include="IoT.DriverCore.Core" />
     <Using Include="ReactiveUI.Primitives" />
     <Using Include="ReactiveUI.Primitives.Extensions" />
   </ItemGroup>

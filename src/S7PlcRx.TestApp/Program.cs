@@ -1,12 +1,13 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System.Globalization;
 using System.Reflection;
-using MockS7Plc;
-using S7PlcRx;
-using S7PlcRx.TestApp;
+using IoT.DriverCore.S7PlcRx;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Mock;
+using IoT.DriverCore.S7PlcRx.TestApp;
 
 const int ConnectionTimeoutSeconds = 10;
 
@@ -31,7 +32,7 @@ if (rc != 0)
 
 // ── Connect PLC and register tag ───────────────────────────────────────
 using var plc = new RxS7(
-    new(new(S7PlcRx.Enums.CpuType.S71500, MockServer.Localhost, PlcRack, PlcSlot)));
+    new(new(CpuType.S71500, MockServer.Localhost, PlcRack, PlcSlot)));
 
 _ = TagOperations.AddUpdateTagItem(
         plc,
@@ -57,7 +58,7 @@ using var simulationCancellationTokenSource = new CancellationTokenSource(
 
 try
 {
-    await SimulateGlobalVariablesAsync(plc, simulationCancellationTokenSource.Token);
+    await SimulateGlobalVariablesAsync(plc, simulationCancellationTokenSource.Token, TimeProvider.System);
 }
 catch (OperationCanceledException) when (simulationCancellationTokenSource.IsCancellationRequested)
 {
@@ -69,7 +70,7 @@ static byte[] BuildGlobalVariablesSeedData(int size, RxS7 plc)
     ArgumentNullException.ThrowIfNull(plc);
     var builder = new GlobalVariableSeedBuilder(size, plc);
 
-    foreach (var line in ReadEmbeddedLines("S7PlcRx.TestApp.GlobalVariablesSeed.csv"))
+    foreach (var line in ReadEmbeddedLines("IoT.DriverCore.S7PlcRx.TestApp.GlobalVariablesSeed.csv"))
     {
         var fields = line.Split('|');
         object value = fields[1] switch
@@ -104,9 +105,13 @@ static List<string> ReadEmbeddedLines(string resourceName)
     return lines;
 }
 
-static async Task SimulateGlobalVariablesAsync(RxS7 plc, CancellationToken cancellationToken)
+static async Task SimulateGlobalVariablesAsync(
+    RxS7 plc,
+    CancellationToken cancellationToken,
+    TimeProvider timeProvider)
 {
     ArgumentNullException.ThrowIfNull(plc);
+    ArgumentNullException.ThrowIfNull(timeProvider);
 
     const double FastWavePeriodSeconds = 2.5;
 
@@ -118,12 +123,12 @@ static async Task SimulateGlobalVariablesAsync(RxS7 plc, CancellationToken cance
 
     const int UpdateIntervalMilliseconds = 500;
 
-    var simulationChannels = ReadEmbeddedLines("S7PlcRx.TestApp.GlobalVariablesSimulation.csv");
-    var startTime = System.DateTime.UtcNow;
+    var simulationChannels = ReadEmbeddedLines("IoT.DriverCore.S7PlcRx.TestApp.GlobalVariablesSimulation.csv");
+    var startTime = timeProvider.GetUtcNow();
 
     while (!cancellationToken.IsCancellationRequested)
     {
-        var elapsedSeconds = (System.DateTime.UtcNow - startTime).TotalSeconds;
+        var elapsedSeconds = (timeProvider.GetUtcNow() - startTime).TotalSeconds;
         var slowWave = MathF.Sin((float)(elapsedSeconds / SlowWavePeriodSeconds));
         var fastWave = MathF.Sin((float)(elapsedSeconds / FastWavePeriodSeconds));
         var sawWave = (float)((elapsedSeconds % SawWavePeriodSeconds) / SawWavePeriodSeconds);

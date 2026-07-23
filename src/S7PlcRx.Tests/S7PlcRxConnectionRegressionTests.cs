@@ -5,29 +5,23 @@
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
-using MockS7Plc;
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Mock;
 using TUnit.Assertions.Extensions;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace S7PlcRx.Tests;
+namespace IoT.DriverCore.S7PlcRx.Tests;
 
 /// <summary>Regression tests for connection readiness and watchdog behavior.</summary>
 [NotInParallel]
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
 public sealed class S7PlcRxConnectionRegressionTests
 {
-    /// <summary>Gets the live PLC address.</summary>
-    private const string LivePlcIp = "172.16.13.1";
-
     /// <summary>Gets the default PLC polling interval in milliseconds.</summary>
     private const int DefaultPollingIntervalMilliseconds = 50;
 
     /// <summary>Gets the short mock connection timeout in seconds.</summary>
     private const int MockConnectionTimeoutSeconds = 5;
-
-    /// <summary>Gets the live PLC connection timeout in seconds.</summary>
-    private const int LivePlcConnectionTimeoutSeconds = 15;
 
     /// <summary>Gets the watchdog connection timeout in seconds.</summary>
     private const int WatchdogConnectionTimeoutSeconds = 10;
@@ -116,38 +110,38 @@ public sealed class S7PlcRxConnectionRegressionTests
         await TUnitAssert.That(server.UnsupportedRequestCount).IsEqualTo(0);
     }
 
-    /// <summary>Ensures a live S7-1500 can reach connected state without any program-specific DB reads.</summary>
+    /// <summary>Ensures a simulated S7-1500 can reach connected state without any program-specific DB reads.</summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [Test]
-    [Explicit]
-    [Category("LivePLC")]
-    public async Task IsConnected_ToLiveS71500_ShouldBecomeTrueAsync()
+    public async Task IsConnected_ToSimulatedS71500_ShouldBecomeTrueAsync()
     {
         _ = DebuggerDisplay;
-        using var plc = S71500.Create(LivePlcIp, interval: DefaultPollingIntervalMilliseconds);
+        using var server = new MockServer();
+        await TUnitAssert.That(server.Start()).IsEqualTo(MockServerStartSuccess);
+        using var plc = S71500.Create(MockServer.Localhost, interval: DefaultPollingIntervalMilliseconds);
 
         var connected = await plc.IsConnected
             .Where(static x => x)
             .Take(1)
-            .Timeout(TimeSpan.FromSeconds(LivePlcConnectionTimeoutSeconds))
+            .Timeout(TimeSpan.FromSeconds(MockConnectionTimeoutSeconds))
             .FirstAsync();
 
         await TUnitAssert.That(connected).IsTrue();
     }
 
-    /// <summary>Ensures live CPU diagnostics complete without any program-specific DB reads.</summary>
+    /// <summary>Ensures simulated CPU diagnostics complete without any program-specific DB reads.</summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [Test]
-    [Explicit]
-    [Category("LivePLC")]
-    public async Task GetCpuInfo_ToLiveS71500_ShouldCompleteAndReturnIdentityFieldsAsync()
+    public async Task GetCpuInfo_ToSimulatedS71500_ShouldCompleteAndReturnIdentityFieldsAsync()
     {
         _ = DebuggerDisplay;
-        using var plc = S71500.Create(LivePlcIp, interval: DefaultPollingIntervalMilliseconds);
+        using var server = new MockServer();
+        await TUnitAssert.That(server.Start()).IsEqualTo(MockServerStartSuccess);
+        using var plc = S71500.Create(MockServer.Localhost, interval: DefaultPollingIntervalMilliseconds);
 
         var cpuInfo = await plc.GetCpuInfo()
             .Take(1)
-            .Timeout(TimeSpan.FromSeconds(LivePlcConnectionTimeoutSeconds))
+            .Timeout(TimeSpan.FromSeconds(MockConnectionTimeoutSeconds))
             .FirstAsync();
 
         await TUnitAssert.That(cpuInfo).IsNotNull();
@@ -261,6 +255,11 @@ public sealed class S7PlcRxConnectionRegressionTests
         /// <summary>Listens for client connections.</summary>
         private readonly TcpListener _listener;
 
+#if NETFRAMEWORK
+        /// <summary>Owns .NET Framework-compatible shutdown of the TCP listener.</summary>
+        private readonly IDisposable _listenerLifetime;
+#endif
+
         /// <summary>Runs the client accept loop.</summary>
         private readonly Task _acceptLoop;
 
@@ -282,6 +281,9 @@ public sealed class S7PlcRxConnectionRegressionTests
         {
             _fragmentHandshakeResponses = fragmentHandshakeResponses;
             _listener = new(IPAddress.Loopback, ListenerPort);
+#if NETFRAMEWORK
+            _listenerLifetime = NetworkCompatibility.StopOnDispose(_listener);
+#endif
             _listener.Start();
             _acceptLoop = AcceptLoopAsync();
         }
@@ -302,8 +304,11 @@ public sealed class S7PlcRxConnectionRegressionTests
 
             _disposed = true;
             _cancellationTokenSource.Cancel();
-            _listener.Stop();
-            ((IDisposable)_listener).Dispose();
+#if NETFRAMEWORK
+            _listenerLifetime.Dispose();
+#else
+            _listener.Dispose();
+#endif
 
             try
             {

@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using Boolean = S7PlcRx.PlcTypes.Boolean;
+using Boolean = IoT.DriverCore.S7PlcRx.PlcTypes.Boolean;
 
-namespace S7PlcRx.Tests.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.Tests.PlcTypes;
 
 /// <summary>Tests Boolean PlcType helpers.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]

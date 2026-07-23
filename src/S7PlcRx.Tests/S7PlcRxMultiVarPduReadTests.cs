@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using MockS7Plc;
-using S7PlcRx.Advanced;
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Advanced;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Mock;
 
-namespace S7PlcRx.Tests;
+namespace IoT.DriverCore.S7PlcRx.Tests;
 
 /// <summary>Tests for multi-variable PDU read batching.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]

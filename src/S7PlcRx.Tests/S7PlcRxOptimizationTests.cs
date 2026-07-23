@@ -2,16 +2,16 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using MockS7Plc;
-using S7PlcRx.Advanced;
-using S7PlcRx.Core;
-using S7PlcRx.Enterprise;
-using S7PlcRx.Enums;
-using S7PlcRx.Optimization;
-using S7PlcRx.Performance;
-using S7PlcRx.Production;
+using IoT.DriverCore.S7PlcRx.Advanced;
+using IoT.DriverCore.S7PlcRx.Core;
+using IoT.DriverCore.S7PlcRx.Enterprise;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Mock;
+using IoT.DriverCore.S7PlcRx.Optimization;
+using IoT.DriverCore.S7PlcRx.Performance;
+using IoT.DriverCore.S7PlcRx.Production;
 
-namespace S7PlcRx.Tests;
+namespace IoT.DriverCore.S7PlcRx.Tests;
 
 /// <summary>
 /// Comprehensive optimization tests for S7PlcRx covering performance, caching, batching, and production features.

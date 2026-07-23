@@ -3,11 +3,11 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics;
-using MockS7Plc;
-using S7PlcRx.Advanced;
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Advanced;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Mock;
 
-namespace S7PlcRx.Tests;
+namespace IoT.DriverCore.S7PlcRx.Tests;
 
 /// <summary>Tests for multi-variable batching against non-DB areas (I/Q/M) and bit addressing.</summary>
 [NotInParallel]

@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using S7PlcRx.Binding;
-using S7PlcRx.Enums;
-using S7PlcRx.PlcTypes;
+using IoT.DriverCore.S7PlcRx.Binding;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.PlcTypes;
 
-namespace S7PlcRx.Tests.Binding;
+namespace IoT.DriverCore.S7PlcRx.Tests.Binding;
 
 /// <summary>Tests runtime grouped byte-array PLC binding operations.</summary>
 [NotInParallel]
@@ -193,7 +193,7 @@ public sealed class S7TagRuntimeBindingTests
         public IObservable<string> Status => Observable.Empty<string>();
 
         /// <summary>Gets the fake PLC tag collection.</summary>
-        public global::S7PlcRx.Tags TagList { get; } = [];
+        public global::IoT.DriverCore.S7PlcRx.Tags TagList { get; } = [];
 
         /// <summary>Gets or sets a value indicating whether watchdog writes are shown.</summary>
         public bool ShowWatchDogWriting { get; set; }

@@ -5,9 +5,9 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Enums;
 
-namespace S7PlcRx.Tests;
+namespace IoT.DriverCore.S7PlcRx.Tests;
 
 /// <summary>Tests for internal S7MultiVar request building.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
@@ -142,7 +142,7 @@ public class S7MultiVarRequestBuilderTests
     private static Type GetS7MultiVarType()
     {
         var asm = typeof(RxS7).Assembly;
-        return asm.GetType("S7PlcRx.Core.S7MultiVar", throwOnError: false)
+        return asm.GetType("IoT.DriverCore.S7PlcRx.Core.S7MultiVar", throwOnError: false)
             ?? throw new InvalidOperationException("S7MultiVar was not found.");
     }
 

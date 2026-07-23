@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using CP.IoT.Core;
-using S7PlcRx.Enums;
-using S7PlcRx.LogicalTags;
+using IoT.DriverCore.Core;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.LogicalTags;
 
-namespace S7PlcRx.Tests.LogicalTags;
+namespace IoT.DriverCore.S7PlcRx.Tests.LogicalTags;
 
 /// <summary>Tests the common logical-tag composition surface.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]

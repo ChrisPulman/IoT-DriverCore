@@ -6,7 +6,7 @@ using System;
 using SystemDateTime = System.DateTime;
 using SystemDateTimeOffset = System.DateTimeOffset;
 
-namespace S7PlcRx.Tests.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.Tests.PlcTypes;
 
 /// <summary>Tests the S7 DateTime PlcType.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]

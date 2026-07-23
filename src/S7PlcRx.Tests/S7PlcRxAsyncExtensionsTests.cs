@@ -3,11 +3,11 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Buffers.Binary;
-using MockS7Plc;
-using S7PlcRx.Advanced;
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Advanced;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Mock;
 
-namespace S7PlcRx.Tests;
+namespace IoT.DriverCore.S7PlcRx.Tests;
 
 /// <summary>Tests the async extension surface added on top of <see cref="IRxS7"/>.</summary>
 [NotInParallel]
@@ -623,7 +623,7 @@ public class S7PlcRxAsyncExtensionsTests
         public IObservable<string> Status => Observable.Empty<string>();
 
         /// <summary>Gets the tags registered with the test PLC.</summary>
-        public global::S7PlcRx.Tags TagList { get; } = [];
+        public global::IoT.DriverCore.S7PlcRx.Tags TagList { get; } = [];
 
         /// <summary>Gets or sets a value indicating whether watchdog writes are shown.</summary>
         public bool ShowWatchDogWriting { get; set; }

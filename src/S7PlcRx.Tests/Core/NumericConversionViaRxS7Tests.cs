@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Enums;
 
-namespace S7PlcRx.Tests.Core;
+namespace IoT.DriverCore.S7PlcRx.Tests.Core;
 
 /// <summary>Verifies numeric decoding performed by RxS7 internal VarType parsing.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
@@ -29,17 +29,17 @@ public class NumericConversionViaRxS7Tests
             ?? throw new InvalidOperationException("RxS7.ParseBytes was not found.");
 
         // Word (ushort): 0x1234
-        var word = (ushort)(parseBytes.Invoke(plc, [VarType.Word, (byte[])[0x12, 0x34], 1])
+        var word = (ushort)(parseBytes.Invoke(plc, [VarType.Word, (byte[])[0x12, 0x34], 1, typeof(ushort)])
             ?? throw new InvalidOperationException("RxS7.ParseBytes returned null for Word."));
         Assert.That(word, Is.EqualTo(0x1234));
 
         // DWord (uint): 0x01020304
-        var dword = (uint)(parseBytes.Invoke(plc, [VarType.DWord, (byte[])[0x01, 0x02, 0x03, 0x04], 1])
+        var dword = (uint)(parseBytes.Invoke(plc, [VarType.DWord, (byte[])[0x01, 0x02, 0x03, 0x04], 1, typeof(uint)])
             ?? throw new InvalidOperationException("RxS7.ParseBytes returned null for DWord."));
         Assert.That(dword, Is.EqualTo(0x01020304U));
 
         // DInt (int): -1 => 0xFFFFFFFF
-        var dint = (int)(parseBytes.Invoke(plc, [VarType.DInt, (byte[])[0xFF, 0xFF, 0xFF, 0xFF], 1])
+        var dint = (int)(parseBytes.Invoke(plc, [VarType.DInt, (byte[])[0xFF, 0xFF, 0xFF, 0xFF], 1, typeof(int)])
             ?? throw new InvalidOperationException("RxS7.ParseBytes returned null for DInt."));
         Assert.That(dint, Is.EqualTo(-1));
     }
@@ -55,14 +55,14 @@ public class NumericConversionViaRxS7Tests
             ?? throw new InvalidOperationException("RxS7.ParseBytes was not found.");
 
         // float 1.0f => 0x3F800000 (big-endian bytes)
-        var real = (float)(parseBytes.Invoke(plc, [VarType.Real, (byte[])[0x3F, 0x80, 0x00, 0x00], 1])
+        var real = (float)(parseBytes.Invoke(plc, [VarType.Real, (byte[])[0x3F, 0x80, 0x00, 0x00], 1, typeof(float)])
             ?? throw new InvalidOperationException("RxS7.ParseBytes returned null for Real."));
         Assert.That(real, Is.EqualTo(1.0F));
 
         // double 1.0 => 0x3FF0000000000000 (big-endian bytes)
         var lreal = (double)(parseBytes.Invoke(
             plc,
-            [VarType.LReal, (byte[])[0x3F, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], 1])
+            [VarType.LReal, (byte[])[0x3F, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], 1, typeof(double)])
             ?? throw new InvalidOperationException("RxS7.ParseBytes returned null for LReal."));
         Assert.That(lreal, Is.EqualTo(1.0D));
     }

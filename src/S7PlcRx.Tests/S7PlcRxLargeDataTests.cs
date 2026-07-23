@@ -3,12 +3,12 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Globalization;
-using MockS7Plc;
-using S7PlcRx.PlcTypes;
+using IoT.DriverCore.S7PlcRx.Mock;
+using IoT.DriverCore.S7PlcRx.PlcTypes;
 using BclTimeSpan = System.TimeSpan;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace S7PlcRx.Tests;
+namespace IoT.DriverCore.S7PlcRx.Tests;
 
 /// <summary>
 /// Tests that large byte[] reads and writes work correctly across all payload sizes,
@@ -104,7 +104,7 @@ public class S7PlcRxLargeDataTests
         };
         await TUnitAssert.That(server.Start()).IsEqualTo(0);
 
-        using var plc = new RxS7(new(new(S7PlcRx.Enums.CpuType.S71500, MockServer.Localhost, 0, 1)));
+        using var plc = new RxS7(new(new(IoT.DriverCore.S7PlcRx.Enums.CpuType.S71500, MockServer.Localhost, 0, 1)));
         _ = TagOperations.AddUpdateTagItem(
             plc,
             typeof(byte[]),

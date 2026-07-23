@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using MockS7Plc;
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Mock;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace S7PlcRx.Tests;
+namespace IoT.DriverCore.S7PlcRx.Tests;
 
 /// <summary>Tests cancellation-aware APIs.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]

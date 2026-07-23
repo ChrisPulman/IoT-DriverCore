@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Enums;
 
-namespace S7PlcRx.Tests.Exceptions;
+namespace IoT.DriverCore.S7PlcRx.Tests.Exceptions;
 
 /// <summary>Tests for `PlcException`.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]

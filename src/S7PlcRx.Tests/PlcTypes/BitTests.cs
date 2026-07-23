@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Collections;
-using S7PlcRx.PlcTypes;
+using IoT.DriverCore.S7PlcRx.PlcTypes;
 
-namespace S7PlcRx.Tests.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.Tests.PlcTypes;
 
 /// <summary>Tests Bit PlcType helpers.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]

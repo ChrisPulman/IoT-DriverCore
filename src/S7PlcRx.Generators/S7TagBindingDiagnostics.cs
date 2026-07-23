@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace S7PlcRx.SourceGenerators;
+namespace IoT.DriverCore.S7PlcRx.SourceGenerators;
 
 /// <summary>Generates strongly typed PLC property binding hooks from S7 tag attributes.</summary>
 public sealed partial class S7TagBindingSourceGenerator

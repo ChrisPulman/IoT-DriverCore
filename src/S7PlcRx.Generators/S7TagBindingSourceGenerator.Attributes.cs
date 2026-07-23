@@ -5,7 +5,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace S7PlcRx.SourceGenerators;
+namespace IoT.DriverCore.S7PlcRx.SourceGenerators;
 
 /// <summary>Provides attribute-discovery helpers for the S7 binding source generator.</summary>
 public sealed partial class S7TagBindingSourceGenerator

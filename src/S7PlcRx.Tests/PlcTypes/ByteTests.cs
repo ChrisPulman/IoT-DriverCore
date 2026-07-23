@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using Byte = S7PlcRx.PlcTypes.Byte;
+using Byte = IoT.DriverCore.S7PlcRx.PlcTypes.Byte;
 
-namespace S7PlcRx.Tests.PlcTypes;
+namespace IoT.DriverCore.S7PlcRx.Tests.PlcTypes;
 
 /// <summary>Tests the byte PlcType helpers.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]

@@ -10,23 +10,25 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace S7PlcRx.SourceGenerators;
+namespace IoT.DriverCore.S7PlcRx.SourceGenerators;
 
 /// <summary>Generates strongly typed PLC property binding hooks from S7 tag attributes.</summary>
 [Generator(LanguageNames.CSharp)]
 public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
 {
     /// <summary>Original binding attribute metadata name.</summary>
-    private const string BindingAttributeName = "S7PlcRx.SourceGeneration.S7PlcBindingAttribute";
+    private const string BindingAttributeName = "IoT.DriverCore.S7PlcRx.SourceGeneration.S7PlcBindingAttribute";
 
     /// <summary>Reactive binding attribute metadata name.</summary>
-    private const string ReactiveBindingAttributeName = "S7PlcRx.Reactive.SourceGeneration.S7PlcBindingAttribute";
+    private const string ReactiveBindingAttributeName =
+        "IoT.DriverCore.S7PlcRx.Reactive.SourceGeneration.S7PlcBindingAttribute";
 
     /// <summary>Original tag attribute metadata name.</summary>
-    private const string TagAttributeName = "S7PlcRx.SourceGeneration.S7TagAttribute";
+    private const string TagAttributeName = "IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagAttribute";
 
     /// <summary>Reactive tag attribute metadata name.</summary>
-    private const string ReactiveTagAttributeName = "S7PlcRx.Reactive.SourceGeneration.S7TagAttribute";
+    private const string ReactiveTagAttributeName =
+        "IoT.DriverCore.S7PlcRx.Reactive.SourceGeneration.S7TagAttribute";
 
     /// <summary>Generated member-level opening brace.</summary>
     private const string MemberBlockOpen = "    {";
@@ -162,11 +164,27 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
 
         return new BindingProperty(
             property.Name,
-            property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            GetFullyQualifiedTypeName(property.Type),
             address,
             Math.Max(0, pollIntervalMs),
             direction,
             Math.Max(1, arrayLength));
+    }
+
+    /// <summary>Gets a source-safe fully qualified property type name.</summary>
+    /// <param name="type">The property type symbol.</param>
+    /// <returns>The type name to emit into generated source.</returns>
+    private static string GetFullyQualifiedTypeName(ITypeSymbol type)
+    {
+        if (type is INamedTypeSymbol namedType &&
+            namedType.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+        {
+            var underlyingType = namedType.TypeArguments[0]
+                .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            return $"global::System.Nullable<{underlyingType}>";
+        }
+
+        return type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
     }
 
     /// <summary>Emits generated files for all binding classes.</summary>
@@ -221,7 +239,9 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
 
         foreach (var property in bindingClass.Properties)
         {
-            AppendLine(builder, $"    private {property.FullyQualifiedTypeName} {GetBackingFieldName(property.Name)};");
+            AppendLine(
+                builder,
+                $"    private {property.FullyQualifiedTypeName} {GetBackingFieldName(property.Name)} = default!;");
             var observableType =
                 $"global::{libraryRoot}.Binding.S7TagValueObservable<{property.FullyQualifiedTypeName}>";
             AppendLine(
@@ -238,10 +258,26 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
         }
 
         GenerateBindMethod(builder, libraryRoot);
+        GenerateReadValueConverter(builder);
         GenerateApplyRead(builder, bindingClass.Properties);
 
         AppendLine(builder, "}");
         return builder.ToString();
+    }
+
+    /// <summary>Generates the type-safe read-value conversion helper.</summary>
+    /// <param name="builder">The generated source builder.</param>
+    private static void GenerateReadValueConverter(StringBuilder builder)
+    {
+        AppendLine(builder, "    private static TValue __s7ConvertReadValue<TValue>(object? value)");
+        AppendLine(builder, MemberBlockOpen);
+        // A type pattern cannot use a nullable value type (for example, `int?`), which
+        // makes generated bindings for nullable properties uncompilable.  A null check
+        // followed by the normal generic cast keeps the same conversion semantics for
+        // reference, value, array, and nullable value types.
+        AppendLine(builder, "        return value is null ? default! : (TValue)value;");
+        AppendLine(builder, MemberBlockClose);
+        AppendLine(builder);
     }
 
     /// <summary>Generates one partial property implementation.</summary>
@@ -295,7 +331,7 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
             $"{property.Name}ObservableAsync => global::{libraryRoot}.Binding.S7TagObservableAdapter" +
             $".ToAsyncEnumerable({GetObservableFieldName(property.Name)});");
         AppendLine(builder);
-        var resultType = $"global::CP.IoT.Core.TagOperationResult<{property.FullyQualifiedTypeName}>";
+        var resultType = $"global::IoT.DriverCore.Core.TagOperationResult<{property.FullyQualifiedTypeName}>";
         GenerateReadOperation(builder, libraryRoot, property, resultType);
         GenerateWriteOperation(builder, libraryRoot, property, resultType);
     }
@@ -400,7 +436,7 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
         AppendLine(builder);
         AppendLine(builder, "    /// <summary>Creates the common logical-tag catalog.</summary>");
         AppendLine(builder, "    /// <returns>The generated logical-tag catalog.</returns>");
-        AppendLine(builder, "    public static global::CP.IoT.Core.LogicalTagCatalog CreateLogicalTagCatalog() =>");
+        AppendLine(builder, "    public static global::IoT.DriverCore.Core.LogicalTagCatalog CreateLogicalTagCatalog() =>");
         AppendLine(
             builder,
             string.Concat(
@@ -434,7 +470,7 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
             builder,
                 string.Concat(
                     $"        __s7LogicalClient = new global::{libraryRoot}.LogicalTags.S7LogicalTagClient(",
-                    "plc, CreateLogicalTagCatalog(), null);"));
+                    "plc, CreateLogicalTagCatalog(), store: null);"));
         AppendLine(
             builder,
             string.Concat(
@@ -472,7 +508,7 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
             AppendLine(
                 builder,
                 $"                    {GetBackingFieldName(property.Name)} = " +
-                $"value is {property.FullyQualifiedTypeName} typedValue ? typedValue : default!;");
+                $"__s7ConvertReadValue<{property.FullyQualifiedTypeName}>(value);");
             AppendLine(
                 builder,
                 $"                    {GetObservableFieldName(property.Name)}" +
@@ -564,15 +600,15 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
     /// <param name="bindingClass">The binding class metadata.</param>
     /// <returns>The root namespace to use in generated code.</returns>
     private static string GetLibraryRoot(BindingClass bindingClass) =>
-        bindingClass.NamespaceName?.StartsWith("S7PlcRx.Reactive", StringComparison.Ordinal) == true
-            ? "S7PlcRx.Reactive"
-            : "S7PlcRx";
+        bindingClass.NamespaceName?.StartsWith("IoT.DriverCore.S7PlcRx.Reactive", StringComparison.Ordinal) == true
+            ? "IoT.DriverCore.S7PlcRx.Reactive"
+            : "IoT.DriverCore.S7PlcRx";
 
     /// <summary>Gets the generated backing field name.</summary>
     /// <param name="propertyName">The source property name.</param>
     /// <returns>The generated backing field name.</returns>
     private static string GetBackingFieldName(string propertyName) =>
-        $"__s7{char.ToLowerInvariant(propertyName[0])}{propertyName.Remove(0, 1)}";
+        $"__s7{propertyName}";
 
     /// <summary>Gets the generated observable field name.</summary>
     /// <param name="propertyName">The source property name.</param>
