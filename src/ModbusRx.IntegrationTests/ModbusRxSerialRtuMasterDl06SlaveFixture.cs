@@ -1,16 +1,17 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
+
 #if SERIAL
 using System.Threading.Tasks;
-using ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Device;
 
-namespace ModbusRx.IntegrationTests;
+namespace IoT.DriverCore.ModbusRx.IntegrationTests;
 
 /// <summary>
 /// ModbusRxSerialRtuMasterDl06SlaveFixture.
 /// </summary>
-/// <seealso cref="ModbusRx.IntegrationTests.ModbusSerialMasterFixtureBase" />
+/// <seealso cref="IoT.DriverCore.ModbusRx.IntegrationTests.ModbusSerialMasterFixtureBase" />
 public class ModbusRxSerialRtuMasterDl06SlaveFixture : ModbusSerialMasterFixtureBase
 {
     /// <summary>Gets the serial device addressed by the fixture.</summary>

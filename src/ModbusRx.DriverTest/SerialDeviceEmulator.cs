@@ -1,13 +1,13 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Ports;
-using CP.IO.Ports;
+using IoT.DriverCore.Serial;
 
-namespace ModbusRx.DriverTest;
+namespace IoT.DriverCore.ModbusRx.DriverTest;
 
 /// <summary>Tests the SerialDeviceEmulator behavior.</summary>
 public class SerialDeviceEmulator : IDisposable
@@ -36,6 +36,9 @@ public class SerialDeviceEmulator : IDisposable
     /// <summary>The Modbus request handler.</summary>
     private readonly ModbusRtuHandler _handler;
 
+    /// <summary>The clock used by diagnostic output.</summary>
+    private readonly TimeProvider _timeProvider;
+
     /// <summary>A value indicating whether the emulator has been disposed.</summary>
     private bool _disposedValue;
 
@@ -43,7 +46,17 @@ public class SerialDeviceEmulator : IDisposable
     /// <param name="portName">Name of the port.</param>
     /// <param name="slaveId">The slave identifier.</param>
     public SerialDeviceEmulator(string portName, byte slaveId)
+        : this(portName, slaveId, TimeProvider.System)
     {
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="SerialDeviceEmulator"/> class.</summary>
+    /// <param name="portName">Name of the port.</param>
+    /// <param name="slaveId">The slave identifier.</param>
+    /// <param name="timeProvider">The clock used for diagnostic output.</param>
+    public SerialDeviceEmulator(string portName, byte slaveId, TimeProvider timeProvider)
+    {
+        _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _controller = new();
         _handler = new(_controller, slaveId);
 
@@ -51,7 +64,7 @@ public class SerialDeviceEmulator : IDisposable
         _ = _port.OpenAsync();
         _ = _port.IsOpenObservable.Where(x => x).Subscribe(isOpen =>
         {
-            var timestamp = DateTime.Now.ToString(TimestampFormat, CultureInfo.InvariantCulture);
+            var timestamp = _timeProvider.GetLocalNow().ToString(TimestampFormat, CultureInfo.InvariantCulture);
             Debug.WriteLine($"{timestamp} Serial port {portName} opened.");
             _controller.Update(); // Update once to set initial data
             _ = Task.Run(ReceiveLoopAsync);
@@ -103,12 +116,12 @@ public class SerialDeviceEmulator : IDisposable
                     var crcCalc = ModbusCrc.Compute(frame, frame.Length - CrcLength);
                     if (crcReceived == crcCalc)
                     {
-                        var receivedTimestamp = DateTime.Now.ToString(TimestampFormat, CultureInfo.InvariantCulture);
+                        var receivedTimestamp = _timeProvider.GetLocalNow().ToString(TimestampFormat, CultureInfo.InvariantCulture);
                         Debug.WriteLine($"{receivedTimestamp} Emulator RX: {BitConverter.ToString(frame)}");
                         var response = _handler.HandleRequest(frame, frame.Length);
                         if (response is not null)
                         {
-                            var transmittedTimestamp = DateTime.Now.ToString(
+                            var transmittedTimestamp = _timeProvider.GetLocalNow().ToString(
                                 TimestampFormat,
                                 CultureInfo.InvariantCulture);
                             var responseText = BitConverter.ToString(response);

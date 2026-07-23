@@ -4,7 +4,7 @@
 
 using System;
 
-namespace ModbusRx.Generators.Tests.Testing;
+namespace IoT.DriverCore.ModbusRx.Generators.Tests.Testing;
 
 /// <summary>Provides xUnit-compatible assertion helpers that throw on failure so TUnit can detect them.</summary>
 internal static class Assert

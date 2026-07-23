@@ -3,19 +3,28 @@
   <PropertyGroup>
     <TargetFrameworks>net10.0</TargetFrameworks>
     <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="TUnit.Assertions" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ModbusRx\ModbusRx.csproj" />
     <ProjectReference Include="..\ModbusRx.Reactive\ModbusRx.Reactive.csproj" />
   </ItemGroup>
 
-  <ItemGroup Condition="Exists('..\..\..\SerialPortRx\src\SerialPortRx\SerialPortRx.csproj')">
-    <ProjectReference Include="..\..\..\SerialPortRx\src\SerialPortRx\SerialPortRx.csproj" />
+  <ItemGroup>
+    <ProjectReference Include="..\SerialPortRx\SerialPortRx.csproj" />
   </ItemGroup>
 
-  <ItemGroup Condition="!Exists('..\..\..\SerialPortRx\src\SerialPortRx\SerialPortRx.csproj')">
-    <PackageReference Include="SerialPortRx" PrivateAssets="analyzers" />
+  <ItemGroup>
+    <Compile Include="..\ModbusRx.Testing\ModuleInitializerAttribute.cs" Link="Testing\ModuleInitializerAttribute.cs" />
+    <Compile Include="..\ModbusRx.Testing\TUnitAssert.cs" Link="Testing\TUnitAssert.cs" />
+    <Using Include="IoT.DriverCore.ModbusRx.Testing.TUnitAssert" Alias="Assert" />
   </ItemGroup>
 
   <ItemGroup>

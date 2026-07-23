@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -11,18 +11,11 @@
     <UseAppHost>false</UseAppHost>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(CI)' == 'true'">
-    <TargetFrameworks>net8.0</TargetFrameworks>
-    <UseAppHost>false</UseAppHost>
-    <DisableTransitiveFrameworkReferences>true</DisableTransitiveFrameworkReferences>
-  </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="TUnit" />
     <PackageReference Include="TUnit.Assertions" />
-    <PackageReference Include="coverlet.collector" />
   </ItemGroup>
 
   <ItemGroup>
@@ -36,7 +29,7 @@
   <ItemGroup>
     <Using Include="TUnit.Core" />
     <Using Include="TUnit.Assertions.Extensions" />
-    <Using Include="ModbusRx.Generators.Tests.Testing.Assert" Alias="Assert" />
+    <Using Include="IoT.DriverCore.ModbusRx.Generators.Tests.Testing.Assert" Alias="Assert" />
   </ItemGroup>
 
 </Project>

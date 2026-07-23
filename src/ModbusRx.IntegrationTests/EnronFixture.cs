@@ -1,15 +1,16 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
-#if SERIAL
-using ModbusRx.Extensions.Enron;
 
-namespace ModbusRx.IntegrationTests;
+#if SERIAL
+using IoT.DriverCore.ModbusRx.Extensions.Enron;
+
+namespace IoT.DriverCore.ModbusRx.IntegrationTests;
 
 /// <summary>
 /// EnronFixture.
 /// </summary>
-/// <seealso cref="ModbusRx.IntegrationTests.NModbusSerialRtuMasterDl06SlaveFixture" />
+/// <seealso cref="IoT.DriverCore.ModbusRx.IntegrationTests.NModbusSerialRtuMasterDl06SlaveFixture" />
 public class EnronFixture : NModbusSerialRtuMasterDl06SlaveFixture
 {
     /// <summary>

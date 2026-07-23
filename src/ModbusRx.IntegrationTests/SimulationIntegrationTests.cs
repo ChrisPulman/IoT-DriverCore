@@ -1,5 +1,5 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System;
@@ -7,10 +7,10 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
-using ModbusRx.Data;
-using ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.Device;
 
-namespace ModbusRx.IntegrationTests;
+namespace IoT.DriverCore.ModbusRx.IntegrationTests;
 
 /// <summary>Integration tests for simulation and data generation.</summary>
 public sealed class SimulationIntegrationTests : IDisposable
@@ -187,7 +187,7 @@ public sealed class SimulationIntegrationTests : IDisposable
 
         await Task.Delay(InitialSimulationDelayMilliseconds);
 
-        var client = new CP.IO.Ports.TcpClientRx(LoopbackAddress, tcpPort);
+        var client = new IoT.DriverCore.Serial.TcpClientRx(LoopbackAddress, tcpPort);
         var master = ModbusIpMaster.CreateIp(client);
         _disposables.Add(master);
 

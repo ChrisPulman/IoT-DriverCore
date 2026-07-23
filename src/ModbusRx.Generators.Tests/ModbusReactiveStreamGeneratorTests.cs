@@ -7,11 +7,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using IoT.DriverCore.ModbusRx.Generators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using ModbusRx.Generators;
 
-namespace ModbusRx.Generators.Tests;
+namespace IoT.DriverCore.ModbusRx.Generators.Tests;
 
 /// <summary>Tests for the reactive stream source generator.</summary>
 public class ModbusReactiveStreamGeneratorTests
@@ -22,8 +22,8 @@ public class ModbusReactiveStreamGeneratorTests
     {
         const string source = """
 using System;
-using ModbusRx.Device;
-using ModbusRx.Generators;
+using IoT.DriverCore.ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Generators;
 
 [ModbusReactiveDevice(ConnectionMember = "MasterStream")]
 public partial class BoilerMap
@@ -41,7 +41,7 @@ public partial class BoilerMap
 
         Assert.Contains("TemperatureObservable", generatedSource);
         Assert.Contains("BindGeneratedModbusStreams", generatedSource);
-        Assert.Contains("global::ModbusRx.Create.ReadHoldingRegisters(this.MasterStream, 0, 1, 1000", generatedSource);
+        Assert.Contains("global::IoT.DriverCore.ModbusRx.Create.ReadHoldingRegisters(this.MasterStream, 0, 1, 1000", generatedSource);
     }
 
     /// <summary>Verifies generated code compiles against ModbusRx and ReactiveUI.Primitives.</summary>
@@ -50,8 +50,8 @@ public partial class BoilerMap
     {
         const string source = """
 using System;
-using ModbusRx.Device;
-using ModbusRx.Generators;
+using IoT.DriverCore.ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Generators;
 
 namespace Maps;
 
@@ -81,8 +81,8 @@ public partial class BoilerMap
     {
         const string source = """
 using System;
-using ModbusRx.Generators;
-using ModbusRx.Reactive.Device;
+using IoT.DriverCore.ModbusRx.Generators;
+using IoT.DriverCore.ModbusRx.Reactive.Device;
 
 namespace Maps;
 
@@ -102,7 +102,7 @@ public partial class BoilerMap
         var diagnostics = CollectErrors(result.Compilation.GetDiagnostics());
 
         Assert.Contains(
-            "global::ModbusRx.Reactive.Create.ReadHoldingRegisters(this.MasterStream, 0, 1, 1000",
+            "global::IoT.DriverCore.ModbusRx.Reactive.Create.ReadHoldingRegisters(this.MasterStream, 0, 1, 1000",
             generatedSource);
         Assert.True(diagnostics.Count == 0, FormatDiagnostics(diagnostics));
     }
@@ -114,9 +114,9 @@ public partial class BoilerMap
     {
         const string source = """
 using System;
-using CP.IoT.Core;
-using ModbusRx.Device;
-using ModbusRx.Generators;
+using IoT.DriverCore.Core;
+using IoT.DriverCore.ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Generators;
 
 [ModbusReactiveDevice(ConnectionMember = "MasterStream", TagClientMember = "TagClient")]
 public partial class BoilerMap
@@ -188,7 +188,7 @@ public partial class BoilerMap
         yield return MetadataReference.CreateFromFile(
             typeof(ModbusRx.Reactive.Device.ModbusIpMaster).Assembly.Location);
         yield return MetadataReference.CreateFromFile(typeof(ReactiveUI.Primitives.Signals.Signal).Assembly.Location);
-        yield return MetadataReference.CreateFromFile(typeof(CP.IoT.Core.ILogicalTagClient).Assembly.Location);
+        yield return MetadataReference.CreateFromFile(typeof(IoT.DriverCore.Core.ILogicalTagClient).Assembly.Location);
     }
 
     /// <summary>Collects error diagnostics from a diagnostic sequence.</summary>

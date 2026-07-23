@@ -1,34 +1,22 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System;
 using System.Threading.Tasks;
-using CP.IO.Ports;
-using ModbusRx.Device;
+using IoT.DriverCore.ModbusRx.Device;
+using IoT.DriverCore.Serial;
 
-namespace ModbusRx.IntegrationTests;
+namespace IoT.DriverCore.ModbusRx.IntegrationTests;
 
 /// <summary>Example integration tests demonstrating CI-safe network testing patterns.</summary>
 public class CISafeNetworkTests : NetworkTestBase
 {
-    /// <summary>The address of the manually tested device.</summary>
-    private const string LiveDeviceHost = "192.168.1.100";
-
     /// <summary>The local loopback address.</summary>
     private const string LoopbackAddress = "127.0.0.1";
 
-    /// <summary>The default Modbus TCP port.</summary>
-    private const int ModbusTcpPort = 502;
-
-    /// <summary>The HTTP port used for the manually run connectivity test.</summary>
-    private const int HttpPort = 80;
-
     /// <summary>The test register count.</summary>
     private const ushort RegisterCount = 5;
-
-    /// <summary>The number of registers read from the manually tested device.</summary>
-    private const ushort LiveDeviceRegisterCount = 10;
 
     /// <summary>The short server startup delay in milliseconds.</summary>
     private const int ServerStartupDelayMilliseconds = 200;
@@ -54,27 +42,34 @@ public class CISafeNetworkTests : NetworkTestBase
     /// <summary>The external connectivity timeout in seconds.</summary>
     private const int ExternalConnectivityTimeoutSeconds = 10;
 
-    /// <summary>Test that requires live network connectivity - skipped in CI environments.</summary>
+    /// <summary>Verifies a real TCP Modbus exchange against a deterministic loopback device.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [TUnit.Core.Test]
-    public async Task LiveNetworkTest_ShouldConnectToRealDeviceAsync()
+    public async Task SimulatedNetworkTest_ShouldConnectToLoopbackDeviceAsync()
     {
-        // Skip this test if running in CI to avoid failures
-        Skip.IfNot(!IsRunningInCI, "This test requires a real Modbus device on the network");
+        using var server = new ModbusServer();
+        var testData = new ushort[]
+        {
+            FirstRegisterValue,
+            SecondRegisterValue,
+            ThirdRegisterValue,
+            FourthRegisterValue,
+            FinalRegisterValue,
+        };
+        server.LoadSimulationData(testData, null, null, null);
+        var tcpPort = await GetAvailablePortAsync();
+        _ = server.StartTcpServer(tcpPort, 1);
+        server.Start();
+        await Task.Delay(ServerStartupDelayMilliseconds, CancellationToken);
 
-        // This test would only run in local development environments
-        var canConnect = await TryConnectAsync(LiveDeviceHost, ModbusTcpPort);
+        var canConnect = await TryConnectAsync(LoopbackAddress, tcpPort);
+        Assert.True(canConnect, "The deterministic Modbus loopback device was not reachable.");
 
-        Skip.IfNot(canConnect, $"No Modbus device found at {LiveDeviceHost}:{ModbusTcpPort}");
-
-        // Proceed with actual device testing
-        var client = new TcpClientRx(LiveDeviceHost, ModbusTcpPort);
+        var client = new TcpClientRx(LoopbackAddress, tcpPort);
         using var master = ModbusIpMaster.CreateIp(client);
-        RegisterDisposable(master);
 
-        var registers = await master.ReadHoldingRegistersAsync(1, 0, LiveDeviceRegisterCount);
-        _ = Assert.NotNull(registers);
-        Assert.True(registers.Length > 0);
+        var registers = await master.ReadHoldingRegistersAsync(1, 0, RegisterCount);
+        Assert.Equal(testData, registers);
     }
 
     /// <summary>Test that works in both CI and local environments using localhost.</summary>
@@ -169,20 +164,20 @@ public class CISafeNetworkTests : NetworkTestBase
         }
     }
 
-    /// <summary>Test that requires external internet connectivity - always skipped in CI.</summary>
+    /// <summary>Verifies bounded TCP connectivity through a deterministic loopback listener.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [TUnit.Core.Test]
-    [TUnit.Core.Skip("Requires external internet connectivity - run manually for development testing")]
-    public async Task ExternalConnectivityTest_ManualTestOnlyAsync()
+    public async Task LoopbackConnectivityTest_ShouldConnectWithinTimeoutAsync()
     {
-        // This test is explicitly skipped but can be enabled manually
-        // for development/debugging purposes        
-        var canPing = await TryConnectAsync(
-            "google.com",
-            HttpPort,
-            TimeSpan.FromSeconds(ExternalConnectivityTimeoutSeconds));
-        Assert.True(canPing, "No internet connectivity available");
+        using var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (System.Net.IPEndPoint)listener.LocalEndpoint;
 
-        // Additional external connectivity tests would go here
+        var canConnect = await TryConnectAsync(
+            LoopbackAddress,
+            endpoint.Port,
+            TimeSpan.FromSeconds(ExternalConnectivityTimeoutSeconds));
+
+        Assert.True(canConnect, "The deterministic loopback listener was not reachable.");
     }
 }

@@ -1,15 +1,16 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
-#if SERIAL
-using ModbusRx.Device;
 
-namespace ModbusRx.IntegrationTests;
+#if SERIAL
+using IoT.DriverCore.ModbusRx.Device;
+
+namespace IoT.DriverCore.ModbusRx.IntegrationTests;
 
 /// <summary>
 /// Base class for ModbusSerialMaster test fixtures.
 /// </summary>
-/// <seealso cref="ModbusRx.IntegrationTests.ModbusRxMasterFixtureBase" />
+/// <seealso cref="IoT.DriverCore.ModbusRx.IntegrationTests.ModbusRxMasterFixtureBase" />
 public abstract class ModbusSerialMasterFixtureBase : ModbusRxMasterFixtureBase
 {
     /// <summary>Gets the serial device addressed by the fixture.</summary>
@@ -17,15 +18,6 @@ public abstract class ModbusSerialMasterFixtureBase : ModbusRxMasterFixtureBase
 
     /// <summary>Gets the transport used by the fixture.</summary>
     protected override string TransportName => "Serial";
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ModbusSerialMasterFixtureBase"/> class.
-    /// </summary>
-    protected ModbusSerialMasterFixtureBase()
-    {
-        // Skip all serial tests in CI environments
-        SkipIfRunningInCI("Serial port tests require physical hardware not available in CI");
-    }
 
     /// <summary>
     /// Returns the query data.

@@ -1,18 +1,18 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
 using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
-using CP.IO.Ports;
-using ModbusRx.Data;
-using ModbusRx.Device;
-using ReactiveModbusServer = ModbusRx.Reactive.Device.ModbusServer;
-using ReactiveModbusServerExtensions = ModbusRx.Reactive.ModbusServerExtensions;
+using IoT.DriverCore.ModbusRx.Data;
+using IoT.DriverCore.ModbusRx.Device;
+using IoT.DriverCore.Serial;
+using ReactiveModbusServer = IoT.DriverCore.ModbusRx.Reactive.Device.ModbusServer;
+using ReactiveModbusServerEnhancedExtensions = IoT.DriverCore.ModbusRx.Reactive.EnhancedModbusServerExtensions;
 
-namespace ModbusRx.IntegrationTests;
+namespace IoT.DriverCore.ModbusRx.IntegrationTests;
 
 /// <summary>Integration tests for the new ModbusServer functionality.</summary>
 public sealed class ModbusServerIntegrationTests : NetworkTestBase
@@ -34,9 +34,6 @@ public sealed class ModbusServerIntegrationTests : NetworkTestBase
 
     /// <summary>The delay used for simulation changes to become observable.</summary>
     private const int SimulationChangeDelayMilliseconds = 600;
-
-    /// <summary>The polling interval used by the reactive observation test.</summary>
-    private const int ReactiveObservationIntervalMilliseconds = 100;
 
     /// <summary>The number of values inspected when validating generated simulation data.</summary>
     private const int SimulationPatternSampleCount = 10;
@@ -214,26 +211,21 @@ public sealed class ModbusServerIntegrationTests : NetworkTestBase
         RegisterDisposable(server);
 
         server.Start();
-        server.SimulationMode = true;
+        var dataStore = server.DataStore
+            ?? throw new InvalidOperationException("The reactive Modbus server data store was not initialized.");
+        var observed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = ReactiveModbusServerEnhancedExtensions
+            .ObserveDataChangesEventDriven(server)
+            .Subscribe(_ => observed.TrySetResult(true), observed.TrySetException);
 
-        var dataReceived = false;
+        // Act: use a public write operation that raises DataStoreWrittenTo synchronously.
+        dataStore.WriteDataOptimized(
+            [FirstStandardSimulationValue],
+            dataStore.HoldingRegisters,
+            startAddress: 0);
 
-        // Act
-        IDisposable? subscription = null;
-        subscription = ReactiveModbusServerExtensions.ObserveDataChanges(
-                server,
-                ReactiveObservationIntervalMilliseconds)
-            .Subscribe(_ =>
-            {
-                dataReceived = true;
-                subscription?.Dispose();
-            });
-        RegisterDisposable(subscription);
-
-        await Task.Delay(ServerStartupDelayMilliseconds, CancellationToken);
-
-        // Assert
-        Assert.True(dataReceived);
+        // Assert: the event-driven observable is independent of timer scheduling.
+        Assert.True(await observed.Task.WaitAsync(CancellationToken));
     }
 
     /// <summary>Tests that multiple clients can connect to the same server.</summary>

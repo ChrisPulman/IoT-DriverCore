@@ -6,7 +6,7 @@ using System;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace ModbusRx.Generators;
+namespace IoT.DriverCore.ModbusRx.Generators;
 
 /// <summary>Generates Modbus-backed reactive properties and observable streams.</summary>
 public sealed partial class ModbusReactiveStreamGenerator
@@ -154,7 +154,7 @@ public sealed partial class ModbusReactiveStreamGenerator
                 slaveAddress,
                 defaultInterval,
                 masterKind,
-                "global::ModbusRx");
+                "global::IoT.DriverCore.ModbusRx");
         }
 
         /// <summary>Creates a copy with a resolved API root namespace.</summary>

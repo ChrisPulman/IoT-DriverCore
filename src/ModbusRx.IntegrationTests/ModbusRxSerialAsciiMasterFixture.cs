@@ -1,39 +1,40 @@
-// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
-// Chris Pulman licenses this file to you under the MIT license.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-#if SERIAL
 using System;
-using ModbusRx.Device;
-#endif
+using System.Threading.Tasks;
+using IoT.DriverCore.ModbusRx.Device;
+using IoT.DriverCore.Serial;
 
-namespace ModbusRx.IntegrationTests;
+namespace IoT.DriverCore.ModbusRx.IntegrationTests;
 
 /// <summary>Tests the NModbusSerialAsciiMasterFixture behavior.</summary>
 public class ModbusRxSerialAsciiMasterFixture : NetworkTestBase
 {
-#if SERIAL
-    private const int ReadTimeoutMilliseconds = 1000;
-#endif
+    /// <summary>The intentionally unresponsive simulated slave address.</summary>
+    private const byte SilentSlaveAddress = 100;
+
+    /// <summary>The bounded timeout used by the simulated serial transport.</summary>
+    private const int ReadTimeoutMilliseconds = 100;
 
     /// <summary>Tests the modbus ASCII master read timeout.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [TUnit.Core.Test]
-    public void ModbusRxAsciiMaster_ReadTimeout()
+    public async Task ModbusRxAsciiMaster_ReadTimeoutAsync()
     {
-        // Skip this test in CI environments as serial ports are not available
-        Skip.IfNot(!IsRunningInCI, "Serial port tests require physical hardware not available in CI");
+        using var pair = new InMemoryPortRxPair("ASCII-MASTER", "ASCII-SILENT-PEER");
+        pair.First.EnableAutoDataReceive = false;
+        pair.Second.EnableAutoDataReceive = false;
+        pair.First.ReadTimeout = ReadTimeoutMilliseconds;
+        await pair.First.OpenAsync();
+        await pair.Second.OpenAsync();
 
-#if SERIAL
-        var port = ModbusRxMasterFixtureBase.CreateAndOpenSerialPort(
-            ModbusRxMasterFixtureBase.DefaultMasterSerialPortName);
-        RegisterDisposable(port);
-        
-        using IModbusSerialMaster master = ModbusSerialMaster.CreateAscii(port);
-        master.Transport!.ReadTimeout = master.Transport.WriteTimeout = ReadTimeoutMilliseconds;
-        Assert.Throws<TimeoutException>(() => master.ReadCoils(100, 1, 1));
-#else
-        // When SERIAL symbol is not defined, skip with explanation
-        Skip.If(true, "SERIAL conditional compilation symbol not defined");
-#endif
+        using IModbusSerialMaster master = ModbusSerialMaster.CreateAscii(pair.First);
+        master.Transport!.ReadTimeout = ReadTimeoutMilliseconds;
+        master.Transport.WriteTimeout = ReadTimeoutMilliseconds;
+        master.Transport.Retries = 0;
+        _ = await Assert.ThrowsAsync<TimeoutException>(
+            () => master.ReadCoilsAsync(SilentSlaveAddress, 1, 1));
     }
 }

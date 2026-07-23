@@ -7,7 +7,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
-namespace ModbusRx.Generators;
+namespace IoT.DriverCore.ModbusRx.Generators;
 
 /// <summary>Generates Modbus-backed reactive properties and observable streams.</summary>
 public sealed partial class ModbusReactiveStreamGenerator
@@ -205,12 +205,12 @@ public sealed partial class ModbusReactiveStreamGenerator
         var literal = SymbolDisplay.FormatLiteral(tagName, true);
         var client = $"this.{point.Point.DeviceOptions.TagClientMember}";
         _ = builder
-            .Append("    public global::System.Threading.Tasks.Task<global::CP.IoT.Core.TagOperationResult<")
+            .Append("    public global::System.Threading.Tasks.Task<global::IoT.DriverCore.Core.TagOperationResult<")
             .Append(typeName)
             .Append(">> Read")
             .Append(propertyName)
             .Append("Async(global::System.Threading.CancellationToken cancellationToken = default) => ")
-            .Append("global::CP.IoT.Core.LogicalTagContractHelpers.ReadAsync<")
+            .Append("global::IoT.DriverCore.Core.LogicalTagContractHelpers.ReadAsync<")
             .Append(typeName)
             .Append(">(")
             .Append(client)
@@ -218,14 +218,14 @@ public sealed partial class ModbusReactiveStreamGenerator
             .Append(literal)
             .AppendLine(", cancellationToken);");
         _ = builder
-            .Append("    public global::System.Threading.Tasks.Task<global::CP.IoT.Core.TagOperationResult<")
+            .Append("    public global::System.Threading.Tasks.Task<global::IoT.DriverCore.Core.TagOperationResult<")
             .Append(typeName)
             .Append(">> Write")
             .Append(propertyName)
             .Append("Async(")
             .Append(typeName)
             .Append(" value, global::System.Threading.CancellationToken cancellationToken = default) => ")
-            .Append("global::CP.IoT.Core.LogicalTagContractHelpers.WriteAsync<")
+            .Append("global::IoT.DriverCore.Core.LogicalTagContractHelpers.WriteAsync<")
             .Append(typeName)
             .Append(">(")
             .Append(client)
