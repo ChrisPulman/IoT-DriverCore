@@ -6,6 +6,8 @@
     <AssemblyName>OmronPlcRx.Reactive</AssemblyName>
     <PackageId>OmronPlcRx.Reactive</PackageId>
     <DefineConstants>$(DefineConstants);REACTIVE_SHIM</DefineConstants>
+    <OmronGeneratorAssemblyPath>..\OmronPlcRx.Generators\bin\$(Configuration)\netstandard2.0\OmronPlcRx.Generators.dll</OmronGeneratorAssemblyPath>
+    <OmronGeneratorAssemblyPath Condition="'$(UseArtifactsOutput)' == 'true'">$(ArtifactsPath)\bin\OmronPlcRx.Generators\$([System.String]::Copy('$(Configuration)').ToLowerInvariant())\OmronPlcRx.Generators.dll</OmronGeneratorAssemblyPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,7 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\OmronPlcRx.Generators\bin\$(Configuration)\netstandard2.0\OmronPlcRx.Generators.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="$(OmronGeneratorAssemblyPath)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 
   <Import Project="..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets" Condition="Exists('..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets')" />

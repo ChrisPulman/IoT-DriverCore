@@ -245,45 +245,45 @@ public partial class RxS7
     private static bool TrySerializeScalarTagValue(Tag tag, out byte[] data)
     {
         data = [];
-        switch (tag.Type.Name)
+        switch (Type.GetTypeCode(tag.Type))
         {
-            case "Boolean" or "Byte":
+            case TypeCode.Boolean or TypeCode.Byte:
                 {
                     data = [Convert.ToByte(tag.NewValue, CultureInfo.InvariantCulture)];
                     return true;
                 }
 
-            case "Int16" or "short":
+            case TypeCode.Int16:
                 {
                     data = Int.ToByteArray(Convert.ToInt16(tag.NewValue, CultureInfo.InvariantCulture));
                     return true;
                 }
 
-            case "UInt16" or "ushort":
+            case TypeCode.UInt16:
                 {
                     data = Word.ToByteArray(Convert.ToUInt16(tag.NewValue, CultureInfo.InvariantCulture));
                     return true;
                 }
 
-            case "Int32" or "int":
+            case TypeCode.Int32:
                 {
                     data = DInt.ToByteArray(Convert.ToInt32(tag.NewValue, CultureInfo.InvariantCulture));
                     return true;
                 }
 
-            case "UInt32" or "uint":
+            case TypeCode.UInt32:
                 {
                     data = DWord.ToByteArray(Convert.ToUInt32(tag.NewValue, CultureInfo.InvariantCulture));
                     return true;
                 }
 
-            case "Single":
+            case TypeCode.Single:
                 {
                     data = Real.ToByteArray((float)tag.NewValue!);
                     return true;
                 }
 
-            case "Double":
+            case TypeCode.Double:
                 {
                     data = LReal.ToByteArray((double)tag.NewValue!);
                     return true;
@@ -303,60 +303,54 @@ public partial class RxS7
     private static bool TrySerializeArrayTagValue(Tag tag, out byte[] data)
     {
         data = [];
-        switch (tag.Type.Name)
+        if (tag.Type == typeof(byte[]))
         {
-            case "Byte[]":
-                {
-                    data = (byte[])tag.NewValue!;
-                    return true;
-                }
-
-            case "Int16[]" or "short[]":
-                {
-                    data = Int.ToByteArray((short[])tag.NewValue!);
-                    return true;
-                }
-
-            case "UInt16[]" or "ushort[]":
-                {
-                    data = Word.ToByteArray((ushort[])tag.NewValue!);
-                    return true;
-                }
-
-            case "Int32[]" or "int[]":
-                {
-                    data = DInt.ToByteArray((int[])tag.NewValue!);
-                    return true;
-                }
-
-            case "UInt32[]" or "uint[]" when tag.NewValue is uint[] unsignedValues:
-                {
-                    data = DWord.ToByteArray(unsignedValues);
-                    return true;
-                }
-
-            case "Single[]":
-                {
-                    data = Real.ToByteArray((float[])tag.NewValue!);
-                    return true;
-                }
-
-            case "Double[]":
-                {
-                    data = LReal.ToByteArray((double[])tag.NewValue!);
-                    return true;
-                }
-
-            case "String":
-                {
-                    data = PlcTypes.String.ToByteArray(tag.NewValue as string);
-                    return true;
-                }
-
-            default:
-                {
-                    return false;
-                }
+            data = (byte[])tag.NewValue!;
+            return true;
         }
+
+        if (tag.Type == typeof(short[]))
+        {
+            data = Int.ToByteArray((short[])tag.NewValue!);
+            return true;
+        }
+
+        if (tag.Type == typeof(ushort[]))
+        {
+            data = Word.ToByteArray((ushort[])tag.NewValue!);
+            return true;
+        }
+
+        if (tag.Type == typeof(int[]))
+        {
+            data = DInt.ToByteArray((int[])tag.NewValue!);
+            return true;
+        }
+
+        if (tag.Type == typeof(uint[]) && tag.NewValue is uint[] unsignedValues)
+        {
+            data = DWord.ToByteArray(unsignedValues);
+            return true;
+        }
+
+        if (tag.Type == typeof(float[]))
+        {
+            data = Real.ToByteArray((float[])tag.NewValue!);
+            return true;
+        }
+
+        if (tag.Type == typeof(double[]))
+        {
+            data = LReal.ToByteArray((double[])tag.NewValue!);
+            return true;
+        }
+
+        if (tag.Type != typeof(string))
+        {
+            return false;
+        }
+
+        data = PlcTypes.String.ToByteArray(tag.NewValue as string);
+        return true;
     }
 }

@@ -159,12 +159,13 @@ internal sealed class ABPlc : IDisposable
     /// <summary>Creates new TagList.</summary>
     /// <param name="name">The name.</param>
     /// <param name="scanInterval">The scan interval.</param>
+    /// <param name="scanEnabled">The initial scan state.</param>
     /// <returns>
     /// A Value.
     /// </returns>
-    internal PlcTagCollection CreateTagList(string name, TimeSpan scanInterval)
+    internal PlcTagCollection CreateTagList(string name, TimeSpan scanInterval, bool scanEnabled = true)
     {
-        var tags = new PlcTagCollection(this, scanInterval);
+        var tags = new PlcTagCollection(this, scanInterval, scanEnabled);
         lock (_syncRoot)
         {
             _tagList.Add(name, tags);
@@ -326,7 +327,13 @@ internal sealed class ABPlc : IDisposable
     /// <param name="tagName">The name.</param>
     /// <param name="scanInterval">The scan interval.</param>
     /// <param name="tagGroup">The tag group.</param>
-    internal void AddTagToGroup<T>(string variable, string tagName, TimeSpan scanInterval, string tagGroup = "Default")
+    /// <param name="scanEnabled">The scan state applied to the target group.</param>
+    internal void AddTagToGroup<T>(
+        string variable,
+        string tagName,
+        TimeSpan scanInterval,
+        string tagGroup = "Default",
+        bool scanEnabled = true)
     {
         IPlcTag? removedTag = null;
         IPlcTag tag;
@@ -341,7 +348,8 @@ internal sealed class ABPlc : IDisposable
 
             var group = _tagList.TryGetValue(tagGroup, out var existingGroup)
                 ? existingGroup
-                : CreateTagList(tagGroup, scanInterval);
+                : CreateTagList(tagGroup, scanInterval, scanEnabled);
+            group.ScanEnabled = scanEnabled;
 
             tag = group.CreateTagType<T>(variable, tagName);
             _tagsByVariable[variable] = tag; // fast future lookup

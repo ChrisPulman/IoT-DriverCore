@@ -225,12 +225,14 @@ internal sealed partial class MitsubishiGeneratedClientTests
     /// <param name="version">The MitsubishiRx package version.</param>
     /// <returns>A task that completes after the file is written.</returns>
     private static Task WriteConsumerProjectFileAsync(string consumerProjectPath, string version)
-        => File.WriteAllTextAsync(
+    {
+        string targetFramework = GetCurrentTargetFramework();
+        return File.WriteAllTextAsync(
             consumerProjectPath,
             $$"""
             <Project Sdk="Microsoft.NET.Sdk">
               <PropertyGroup>
-                <TargetFramework>net10.0</TargetFramework>
+                <TargetFramework>{{targetFramework}}</TargetFramework>
                 <ImplicitUsings>enable</ImplicitUsings>
                 <Nullable>enable</Nullable>
               </PropertyGroup>
@@ -240,6 +242,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
             </Project>
             """,
             CancellationToken.None);
+    }
 
     /// <summary>Writes the generated-client consumer source file.</summary>
     /// <param name="programPath">The consumer source path.</param>
@@ -413,35 +416,21 @@ internal sealed partial class MitsubishiGeneratedClientTests
             string outputDirectory = CreateTemporaryDirectory();
             string targetFramework = GetCurrentTargetFramework();
 
-            await PackLocalDependencyAsync(
+            await PackProjectAsync(
                 Path.Combine(repoRoot, "src", "CP.IoT.Core", "CP.IoT.Core.csproj"),
                 outputDirectory,
                 repoRoot,
-                targetFramework).ConfigureAwait(false);
-            await PackLocalDependencyAsync(
+                "netstandard2.0").ConfigureAwait(false);
+            await PackProjectAsync(
                 Path.Combine(repoRoot, "src", "SerialPortRx", "SerialPortRx.csproj"),
                 outputDirectory,
                 repoRoot,
                 targetFramework).ConfigureAwait(false);
-
-            var pack = await RunDotNetAsync(
-                "pack",
+            await PackProjectAsync(
                 projectPath,
-                repoRoot,
-                "-c",
-                "Release",
-                "-f",
-                targetFramework,
-                "--no-build",
-                "--no-restore",
-                "-o",
                 outputDirectory,
-                "/p:GeneratePackageOnBuild=false",
-                "/p:UseSharedCompilation=false").ConfigureAwait(false);
-            if (pack.ExitCode != 0)
-            {
-                throw new InvalidOperationException(pack.Output);
-            }
+                repoRoot,
+                targetFramework).ConfigureAwait(false);
 
             _cachedPackedPackagePath = Directory
                 .GetFiles(outputDirectory, "MitsubishiRx.*.nupkg", SearchOption.TopDirectoryOnly)
@@ -456,32 +445,62 @@ internal sealed partial class MitsubishiGeneratedClientTests
         }
     }
 
-    /// <summary>Packs a local project dependency into the package-consumer test source.</summary>
-    /// <param name="projectPath">The dependency project path.</param>
-    /// <param name="outputDirectory">The local package source directory.</param>
+    /// <summary>Packs one project target into the package-consumer test source.</summary>
+    /// <param name="projectPath">The project path.</param>
+    /// <param name="outputDirectory">The local package source.</param>
     /// <param name="workingDirectory">The pack working directory.</param>
-    /// <param name="targetFramework">The test's active target framework.</param>
+    /// <param name="targetFramework">The target framework to include.</param>
     /// <returns>A task that completes when the dependency package has been created.</returns>
-    private static async Task PackLocalDependencyAsync(
+    private static async Task PackProjectAsync(
         string projectPath,
         string outputDirectory,
         string workingDirectory,
         string targetFramework)
     {
-        var pack = await RunDotNetAsync(
-            "pack",
+        string projectName = Path.GetFileNameWithoutExtension(projectPath);
+        string intermediateDirectory = Path.Combine(
+            outputDirectory,
+            "obj",
+            $"{projectName}-{targetFramework}");
+        _ = Directory.CreateDirectory(intermediateDirectory);
+        string projectExtensionsPath = intermediateDirectory + Path.DirectorySeparatorChar;
+        string[] targetProperties =
+        [
+            $"/p:TargetFramework={targetFramework}",
+            $"/p:TargetFrameworks={targetFramework}",
+            $"/p:LibraryTargetFrameworks={targetFramework}",
+            $"/p:MSBuildProjectExtensionsPath={projectExtensionsPath}",
+        ];
+        var restore = await RunDotNetAsync(
+            "restore",
             Path.GetFullPath(projectPath),
             workingDirectory,
+            ["--no-dependencies", .. targetProperties, "/p:UseSharedCompilation=false"])
+            .ConfigureAwait(false);
+        if (restore.ExitCode != 0)
+        {
+            throw new InvalidOperationException(restore.Output);
+        }
+
+        string[] packArguments =
+        [
             "-c",
             "Release",
-            "-f",
-            targetFramework,
             "--no-build",
             "--no-restore",
             "-o",
             outputDirectory,
+            .. targetProperties,
+            $"/p:OutputPath={AppContext.BaseDirectory}",
+            "/p:BuildProjectReferences=false",
             "/p:GeneratePackageOnBuild=false",
-            "/p:UseSharedCompilation=false").ConfigureAwait(false);
+            "/p:UseSharedCompilation=false",
+        ];
+        var pack = await RunDotNetAsync(
+            "pack",
+            Path.GetFullPath(projectPath),
+            workingDirectory,
+            packArguments).ConfigureAwait(false);
         if (pack.ExitCode == 0)
         {
             return;

@@ -50,6 +50,9 @@ public sealed class FakeOmronPlcRx : IOmronPlcRx
     /// <summary>Gets the writes captured by this fake PLC.</summary>
     public List<Write> Writes { get; } = [];
 
+    /// <summary>Gets tag names whose observable should fail during subscription.</summary>
+    public HashSet<string> TagsThrowingOnSubscribe { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     /// <inheritdoc />
     public void AddUpdateTagItem<T>(PlcTag<T> tag)
     {
@@ -67,7 +70,9 @@ public sealed class FakeOmronPlcRx : IOmronPlcRx
 
     /// <inheritdoc />
     public IObservable<T?> Observe<T>(LogicalTagKey<T> tag) =>
-        GetSubject(tag.Name).Select(value => value is null ? default : (T?)value);
+        TagsThrowingOnSubscribe.Contains(tag.Name)
+            ? new ThrowingObservable<T?>()
+            : GetSubject(tag.Name).Select(value => value is null ? default : (T?)value);
 
     /// <inheritdoc />
     public T? GetValue<T>(LogicalTagKey<T> tag) =>
@@ -153,6 +158,12 @@ public sealed class FakeOmronPlcRx : IOmronPlcRx
         _all.OnNext(null);
     }
 
+    /// <summary>Fails one tag stream with a deterministic exception.</summary>
+    /// <param name="tagName">The tag name.</param>
+    /// <param name="exception">The stream failure.</param>
+    public void Fail(string tagName, Exception exception) =>
+        GetSubject(tagName).OnError(exception);
+
     /// <summary>Gets or creates the subject for a tag.</summary>
     /// <param name="tagName">The tag name.</param>
     /// <returns>The tag value subject.</returns>
@@ -166,6 +177,15 @@ public sealed class FakeOmronPlcRx : IOmronPlcRx
         subject = new(default);
         _subjects.Add(tagName, subject);
         return subject;
+    }
+
+    /// <summary>Provides a source that fails deterministically during subscription.</summary>
+    /// <typeparam name="T">Observable value type.</typeparam>
+    private sealed class ThrowingObservable<T> : IObservable<T>
+    {
+        /// <inheritdoc />
+        public IDisposable Subscribe(IObserver<T> observer) =>
+            throw new InvalidOperationException("Deterministic subscription failure.");
     }
 
     /// <summary>Captures a registered PLC tag.</summary>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<coverage>
+  <packages>
+    <package name="S7PlcRx">
+      <classes>
+        <class name="S7PlcRx.Core.Guard" filename="D:\legacy-checkout\src\S7PlcRx\Core\Guard.cs">
+          <lines>
+            <line number="12" hits="1" />
+          </lines>
+        </class>
+      </classes>
+    </package>
+  </packages>
+</coverage>

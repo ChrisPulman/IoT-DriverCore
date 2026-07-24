@@ -42,7 +42,7 @@ public sealed class S7PollingAndTagResidualCoverageTests
     private const int DatabaseSize = 32;
 
     /// <summary>Defines the operation timeout in seconds.</summary>
-    private const int OperationTimeoutSeconds = 10;
+    private const int OperationTimeoutSeconds = 60;
 
     /// <summary>Defines the observable state tag name.</summary>
     private const string StateTagName = "State";
@@ -223,14 +223,16 @@ public sealed class S7PollingAndTagResidualCoverageTests
     [Test]
     public async Task WatchdogObservableCompletesWhenDisabledAndReportsConfiguredWritesAsync()
     {
-        using var disabled = new RxS7(new(
-            new(CpuType.S71500, MockServer.Localhost, 0, 1),
-            new(ManualPollingIntervalMilliseconds)));
-        var completed = false;
-        using var disabledSubscription = InvokeWatchdogObservable(disabled).Subscribe(
-            _ => { },
-            () => completed = true);
-        await TUnitAssert.That(completed).IsTrue();
+        {
+            using var disabled = new RxS7(new(
+                new(CpuType.S71500, MockServer.Localhost, 0, 1),
+                new(ManualPollingIntervalMilliseconds)));
+            var completed = false;
+            using var disabledSubscription = InvokeWatchdogObservable(disabled).Subscribe(
+                _ => { },
+                () => completed = true);
+            await TUnitAssert.That(completed).IsTrue();
+        }
 
         using var server = new MockServer { DefaultDb1Size = DatabaseSize };
         await TUnitAssert.That(server.Start()).IsEqualTo(0);

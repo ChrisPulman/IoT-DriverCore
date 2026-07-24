@@ -4,7 +4,7 @@
 
 namespace IoT.DriverCore.S7PlcRx.Tests.Testing;
 
-/// <summary>Provides the NUnit-compatible assertion surface backed by TUnit assertions.</summary>
+/// <summary>Provides the legacy assertion surface backed exclusively by TUnit assertions.</summary>
 public static class Assert
 {
     /// <summary>Applies a constraint to an actual value.</summary>

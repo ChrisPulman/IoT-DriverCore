@@ -154,31 +154,37 @@ public static class Struct
     /// <returns>The updated byte count.</returns>
     private static double GetIncreasedNumberOfBytes(double numBytes, FieldInfo info)
     {
-        switch (info.FieldType.Name)
+        if (info.FieldType == typeof(System.TimeSpan))
         {
-            case "Boolean":
+            IncrementToEven(ref numBytes);
+            return numBytes + sizeof(int);
+        }
+
+        switch (Type.GetTypeCode(info.FieldType))
+        {
+            case TypeCode.Boolean:
                 return numBytes + BitSizeInBytes;
-            case "Byte":
+            case TypeCode.Byte:
                 return Math.Ceiling(numBytes) + 1;
-            case "Int16" or "UInt16":
+            case TypeCode.Int16 or TypeCode.UInt16:
                 {
                     IncrementToEven(ref numBytes);
                     return numBytes + sizeof(short);
                 }
 
-            case "Int32" or "UInt32" or "Single" or "TimeSpan":
+            case TypeCode.Int32 or TypeCode.UInt32 or TypeCode.Single:
                 {
                     IncrementToEven(ref numBytes);
                     return numBytes + sizeof(int);
                 }
 
-            case "Double":
+            case TypeCode.Double:
                 {
                     IncrementToEven(ref numBytes);
                     return numBytes + sizeof(double);
                 }
 
-            case "String":
+            case TypeCode.String:
                 {
                     IncrementToEven(ref numBytes);
                     return numBytes + GetRequiredStringAttribute(info).ReservedLengthInBytes;
@@ -222,27 +228,27 @@ public static class Struct
         ref int bitPos,
         ref double numBytes)
     {
-        switch (info.FieldType.Name)
+        switch (Type.GetTypeCode(info.FieldType))
         {
-            case "Boolean":
+            case TypeCode.Boolean:
                 {
                     SetBooleanFieldFromBytes(info, structValue, bytes, ref bytePos, ref bitPos, ref numBytes);
                     return;
                 }
 
-            case "Byte":
+            case TypeCode.Byte:
                 {
                     SetByteFieldFromBytes(info, structValue, bytes, ref numBytes);
                     return;
                 }
 
-            case "Int16":
+            case TypeCode.Int16:
                 {
                     info.SetValue(structValue, ConversionExtensions.ConvertToShort(ReadWord(bytes, ref numBytes)));
                     return;
                 }
 
-            case "UInt16":
+            case TypeCode.UInt16:
                 {
                     info.SetValue(structValue, ReadWord(bytes, ref numBytes));
                     return;
@@ -267,41 +273,41 @@ public static class Struct
         byte[] bytes,
         ref double numBytes)
     {
-        switch (info.FieldType.Name)
+        if (info.FieldType == typeof(System.TimeSpan))
         {
-            case "Int32":
+            SetTimeSpanFieldFromBytes(info, structValue, bytes, ref numBytes);
+            return;
+        }
+
+        switch (Type.GetTypeCode(info.FieldType))
+        {
+            case TypeCode.Int32:
                 {
                     SetInt32FieldFromBytes(info, structValue, bytes, ref numBytes);
                     return;
                 }
 
-            case "UInt32":
+            case TypeCode.UInt32:
                 {
                     SetUInt32FieldFromBytes(info, structValue, bytes, ref numBytes);
                     return;
                 }
 
-            case "Single":
+            case TypeCode.Single:
                 {
                     SetSingleFieldFromBytes(info, structValue, bytes, ref numBytes);
                     return;
                 }
 
-            case "Double":
+            case TypeCode.Double:
                 {
                     SetDoubleFieldFromBytes(info, structValue, bytes, ref numBytes);
                     return;
                 }
 
-            case "String":
+            case TypeCode.String:
                 {
                     SetStringFieldFromBytes(info, structValue, bytes, ref numBytes);
-                    return;
-                }
-
-            case "TimeSpan":
-                {
-                    SetTimeSpanFieldFromBytes(info, structValue, bytes, ref numBytes);
                     return;
                 }
 
@@ -428,12 +434,11 @@ public static class Struct
         IncrementToEven(ref numBytes);
         var stringData = new byte[attribute.ReservedLengthInBytes];
         Array.Copy(bytes, (int)numBytes, stringData, 0, stringData.Length);
-        info.SetValue(structValue, attribute.Type switch
-        {
-            S7StringType.S7String => S7String.FromByteArray(stringData),
-            S7StringType.S7WString => S7WString.FromByteArray(stringData),
-            _ => throw new ArgumentException("Please use a valid string type for the S7StringAttribute")
-        });
+        info.SetValue(
+            structValue,
+            attribute.Type == S7StringType.S7String
+                ? S7String.FromByteArray(stringData)
+                : S7WString.FromByteArray(stringData));
         numBytes += stringData.Length;
     }
 
@@ -481,36 +486,39 @@ public static class Struct
         ref int bytePos,
         ref double numBytes)
     {
-        switch (info.FieldType.Name)
+        if (info.FieldType == typeof(System.TimeSpan))
         {
-            case "Boolean":
+            return TimeSpan.ToByteArray(GetValueOrThrow<System.TimeSpan>(info, structValue));
+        }
+
+        switch (Type.GetTypeCode(info.FieldType))
+        {
+            case TypeCode.Boolean:
                 {
                     SetBooleanFieldBytes(info, structValue, bytes, ref bytePos, ref numBytes);
                     return null;
                 }
 
-            case "Byte":
+            case TypeCode.Byte:
                 {
                     SetByteFieldBytes(info, structValue, bytes, ref bytePos, ref numBytes);
                     return null;
                 }
 
-            case "Int16":
+            case TypeCode.Int16:
                 return Int.ToByteArray(GetValueOrThrow<short>(info, structValue));
-            case "UInt16":
+            case TypeCode.UInt16:
                 return Word.ToByteArray(GetValueOrThrow<ushort>(info, structValue));
-            case "Int32":
+            case TypeCode.Int32:
                 return DInt.ToByteArray(GetValueOrThrow<int>(info, structValue));
-            case "UInt32":
+            case TypeCode.UInt32:
                 return DWord.ToByteArray(GetValueOrThrow<uint>(info, structValue));
-            case "Single":
+            case TypeCode.Single:
                 return Real.ToByteArray(GetValueOrThrow<float>(info, structValue));
-            case "Double":
+            case TypeCode.Double:
                 return LReal.ToByteArray(GetValueOrThrow<double>(info, structValue));
-            case "String":
+            case TypeCode.String:
                 return GetStringFieldBytes(info, structValue);
-            case "TimeSpan":
-                return TimeSpan.ToByteArray(GetValueOrThrow<System.TimeSpan>(info, structValue));
             default:
                 return null;
         }
@@ -568,16 +576,13 @@ public static class Struct
     private static byte[] GetStringFieldBytes(FieldInfo info, object structValue)
     {
         var attribute = GetRequiredStringAttribute(info);
-        return attribute.Type switch
-        {
-            S7StringType.S7String => S7String.ToByteArray(
+        return attribute.Type == S7StringType.S7String
+            ? S7String.ToByteArray(
                 (string?)info.GetValue(structValue),
-                attribute.ReservedLength),
-            S7StringType.S7WString => S7WString.ToByteArray(
+                attribute.ReservedLength)
+            : S7WString.ToByteArray(
                 (string?)info.GetValue(structValue),
-                attribute.ReservedLength),
-            _ => throw new ArgumentException("Please use a valid string type for the S7StringAttribute")
-        };
+                attribute.ReservedLength);
     }
 
     /// <summary>Writes byte-aligned field bytes into the destination buffer.</summary>

@@ -262,50 +262,50 @@ public static class Class
     /// specified type cannot be created.</exception>
     private static double GetIncreasedNumberOfBytes(double numBytes, Type type, PropertyInfo? propertyInfo)
     {
-        switch (type.Name)
+        switch (Type.GetTypeCode(type))
         {
-            case "Boolean":
+            case TypeCode.Boolean:
                 {
                     numBytes += BitSizeInBytes;
                     break;
                 }
 
-            case "Byte":
+            case TypeCode.Byte:
                 {
                     numBytes = Math.Ceiling(numBytes);
                     numBytes++;
                     break;
                 }
 
-            case "Int16" or "UInt16":
+            case TypeCode.Int16 or TypeCode.UInt16:
                 {
                     IncrementToEven(ref numBytes);
                     numBytes += sizeof(short);
                     break;
                 }
 
-            case "Int32" or "UInt32":
+            case TypeCode.Int32 or TypeCode.UInt32:
                 {
                     IncrementToEven(ref numBytes);
                     numBytes += sizeof(int);
                     break;
                 }
 
-            case "Single":
+            case TypeCode.Single:
                 {
                     IncrementToEven(ref numBytes);
                     numBytes += sizeof(float);
                     break;
                 }
 
-            case "Double":
+            case TypeCode.Double:
                 {
                     IncrementToEven(ref numBytes);
                     numBytes += sizeof(double);
                     break;
                 }
 
-            case "String":
+            case TypeCode.String:
                 {
                     var attribute = propertyInfo is null ? null : GetS7StringAttribute(propertyInfo);
                     if (attribute == default(S7StringAttribute))
@@ -355,33 +355,34 @@ public static class Class
         Type propertyType,
         PropertyInfo? propertyInfo,
         byte[] bytes,
-        ref double numBytes) => propertyType.Name switch
+        ref double numBytes) => Type.GetTypeCode(propertyType) switch
     {
-        "Boolean" or "Byte" or "Int16" or "UInt16" or "Int32" or "UInt32" or "Single" or "Double" =>
-            GetPrimitivePropertyValue(propertyType.Name, bytes, ref numBytes),
-        "String" => GetStringPropertyValue(propertyInfo, bytes, ref numBytes),
+        TypeCode.Boolean or TypeCode.Byte or TypeCode.Int16 or TypeCode.UInt16 or TypeCode.Int32 or TypeCode.UInt32 or
+            TypeCode.Single or TypeCode.Double =>
+            GetPrimitivePropertyValue(Type.GetTypeCode(propertyType), bytes, ref numBytes),
+        TypeCode.String => GetStringPropertyValue(propertyInfo, bytes, ref numBytes),
         _ => GetNestedPropertyValue(propertyType, bytes, ref numBytes),
     };
 
     /// <summary>Deserializes a supported primitive property value.</summary>
-    /// <param name="typeName">The name of the primitive type to deserialize.</param>
+    /// <param name="typeCode">The primitive type code to deserialize.</param>
     /// <param name="bytes">The source byte array.</param>
     /// <param name="numBytes">The current byte offset, updated after deserialization.</param>
     /// <returns>The deserialized primitive value.</returns>
     private static object GetPrimitivePropertyValue(
-        string typeName,
+        TypeCode typeCode,
         byte[] bytes,
-        ref double numBytes) => typeName switch
+        ref double numBytes) => typeCode switch
     {
-        "Boolean" => GetBooleanPropertyValue(bytes, ref numBytes),
-        "Byte" => GetBytePropertyValue(bytes, ref numBytes),
-        "Int16" => GetInt16PropertyValue(bytes, ref numBytes),
-        "UInt16" => GetUInt16PropertyValue(bytes, ref numBytes),
-        "Int32" => GetInt32PropertyValue(bytes, ref numBytes),
-        "UInt32" => GetUInt32PropertyValue(bytes, ref numBytes),
-        "Single" => GetSinglePropertyValue(bytes, ref numBytes),
-        "Double" => GetDoublePropertyValue(bytes, ref numBytes),
-        _ => throw new ArgumentOutOfRangeException(nameof(typeName)),
+        TypeCode.Boolean => GetBooleanPropertyValue(bytes, ref numBytes),
+        TypeCode.Byte => GetBytePropertyValue(bytes, ref numBytes),
+        TypeCode.Int16 => GetInt16PropertyValue(bytes, ref numBytes),
+        TypeCode.UInt16 => GetUInt16PropertyValue(bytes, ref numBytes),
+        TypeCode.Int32 => GetInt32PropertyValue(bytes, ref numBytes),
+        TypeCode.UInt32 => GetUInt32PropertyValue(bytes, ref numBytes),
+        TypeCode.Single => GetSinglePropertyValue(bytes, ref numBytes),
+        TypeCode.Double => GetDoublePropertyValue(bytes, ref numBytes),
+        _ => throw new ArgumentOutOfRangeException(nameof(typeCode)),
     };
 
     /// <summary>Deserializes a Boolean value from the current bit offset.</summary>
@@ -496,12 +497,9 @@ public static class Class
         IncrementToEven(ref numBytes);
         var stringData = GetBytes(bytes, numBytes, attribute.ReservedLengthInBytes);
         numBytes += stringData.Length;
-        return attribute.Type switch
-        {
-            S7StringType.S7String => S7String.FromByteArray(stringData),
-            S7StringType.S7WString => S7WString.FromByteArray(stringData),
-            _ => throw new ArgumentException("Please use a valid string type for the S7StringAttribute"),
-        };
+        return attribute.Type == S7StringType.S7String
+            ? S7String.FromByteArray(stringData)
+            : S7WString.FromByteArray(stringData);
     }
 
     /// <summary>Deserializes a nested property instance.</summary>
@@ -625,15 +623,15 @@ public static class Class
         byte[] destination,
         ref double numBytes)
     {
-        return propertyValue.GetType().Name switch
+        return Type.GetTypeCode(propertyValue.GetType()) switch
         {
-            "Int16" => Int.ToByteArray((short)propertyValue),
-            "UInt16" => Word.ToByteArray((ushort)propertyValue),
-            "Int32" => DInt.ToByteArray((int)propertyValue),
-            "UInt32" => DWord.ToByteArray((uint)propertyValue),
-            "Single" => Real.ToByteArray((float)propertyValue),
-            "Double" => LReal.ToByteArray((double)propertyValue),
-            "String" => GetStringPropertyBytes((string)propertyValue, propertyInfo),
+            TypeCode.Int16 => Int.ToByteArray((short)propertyValue),
+            TypeCode.UInt16 => Word.ToByteArray((ushort)propertyValue),
+            TypeCode.Int32 => DInt.ToByteArray((int)propertyValue),
+            TypeCode.UInt32 => DWord.ToByteArray((uint)propertyValue),
+            TypeCode.Single => Real.ToByteArray((float)propertyValue),
+            TypeCode.Double => LReal.ToByteArray((double)propertyValue),
+            TypeCode.String => GetStringPropertyBytes((string)propertyValue, propertyInfo),
             _ => SerializeNestedProperty(propertyValue, destination, ref numBytes),
         };
     }
@@ -650,12 +648,9 @@ public static class Class
             throw new ArgumentException(MissingS7StringAttributeMessage);
         }
 
-        return attribute.Type switch
-        {
-            S7StringType.S7String => S7String.ToByteArray(value, attribute.ReservedLength),
-            S7StringType.S7WString => S7WString.ToByteArray(value, attribute.ReservedLength),
-            _ => throw new ArgumentException("Please use a valid string type for the S7StringAttribute"),
-        };
+        return attribute.Type == S7StringType.S7String
+            ? S7String.ToByteArray(value, attribute.ReservedLength)
+            : S7WString.ToByteArray(value, attribute.ReservedLength);
     }
 
     /// <summary>Serializes a nested property directly into the destination array.</summary>

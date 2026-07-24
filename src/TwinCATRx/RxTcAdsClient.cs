@@ -345,7 +345,7 @@ public partial class RxTcAdsClient : IRxTcAdsClient
         _plcCleanup?.Dispose();
         _codeGenerator?.Dispose();
         _codeGenerator = null;
-        _cleanup?.Dispose();
+        _cleanup.Dispose();
         _code.Clear();
         ReadWriteHandleInfo.Clear();
         _typeInfo.Clear();

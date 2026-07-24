@@ -30,11 +30,7 @@ public static class SerialPortReactiveValueConverter
     {
         result = default;
 
-        var text = Convert.ToString(value, CultureInfo.InvariantCulture);
-        if (text is null)
-        {
-            return false;
-        }
+        var text = Convert.ToString(value, CultureInfo.InvariantCulture)!;
 
         if (!string.IsNullOrWhiteSpace(pattern))
         {

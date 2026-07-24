@@ -241,6 +241,9 @@ public partial class RxS7 : IRxS7
     /// <summary>Stores the lock used to serialize direct socket interactions.</summary>
     private readonly Lock _socketLock = new();
 
+    /// <summary>Serializes disposal with scheduled watchdog callbacks.</summary>
+    private readonly Lock _lifecycleLock = new();
+
     /// <summary>Stores the s to pw at c h used by this instance.</summary>
     private readonly Stopwatch _stopwatch = new();
 

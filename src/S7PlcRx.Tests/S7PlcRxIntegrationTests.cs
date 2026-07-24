@@ -24,6 +24,12 @@ public class S7PlcRxIntegrationTests
     /// <summary>Defines the fast PLC polling interval.</summary>
     private const int FastPollingIntervalMilliseconds = 10;
 
+    /// <summary>Defines the maximum time allowed for a simulated connection state transition.</summary>
+    private const int ConnectionStateTimeoutSeconds = 60;
+
+    /// <summary>Defines the interval used to observe simulated connection state transitions.</summary>
+    private const int ConnectionStatePollMilliseconds = 25;
+
     /// <summary>Defines the invalid maximum rack value.</summary>
     private const short InvalidRack = 8;
 
@@ -549,20 +555,20 @@ public class S7PlcRxIntegrationTests
             null,
             StandardPollingIntervalMilliseconds);
 
-        // Wait for initial connection
-        await plc.IsConnected.Where(x => x).FirstAsync();
+        // Wait for initial connection.
+        await WaitForConnectionStateAsync(plc, true);
 
         // Act - Simulate cable unplug by stopping server
         _ = server.Stop();
 
-        // Wait for disconnection
-        await plc.IsConnected.Where(x => !x).FirstAsync();
+        // Wait for disconnection.
+        await WaitForConnectionStateAsync(plc, false);
 
         // Restart server to simulate cable plug back
         _ = server.Start();
 
-        // Wait for reconnection
-        await plc.IsConnected.Where(x => x).FirstAsync();
+        // Wait for reconnection.
+        await WaitForConnectionStateAsync(plc, true);
 
         // Assert
         Assert.That(plc.IsConnectedValue, Is.True, "PLC should reconnect after cable is plugged back");
@@ -585,22 +591,35 @@ public class S7PlcRxIntegrationTests
             null,
             StandardPollingIntervalMilliseconds);
 
-        // Wait for initial connection
-        await plc.IsConnected.Where(x => x).FirstAsync();
+        // Wait for initial connection.
+        await WaitForConnectionStateAsync(plc, true);
 
         // Act - Simulate PLC stop by stopping server
         _ = server.Stop();
 
-        // Wait for disconnection
-        await plc.IsConnected.Where(x => !x).FirstAsync();
+        // Wait for disconnection.
+        await WaitForConnectionStateAsync(plc, false);
 
         // Simulate PLC run by starting server
         _ = server.Start();
 
-        // Wait for reconnection
-        await plc.IsConnected.Where(x => x).FirstAsync();
+        // Wait for reconnection.
+        await WaitForConnectionStateAsync(plc, true);
 
         // Assert
         Assert.That(plc.IsConnectedValue, Is.True, "PLC should reconnect after PLC is run again");
+    }
+
+    /// <summary>Waits for the PLC to report the expected connection state within a bounded interval.</summary>
+    /// <param name="plc">The PLC whose state is observed.</param>
+    /// <param name="expectedState">The expected connection state.</param>
+    /// <returns>A task that represents the bounded wait.</returns>
+    private static async Task WaitForConnectionStateAsync(IRxS7 plc, bool expectedState)
+    {
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(ConnectionStateTimeoutSeconds));
+        while (plc.IsConnectedValue != expectedState)
+        {
+            await Task.Delay(ConnectionStatePollMilliseconds, cancellation.Token).ConfigureAwait(false);
+        }
     }
 }

@@ -31,8 +31,13 @@ public class WriteMultipleRegistersRequest : AbstractModbusMessageWithData<Regis
     public WriteMultipleRegistersRequest(byte slaveAddress, ushort startAddress, RegisterCollection data)
         : base(slaveAddress, Modbus.WriteMultipleRegisters)
     {
+        if (data is null)
+        {
+            throw new ArgumentNullException(nameof(data));
+        }
+
         StartAddress = startAddress;
-        NumberOfPoints = (ushort)data?.Count!;
+        NumberOfPoints = (ushort)data.Count;
         ByteCount = (byte)(data.Count * Two);
         Data = data;
     }

@@ -2,11 +2,20 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.ComponentModel;
+using System.Globalization;
+
 namespace IoT.DriverCore.Serial.Tests;
 
 /// <summary>Tests for generated stream value conversion.</summary>
 public sealed class SerialPortReactiveValueConverterTests
 {
+    /// <summary>The reusable ready text sample.</summary>
+    private const string ReadyText = "ready";
+
+    /// <summary>The reusable numeric analogue-to-digital converter pattern.</summary>
+    private const string AdcPattern = "^ADC=(\\d+)$";
+
     /// <summary>Verifies null values fail conversion.</summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Test]
@@ -30,7 +39,7 @@ public sealed class SerialPortReactiveValueConverterTests
     public async Task TryConvertMatch_ForString_ReturnsInputTextAsync()
     {
         var converted = SerialPortReactiveValueConverter.TryConvertMatch<string>(
-            "ready",
+            ReadyText,
             null,
             null,
             -1,
@@ -38,7 +47,7 @@ public sealed class SerialPortReactiveValueConverterTests
             out var result);
 
         await Assert.That(converted).IsTrue();
-        await Assert.That(result).IsEqualTo("ready");
+        await Assert.That(result).IsEqualTo(ReadyText);
     }
 
     /// <summary>Verifies regular expression named groups are converted.</summary>
@@ -65,7 +74,7 @@ public sealed class SerialPortReactiveValueConverterTests
     {
         var converted = SerialPortReactiveValueConverter.TryConvertMatch<int>(
             "ADC=1024",
-            "^ADC=(\\d+)$",
+            AdcPattern,
             null,
             1,
             ignoreCase: false,
@@ -99,7 +108,7 @@ public sealed class SerialPortReactiveValueConverterTests
     {
         var converted = SerialPortReactiveValueConverter.TryConvertMatch<int>(
             "ADC=x",
-            "^ADC=(\\d+)$",
+            AdcPattern,
             null,
             1,
             ignoreCase: false,
@@ -210,5 +219,76 @@ public sealed class SerialPortReactiveValueConverterTests
         await Assert.That(dateTimeResult).IsEqualTo(dateTime);
         await Assert.That(dateTimeOffsetConverted).IsTrue();
         await Assert.That(dateTimeOffsetResult).IsEqualTo(dateTimeOffset);
+    }
+
+    /// <summary>Verifies unmatched named and numeric groups fall back safely and numeric true is accepted.</summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Test]
+    public async Task TryConvertMatch_GroupFallbacksAndNumericTrue_AreHandledAsync()
+    {
+        var missingNamedGroup = SerialPortReactiveValueConverter.TryConvertMatch<int>(
+            "ADC=7",
+            AdcPattern,
+            "missing",
+            1,
+            false,
+            out var namedResult);
+        var invalidNumberedGroup = SerialPortReactiveValueConverter.TryConvertMatch<string>(
+            ReadyText,
+            "^(ready)$",
+            null,
+            Answer,
+            false,
+            out var numberedResult);
+        var numericTrue = SerialPortReactiveValueConverter.TryConvertMatch<bool>(
+            "1",
+            null,
+            null,
+            -1,
+            false,
+            out var booleanResult);
+
+        await Assert.That(missingNamedGroup).IsTrue();
+        await Assert.That(namedResult).IsEqualTo(Seven);
+        await Assert.That(invalidNumberedGroup).IsTrue();
+        await Assert.That(numberedResult).IsEqualTo(ReadyText);
+        await Assert.That(numericTrue).IsTrue();
+        await Assert.That(booleanResult).IsTrue();
+    }
+
+    /// <summary>Verifies a type converter that returns no value is treated as an unsuccessful conversion.</summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Test]
+    public async Task TryConvertMatch_WhenTypeConverterReturnsNull_ReturnsFalseAsync()
+    {
+        var converted = SerialPortReactiveValueConverter.TryConvertMatch<NullConvertedValue>(
+            "none",
+            null,
+            null,
+            -1,
+            false,
+            out var result);
+
+        await Assert.That(converted).IsFalse();
+        await Assert.That(result).IsNull();
+    }
+
+    /// <summary>Represents a type whose deterministic converter declines every string value.</summary>
+    [TypeConverter(typeof(NullValueConverter))]
+    public sealed class NullConvertedValue
+    {
+        /// <summary>Gets the deterministic empty payload.</summary>
+        public string Payload { get; } = string.Empty;
+    }
+
+    /// <summary>Converts supported strings into no value to exercise the converter-null guard.</summary>
+    public sealed class NullValueConverter : TypeConverter
+    {
+        /// <inheritdoc/>
+        public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType) =>
+            sourceType == typeof(string) || base.CanConvertFrom(context, sourceType);
+
+        /// <inheritdoc/>
+        public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value) => null;
     }
 }

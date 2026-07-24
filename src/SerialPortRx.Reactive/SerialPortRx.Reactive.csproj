@@ -4,6 +4,8 @@
     <RootNamespace>IoT.DriverCore.Serial</RootNamespace>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <DefineConstants>$(DefineConstants);REACTIVE_SHIM</DefineConstants>
+    <SerialGeneratorAssemblyPath>..\SerialPortRx.Generators\bin\$(Configuration)\netstandard2.0\SerialPortRx.Generators.dll</SerialGeneratorAssemblyPath>
+    <SerialGeneratorAssemblyPath Condition="'$(UseArtifactsOutput)' == 'true'">$(ArtifactsPath)\bin\SerialPortRx.Generators\$([System.String]::Copy('$(Configuration)').ToLowerInvariant())\SerialPortRx.Generators.dll</SerialGeneratorAssemblyPath>
   </PropertyGroup>
 
   <PropertyGroup Condition="$(TargetFramework.EndsWith('-windows10.0.19041.0')) or $(TargetFramework.StartsWith('net4'))">
@@ -12,7 +14,7 @@
 
   <ItemGroup>
     <Compile Include="..\SerialPortRx\**\*.cs"
-             Exclude="..\SerialPortRx\bin\**;..\SerialPortRx\obj\**"
+             Exclude="..\SerialPortRx\bin\**;..\SerialPortRx\obj\**;..\SerialPortRx\.artifacts\**"
              Link="%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
@@ -60,7 +62,7 @@
     <ProjectReference Include="..\SerialPortRx.Generators\SerialPortRx.Generators.csproj"
                       ReferenceOutputAssembly="false"
                       PrivateAssets="all" />
-    <None Include="..\SerialPortRx.Generators\bin\$(Configuration)\netstandard2.0\SerialPortRx.Generators.dll"
+    <None Include="$(SerialGeneratorAssemblyPath)"
           Pack="true"
           PackagePath="analyzers/dotnet/cs/"
           Visible="false" />

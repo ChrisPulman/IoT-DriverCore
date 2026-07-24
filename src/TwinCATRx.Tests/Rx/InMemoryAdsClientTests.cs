@@ -56,6 +56,12 @@ public sealed class InMemoryAdsClientTests
     /// <summary>An unknown ADS variable.</summary>
     private const string MissingVariable = ".Missing";
 
+    /// <summary>A symbol added after the simulator connects.</summary>
+    private const string LateVariable = ".Late";
+
+    /// <summary>A write-only symbol added after the simulator connects.</summary>
+    private const string LateWriteVariable = ".LateWrite";
+
     /// <summary>The nullable ADS variable.</summary>
     private const string NullableVariable = ".Nullable";
 
@@ -467,6 +473,8 @@ public sealed class InMemoryAdsClientTests
     [Test]
     public async Task Logical_Helpers_And_Structure_Table_Exercise_All_Deterministic_BranchesAsync()
     {
+        const string RequiredValue = "value";
+
         await TUnitAssert.That(TwinCatLogicalTagHelpers.CanRead(LogicalTagAccessMode.Read)).IsTrue();
         await TUnitAssert.That(TwinCatLogicalTagHelpers.CanRead(LogicalTagAccessMode.Write)).IsFalse();
         await TUnitAssert.That(TwinCatLogicalTagHelpers.CanWrite(LogicalTagAccessMode.Write)).IsTrue();
@@ -474,8 +482,8 @@ public sealed class InMemoryAdsClientTests
         await TUnitAssert.That(TwinCatLogicalTagHelpers.GetMemberAddress(".State", ".State.Count"))
             .IsEqualTo(CountTag);
         await TUnitAssert.That(TwinCatLogicalTagHelpers.GetMemberAddress(".State", ".Status.Count")).IsNull();
-        await TUnitAssert.That(TwinCatLogicalTagHelpers.Required(" value ", "value")).IsEqualTo("value");
-        await TUnitAssert.That(() => TwinCatLogicalTagHelpers.Required(" ", "value")).Throws<ArgumentException>();
+        await TUnitAssert.That(TwinCatLogicalTagHelpers.Required($" {RequiredValue} ", RequiredValue)).IsEqualTo(RequiredValue);
+        await TUnitAssert.That(() => TwinCatLogicalTagHelpers.Required(" ", RequiredValue)).Throws<ArgumentException>();
 
         var tagged = new LogicalTag(
             CountTag,
@@ -510,6 +518,226 @@ public sealed class InMemoryAdsClientTests
         }
 
         await TUnitAssert.That(first.IsDisposed).IsTrue();
+    }
+
+    /// <summary>Verifies simulator lifecycle, configured-handle, conversion, and result-format branches without time-based assertions.</summary>
+    /// <returns>The test task.</returns>
+    [Test]
+#if NET9_0_OR_GREATER
+    [RequiresDynamicCode("The IRxTcAdsClient contract carries dynamic-code compatibility annotations.")]
+    [RequiresUnreferencedCode("The IRxTcAdsClient contract carries reflection compatibility annotations.")]
+#endif
+    public async Task Simulator_Lifecycle_And_Configured_Handle_Branches_Are_DeterministicAsync()
+    {
+        using var client = new InMemoryAdsClient();
+        await TUnitAssert.That(() => client.Reconnect()).Throws<InvalidOperationException>();
+        _ = client.RegisterSymbol(".Null", null)
+            .RegisterSymbol(SpeedVariable, InitialValue)
+            .RegisterSymbol(".Other", InitialValue)
+            .RegisterSymbol(EnumVariable, TestMode.Idle, typeof(TestMode));
+        var settings = new LeanSettings { AdsAddress = SimulatorAddress, Port = TwinCat3Port };
+        LeanCoreExtensions.AddNotification(settings, SpeedVariable);
+        LeanCoreExtensions.AddWriteVariable(settings, SpeedVariable);
+        LeanCoreExtensions.AddWriteVariable(settings, ".Other");
+        client.Connect(settings);
+
+        client.Write(SpeedVariable, UpdatedValue);
+        _ = client.QueueFault(InMemoryAdsOperation.Write, new IOException("expected"));
+        client.Write(SpeedVariable, InitialValue);
+        client.Write(EnumVariable, (int)TestMode.Running);
+        client.Pause(TimeSpan.FromMinutes(1));
+        client.Pause(TimeSpan.FromMinutes(1));
+        client.Disconnect();
+
+        LeanCoreExtensions.AddNotification(settings, LateVariable);
+        LeanCoreExtensions.AddWriteVariable(settings, LateVariable);
+        LeanCoreExtensions.AddWriteVariable(settings, LateWriteVariable);
+        _ = client.RegisterSymbol(LateVariable, InitialValue)
+            .RegisterSymbol(LateWriteVariable, InitialValue);
+        client.Reconnect();
+
+        await TUnitAssert.That(client.ReadWriteHandleInfo.ContainsKey(LateVariable)).IsTrue();
+        await TUnitAssert.That(client.WriteHandleInfo.ContainsKey(LateVariable)).IsTrue();
+        await TUnitAssert.That(client.WriteHandleInfo.ContainsKey(LateWriteVariable)).IsTrue();
+        await TUnitAssert.That(client.TryGetValue<TestMode>(EnumVariable, out var mode)).IsTrue();
+        await TUnitAssert.That(mode).IsEqualTo(TestMode.Running);
+        await TUnitAssert.That(client.IsPaused).IsFalse();
+    }
+
+    /// <summary>Verifies invalid configured symbols, notification traversal, live handle synchronization, and timer disposal.</summary>
+    /// <returns>The test task.</returns>
+    [Test]
+#if NET9_0_OR_GREATER
+    [RequiresDynamicCode("The IRxTcAdsClient contract carries dynamic-code compatibility annotations.")]
+    [RequiresUnreferencedCode("The IRxTcAdsClient contract carries reflection compatibility annotations.")]
+#endif
+    public async Task Simulator_Configuration_Validation_Live_Handle_Synchronization_And_Timer_Disposal_Are_DeterministicAsync()
+    {
+        const string missingNotification = ".Missing.Notification";
+        const string missingWrite = ".Missing.Write";
+
+        using (var invalidNotificationClient = new InMemoryAdsClient())
+        {
+            var errors = new List<Exception>();
+            using var errorsSubscription = LeanBridge.SubscribeTo(invalidNotificationClient.ErrorReceived, errors.Add);
+            var settings = new LeanSettings { AdsAddress = SimulatorAddress, Port = TwinCat3Port };
+            LeanCoreExtensions.AddNotification(settings, missingNotification);
+            invalidNotificationClient.Connect(settings);
+
+            await TUnitAssert.That(invalidNotificationClient.ConnectionState).IsEqualTo(InMemoryAdsConnectionState.Faulted);
+            await TUnitAssert.That(errors.Single().Message).Contains(missingNotification);
+        }
+
+        using (var invalidWriteClient = new InMemoryAdsClient())
+        {
+            var settings = new LeanSettings { AdsAddress = SimulatorAddress, Port = TwinCat3Port };
+            LeanCoreExtensions.AddWriteVariable(settings, missingWrite);
+            invalidWriteClient.Connect(settings);
+
+            await TUnitAssert.That(invalidWriteClient.ConnectionState).IsEqualTo(InMemoryAdsConnectionState.Faulted);
+        }
+
+        var client = new InMemoryAdsClient();
+        var liveSettings = new LeanSettings { AdsAddress = SimulatorAddress, Port = TwinCat3Port };
+        LeanCoreExtensions.AddNotification(liveSettings, SpeedVariable);
+        _ = client.RegisterSymbol(SpeedVariable, InitialValue);
+        client.Connect(liveSettings);
+        LeanCoreExtensions.AddNotification(liveSettings, LateVariable);
+        LeanCoreExtensions.AddWriteVariable(liveSettings, LateVariable);
+        _ = client.RegisterSymbol(LateVariable, UpdatedValue);
+        client.PublishNotifications();
+        client.Pause(TimeSpan.FromMinutes(1));
+        client.Dispose();
+
+        await TUnitAssert.That(client.ReadWriteHandleInfo).IsEmpty();
+        await TUnitAssert.That(client.WriteHandleInfo).IsEmpty();
+        await TUnitAssert.That(client.IsPaused).IsFalse();
+        await TUnitAssert.That(client.ConnectionState).IsEqualTo(InMemoryAdsConnectionState.Disposed);
+
+        using var descriptionClient = new InMemoryAdsClient();
+        var descriptions = new List<string[]>();
+        using var descriptionsSubscription = LeanBridge.SubscribeTo(descriptionClient.Code, descriptions.Add);
+        _ = descriptionClient.RegisterSymbol(
+            ".TypeParameter",
+            null,
+            typeof(List<>).GetGenericArguments()[0]);
+        descriptionClient.Connect(new LeanSettings { AdsAddress = SimulatorAddress, Port = TwinCat3Port });
+
+        await TUnitAssert.That(descriptions.Single()).Contains(".TypeParameter:T:-1");
+    }
+
+    /// <summary>Verifies logical client guards and mixed direct/structured bulk writes through the deterministic simulator.</summary>
+    /// <returns>The test task.</returns>
+    [Test]
+#if NET9_0_OR_GREATER
+    [RequiresDynamicCode("HashTableRx materializes logical structure payloads.")]
+    [RequiresUnreferencedCode("HashTableRx materializes logical structure payloads.")]
+#endif
+    public async Task Logical_Client_Guards_And_Mixed_Bulk_Writes_Are_DeterministicAsync()
+    {
+        const string directVariable = ".Direct";
+        const string directTag = "Direct";
+
+        await TUnitAssert.That(() => new TwinCatLogicalTagClient(null!)).Throws<ArgumentNullException>();
+        using var native = new InMemoryAdsClient();
+        using var catalog = new LogicalTagCatalog();
+        await TUnitAssert.That(() => new TwinCatLogicalTagClient(native, (ILogicalTagCatalog)null!))
+            .Throws<ArgumentNullException>();
+
+        var settings = new LeanSettings { AdsAddress = SimulatorAddress, Port = TwinCat3Port };
+        LeanCoreExtensions.AddNotification(settings, StateVariable);
+        LeanCoreExtensions.AddWriteVariable(settings, StateVariable);
+        LeanCoreExtensions.AddWriteVariable(settings, directVariable);
+        _ = native.RegisterStructure(StateVariable, new TestStructure { Count = InitialValue, Enabled = true })
+            .RegisterSymbol(directVariable, InitialValue);
+        native.Connect(settings);
+        using var client = new TwinCatLogicalTagClient(native, catalog);
+        await TUnitAssert.That(() => client.RegisterTag(null!)).Throws<ArgumentNullException>();
+        client.RegisterTag(new LogicalTag(directTag, directVariable, "DINT"));
+        client.RegisterTag(CreateStructureTag(CountTag, CountTag));
+        client.RegisterTag(CreateStructureTag(EnabledTag, EnabledTag));
+
+        await TUnitAssert.That(async () => await client.WriteManyAsync(
+            [CreateValue(directTag, UpdatedValue), null!]))
+            .Throws<ArgumentException>();
+        var writes = await client.WriteManyAsync(
+            [CreateValue(directTag, UpdatedValue), CreateValue(CountTag, ConversionValue), CreateValue(EnabledTag, false)]);
+
+        await TUnitAssert.That(writes.All(static result => result.Succeeded)).IsTrue();
+        await TUnitAssert.That(native.TryGetValue<int>(directVariable, out var direct)).IsTrue();
+        await TUnitAssert.That(direct).IsEqualTo(UpdatedValue);
+        await TUnitAssert.That(native.TryGetValue<TestStructure>(StateVariable, out var state)).IsTrue();
+        await TUnitAssert.That(state!.Count).IsEqualTo(ConversionValue);
+        await TUnitAssert.That(state.Enabled).IsFalse();
+    }
+
+    /// <summary>Verifies grouped logical writes return one deterministic failure for every member when the root cannot materialize.</summary>
+    /// <returns>The test task.</returns>
+    [Test]
+#if NET9_0_OR_GREATER
+    [RequiresDynamicCode("HashTableRx materializes logical structure payloads.")]
+    [RequiresUnreferencedCode("HashTableRx materializes logical structure payloads.")]
+#endif
+    public async Task Logical_Grouped_Write_With_Null_Root_Fails_Every_Member_DeterministicallyAsync()
+    {
+        using var native = new InMemoryAdsClient();
+        _ = native.RegisterSymbol(StateVariable, null, typeof(TestStructure));
+        native.Connect(new LeanSettings { AdsAddress = SimulatorAddress, Port = TwinCat3Port });
+        using var client = new TwinCatLogicalTagClient(native);
+        client.RegisterTag(CreateStructureTag(CountTag, CountTag));
+        client.RegisterTag(CreateStructureTag(EnabledTag, EnabledTag));
+
+        var results = await client.WriteManyAsync(
+            [CreateValue(CountTag, UpdatedValue), CreateValue(EnabledTag, false)]);
+
+        await TUnitAssert.That(results).Count().IsEqualTo(ExpectedBulkCount);
+        await TUnitAssert.That(results.All(static result => !result.Succeeded)).IsTrue();
+        await TUnitAssert.That(results.All(static result => result.Error.Contains("could not be materialized"))).IsTrue();
+    }
+
+    /// <summary>Verifies notification-root discovery and grouped member writes without explicit root metadata.</summary>
+    /// <returns>The test task.</returns>
+    [Test]
+#if NET9_0_OR_GREATER
+    [RequiresDynamicCode("HashTableRx materializes logical structure payloads.")]
+    [RequiresUnreferencedCode("HashTableRx materializes logical structure payloads.")]
+#endif
+    public async Task Logical_Route_Discovery_Uses_The_Longest_Notification_Root_And_Grouped_WritesAsync()
+    {
+        const string discoveredRoot = ".Machine.Detail";
+        const string discoveredCount = ".Machine.Detail.Count";
+        const string discoveredEnabled = ".Machine.Detail.Enabled";
+        const string discoveredCountTag = "DiscoveredCount";
+        const string discoveredEnabledTag = "DiscoveredEnabled";
+
+        using var native = new InMemoryAdsClient();
+        var settings = new LeanSettings { AdsAddress = SimulatorAddress, Port = TwinCat3Port };
+        LeanCoreExtensions.AddNotification(settings, ".Machine");
+        LeanCoreExtensions.AddNotification(settings, discoveredRoot);
+        LeanCoreExtensions.AddWriteVariable(settings, discoveredRoot);
+        _ = native.RegisterSymbol(".Machine", new object())
+            .RegisterStructure(discoveredRoot, new TestStructure { Count = InitialValue, Enabled = true });
+        native.Connect(settings);
+        using var client = new TwinCatLogicalTagClient(native);
+        client.RegisterTag(new LogicalTag(discoveredCountTag, discoveredCount, "DINT"));
+        client.RegisterTag(new LogicalTag(discoveredEnabledTag, discoveredEnabled, "BOOL"));
+
+        var reads = await client.ReadManyAsync([discoveredCountTag, discoveredEnabledTag]);
+
+        await TUnitAssert.That(reads.All(static result => result.Succeeded)).IsTrue();
+        await TUnitAssert.That(reads[0].Value!.Value).IsEqualTo(InitialValue);
+        await TUnitAssert.That((bool)reads[1].Value!.Value!).IsTrue();
+        await TUnitAssert.That(native.TryGetValue<TestStructure>(discoveredRoot, out _)).IsTrue();
+
+        var writes = await client.WriteManyAsync(
+            [CreateValue(discoveredCountTag, UpdatedValue), CreateValue(discoveredEnabledTag, false)]);
+
+        await TUnitAssert.That(writes[0].Error).IsEmpty();
+        await TUnitAssert.That(writes[1].Error).IsEmpty();
+        await TUnitAssert.That(writes.All(static result => result.Succeeded)).IsTrue();
+        await TUnitAssert.That(native.TryGetValue<TestStructure>(discoveredRoot, out var state)).IsTrue();
+        await TUnitAssert.That(state!.Count).IsEqualTo(UpdatedValue);
+        await TUnitAssert.That(state.Enabled).IsFalse();
     }
 
     /// <summary>Verifies the same simulator source behaves correctly in the System.Reactive package.</summary>

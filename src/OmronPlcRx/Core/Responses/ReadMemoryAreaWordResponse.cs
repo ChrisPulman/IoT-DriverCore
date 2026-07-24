@@ -23,21 +23,21 @@ internal static class ReadMemoryAreaWordResponse
     /// <returns>The result produced by the operation.</returns>
     internal static short[] ExtractValues(ReadMemoryAreaWordRequest request, FINSResponse response)
     {
-        if (response.Data?.Length < request.Length * ProtocolConstants.Two)
+        var data = response.Data;
+        if (data is null || data.Length < request.Length * ProtocolConstants.Two)
         {
-            var actual = response.Data.Length;
+            var actual = data?.Length ?? 0;
             var expected = request.Length * ProtocolConstants.Two;
             throw new FINSException(
                 $"The Response Data Length of '{actual}' was too short - Expecting a Length of '{expected}'");
         }
 
         var values = new short[request.Length];
-        var data = response.Data;
 
         for (int i = 0, w = 0; i < request.Length * ProtocolConstants.Two; i += ProtocolConstants.Two, w++)
         {
             // Data is big-endian per protocol, convert to host order (little-endian)
-            values[w] = (short)((data![i] << 8) | data[i + 1]);
+            values[w] = (short)((data[i] << 8) | data[i + 1]);
         }
 
         return values;

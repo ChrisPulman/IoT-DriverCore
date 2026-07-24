@@ -210,6 +210,21 @@ public sealed class ManagedS7ServerTests
             TestDbNumber,
             TestMemorySize,
             1)).Throws<ArgumentOutOfRangeException>();
+        await TUnitAssert.That(() => memory.Read(
+            S7MemoryArea.DataBlock,
+            TestDbNumber,
+            -1,
+            1)).Throws<ArgumentOutOfRangeException>();
+        await TUnitAssert.That(() => memory.Read(
+            S7MemoryArea.DataBlock,
+            TestDbNumber,
+            0,
+            -1)).Throws<ArgumentOutOfRangeException>();
+        await TUnitAssert.That(() => memory.Write(
+            S7MemoryArea.DataBlock,
+            TestDbNumber,
+            0,
+            null!)).Throws<ArgumentNullException>();
         await TUnitAssert.That(() => memory.GetBuffer(S7MemoryArea.Output, 0)).Throws<KeyNotFoundException>();
     }
 

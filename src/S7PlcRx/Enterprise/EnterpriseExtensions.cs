@@ -36,6 +36,21 @@ public static class EnterpriseExtensions
     /// <summary>Gets the cache of connection pools.</summary>
     private static ConcurrentDictionary<string, ConnectionPool> ConnectionPools { get; } = new();
 
+    /// <summary>Gets the runtime type mapping for scalar S7 symbol types.</summary>
+    private static Dictionary<string, Type> SymbolTypes { get; } =
+        new(StringComparer.Ordinal)
+        {
+            ["BOOL"] = typeof(bool),
+            ["BYTE"] = typeof(byte),
+            ["WORD"] = typeof(ushort),
+            ["DWORD"] = typeof(uint),
+            ["INT"] = typeof(short),
+            ["DINT"] = typeof(int),
+            ["REAL"] = typeof(float),
+            ["LREAL"] = typeof(double),
+            ["STRING"] = typeof(string),
+        };
+
     /// <summary>Loads and caches a CSV symbol table for symbolic addressing support.</summary>
     /// <param name="plc">The PLC instance.</param>
     /// <param name="symbolTableData">CSV symbol table data.</param>
@@ -186,20 +201,15 @@ public static class EnterpriseExtensions
     /// <summary>Maps a PLC symbol data type to its runtime tag type.</summary>
     /// <param name="dataType">The symbol data type.</param>
     /// <returns>The runtime tag type.</returns>
-    private static Type GetTagType(string dataType) => dataType switch
+    private static Type GetTagType(string dataType)
     {
-        "BOOL" => typeof(bool),
-        "BYTE" => typeof(byte),
-        "WORD" => typeof(ushort),
-        "DWORD" => typeof(uint),
-        "INT" => typeof(short),
-        "DINT" => typeof(int),
-        "REAL" => typeof(float),
-        "LREAL" => typeof(double),
-        "STRING" => typeof(string),
-        _ when dataType.Contains("ARRAY", StringComparison.Ordinal) => typeof(byte[]),
-        _ => typeof(object),
-    };
+        if (SymbolTypes.TryGetValue(dataType, out var type))
+        {
+            return type;
+        }
+
+        return dataType.Contains("ARRAY", StringComparison.Ordinal) ? typeof(byte[]) : typeof(object);
+    }
 
     /// <summary>Parses CSV symbol table data.</summary>
     /// <param name="csvData">The CSV data.</param>

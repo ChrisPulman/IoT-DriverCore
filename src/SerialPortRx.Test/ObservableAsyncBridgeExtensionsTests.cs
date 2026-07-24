@@ -123,6 +123,33 @@ public sealed class ObservableAsyncBridgeExtensionsTests
         await Assert.That(receivedErrors[0]).IsEqualTo(expected);
     }
 
+    /// <summary>Verifies asynchronous observer work, failed completion, and cancellation are forwarded correctly.</summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Test]
+    public async Task ObservableAsyncBridge_HandlesDeferredFailureAndCancellationAsync()
+    {
+        var deferredObserver = new YieldingAsyncObserver<int>();
+        var deferredSource = ObservableAsyncBridgeExtensions.ToAsyncObservable(Observable.Return(Seven));
+        await using var deferredSubscription = await deferredSource.SubscribeAsync(deferredObserver, CancellationToken.None);
+        var errors = new List<Exception>();
+        var values = new List<int>();
+        var expected = new IOException("completion failed");
+        using var canceled = new CancellationTokenSource();
+        await canceled.CancelAsync();
+        var source = new ManualAsyncObservable<int>(async (observer, token) =>
+        {
+            await observer.OnNextAsync(Seven, canceled.Token);
+            await observer.OnCompletedAsync(Result.Failure(expected));
+        });
+
+        using var subscription = ObservableAsyncBridgeExtensions.ToObservable(source).Subscribe(values.Add, errors.Add);
+
+        await Assert.That(deferredObserver.Values).IsEquivalentTo([Seven]);
+        await Assert.That(values).IsEmpty();
+        await Assert.That(errors.Count).IsEqualTo(1);
+        await Assert.That(errors[0]).IsEqualTo(expected);
+    }
+
     /// <summary>Records async observer notifications for assertions.</summary>
     /// <typeparam name="T">The observed value type.</typeparam>
     private sealed class RecordingAsyncObserver<T> : IObserverAsync<T>
@@ -172,6 +199,30 @@ public sealed class ObservableAsyncBridgeExtensionsTests
             LastOnNextCancellationRequested = cancellationToken.IsCancellationRequested;
             Values.Add(value);
             return default;
+        }
+    }
+
+    /// <summary>Records values after an asynchronous continuation.</summary>
+    /// <typeparam name="T">The observed value type.</typeparam>
+    private sealed class YieldingAsyncObserver<T> : IObserverAsync<T>
+    {
+        /// <summary>Gets the values received after yielding.</summary>
+        public List<T> Values { get; } = [];
+
+        /// <inheritdoc/>
+        public ValueTask DisposeAsync() => default;
+
+        /// <inheritdoc/>
+        public ValueTask OnCompletedAsync(Result result) => default;
+
+        /// <inheritdoc/>
+        public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken) => default;
+
+        /// <inheritdoc/>
+        public async ValueTask OnNextAsync(T value, CancellationToken cancellationToken)
+        {
+            await Task.Yield();
+            Values.Add(value);
         }
     }
 

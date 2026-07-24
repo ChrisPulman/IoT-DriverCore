@@ -27,6 +27,9 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
     /// <summary>The address of the second floating-point value in data block one.</summary>
     private const string Db1Dbd4 = "DB1.DBD4";
 
+    /// <summary>The maximum time allowed for the simulated PLC connection used by batch assertions.</summary>
+    private const int BatchConnectionTimeoutSeconds = 30;
+
     /// <summary>The PLC connection used by each test.</summary>
     private readonly RxS7 _plc;
 
@@ -207,6 +210,11 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         {
             _ = TagOperations.AddUpdateTagItem(_plc, typeof(float), mapping.Key, mapping.Value);
         }
+
+        _ = await _plc.IsConnected
+            .Where(static connected => connected)
+            .Timeout(TimeSpan.FromSeconds(BatchConnectionTimeoutSeconds))
+            .FirstAsync();
 
         // Act
         var result = await AdvancedExtensions.ReadBatchOptimizedAsync(_plc, 0F, tagMapping, readTimeoutMilliseconds);

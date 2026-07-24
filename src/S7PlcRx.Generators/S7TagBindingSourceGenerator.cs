@@ -271,6 +271,7 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
     {
         AppendLine(builder, "    private static TValue __s7ConvertReadValue<TValue>(object? value)");
         AppendLine(builder, MemberBlockOpen);
+
         // A type pattern cannot use a nullable value type (for example, `int?`), which
         // makes generated bindings for nullable properties uncompilable.  A null check
         // followed by the normal generic cast keeps the same conversion semantics for

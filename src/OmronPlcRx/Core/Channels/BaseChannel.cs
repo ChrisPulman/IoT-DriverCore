@@ -256,7 +256,7 @@ internal abstract class BaseChannel : IDisposable
 
         static bool IsMismatch(FINSException exception, Memory<byte> responseMessage, FINSRequest request) =>
             exception.Message.Contains("Service ID")
-            && responseMessage.Length >= ProtocolConstants.Nine
+            && responseMessage.Length > ProtocolConstants.Nine
             && responseMessage.Span[ProtocolConstants.Nine] != request.ServiceID;
     }
 

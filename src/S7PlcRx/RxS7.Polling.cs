@@ -395,18 +395,21 @@ public partial class RxS7
                 .OnErrorRetry()
                 .Subscribe(_ =>
             {
-                if (!IsConnectedValue)
+                lock (_lifecycleLock)
                 {
-                    return;
-                }
+                    if (IsDisposed || !IsConnectedValue)
+                    {
+                        return;
+                    }
 
-                Value("WatchDog", WatchDogValueToWrite);
-                if (!ShowWatchDogWriting)
-                {
-                    return;
-                }
+                    Value("WatchDog", WatchDogValueToWrite);
+                    if (!ShowWatchDogWriting)
+                    {
+                        return;
+                    }
 
-                _status.OnNext($"{_timeProvider.GetUtcNow().LocalDateTime} - WatchDog writing {WatchDogValueToWrite} to {WatchDogAddress}");
+                    _status.OnNext($"{_timeProvider.GetUtcNow().LocalDateTime} - WatchDog writing {WatchDogValueToWrite} to {WatchDogAddress}");
+                }
             });
 
             return new SingleAssignmentDisposable { Disposable = tim };

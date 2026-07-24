@@ -215,18 +215,18 @@ public class UdpClientRx : IReceiveBatchPortRx
     /// <returns>A Task.</returns>
     public Task OpenAsync()
     {
-        if (_disposablePort?.IsDisposed != false)
+        if (_disposablePort.IsDisposed)
         {
             _disposablePort = [];
         }
 
-        return _disposablePort?.Count == 0
+        return _disposablePort.Count == 0
             ? Task.Run(() => _disposablePort.Add(Connect().Subscribe()))
             : Task.CompletedTask;
     }
 
     /// <summary>Closes this instance.</summary>
-    public void Close() => _disposablePort?.Dispose();
+    public void Close() => _disposablePort.Dispose();
 
     /// <summary>Writes the specified buffer.</summary>
     /// <param name="buffer">The buffer.</param>

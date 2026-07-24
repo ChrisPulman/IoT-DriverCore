@@ -14,13 +14,25 @@ internal sealed class SystemSerialPortConnection : ISerialPortConnection
     /// <summary>The wrapped system serial port.</summary>
     private readonly SerialPort _port;
 
+    /// <summary>The event runtime composed around the system serial port.</summary>
+    private readonly ISerialPortRuntime _runtime;
+
     /// <summary>Initializes a new instance of the <see cref="SystemSerialPortConnection"/> class.</summary>
     /// <param name="port">The wrapped serial port.</param>
     internal SystemSerialPortConnection(SerialPort port)
+        : this(port, new SystemSerialPortRuntime(port))
+    {
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="SystemSerialPortConnection"/> class.</summary>
+    /// <param name="port">The wrapped system serial port.</param>
+    /// <param name="runtime">The composed event runtime.</param>
+    internal SystemSerialPortConnection(SerialPort port, ISerialPortRuntime runtime)
     {
         _port = port;
-        _port.DataReceived += OnDataReceived;
-        _port.ErrorReceived += OnErrorReceived;
+        _runtime = runtime;
+        _runtime.DataReceived += OnRuntimeDataReceived;
+        _runtime.ErrorReceived += OnRuntimeErrorReceived;
 #if HasWindows
         _port.PinChanged += OnPinChanged;
 #endif
@@ -101,8 +113,9 @@ internal sealed class SystemSerialPortConnection : ISerialPortConnection
     /// <inheritdoc/>
     public void Dispose()
     {
-        _port.DataReceived -= OnDataReceived;
-        _port.ErrorReceived -= OnErrorReceived;
+        _runtime.DataReceived -= OnRuntimeDataReceived;
+        _runtime.ErrorReceived -= OnRuntimeErrorReceived;
+        _runtime.Dispose();
 #if HasWindows
         _port.PinChanged -= OnPinChanged;
 #endif
@@ -148,20 +161,15 @@ internal sealed class SystemSerialPortConnection : ISerialPortConnection
     /// <inheritdoc/>
     public void WriteLine(string value) => _port.WriteLine(value);
 
-    /// <summary>Forwards the system data-received event.</summary>
-    /// <param name="sender">The system serial port.</param>
-    /// <param name="eventArgs">The event arguments.</param>
-    private void OnDataReceived(object sender, SerialDataReceivedEventArgs eventArgs) =>
-        DataReceived?.Invoke(this, EventArgs.Empty);
+    /// <summary>Forwards a composed runtime data notification.</summary>
+    /// <param name="sender">The runtime that raised the notification.</param>
+    /// <param name="eventArgs">The notification event arguments.</param>
+    private void OnRuntimeDataReceived(object? sender, EventArgs eventArgs) => DataReceived?.Invoke(this, EventArgs.Empty);
 
-    /// <summary>Converts the system error event to an exception.</summary>
-    /// <param name="sender">The system serial port.</param>
-    /// <param name="eventArgs">The event arguments.</param>
-    private void OnErrorReceived(object sender, SerialErrorReceivedEventArgs eventArgs) =>
-        ErrorReceived?.Invoke(
-            this,
-            new SerialPortConnectionErrorEventArgs(
-                new InvalidOperationException(eventArgs.EventType.ToString())));
+    /// <summary>Forwards a composed runtime error notification.</summary>
+    /// <param name="sender">The runtime that raised the notification.</param>
+    /// <param name="eventArgs">The connection error event arguments.</param>
+    private void OnRuntimeErrorReceived(object? sender, SerialPortConnectionErrorEventArgs eventArgs) => ErrorReceived?.Invoke(this, eventArgs);
 
 #if HasWindows
     /// <summary>Forwards the system pin-changed event.</summary>

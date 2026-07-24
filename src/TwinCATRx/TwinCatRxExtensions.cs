@@ -219,9 +219,9 @@ public static class TwinCatRxExtensions
         }
 
         var table = new TwinCatStructureTable(client.Settings?.Port < TwinCat3Port);
-        table.Tag?.Add(nameof(IRxTcAdsClient), client);
-        table.Tag?.Add(nameof(RxTcAdsClient), client);
-        table.Tag?.Add(VariableTagKey, variable);
+        table.Tag.Add(nameof(IRxTcAdsClient), client);
+        table.Tag.Add(nameof(RxTcAdsClient), client);
+        table.Tag.Add(VariableTagKey, variable);
         table.SetSourceSubscription(ObservableBridgeExtensions.SubscribeTo(
             client.DataReceived.Where(
                 x => string.Equals(x.Variable, variable, StringComparison.OrdinalIgnoreCase) && x.Data is not null),

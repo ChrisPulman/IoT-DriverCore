@@ -25,6 +25,8 @@ public sealed partial class ModbusReactiveStreamGenerator
         var namespaceName = classSymbol.ContainingNamespace.IsGlobalNamespace
             ? null
             : classSymbol.ContainingNamespace.ToDisplayString();
+        _ = builder.AppendLine("using IoT.DriverCore.Core;");
+        _ = builder.AppendLine();
         if (namespaceName is not null)
         {
             _ = builder.Append("namespace ").Append(namespaceName).AppendLine(";");
@@ -129,7 +131,10 @@ public sealed partial class ModbusReactiveStreamGenerator
             .AppendLine(propertyName);
         _ = builder.AppendLine(MemberOpenBrace);
         _ = builder.Append("        get => ").Append(fieldName).AppendLine(";");
-        _ = builder.AppendLine("        private set");
+        _ = builder.AppendLine(
+            point.Point.PropertySymbol.DeclaredAccessibility == Accessibility.Private
+                ? "        set"
+                : "        private set");
         _ = builder.AppendLine(MemberBodyOpenBrace);
         _ = builder
             .Append("            if (global::System.Collections.Generic.EqualityComparer<")
@@ -210,13 +215,12 @@ public sealed partial class ModbusReactiveStreamGenerator
             .Append(">> Read")
             .Append(propertyName)
             .Append("Async(global::System.Threading.CancellationToken cancellationToken = default) => ")
-            .Append("global::IoT.DriverCore.Core.LogicalTagContractHelpers.ReadAsync<")
+            .Append(client)
+            .Append(".ReadAsync(new global::IoT.DriverCore.Core.LogicalTagKey<")
             .Append(typeName)
             .Append(">(")
-            .Append(client)
-            .Append(", ")
             .Append(literal)
-            .AppendLine(", cancellationToken);");
+            .AppendLine("), cancellationToken);");
         _ = builder
             .Append("    public global::System.Threading.Tasks.Task<global::IoT.DriverCore.Core.TagOperationResult<")
             .Append(typeName)
@@ -225,13 +229,12 @@ public sealed partial class ModbusReactiveStreamGenerator
             .Append("Async(")
             .Append(typeName)
             .Append(" value, global::System.Threading.CancellationToken cancellationToken = default) => ")
-            .Append("global::IoT.DriverCore.Core.LogicalTagContractHelpers.WriteAsync<")
+            .Append(client)
+            .Append(".WriteAsync(new global::IoT.DriverCore.Core.LogicalTagKey<")
             .Append(typeName)
             .Append(">(")
-            .Append(client)
-            .Append(", ")
             .Append(literal)
-            .AppendLine(", value, cancellationToken);");
+            .AppendLine("), value, cancellationToken);");
     }
 
     /// <summary>Emits the binding subscription for a generated point.</summary>

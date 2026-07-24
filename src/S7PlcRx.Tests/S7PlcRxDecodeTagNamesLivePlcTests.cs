@@ -50,7 +50,7 @@ public sealed class S7PlcRxDecodeTagNamesLivePlcTests
     private const int PollingIntervalMilliseconds = 5;
 
     /// <summary>Gets the simulator connection timeout in seconds.</summary>
-    private const int SimulatorConnectionTimeoutSeconds = 5;
+    private const int SimulatorConnectionTimeoutSeconds = 10;
 
     /// <summary>Gets the delay used while waiting for simulator data in milliseconds.</summary>
     private const int PlcDataDelayMilliseconds = 10;

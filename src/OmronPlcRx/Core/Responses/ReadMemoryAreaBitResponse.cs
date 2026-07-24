@@ -23,19 +23,19 @@ internal static class ReadMemoryAreaBitResponse
     /// <returns>A value indicating whether the operation succeeded.</returns>
     internal static bool[] ExtractValues(ReadMemoryAreaBitRequest request, FINSResponse response)
     {
-        if (response.Data?.Length < request.Length)
+        var data = response.Data;
+        if (data is null || data.Length < request.Length)
         {
-            var actual = response.Data.Length;
+            var actual = data?.Length ?? 0;
             var expected = request.Length;
             throw new FINSException(
                 $"The Response Data Length of '{actual}' was too short - Expecting a Length of '{expected}'");
         }
 
         var result = new bool[request.Length];
-        var data = response.Data;
         for (var i = 0; i < request.Length; i++)
         {
-            result[i] = data![i] != 0;
+            result[i] = data[i] != 0;
         }
 
         return result;

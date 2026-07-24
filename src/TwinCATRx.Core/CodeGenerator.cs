@@ -33,11 +33,11 @@ public partial class CodeGenerator : ICodeGenerator
     /// <summary>Maps PLC array element markers to C# array type names.</summary>
     private static readonly (string PlcType, string CSharpType)[] ArrayTypeMappings =
     [
-        ("OF STRING", typeof(string[]) + string.Empty),
-        ("OF BOOL", typeof(bool[]) + string.Empty),
-        ("OF BIT", typeof(bool[]) + string.Empty),
-        ("OF BIT8", typeof(bool[]) + string.Empty),
-        ("OF BYTE", typeof(byte[]) + string.Empty),
+        ("OF STRING", "System.String[]"),
+        ("OF BOOL", "System.Boolean[]"),
+        ("OF BIT", "System.Boolean[]"),
+        ("OF BIT8", "System.Boolean[]"),
+        ("OF BYTE", "System.Byte[]"),
         ("OF REAL", "System.Single[]"),
         ("OF LREAL", "System.Double[]"),
         ("OF FLOAT", "System.Single[]"),
@@ -480,7 +480,7 @@ public partial class CodeGenerator : ICodeGenerator
         if (!_disposedValue && disposing)
         {
             _runtime.Dispose();
-            SymbolList?.Clear();
+            SymbolList.Clear();
         }
 
         _disposedValue = true;

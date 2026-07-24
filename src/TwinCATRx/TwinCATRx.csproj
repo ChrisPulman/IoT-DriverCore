@@ -7,6 +7,8 @@
     <PackageId>CP.TwinCATRx</PackageId>
     <Title>TwinCATRx</Title>
     <RootNamespace>IoT.DriverCore.TwinCATRx</RootNamespace>
+    <TwinCATGeneratorAssemblyPath>..\TwinCATRx.Generators\bin\$(Configuration)\netstandard2.0\TwinCATRx.Generators.dll</TwinCATGeneratorAssemblyPath>
+    <TwinCATGeneratorAssemblyPath Condition="'$(UseArtifactsOutput)' == 'true'">$(ArtifactsPath)\bin\TwinCATRx.Generators\$([System.String]::Copy('$(Configuration)').ToLowerInvariant())\TwinCATRx.Generators.dll</TwinCATGeneratorAssemblyPath>
   </PropertyGroup>
   
   <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
@@ -56,16 +58,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="$(MSBuildThisFileDirectory)..\TwinCATRx.Generators\bin\Debug\netstandard2.0\TwinCATRx.Generators.dll"
+    <None Include="$(TwinCATGeneratorAssemblyPath)"
           Pack="true"
           PackagePath="analyzers/dotnet/cs"
           Visible="false"
-          Condition="'$(Configuration)' == 'Debug' and Exists('$(MSBuildThisFileDirectory)..\TwinCATRx.Generators\bin\Debug\netstandard2.0\TwinCATRx.Generators.dll')" />
-    <None Include="$(MSBuildThisFileDirectory)..\TwinCATRx.Generators\bin\Release\netstandard2.0\TwinCATRx.Generators.dll"
-          Pack="true"
-          PackagePath="analyzers/dotnet/cs"
-          Visible="false"
-          Condition="'$(Configuration)' == 'Release' and Exists('$(MSBuildThisFileDirectory)..\TwinCATRx.Generators\bin\Release\netstandard2.0\TwinCATRx.Generators.dll')" />
+          Condition="Exists('$(TwinCATGeneratorAssemblyPath)')" />
   </ItemGroup>
 
   <Import Project="..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets"

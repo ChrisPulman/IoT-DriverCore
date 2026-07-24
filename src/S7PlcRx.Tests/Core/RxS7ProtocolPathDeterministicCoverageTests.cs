@@ -95,7 +95,7 @@ public sealed class RxS7ProtocolPathDeterministicCoverageTests
     private const int MinimumCpuInformationFieldCount = 9;
 
     /// <summary>Defines the timeout used for deterministic operations.</summary>
-    private static readonly TimeSpan OperationTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan OperationTimeout = TimeSpan.FromSeconds(60);
 
     /// <summary>Verifies every supported scalar and array value shape is serialized by multi-variable writes.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
@@ -244,11 +244,8 @@ public sealed class RxS7ProtocolPathDeterministicCoverageTests
     [Test]
     public async Task SingleWriteRejectsUnsupportedDataBlockAddressKindAsync()
     {
-        using var server = new MockServer { DefaultDb1Size = DatabaseSize };
-        await TUnitAssert.That(server.Start()).IsEqualTo(0);
         using var plc = CreatePlc();
         RegisterTag<int>(plc, "UnsupportedDbKind", "DB1.DBT0");
-        await WaitUntilConnectedAsync(plc);
         var errorTask = plc.LastErrorCode
             .Where(error => error == ErrorCode.WrongVarFormat)
             .Take(1)

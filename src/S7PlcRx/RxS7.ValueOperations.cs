@@ -320,12 +320,16 @@ public partial class RxS7
     /// <c>false</c> to release only unmanaged resources.</param>
     protected virtual void Dispose(bool disposing)
     {
-        if (IsDisposed)
+        lock (_lifecycleLock)
         {
-            return;
+            if (IsDisposed)
+            {
+                return;
+            }
+
+            IsDisposed = true;
         }
 
-        IsDisposed = true;
         if (!disposing)
         {
             return;

@@ -18,14 +18,16 @@ internal static class TcpSocketConfiguration
     /// <param name="socket">The socket to configure.</param>
     internal static void ConfigureZeroLinger(Socket socket)
     {
-        if (socket.LingerState is null)
+        var lingerState = socket.LingerState;
+        if (lingerState is null)
         {
             socket.LingerState = new(true, 0);
             return;
         }
 
-        socket.LingerState.Enabled = true;
-        socket.LingerState.LingerTime = 0;
+        lingerState.Enabled = true;
+        lingerState.LingerTime = 0;
+        socket.LingerState = lingerState;
     }
 
     /// <summary>Gets host and port values from an endpoint.</summary>

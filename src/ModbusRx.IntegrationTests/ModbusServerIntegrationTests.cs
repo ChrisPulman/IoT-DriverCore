@@ -216,7 +216,7 @@ public sealed class ModbusServerIntegrationTests : NetworkTestBase
         var observed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var subscription = ReactiveModbusServerEnhancedExtensions
             .ObserveDataChangesEventDriven(server)
-            .Subscribe(_ => observed.TrySetResult(true), observed.TrySetException);
+            .Subscribe(_ => observed.TrySetResult(true));
 
         // Act: use a public write operation that raises DataStoreWrittenTo synchronously.
         dataStore.WriteDataOptimized(

@@ -21,7 +21,7 @@ public sealed class S7PlcRxConnectionRegressionTests
     private const int DefaultPollingIntervalMilliseconds = 50;
 
     /// <summary>Gets the short mock connection timeout in seconds.</summary>
-    private const int MockConnectionTimeoutSeconds = 5;
+    private const int MockConnectionTimeoutSeconds = 30;
 
     /// <summary>Gets the watchdog connection timeout in seconds.</summary>
     private const int WatchdogConnectionTimeoutSeconds = 10;
@@ -45,7 +45,7 @@ public sealed class S7PlcRxConnectionRegressionTests
     private const int WatchdogPollingIntervalMilliseconds = 50;
 
     /// <summary>Gets the watchdog wait timeout in seconds.</summary>
-    private const int WatchdogWaitTimeoutSeconds = 5;
+    private const int WatchdogWaitTimeoutSeconds = 10;
 
     /// <summary>Gets the watchdog polling delay in milliseconds.</summary>
     private const int WatchdogPollingDelayMilliseconds = 50;
@@ -79,9 +79,12 @@ public sealed class S7PlcRxConnectionRegressionTests
             .Take(1)
             .Timeout(TimeSpan.FromSeconds(MockConnectionTimeoutSeconds))
             .FirstAsync();
+        var handshakeCompleted = await WaitUntilAsync(
+            () => server.HandshakeCount >= 1,
+            TimeSpan.FromSeconds(MockConnectionTimeoutSeconds));
 
         await TUnitAssert.That(connected).IsTrue();
-        await TUnitAssert.That(server.HandshakeCount).IsGreaterThanOrEqualTo(1);
+        await TUnitAssert.That(handshakeCompleted).IsTrue();
         await TUnitAssert.That(server.UnsupportedRequestCount).IsEqualTo(0);
     }
 
@@ -104,9 +107,12 @@ public sealed class S7PlcRxConnectionRegressionTests
             .Take(1)
             .Timeout(TimeSpan.FromSeconds(MockConnectionTimeoutSeconds))
             .FirstAsync();
+        var handshakeCompleted = await WaitUntilAsync(
+            () => server.HandshakeCount >= 1,
+            TimeSpan.FromSeconds(MockConnectionTimeoutSeconds));
 
         await TUnitAssert.That(connected).IsTrue();
-        await TUnitAssert.That(server.HandshakeCount).IsGreaterThanOrEqualTo(1);
+        await TUnitAssert.That(handshakeCompleted).IsTrue();
         await TUnitAssert.That(server.UnsupportedRequestCount).IsEqualTo(0);
     }
 

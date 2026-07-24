@@ -82,6 +82,11 @@ public class DiscreteCollectionFixture
     public void CreateNewDiscreteCollectionFromBytesParams_NullArray() =>
         Assert.Throws<ArgumentNullException>(() => _ = new DiscreteCollection((byte[])null!));
 
+    /// <summary>Rejects a null list supplied to the internal storage constructor.</summary>
+    [TUnit.Core.Test]
+    public void CreateNewDiscreteCollectionFromList_NullList() =>
+        Assert.Throws<ArgumentNullException>(() => _ = new DiscreteCollection((List<bool>)null!));
+
     /// <summary>Creates the new discrete collection from bytes parameters order.</summary>
     [TUnit.Core.Test]
     public void CreateNewDiscreteCollectionFromBytesParamsOrder()

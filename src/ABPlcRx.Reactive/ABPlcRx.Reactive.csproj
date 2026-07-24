@@ -50,6 +50,7 @@
   <Target Name="PackSourceGeneratorAnalyzer" BeforeTargets="_GetPackageFiles">
     <PropertyGroup>
       <_ABPlcRxSourceGeneratorPath>$(MSBuildProjectDirectory)\..\ABPlcRx.Generators\bin\$(Configuration)\netstandard2.0\ABPlcRx.Generators.dll</_ABPlcRxSourceGeneratorPath>
+      <_ABPlcRxSourceGeneratorPath Condition="'$(UseArtifactsOutput)' == 'true'">$(ArtifactsPath)\bin\ABPlcRx.Generators\$([System.String]::Copy('$(Configuration)').ToLowerInvariant())\ABPlcRx.Generators.dll</_ABPlcRxSourceGeneratorPath>
     </PropertyGroup>
 
     <ItemGroup>

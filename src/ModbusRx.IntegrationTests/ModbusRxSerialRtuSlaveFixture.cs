@@ -21,9 +21,6 @@ public class ModbusRxSerialRtuSlaveFixture : NetworkTestBase
     /// <summary>The bounded slave timeout used to flush a truncated RTU frame.</summary>
     private const int SlaveReadTimeoutMilliseconds = 250;
 
-    /// <summary>The short delay that lets the simulated slave enter its first read.</summary>
-    private const int SlaveStartupDelayMilliseconds = 25;
-
     /// <summary>The number of coils read in each recovery assertion.</summary>
     private const ushort PointCount = 2;
 
@@ -35,9 +32,6 @@ public class ModbusRxSerialRtuSlaveFixture : NetworkTestBase
 
     /// <summary>The number of holding registers read by the combined RTU operation.</summary>
     private const ushort RegisterCount = 5;
-
-    /// <summary>The delay multiplier that allows the truncated frame timeout to elapse.</summary>
-    private const int RecoveryDelayMultiplier = 2;
 
     /// <summary>The maximum number of seconds allowed for simulated slave shutdown.</summary>
     private const int ShutdownTimeoutSeconds = 2;
@@ -82,11 +76,10 @@ public class ModbusRxSerialRtuSlaveFixture : NetworkTestBase
         try
         {
             bool[] expected = [false, true];
-            await Task.Delay(SlaveStartupDelayMilliseconds, CancellationToken);
             Assert.Equal(expected, await master.ReadCoilsAsync(UnitId, 1, PointCount));
 
             pair.First.Write([(byte)'*'], 0, 1);
-            await Task.Delay(SlaveReadTimeoutMilliseconds * RecoveryDelayMultiplier, CancellationToken);
+            await pair.SecondReadTimeoutRecovery;
 
             Assert.Equal(expected, await master.ReadCoilsAsync(UnitId, 1, PointCount));
         }

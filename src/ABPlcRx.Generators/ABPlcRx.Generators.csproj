@@ -7,6 +7,7 @@
     <LangVersion>12</LangVersion>
     <IsPackable>true</IsPackable>
     <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IncludeSymbols>false</IncludeSymbols>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <PackageDescription>Source generators for ABPlcRx reactive PLC stream models.</PackageDescription>
     <PackageTags>ABPlcRx;source-generator;reactive;PLC;observable</PackageTags>

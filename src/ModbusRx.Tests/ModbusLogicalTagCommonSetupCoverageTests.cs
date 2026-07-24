@@ -81,7 +81,7 @@ public sealed class ModbusLogicalTagCommonSetupCoverageTests
 
         /// <inheritdoc/>
         public Task<bool[]> ReadInputsAsync(byte slaveAddress, ushort startAddress, ushort numberOfPoints) =>
-            Task.FromResult(new bool[numberOfPoints]);
+            ReadCoilsAsync(slaveAddress, startAddress, numberOfPoints);
 
         /// <inheritdoc/>
         public Task<ushort[]> ReadHoldingRegistersAsync(byte slaveAddress, ushort startAddress, ushort numberOfPoints) =>
@@ -89,7 +89,7 @@ public sealed class ModbusLogicalTagCommonSetupCoverageTests
 
         /// <inheritdoc/>
         public Task<ushort[]> ReadInputRegistersAsync(byte slaveAddress, ushort startAddress, ushort numberOfPoints) =>
-            Task.FromResult(new ushort[numberOfPoints]);
+            ReadHoldingRegistersAsync(slaveAddress, startAddress, numberOfPoints);
 
         /// <inheritdoc/>
         public Task WriteSingleCoilAsync(byte slaveAddress, ushort coilAddress, bool value) => Task.CompletedTask;

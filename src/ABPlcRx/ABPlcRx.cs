@@ -170,7 +170,7 @@ public class ABPlcRx : IABPlcRx
         ArgumentExceptionHelper.ThrowIfNullOrWhiteSpace(tagName, nameof(tagName));
         ArgumentExceptionHelper.ThrowIfNullOrWhiteSpace(tagGroup, nameof(tagGroup));
 
-        _plc.AddTagToGroup<T>(variable, tagName, _scanInterval, tagGroup);
+        _plc.AddTagToGroup<T>(variable, tagName, _scanInterval, tagGroup, ScanEnabled);
     }
 
     /// <summary>Removes a registered tag by logical variable name.</summary>

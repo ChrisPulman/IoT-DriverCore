@@ -292,7 +292,7 @@ public partial class SerialPortRx
     });
 
     /// <summary>Closes this instance.</summary>
-    public void Close() => _disposablePort?.Dispose();
+    public void Close() => _disposablePort.Dispose();
 
     /// <summary>Discards the in buffer.</summary>
     public void DiscardInBuffer() => _discardInBuffer.OnNext(Unit.Default);
@@ -313,12 +313,12 @@ public partial class SerialPortRx
     /// </returns>
     public Task OpenAsync()
     {
-        if (_disposablePort?.IsDisposed != false)
+        if (_disposablePort.IsDisposed)
         {
             _disposablePort = [];
         }
 
-        if (_disposablePort?.Count != 0)
+        if (_disposablePort.Count != 0)
         {
             return Task.CompletedTask;
         }
@@ -348,7 +348,7 @@ public partial class SerialPortRx
     /// <summary>Writes the specified text.</summary>
     /// <param name="text">The text.</param>
     public void Write(string text) =>
-        _writeString?.OnNext(text);
+        _writeString.OnNext(text);
 
     /// <summary>Writes the specified byte array.</summary>
     /// <param name="buffer">The byte array.</param>
@@ -373,7 +373,7 @@ public partial class SerialPortRx
         ArgumentGuard.ThrowIfNull(byteArray, nameof(byteArray));
 #endif
 
-        _writeByte?.OnNext((byteArray, 0, byteArray.Length));
+        _writeByte.OnNext((byteArray, 0, byteArray.Length));
     }
 
     /// <summary>Writes the specified character array.</summary>
@@ -389,7 +389,7 @@ public partial class SerialPortRx
         ArgumentGuard.ThrowIfNull(charArray, nameof(charArray));
 #endif
 
-        _writeChar?.OnNext((charArray, 0, charArray.Length));
+        _writeChar.OnNext((charArray, 0, charArray.Length));
     }
 
     /// <summary>Writes the specified character array.</summary>
@@ -397,7 +397,7 @@ public partial class SerialPortRx
     /// <param name="offset">The offset.</param>
     /// <param name="count">The count.</param>
     public void Write(char[] charArray, int offset, int count) =>
-        _writeChar?.OnNext((charArray, offset, count));
+        _writeChar.OnNext((charArray, offset, count));
 
 #if !NETFRAMEWORK
     /// <summary>Writes the specified data from a ReadOnlySpan.</summary>
@@ -413,7 +413,7 @@ public partial class SerialPortRx
         try
         {
             data.CopyTo(array);
-            _writeByte?.OnNext((array, 0, data.Length));
+            _writeByte.OnNext((array, 0, data.Length));
         }
         finally
         {
@@ -446,7 +446,7 @@ public partial class SerialPortRx
         try
         {
             data.CopyTo(array);
-            _writeChar?.OnNext((array, 0, data.Length));
+            _writeChar.OnNext((array, 0, data.Length));
         }
         finally
         {
@@ -458,7 +458,7 @@ public partial class SerialPortRx
     /// <summary>Writes the line.</summary>
     /// <param name="text">The text.</param>
     public void WriteLine(string text) =>
-        _writeStringLine?.OnNext(text);
+        _writeStringLine.OnNext(text);
 
     /// <summary>Reads the specified buffer.</summary>
     /// <param name="buffer">The buffer.</param>

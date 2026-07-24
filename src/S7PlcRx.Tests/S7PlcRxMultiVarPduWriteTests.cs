@@ -21,6 +21,9 @@ public class S7PlcRxMultiVarPduWriteTests
     /// <summary>Third word value in the write batch.</summary>
     private const ushort ThirdValue = 30;
 
+    /// <summary>Maximum time allowed for the simulated PLC connection retry policy.</summary>
+    private const int ConnectionTimeoutSeconds = 60;
+
     /// <summary>Gets the compact representation displayed by the debugger.</summary>
     [System.Diagnostics.DebuggerBrowsable(System.Diagnostics.DebuggerBrowsableState.Never)]
     private string DebuggerDisplay
@@ -44,7 +47,10 @@ public class S7PlcRxMultiVarPduWriteTests
         _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "W1", "DB1.DBW2").SetPolling(false);
         _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "W2", "DB1.DBW4").SetPolling(false);
 
-        await plc.IsConnected.Where(x => x).FirstAsync();
+        await plc.IsConnected
+            .Where(static connected => connected)
+            .Timeout(TimeSpan.FromSeconds(ConnectionTimeoutSeconds))
+            .FirstAsync();
 
         await AdvancedExtensions.ValueBatchAsync(plc, new Dictionary<string, ushort>
         {

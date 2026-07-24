@@ -46,18 +46,35 @@ internal sealed class MitsubishiSerialSupportTests
     internal async Task LibraryProjectShouldReferenceSerialportRxPackageAsync()
     {
         var projectPath = Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            "..",
-            "..",
+            GetRepositoryRoot(),
             "src",
             "MitsubishiRx",
             "MitsubishiRx.csproj");
-        projectPath = Path.GetFullPath(projectPath);
         var projectText = await File.ReadAllTextAsync(projectPath);
 
         await Assert.That(projectText.Contains("SerialPortRx", StringComparison.OrdinalIgnoreCase)).IsTrue();
+    }
+
+    /// <summary>Finds the checkout independently of the configured SDK output layout.</summary>
+    /// <returns>The repository root.</returns>
+    private static string GetRepositoryRoot()
+    {
+        foreach (string startingPath in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+        {
+            for (var directory = new DirectoryInfo(startingPath); directory is not null; directory = directory.Parent)
+            {
+                string projectPath = Path.Combine(
+                    directory.FullName,
+                    "src",
+                    "MitsubishiRx",
+                    "MitsubishiRx.csproj");
+                if (File.Exists(projectPath))
+                {
+                    return directory.FullName;
+                }
+            }
+        }
+
+        throw new DirectoryNotFoundException("Unable to locate the IoT-DriverCore repository.");
     }
 }

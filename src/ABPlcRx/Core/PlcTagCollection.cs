@@ -39,9 +39,11 @@ internal sealed class PlcTagCollection : IDisposable
     /// <summary>Initializes a new instance of the <see cref="PlcTagCollection"/> class.</summary>
     /// <param name="plc">The owning PLC.</param>
     /// <param name="scanInterval">The scan interval.</param>
-    internal PlcTagCollection(ABPlc plc, TimeSpan scanInterval)
+    /// <param name="scanEnabled">The initial scan state installed before the timer subscribes.</param>
+    internal PlcTagCollection(ABPlc plc, TimeSpan scanInterval, bool scanEnabled = true)
     {
         Plc = plc;
+        ScanEnabled = scanEnabled;
         _scanDisposable = SignalFactory.Timer(TimeSpan.Zero, scanInterval).Subscribe(_ =>
         {
             if (!ScanEnabled || _disposed)

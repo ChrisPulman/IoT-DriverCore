@@ -7,6 +7,15 @@ namespace IoT.DriverCore.Serial.Tests;
 /// <summary>Tests for the serial reactive stream source generator.</summary>
 public sealed class SerialPortReactiveStreamGeneratorTests
 {
+    /// <summary>The reactive SerialPortRx assembly file name.</summary>
+    private const string ReactiveSerialPortAssemblyFileName = "SerialPortRx.Reactive.dll";
+
+    /// <summary>The standard SerialPortRx assembly file name.</summary>
+    private const string SerialPortAssemblyFileName = "SerialPortRx.dll";
+
+    /// <summary>An unsupported source enum value used to exercise the generator fallback.</summary>
+    private const int UnsupportedSourceValue = 99;
+
     /// <summary>Verifies generated serial stream properties and observables compile.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
@@ -287,6 +296,78 @@ public partial class RootDevice
         await Assert.That(generatedSource).DoesNotContain("namespace ;");
     }
 
+    /// <summary>Verifies fallback stream sources and defensive malformed-attribute handling remain deterministic.</summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Test]
+    public async Task Generator_FallbackAndDefensiveAttributePaths_AreHandledAsync()
+    {
+        const string fallbackSource = """
+using IoT.DriverCore.Serial.SourceGeneration;
+
+[SerialPortReactiveStream(null, typeof(int), Source = (SerialPortReactiveSource)99)]
+public partial class FallbackDevice
+{
+}
+""";
+        const string malformedSource = """
+using System;
+
+[Obsolete("legacy")]
+public class MalformedDevice
+{
+}
+""";
+        var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview);
+        var fallbackCompilation = CreateCompilation(fallbackSource, parseOptions);
+        var driver = CSharpGeneratorDriver.Create(
+            [new SerialPortReactiveStreamGenerator().AsSourceGenerator()],
+            parseOptions: parseOptions);
+
+        var runResult = driver.RunGenerators(fallbackCompilation).GetRunResult();
+        var malformedCompilation = CreateCompilation(malformedSource, parseOptions);
+        var malformedType = malformedCompilation.GetTypeByMetadataName("MalformedDevice") ??
+            throw new InvalidOperationException("Malformed test type was not created.");
+        var malformedAttribute = malformedType.GetAttributes().Single();
+        var tryCreate = typeof(SerialPortReactiveStreamGenerator).GetMethod(
+            "TryCreateStreamInfo",
+            BindingFlags.NonPublic | BindingFlags.Static) ??
+            throw new MissingMethodException(nameof(SerialPortReactiveStreamGenerator), "TryCreateStreamInfo");
+        var sourceExpression = typeof(SerialPortReactiveStreamGenerator).GetMethod(
+            "GetSourceExpression",
+            BindingFlags.NonPublic | BindingFlags.Static) ??
+            throw new MissingMethodException(nameof(SerialPortReactiveStreamGenerator), "GetSourceExpression");
+        object?[] arguments = [malformedType, malformedAttribute, CancellationToken.None, null];
+        var malformedResult = (bool)(tryCreate.Invoke(null, arguments) ?? false);
+        var fallbackExpression = (string)(sourceExpression.Invoke(null, [UnsupportedSourceValue]) ?? string.Empty);
+
+        await Assert.That(runResult.Diagnostics.Select(static diagnostic => diagnostic.Id)).Contains("SPRX002");
+        await Assert.That(malformedResult).IsFalse();
+        await Assert.That(fallbackExpression).IsEqualTo("serialPort.Lines");
+    }
+
+    /// <summary>Verifies private generation guards reject invalid internal stream state without emitting bad code.</summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Test]
+    public async Task Generator_InternalNullStreamGuards_ThrowDeterministicallyAsync()
+    {
+        var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview);
+        var compilation = CreateCompilation("public partial class GeneratedTarget { }", parseOptions);
+        var target = compilation.GetTypeByMetadataName("GeneratedTarget") ??
+            throw new InvalidOperationException("Generated target was not created.");
+        var invalidStream = CreateInvalidStream(target);
+        var appendMembers = GetPrivateGeneratorMethod("AppendStreamMembers");
+        var appendSubscription = GetPrivateGeneratorMethod("AppendSubscription");
+        var getFirstLocation = GetPrivateGeneratorMethod("GetFirstLocation");
+        var builder = new StringBuilder();
+        var locationlessSymbol = compilation.CreateErrorTypeSymbol(compilation.GlobalNamespace, nameof(CreateInvalidStream), 0);
+
+        await Assert.That(() => appendMembers.Invoke(null, [builder, invalidStream, "IoT.DriverCore.Serial"]))
+            .Throws<TargetInvocationException>();
+        await Assert.That(() => appendSubscription.Invoke(null, [builder, invalidStream, "IoT.DriverCore.Serial"]))
+            .Throws<TargetInvocationException>();
+        await Assert.That(getFirstLocation.Invoke(null, [locationlessSymbol])).IsNull();
+    }
+
     /// <summary>Returns all error diagnostics from a generated compilation.</summary>
     /// <param name="compilation">The generated compilation to inspect.</param>
     /// <param name="generatorDiagnostics">The diagnostics reported by the generator driver.</param>
@@ -298,6 +379,34 @@ public partial class RootDevice
             .Concat(generatorDiagnostics)
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
             .ToList();
+
+    /// <summary>Creates an internal stream declaration with no property type for defensive guard coverage.</summary>
+    /// <param name="target">The target type symbol.</param>
+    /// <returns>The generator's private stream-info instance.</returns>
+    private static object CreateInvalidStream(INamedTypeSymbol target)
+    {
+        var generatorType = typeof(SerialPortReactiveStreamGenerator);
+        var identityType = generatorType.GetNestedType("StreamIdentity", BindingFlags.NonPublic) ??
+            throw new MissingMemberException(generatorType.FullName, "StreamIdentity");
+        var optionsType = generatorType.GetNestedType("StreamMatchOptions", BindingFlags.NonPublic) ??
+            throw new MissingMemberException(generatorType.FullName, "StreamMatchOptions");
+        var streamType = generatorType.GetNestedType("StreamInfo", BindingFlags.NonPublic) ??
+            throw new MissingMemberException(generatorType.FullName, "StreamInfo");
+        var identity = Activator.CreateInstance(identityType, target, "Invalid", null, null) ??
+            throw new InvalidOperationException("Stream identity was not created.");
+        var options = Activator.CreateInstance(optionsType, null, "serialPort.Lines", "value", 1, false) ??
+            throw new InvalidOperationException("Stream match options were not created.");
+
+        return Activator.CreateInstance(streamType, identity, options) ??
+            throw new InvalidOperationException("Invalid stream was not created.");
+    }
+
+    /// <summary>Gets a named private static generator method.</summary>
+    /// <param name="methodName">The method name.</param>
+    /// <returns>The located method.</returns>
+    private static MethodInfo GetPrivateGeneratorMethod(string methodName) =>
+        typeof(SerialPortReactiveStreamGenerator).GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Static) ??
+        throw new MissingMethodException(nameof(SerialPortReactiveStreamGenerator), methodName);
 
     /// <summary>Creates a C# compilation for source generator tests.</summary>
     /// <param name="source">The source text to compile.</param>
@@ -323,13 +432,18 @@ public partial class RootDevice
         foreach (var path in trustedPlatformAssemblies)
         {
             var fileName = Path.GetFileName(path);
-            if (string.Equals(fileName, "SerialPortRx.dll", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(fileName, "SerialPortRx.Reactive.dll", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(fileName, SerialPortAssemblyFileName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(fileName, ReactiveSerialPortAssemblyFileName, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
             AddReferenceIfMissing(references, path);
+        }
+
+        if (references.Count == 0)
+        {
+            AddLoadedRuntimeReferences(references);
         }
 
         AddReferenceIfMissing(references, serialPortAssemblyPath);
@@ -362,6 +476,16 @@ public partial class RootDevice
             throw new DirectoryNotFoundException(AppContext.BaseDirectory);
         var binDirectory = configurationDirectory.Parent ??
             throw new DirectoryNotFoundException(configurationDirectory.FullName);
+        var isolatedArtifactsPath = Path.Combine(
+            binDirectory.FullName,
+            "SerialPortRx.Reactive",
+            targetFrameworkDirectory.Name,
+            ReactiveSerialPortAssemblyFileName);
+        if (File.Exists(isolatedArtifactsPath))
+        {
+            return isolatedArtifactsPath;
+        }
+
         var testProjectDirectory = binDirectory.Parent ?? throw new DirectoryNotFoundException(binDirectory.FullName);
         var srcDirectory = testProjectDirectory.Parent ??
             throw new DirectoryNotFoundException(testProjectDirectory.FullName);
@@ -372,7 +496,7 @@ public partial class RootDevice
             "bin",
             configurationDirectory.Name,
             targetFrameworkDirectory.Name,
-            "SerialPortRx.Reactive.dll");
+            ReactiveSerialPortAssemblyFileName);
     }
 
     /// <summary>Adds a metadata reference if it has not already been added.</summary>
@@ -390,4 +514,28 @@ public partial class RootDevice
 
         references.Add(MetadataReference.CreateFromFile(path));
     }
+
+    /// <summary>Adds file-backed runtime assemblies when the target framework does not provide trusted-platform paths.</summary>
+    /// <param name="references">The reference collection to populate.</param>
+    private static void AddLoadedRuntimeReferences(List<MetadataReference> references)
+    {
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            if (assembly.IsDynamic ||
+                string.IsNullOrWhiteSpace(assembly.Location) ||
+                IsSerialPortAssembly(Path.GetFileName(assembly.Location)))
+            {
+                continue;
+            }
+
+            AddReferenceIfMissing(references, assembly.Location);
+        }
+    }
+
+    /// <summary>Determines whether a runtime file is either SerialPortRx package identity.</summary>
+    /// <param name="fileName">The assembly file name.</param>
+    /// <returns><see langword="true"/> when the file is a SerialPortRx package assembly.</returns>
+    private static bool IsSerialPortAssembly(string fileName) =>
+        string.Equals(fileName, SerialPortAssemblyFileName, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(fileName, ReactiveSerialPortAssemblyFileName, StringComparison.OrdinalIgnoreCase);
 }

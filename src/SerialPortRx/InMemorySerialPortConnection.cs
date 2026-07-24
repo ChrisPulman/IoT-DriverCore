@@ -23,6 +23,9 @@ internal sealed class InMemorySerialPortConnection : ISerialPortConnection
     /// <summary>Synchronizes receive queue access.</summary>
     private readonly object _sync = new();
 
+    /// <summary>The optional deterministic notification raised immediately before an indefinite read waits.</summary>
+    private readonly Action? _beforeIndefiniteReadWait;
+
     /// <summary>Tracks whether the connection has been disposed.</summary>
     private bool _disposed;
 
@@ -32,18 +35,21 @@ internal sealed class InMemorySerialPortConnection : ISerialPortConnection
     /// <param name="encoding">The text encoding.</param>
     /// <param name="newLine">The line terminator.</param>
     /// <param name="readTimeout">The read timeout.</param>
+    /// <param name="beforeIndefiniteReadWait">An optional deterministic notification raised before an indefinite wait.</param>
     internal InMemorySerialPortConnection(
         InMemorySerialLink link,
         int side,
         Encoding encoding,
         string newLine,
-        int readTimeout)
+        int readTimeout,
+        Action? beforeIndefiniteReadWait = null)
     {
         _link = link;
         _side = side;
         Encoding = encoding;
         NewLine = newLine;
         ReadTimeout = readTimeout;
+        _beforeIndefiniteReadWait = beforeIndefiniteReadWait;
     }
 
     /// <inheritdoc/>
@@ -217,7 +223,7 @@ internal sealed class InMemorySerialPortConnection : ISerialPortConnection
 
             var signaled = ReadTimeout > 0
                 ? Monitor.Wait(_sync, ReadTimeout)
-                : Monitor.Wait(_sync);
+                : WaitIndefinitely();
             if (!signaled || _received.Count == 0)
             {
                 throw new TimeoutException();
@@ -348,6 +354,14 @@ internal sealed class InMemorySerialPortConnection : ISerialPortConnection
         }
 
         throw new InvalidOperationException("The in-memory serial endpoint is not open.");
+    }
+
+    /// <summary>Waits for deterministic input without imposing a transport timeout.</summary>
+    /// <returns><see langword="true"/> when the wait was signaled.</returns>
+    private bool WaitIndefinitely()
+    {
+        _beforeIndefiniteReadWait?.Invoke();
+        return Monitor.Wait(_sync);
     }
 
     /// <summary>Writes an entire byte array.</summary>

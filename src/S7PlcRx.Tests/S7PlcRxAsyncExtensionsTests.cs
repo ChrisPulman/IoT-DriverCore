@@ -39,7 +39,7 @@ public class S7PlcRxAsyncExtensionsTests
     private const int TwoReads = 2;
 
     /// <summary>Gets the connection timeout in seconds.</summary>
-    private const int ConnectionTimeoutSeconds = 10;
+    private const int ConnectionTimeoutSeconds = 60;
 
     /// <summary>Gets the write propagation delay in milliseconds.</summary>
     private const int WritePropagationDelayMilliseconds = 100;

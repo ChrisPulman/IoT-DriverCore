@@ -167,7 +167,7 @@ public partial class SerialPortRx
 
         if (disposing)
         {
-            _disposablePort?.Dispose();
+            _disposablePort.Dispose();
             _isOpenValue.Dispose();
             _dataReceived.Dispose();
             _dataReceivedBytes.Dispose();

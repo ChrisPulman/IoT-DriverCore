@@ -93,11 +93,12 @@
     <Description>Reactive Allen-Bradley PLC driver for ControlLogix, CompactLogix, MicroLogix, PLC-5, and compatible controllers.</Description>
     <PackageReleaseNotes>Allen-Bradley PLC communication with logical tags, reactive observation, and bulk operations across supported target frameworks.</PackageReleaseNotes>
     <PackageTags>Allen-Bradley;Rockwell;ControlLogix;CompactLogix;MicroLogix;PLC-5;PLC;IoT;reactive;observable</PackageTags>
+    <PackageVersion>1.0.0-alpha.8</PackageVersion>
     <PackageIcon>abplclogo.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'ABPlcRx' or '$(MSBuildProjectName)' == 'ABPlcRx.Reactive'">
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'ABPlcRx' or '$(MSBuildProjectName)' == 'ABPlcRx.Reactive' or '$(MSBuildProjectName)' == 'ABPlcRx.Generators'">
     <None Include="$(MSBuildThisFileDirectory)..\images\abplclogo.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\ABPlcRx\README.md" Pack="true" PackagePath="\"/>
   </ItemGroup>
@@ -123,7 +124,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'ModbusRx' or '$(MSBuildProjectName)' == 'ModbusRx.Reactive'">
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'ModbusRx' or '$(MSBuildProjectName)' == 'ModbusRx.Reactive' or '$(MSBuildProjectName)' == 'ModbusRx.Generators'">
     <None Include="$(MSBuildThisFileDirectory)..\images\ModbusRx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\ModbusRx\README.md" Pack="true" PackagePath="\"/>
   </ItemGroup>
@@ -136,7 +137,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'OmronPlcRx' or '$(MSBuildProjectName)' == 'OmronPlcRx.Reactive'">
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'OmronPlcRx' or '$(MSBuildProjectName)' == 'OmronPlcRx.Reactive' or '$(MSBuildProjectName)' == 'OmronPlcRx.Generators'">
     <None Include="$(MSBuildThisFileDirectory)..\images\OmronPLCRx-icon.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\OmronPlcRx\README.md" Pack="true" PackagePath="\"/>
   </ItemGroup>
@@ -149,10 +150,34 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'S7PlcRx' or '$(MSBuildProjectName)' == 'S7PlcRx.Reactive'">
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'S7PlcRx' or '$(MSBuildProjectName)' == 'S7PlcRx.Reactive' or '$(MSBuildProjectName)' == 'S7PlcRx.Generators'">
     <None Include="$(MSBuildThisFileDirectory)..\images\S7PlcRx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\S7PlcRx\README.md" Pack="true" PackagePath="\"/>
   </ItemGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'ABPlcRx.Generators'">
+    <Description>Compile-time source generators for strongly typed Allen-Bradley PLC models.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>abplclogo.png</PackageIcon>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'ModbusRx.Generators'">
+    <Description>Compile-time source generators for strongly typed Modbus device models.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>ModbusRx.png</PackageIcon>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'OmronPlcRx.Generators'">
+    <Description>Compile-time source generators for strongly typed Omron PLC models.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>OmronPLCRx-icon.png</PackageIcon>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'S7PlcRx.Generators'">
+    <Description>Compile-time source generators for strongly typed Siemens S7 PLC models.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>S7PlcRx.png</PackageIcon>
+  </PropertyGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SerialPortRx' or '$(MSBuildProjectName)' == 'SerialPortRx.Reactive'">
     <Description>Reactive, cross-platform serial-port driver with asynchronous observable streams and source-generated helpers.</Description>

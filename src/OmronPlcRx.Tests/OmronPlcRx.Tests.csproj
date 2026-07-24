@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
     <PackageReference Include="ReactiveUI.Primitives" />
     <PackageReference Include="ReactiveUI.Primitives.Async" />
     <PackageReference Include="TUnit" />
@@ -51,7 +52,7 @@
     <ProjectReference
       Include="..\OmronPlcRx.Generators\OmronPlcRx.Generators.csproj"
       OutputItemType="Analyzer"
-      ReferenceOutputAssembly="false"
+      ReferenceOutputAssembly="true"
       PrivateAssets="all"
     />
   </ItemGroup>

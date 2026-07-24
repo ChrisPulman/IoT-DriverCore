@@ -13,13 +13,20 @@ namespace IoT.DriverCore.ModbusRx.IntegrationTests;
 /// <summary>Owns two deterministic duplex stream resources for serial protocol integration tests.</summary>
 internal sealed class InMemoryStreamResourcePair : IDisposable
 {
+    /// <summary>Signals that the simulated slave endpoint has recovered from a timed-out read.</summary>
+    private readonly TaskCompletionSource _secondReadTimeoutRecovery = new(
+        TaskCreationOptions.RunContinuationsAsynchronously);
+
     /// <summary>Initializes a new instance of the <see cref="InMemoryStreamResourcePair"/> class.</summary>
     internal InMemoryStreamResourcePair()
     {
         var firstInbound = Channel.CreateUnbounded<byte>();
         var secondInbound = Channel.CreateUnbounded<byte>();
         First = new InMemoryStreamResource(firstInbound.Reader, secondInbound.Writer);
-        Second = new InMemoryStreamResource(secondInbound.Reader, firstInbound.Writer);
+        Second = new InMemoryStreamResource(
+            secondInbound.Reader,
+            firstInbound.Writer,
+            () => _secondReadTimeoutRecovery.TrySetResult());
     }
 
     /// <summary>Gets the first duplex endpoint.</summary>
@@ -27,6 +34,9 @@ internal sealed class InMemoryStreamResourcePair : IDisposable
 
     /// <summary>Gets the second duplex endpoint.</summary>
     internal IStreamResource Second { get; }
+
+    /// <summary>Gets a task that completes after the simulated slave clears a timed-out frame.</summary>
+    internal Task SecondReadTimeoutRecovery => _secondReadTimeoutRecovery.Task;
 
     /// <inheritdoc />
     public void Dispose()
@@ -44,8 +54,14 @@ internal sealed class InMemoryStreamResourcePair : IDisposable
         /// <summary>Publishes bytes to the peer endpoint.</summary>
         private readonly ChannelWriter<byte> _writer;
 
+        /// <summary>Notifies the owner when this endpoint times out while reading.</summary>
+        private readonly Action? _onReadTimeout;
+
         /// <summary>Cancels a pending read when this endpoint is disposed.</summary>
         private readonly CancellationTokenSource _disposeCancellation = new();
+
+        /// <summary>Tracks a timeout until the corresponding malformed frame has been discarded.</summary>
+        private int _readTimedOut;
 
         /// <summary>Tracks whether the endpoint has been disposed.</summary>
         private bool _disposed;
@@ -53,10 +69,15 @@ internal sealed class InMemoryStreamResourcePair : IDisposable
         /// <summary>Initializes a new instance of the <see cref="InMemoryStreamResource"/> class.</summary>
         /// <param name="reader">The inbound byte reader.</param>
         /// <param name="writer">The peer byte writer.</param>
-        internal InMemoryStreamResource(ChannelReader<byte> reader, ChannelWriter<byte> writer)
+        /// <param name="onReadTimeout">Optional callback invoked after a timed-out read.</param>
+        internal InMemoryStreamResource(
+            ChannelReader<byte> reader,
+            ChannelWriter<byte> writer,
+            Action? onReadTimeout = null)
         {
             _reader = reader;
             _writer = writer;
+            _onReadTimeout = onReadTimeout;
         }
 
         /// <inheritdoc />
@@ -76,6 +97,13 @@ internal sealed class InMemoryStreamResourcePair : IDisposable
             {
                 _ = discarded;
             }
+
+            if (Interlocked.Exchange(ref _readTimedOut, 0) == 0)
+            {
+                return;
+            }
+
+            _onReadTimeout?.Invoke();
         }
 
         /// <inheritdoc />
@@ -103,6 +131,7 @@ internal sealed class InMemoryStreamResourcePair : IDisposable
             }
             catch (OperationCanceledException) when (!_disposeCancellation.IsCancellationRequested)
             {
+                _ = Interlocked.Exchange(ref _readTimedOut, 1);
                 throw new TimeoutException("The in-memory serial read timed out.");
             }
         }
