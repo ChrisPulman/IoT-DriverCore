@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <DefineConstants Condition="'$(EnableOmronCs1gHardwareTests)' == 'true'">$(DefineConstants);OMRON_CS1G_HARDWARE_TESTS</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
