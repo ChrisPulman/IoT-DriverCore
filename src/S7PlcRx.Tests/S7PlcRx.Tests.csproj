@@ -11,6 +11,7 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <TUnitAssertionsImplicitUsings>false</TUnitAssertionsImplicitUsings>
     <UseAppHost>false</UseAppHost>
+    <DefineConstants Condition="'$(EnableLiveS7Tests)' == 'true'">$(DefineConstants);LIVE_S7_TESTS</DefineConstants>
   </PropertyGroup>
   <PropertyGroup Condition="$(TargetFramework.StartsWith('net4'))">
     <PlatformTarget>x86</PlatformTarget>

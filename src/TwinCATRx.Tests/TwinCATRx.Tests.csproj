@@ -11,6 +11,7 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <UseAppHost>false</UseAppHost>
     <TUnitAssertionsImplicitUsings>false</TUnitAssertionsImplicitUsings>
+    <DefineConstants Condition="'$(EnableLiveAdsReadOnlyTests)' == 'true'">$(DefineConstants);LIVE_ADS_READ_ONLY_TESTS</DefineConstants>
   </PropertyGroup>
   <PropertyGroup Condition="$(TargetFramework.StartsWith('net4'))">
     <PlatformTarget>x86</PlatformTarget>
