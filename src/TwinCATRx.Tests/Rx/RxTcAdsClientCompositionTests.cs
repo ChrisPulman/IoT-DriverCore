@@ -6,6 +6,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Versioning;
 #endif
+using System.Collections.Concurrent;
 using System.ServiceProcess;
 using System.Text;
 using IoT.DriverCore.TwinCATRx.Core;
@@ -13,7 +14,6 @@ using TwinCAT.Ads;
 using TwinCAT.TypeSystem;
 using CoreNotificationContract = IoT.DriverCore.TwinCATRx.Core.INotification;
 using LeanBridge = IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions;
-using PublicationTimeoutException = System.TimeoutException;
 using RxNotification = IoT.DriverCore.TwinCATRx.Core.Notification;
 
 namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
@@ -38,12 +38,6 @@ public sealed class RxTcAdsClientCompositionTests
 
     /// <summary>The notification polling rate.</summary>
     private const int UpdateRate = 10;
-
-    /// <summary>The maximum number of queued-publication polls.</summary>
-    private const int PublicationAttemptCount = 100;
-
-    /// <summary>The delay between queued-publication polls.</summary>
-    private const int PublicationPollDelayMilliseconds = 10;
 
     /// <summary>A write payload.</summary>
     private const int WritePayload = 73;
@@ -77,6 +71,9 @@ public sealed class RxTcAdsClientCompositionTests
 
     /// <summary>A deterministic write-only variable.</summary>
     private const string WriteOnlyVariable = ".WriteOnly";
+
+    /// <summary>The maximum wait for a queued reactive publication.</summary>
+    private static readonly TimeSpan PublicationTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>Verifies connection, initialization, notification, read, and write branches.</summary>
     /// <returns>The test task.</returns>
@@ -144,20 +141,26 @@ public sealed class RxTcAdsClientCompositionTests
         settings.Notifications.Add(new RxNotification(UpdateRate, ValueVariable));
         settings.WriteVariables.Add(new WriteVariable(ValueVariable));
         using var client = new RxTcAdsClient(TimeProvider.System, platform);
-        var errors = new List<Exception>();
-        var writes = new List<string?>();
-        using var errorSubscription = LeanBridge.SubscribeTo(client.ErrorReceived, errors.Add);
-        using var writeSubscription = LeanBridge.SubscribeTo(client.OnWrite, writes.Add);
+        var errors = new ConcurrentQueue<Exception>();
+        var writes = new ConcurrentQueue<string?>();
+        var readFailurePublished = CreatePublicationSource();
+        var writeFailurePublished = CreatePublicationSource();
+        using var errorSubscription = LeanBridge.SubscribeTo(
+            client.ErrorReceived,
+            error => RecordErrorPublication(errors, readFailurePublished, error));
+        using var writeSubscription = LeanBridge.SubscribeTo(
+            client.OnWrite,
+            write => RecordWritePublication(writes, writeFailurePublished, write));
 
         client.Connect(settings);
         platform.Ticks.Emit(0);
         ads.ReadAnyError = new IOException(ReadFailureMessage);
         client.Read(ValueVariable, "read");
-        await WaitUntilAsync(() => errors.Any(error => error.Message.Contains(ReadFailureMessage)));
+        await TUnitAssert.That(await WaitForPublicationAsync(readFailurePublished.Task)).IsTrue();
         ads.ReadAnyError = null;
         ads.WriteAnyError = new IOException(WriteFailureMessage);
         client.Write(ValueVariable, ExpectedNotificationHandleCount, "write");
-        await WaitUntilAsync(() => writes.Any(write => write?.Contains(WriteFailureMessage) == true));
+        await TUnitAssert.That(await WaitForPublicationAsync(writeFailurePublished.Task)).IsTrue();
         ads.WriteAnyError = null;
         ads.State = new(AdsState.Stop, StoppedDeviceState);
         ads.WriteControlError = new IOException("control failed");
@@ -170,7 +173,7 @@ public sealed class RxTcAdsClientCompositionTests
         };
         using var statePlatform = new FakePlatform(stateAds);
         using var stateClient = new RxTcAdsClient(TimeProvider.System, statePlatform);
-        using var stateSubscription = LeanBridge.SubscribeTo(stateClient.ErrorReceived, errors.Add);
+        using var stateSubscription = LeanBridge.SubscribeTo(stateClient.ErrorReceived, errors.Enqueue);
         stateClient.Connect(new Settings { Port = TwinCat3Port });
         statePlatform.Ticks.Emit(ExpectedNotificationHandleCount);
 
@@ -372,22 +375,54 @@ public sealed class RxTcAdsClientCompositionTests
         }
     }
 
-    /// <summary>Waits for a queued reactive action to publish its deterministic result.</summary>
-    /// <param name="condition">The completion condition.</param>
-    /// <returns>The wait task.</returns>
-    private static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        for (var attempt = 0; attempt < PublicationAttemptCount; attempt++)
-        {
-            if (condition())
-            {
-                return;
-            }
+    /// <summary>Creates an asynchronously continued reactive-publication completion source.</summary>
+    /// <returns>The new completion source.</returns>
+    private static TaskCompletionSource<bool> CreatePublicationSource() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            await Task.Delay(PublicationPollDelayMilliseconds);
+    /// <summary>Records an error and completes a matching read-failure publication.</summary>
+    /// <param name="errors">The observed errors.</param>
+    /// <param name="publication">The expected publication.</param>
+    /// <param name="error">The published error.</param>
+    private static void RecordErrorPublication(
+        ConcurrentQueue<Exception> errors,
+        TaskCompletionSource<bool> publication,
+        Exception error)
+    {
+        errors.Enqueue(error);
+        if (!error.Message.Contains(ReadFailureMessage))
+        {
+            return;
         }
 
-        throw new PublicationTimeoutException("The expected reactive publication was not observed.");
+        _ = publication.TrySetResult(true);
+    }
+
+    /// <summary>Records a write result and completes a matching write-failure publication.</summary>
+    /// <param name="writes">The observed write results.</param>
+    /// <param name="publication">The expected publication.</param>
+    /// <param name="write">The published write result.</param>
+    private static void RecordWritePublication(
+        ConcurrentQueue<string?> writes,
+        TaskCompletionSource<bool> publication,
+        string? write)
+    {
+        writes.Enqueue(write);
+        if (write?.Contains(WriteFailureMessage) != true)
+        {
+            return;
+        }
+
+        _ = publication.TrySetResult(true);
+    }
+
+    /// <summary>Waits for a queued reactive publication without polling shared state.</summary>
+    /// <param name="publication">The publication task.</param>
+    /// <returns>Whether the publication completed before the timeout.</returns>
+    private static async Task<bool> WaitForPublicationAsync(Task<bool> publication)
+    {
+        Task completed = await Task.WhenAny(publication, Task.Delay(PublicationTimeout));
+        return ReferenceEquals(completed, publication) && await publication;
     }
 
     /// <summary>Deterministic ADS runtime.</summary>

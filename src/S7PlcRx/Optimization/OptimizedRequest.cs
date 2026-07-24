@@ -34,5 +34,6 @@ internal class OptimizedRequest(
     internal DateTime Timestamp { get; } = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
 
     /// <summary>Gets the completion source for async operations.</summary>
-    internal TaskCompletionSource<bool>? CompletionSource { get; } = new();
+    internal TaskCompletionSource<bool>? CompletionSource { get; } =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 }

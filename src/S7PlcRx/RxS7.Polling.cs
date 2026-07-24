@@ -291,7 +291,12 @@ public partial class RxS7
     private IObservable<Unit> TagReaderObservable(double interval) =>
         Observable.Create<Unit>(__ =>
             {
-                var tim = Observable.Interval(TimeSpan.FromMilliseconds(interval))
+                var pollingInterval = TimeSpan.FromMilliseconds(interval);
+                var tim = IsConnected
+                    .Select(connected => connected
+                        ? Observable.Interval(pollingInterval)
+                        : Observable.Empty<long>())
+                    .Switch()
                     .Subscribe(_ => StartTagPolling());
 
                 return new SingleAssignmentDisposable { Disposable = tim };
@@ -391,7 +396,12 @@ public partial class RxS7
             // Setup the watchdog
             _ = TagOperations.AddUpdateTagItem(this, typeof(ushort), "WatchDog", WatchDogAddress!).SetPolling(false);
 
-            var tim = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(WatchDogWritingTime))
+            var watchdogInterval = TimeSpan.FromSeconds(WatchDogWritingTime);
+            var tim = IsConnected
+                .Select(connected => connected
+                    ? Observable.Timer(TimeSpan.Zero, watchdogInterval)
+                    : Observable.Empty<long>())
+                .Switch()
                 .OnErrorRetry()
                 .Subscribe(_ =>
             {

@@ -61,7 +61,15 @@ public partial class RxS7
                 void SetException(Exception exception) => tcs.TrySetException(exception);
 
                 using var sub = _paused.Where(x => x).Take(1).Subscribe(SetResult, SetException);
-                await tcs.Task.ConfigureAwait(false);
+                var pauseTask = tcs.Task;
+                var completedTask = await Task.WhenAny(
+                    pauseTask,
+                    Task.Delay(ConnectionWaitDelayMilliseconds, cancellationToken)).ConfigureAwait(false);
+                if (completedTask == pauseTask)
+                {
+                    await pauseTask.ConfigureAwait(false);
+                }
+
                 cancellationToken.ThrowIfCancellationRequested();
             }
             catch (TaskCanceledException)
