@@ -1,0 +1,4 @@
+<Project>
+  <!-- Keep the build project on the repository's single central package-version source. -->
+  <Import Project="..\src\Directory.Packages.props" />
+</Project>

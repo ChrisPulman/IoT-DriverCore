@@ -5,7 +5,7 @@
     <Authors>Chris Pulman</Authors>
     <Description>Reactive IoT driver libraries for PLC and industrial device communication.</Description>
     <Copyright>Copyright © https://github.com/ChrisPulman $([System.DateTime]::Now.ToString(yyyy))</Copyright>
-    <IsTestProject Condition="'$(IsTestProject)' == '' and $([System.String]::Copy('$(MSBuildProjectName)').Contains('Test'))">true</IsTestProject>
+    <IsTestProject Condition="'$(IsTestProject)' == '' and $([System.String]::Copy('$(MSBuildProjectName)').EndsWith('Tests'))">true</IsTestProject>
     <LangVersion>preview</LangVersion>
     <Company>ChrisPulman</Company>
     <RootNamespace>IoT.DriverCore.$(MSBuildProjectName)</RootNamespace>
@@ -93,7 +93,6 @@
     <Description>Reactive Allen-Bradley PLC driver for ControlLogix, CompactLogix, MicroLogix, PLC-5, and compatible controllers.</Description>
     <PackageReleaseNotes>Allen-Bradley PLC communication with logical tags, reactive observation, and bulk operations across supported target frameworks.</PackageReleaseNotes>
     <PackageTags>Allen-Bradley;Rockwell;ControlLogix;CompactLogix;MicroLogix;PLC-5;PLC;IoT;reactive;observable</PackageTags>
-    <PackageVersion>1.0.0-alpha.8</PackageVersion>
     <PackageIcon>abplclogo.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
@@ -232,6 +231,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="MinVer" PrivateAssets="All" />
     <PackageReference Include="StyleSharp.Analyzers" PrivateAssets="all" />
     <PackageReference Include="Roslynator.Analyzers" PrivateAssets="All" />
   </ItemGroup>

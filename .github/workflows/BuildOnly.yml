@@ -1,0 +1,65 @@
+name: BuildOnly
+
+on:
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  windows-latest:
+    name: windows-latest
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6.0.0
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+            11.0.x
+          dotnet-quality: 'preview'
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v3
+        with:
+          vs-prerelease: true
+
+      - name: 'Cache: .nuke/temp, ~/.nuget/packages'
+        uses: actions/cache@v6
+        with:
+          path: |
+            .nuke/temp
+            ~/.nuget/packages
+          key: ${{ runner.os }}-${{ hashFiles('**/global.json', '**/*.csproj', '**/Directory.Packages.props') }}
+
+      - name: 'Run: Compile'
+        run: ./build.cmd Compile --configuration Release
+
+      - name: Tests + Coverage (MTP)
+        shell: bash
+        working-directory: 'src'
+        run: |
+          dotnet test --solution IoT-DriverCore.slnx \
+            --configuration Release \
+            --no-build \
+            --max-parallel-test-modules 1 \
+            --coverage \
+            --coverage-output-format cobertura \
+            --results-directory ./TestResults
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: tmp-coverage
+          path: |
+            ./**/TestResults/**/*.cobertura.xml
+          if-no-files-found: error
+          retention-days: 3

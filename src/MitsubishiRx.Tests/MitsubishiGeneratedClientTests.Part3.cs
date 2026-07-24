@@ -470,6 +470,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
             $"/p:TargetFrameworks={targetFramework}",
             $"/p:LibraryTargetFrameworks={targetFramework}",
             $"/p:MSBuildProjectExtensionsPath={projectExtensionsPath}",
+            $"/p:MinVerVersionOverride={ConsumerPackageVersion}",
         ];
         var restore = await RunDotNetAsync(
             "restore",

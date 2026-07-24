@@ -43,6 +43,9 @@ internal sealed partial class MitsubishiGeneratedClientTests
     }
     """;
 
+    /// <summary>Version shared by every package created for the isolated consumer-package test feed.</summary>
+    private const string ConsumerPackageVersion = "1.0.0";
+
     /// <summary>Stores the PackagePackGate field.</summary>
     private static readonly SemaphoreSlim PackagePackGate = new(1, 1);
 
