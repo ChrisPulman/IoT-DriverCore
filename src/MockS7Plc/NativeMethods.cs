@@ -31,13 +31,28 @@ internal static class NativeMethods
     {
 #if NET8_0_OR_GREATER
         var rid = RuntimeInformation.ProcessArchitecture == Architecture.X86 ? "win-x86" : "win-x64";
-        var candidate = Path.Combine(AppContext.BaseDirectory, "runtimes", rid, "native", LibName);
-        _ = NativeLibrary.TryLoad(candidate, out var handle) || NativeLibrary.TryLoad(LibName, out handle);
+        var assemblyDirectory =
+            Path.GetDirectoryName(typeof(NativeMethods).Assembly.Location) ?? AppContext.BaseDirectory;
+        var assemblyCandidate = Path.Combine(assemblyDirectory, "runtimes", rid, "native", LibName);
+        var appCandidate = Path.Combine(AppContext.BaseDirectory, "runtimes", rid, "native", LibName);
+        _ = NativeLibrary.TryLoad(assemblyCandidate, out var handle) ||
+            NativeLibrary.TryLoad(appCandidate, out handle) ||
+            NativeLibrary.TryLoad(LibName, out handle);
         LibraryHandle = handle;
 #elif NETFRAMEWORK
         var rid = Environment.Is64BitProcess ? "win-x64" : "win-x86";
-        var candidate = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "runtimes", rid, "native", LibName);
-        LibraryHandle = File.Exists(candidate) ? LoadLibrary(candidate) : LoadLibrary(LibName);
+        var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        var assemblyDirectory =
+            Path.GetDirectoryName(typeof(NativeMethods).Assembly.Location) ?? baseDirectory;
+        var assemblyCandidate = Path.Combine(assemblyDirectory, "runtimes", rid, "native", LibName);
+        var appCandidate = Path.Combine(baseDirectory, "runtimes", rid, "native", LibName);
+        var handle = LoadLibrary(assemblyCandidate);
+        if (handle == default)
+        {
+            handle = LoadLibrary(appCandidate);
+        }
+
+        LibraryHandle = handle != default ? handle : LoadLibrary(LibName);
 #endif
     }
 

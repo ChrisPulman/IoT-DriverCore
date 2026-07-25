@@ -142,6 +142,7 @@ public sealed class SerialPortRxMixinsTests
     [Test]
     public async Task BufferUntil_WithDefaultValue_EmitsOnTimeoutAsync()
     {
+        var scheduler = new ReactiveUI.Primitives.Concurrency.VirtualClock();
         using var source = new ReplaySignal<char>(0);
         var values = new List<string>();
         using var subscription = SerialPortRxMixins.BufferUntil(
@@ -149,17 +150,19 @@ public sealed class SerialPortRxMixinsTests
             Observable.Return('['),
             Observable.Return(']'),
             Observable.Return("timeout"),
-            1).Subscribe(values.Add);
+            1,
+            scheduler).Subscribe(values.Add);
         using var resetSource = new ReplaySignal<char>(0);
         using var resetSubscription = SerialPortRxMixins.BufferUntil(
             resetSource,
             Observable.Return('['),
             Observable.Return(']'),
-            1).Subscribe();
+            1,
+            scheduler).Subscribe();
         resetSource.OnNext('[');
         resetSource.OnNext('A');
 
-        await Task.Delay(TwentyFive);
+        scheduler.AdvanceBy(TimeSpan.FromMilliseconds(TwentyFive));
 
         await Assert.That(values).Contains("timeout");
     }

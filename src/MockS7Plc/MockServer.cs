@@ -138,6 +138,7 @@ public class MockServer : IDisposable
     public MockServer(S7ServerBackend backend)
     {
         _backend = backend;
+        _areaHandles = [];
         if (backend == S7ServerBackend.Managed)
         {
             _managedServer = new();
@@ -146,8 +147,6 @@ public class MockServer : IDisposable
         {
             _server = NativeMethods.Srv_Create();
         }
-
-        _areaHandles = [];
     }
 
     /// <summary>Finalizes an instance of the <see cref="MockServer"/> class.</summary>
@@ -560,7 +559,7 @@ public class MockServer : IDisposable
         {
             _managedServer.Dispose();
         }
-        else
+        else if (_server != default)
         {
             _ = NativeMethods.Srv_Destroy(ref _server);
         }

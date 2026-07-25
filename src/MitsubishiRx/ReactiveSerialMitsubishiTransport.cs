@@ -113,10 +113,9 @@ internal sealed class ReactiveSerialMitsubishiTransport : IMitsubishiTransport
 
             _serialPort.DiscardInBuffer();
             _serialPort.DiscardOutBuffer();
-            _serialPort.Write(request.Payload);
             var timeout = _options.ResolvedTimeout;
             var received = new List<byte>();
-            return await _serialPort
+            var responseTask = _serialPort
                 .ReceivedBytes.Select(chunk =>
                 {
                     received.AddRange(chunk);
@@ -126,8 +125,9 @@ internal sealed class ReactiveSerialMitsubishiTransport : IMitsubishiTransport
                     MitsubishiSerialProtocolEncoding.IsExpectedFrameComplete(_options, buffer))
                 .Timeout(timeout)
                 .FirstAsync(cancellationToken)
-                .ToTask(cancellationToken)
-                .ConfigureAwait(false);
+                .ToTask(cancellationToken);
+            _serialPort.Write(request.Payload);
+            return await responseTask.ConfigureAwait(false);
         }
         finally
         {

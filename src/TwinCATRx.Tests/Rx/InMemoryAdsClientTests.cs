@@ -96,7 +96,7 @@ public sealed class InMemoryAdsClientTests
     private const int PauseDurationMilliseconds = 10;
 
     /// <summary>The pause completion wait in milliseconds.</summary>
-    private const int PauseWaitMilliseconds = 100;
+    private const int PauseWaitMilliseconds = 5_000;
 
     /// <summary>The first TwinCAT 3 ADS port.</summary>
     private const int TwinCat3Port = 851;
@@ -888,6 +888,19 @@ public sealed class InMemoryAdsClientTests
     /// <returns>The exercise task.</returns>
     private static async Task ExerciseFaultsAndPauseAsync(InMemoryAdsClient client)
     {
+        var resumed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var observedPause = 0;
+        using var pauseSubscription = LeanBridge.SubscribeTo(client.IsPausedObservable, isPaused =>
+        {
+            if (isPaused)
+            {
+                _ = Interlocked.Exchange(ref observedPause, 1);
+            }
+            else if (Volatile.Read(ref observedPause) == 1)
+            {
+                _ = resumed.TrySetResult(true);
+            }
+        });
         _ = client.QueueFault(InMemoryAdsOperation.Read, new IOException("read fault"));
         client.Read(SpeedVariable, "faulted-read");
         _ = client.QueueFault(InMemoryAdsOperation.Write, new IOException("write fault"));
@@ -898,7 +911,10 @@ public sealed class InMemoryAdsClientTests
         client.Read(SamplesVariable, "write-only");
         client.Read(MissingVariable, "missing");
         client.Pause(TimeSpan.FromMilliseconds(PauseDurationMilliseconds));
-        await Task.Delay(TimeSpan.FromMilliseconds(PauseWaitMilliseconds));
+        var completed = await Task.WhenAny(
+            resumed.Task,
+            Task.Delay(TimeSpan.FromMilliseconds(PauseWaitMilliseconds)));
+        await TUnitAssert.That(ReferenceEquals(completed, resumed.Task)).IsTrue();
     }
 
     /// <summary>Creates a structure-backed logical tag.</summary>

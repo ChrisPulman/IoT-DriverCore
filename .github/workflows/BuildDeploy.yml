@@ -56,6 +56,7 @@ jobs:
         with:
           ref: ${{ inputs.sourceRef }}
           fetch-depth: 0
+          lfs: true
 
       - name: Resolve built commit SHA
         id: sourcesha

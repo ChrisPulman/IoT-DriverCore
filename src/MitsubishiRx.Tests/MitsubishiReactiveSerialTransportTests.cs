@@ -38,9 +38,6 @@ internal sealed class MitsubishiReactiveSerialTransportTests
     /// <summary>Stores the deterministic serial data-bit count.</summary>
     private const int SerialDataBits = 7;
 
-    /// <summary>Stores the deterministic peer response delay.</summary>
-    private const int PeerResponseDelayMilliseconds = 20;
-
     /// <summary>Stores the deterministic serial operation timeout.</summary>
     private static readonly TimeSpan SerialTimeout = TimeSpan.FromSeconds(5);
 
@@ -105,15 +102,19 @@ internal sealed class MitsubishiReactiveSerialTransportTests
             serialOptions => new ReactiveSerialPortAdapter(serialOptions, pair.First));
         await transport.ConnectAsync(options, CancellationToken.None);
         await transport.ConnectAsync(options, CancellationToken.None);
-        var peerTask = Task.Run(async () =>
-        {
-            await Task.Delay(TimeSpan.FromMilliseconds(PeerResponseDelayMilliseconds));
-            pair.Second.Write(response, 0, response.Length);
-        });
-        var result = await transport.ExchangeAsync(
-            new MitsubishiTransportRequest([0x05, 0x30], null, "In-memory serial exchange"),
-            CancellationToken.None);
-        await peerTask;
+        var request = new byte[] { 0x05, 0x30 };
+        var requestBuffer = new byte[request.Length];
+        var exchangeTask = transport.ExchangeAsync(
+            new MitsubishiTransportRequest(request, null, "In-memory serial exchange"),
+            CancellationToken.None).AsTask();
+        await WaitUntilAsync(() => pair.Second.BytesToRead >= request.Length);
+        var peerRead = await pair.Second
+            .ReadAsync(requestBuffer, 0, requestBuffer.Length)
+            .WaitAsync(SerialTimeout);
+        await Assert.That(peerRead).IsEqualTo(request.Length);
+        await Assert.That(requestBuffer).IsEquivalentTo(request);
+        pair.Second.Write(response, 0, response.Length);
+        var result = await exchangeTask;
 
         await Assert.That(result).IsEquivalentTo(response);
         await Assert.That(transport.IsConnected).IsTrue();
