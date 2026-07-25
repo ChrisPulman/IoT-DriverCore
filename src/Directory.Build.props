@@ -100,6 +100,7 @@
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'ABPlcRx' or '$(MSBuildProjectName)' == 'ABPlcRx.Reactive' or '$(MSBuildProjectName)' == 'ABPlcRx.Generators'">
     <None Include="$(MSBuildThisFileDirectory)..\images\abplclogo.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\ABPlcRx\README.md" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\skills\ab-plc-rx\SKILL.md" Pack="true" PackagePath="skills/ab-plc-rx/SKILL.md"/>
   </ItemGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'MitsubishiRx' or '$(MSBuildProjectName)' == 'MitsubishiRx.Reactive'">
@@ -110,9 +111,10 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'MitsubishiRx' or '$(MSBuildProjectName)' == 'MitsubishiRx.Reactive'">
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'MitsubishiRx' or '$(MSBuildProjectName)' == 'MitsubishiRx.Reactive' or '$(MSBuildProjectName)' == 'MitsubishiRx.Generators'">
     <None Include="$(MSBuildThisFileDirectory)..\images\mitplclogo.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\MitsubishiRx\README.md" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\skills\mitsubishi-rx\SKILL.md" Pack="true" PackagePath="skills/mitsubishi-rx/SKILL.md"/>
   </ItemGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'ModbusRx' or '$(MSBuildProjectName)' == 'ModbusRx.Reactive'">
@@ -126,6 +128,7 @@
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'ModbusRx' or '$(MSBuildProjectName)' == 'ModbusRx.Reactive' or '$(MSBuildProjectName)' == 'ModbusRx.Generators'">
     <None Include="$(MSBuildThisFileDirectory)..\images\ModbusRx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\ModbusRx\README.md" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\skills\modbus-rx\SKILL.md" Pack="true" PackagePath="skills/modbus-rx/SKILL.md"/>
   </ItemGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'OmronPlcRx' or '$(MSBuildProjectName)' == 'OmronPlcRx.Reactive'">
@@ -139,6 +142,7 @@
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'OmronPlcRx' or '$(MSBuildProjectName)' == 'OmronPlcRx.Reactive' or '$(MSBuildProjectName)' == 'OmronPlcRx.Generators'">
     <None Include="$(MSBuildThisFileDirectory)..\images\OmronPLCRx-icon.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\OmronPlcRx\README.md" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\skills\omron-plc-rx\SKILL.md" Pack="true" PackagePath="skills/omron-plc-rx/SKILL.md"/>
   </ItemGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'S7PlcRx' or '$(MSBuildProjectName)' == 'S7PlcRx.Reactive'">
@@ -152,6 +156,7 @@
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'S7PlcRx' or '$(MSBuildProjectName)' == 'S7PlcRx.Reactive' or '$(MSBuildProjectName)' == 'S7PlcRx.Generators'">
     <None Include="$(MSBuildThisFileDirectory)..\images\S7PlcRx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\S7PlcRx\README.md" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\skills\s7-plc-rx\SKILL.md" Pack="true" PackagePath="skills/s7-plc-rx/SKILL.md"/>
   </ItemGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'ABPlcRx.Generators'">
@@ -178,6 +183,13 @@
     <PackageIcon>S7PlcRx.png</PackageIcon>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'MitsubishiRx.Generators'">
+    <Description>Compile-time source generators for strongly typed Mitsubishi MELSEC tag clients.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>mitplclogo.png</PackageIcon>
+    <PackageTags>Mitsubishi;MELSEC;MC Protocol;SLMP;PLC;source generator;Roslyn;IoT</PackageTags>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SerialPortRx' or '$(MSBuildProjectName)' == 'SerialPortRx.Reactive'">
     <Description>Reactive, cross-platform serial-port driver with asynchronous observable streams and source-generated helpers.</Description>
     <PackageReleaseNotes>Cross-platform serial communication for .NET 8 through .NET 11 with Windows-specific framework targets, async observables, and generated streams.</PackageReleaseNotes>
@@ -189,6 +201,7 @@
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'SerialPortRx' or '$(MSBuildProjectName)' == 'SerialPortRx.Reactive'">
     <None Include="$(MSBuildThisFileDirectory)..\images\serlogo.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\SerialPortRx\README.md" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\skills\serial-port-rx\SKILL.md" Pack="true" PackagePath="skills/serial-port-rx/SKILL.md"/>
   </ItemGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'TwinCATRx' or '$(MSBuildProjectName)' == 'TwinCATRx.Reactive' or '$(MSBuildProjectName)' == 'TwinCATRx.Core' or '$(MSBuildProjectName)' == 'TwinCATRx.Core.Reactive'">
@@ -202,11 +215,26 @@
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'TwinCATRx' or '$(MSBuildProjectName)' == 'TwinCATRx.Reactive'">
     <None Include="$(MSBuildThisFileDirectory)..\images\TwinCATRx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\TwinCATRx\README.md" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\skills\twincat-rx\SKILL.md" Pack="true" PackagePath="skills/twincat-rx/SKILL.md"/>
   </ItemGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'TwinCATRx.Core' or '$(MSBuildProjectName)' == 'TwinCATRx.Core.Reactive'">
     <None Include="$(MSBuildThisFileDirectory)..\images\TwinCATRx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\TwinCATRx\README.md" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\skills\twincat-rx\SKILL.md" Pack="true" PackagePath="skills/twincat-rx/SKILL.md"/>
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'TwinCATRx.Generators'">
+    <Description>Compile-time source generators for strongly typed Beckhoff TwinCAT ADS models and reactive streams.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>TwinCATRx.png</PackageIcon>
+    <PackageTags>Beckhoff;TwinCAT;ADS;PLC;source generator;Roslyn;IoT;reactive</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'TwinCATRx.Generators'">
+    <None Include="$(MSBuildThisFileDirectory)..\images\TwinCATRx.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\packagereadme\TwinCATRx\README.md" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\skills\twincat-rx\SKILL.md" Pack="true" PackagePath="skills/twincat-rx/SKILL.md"/>
   </ItemGroup>
 
   <!-- Alias Lock to the dedicated System.Threading.Lock on .NET 9+ (faster EnterScope fast path),
