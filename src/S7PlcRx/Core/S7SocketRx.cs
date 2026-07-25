@@ -36,6 +36,12 @@ internal partial class S7SocketRx : IDisposable
     /// <summary>Defines the d ef au lt ti me o u t value.</summary>
     private const int DefaultTimeout = 10_000;
 
+    /// <summary>Defines the maximum time allowed for one TCP connection attempt.</summary>
+    private const int ConnectionAttemptTimeoutMilliseconds = 5_000;
+
+    /// <summary>Defines the maximum time allowed for one S7 protocol handshake.</summary>
+    private const int HandshakeTimeoutMilliseconds = 5_000;
+
     /// <summary>Defines the i ni ti al re tr yd el ay mi ll is ec on d s value.</summary>
     private const int InitialRetryDelayMilliseconds = 250;
 
@@ -344,6 +350,9 @@ internal partial class S7SocketRx : IDisposable
 
     /// <summary>Stores the e tr ic ss ub je c t used by this instance.</summary>
     private readonly Signal<ConnectionMetrics> _metricsSubject = new();
+
+    /// <summary>Publishes connection transitions immediately to every connection-state observer.</summary>
+    private readonly Signal<bool> _connectionStateSubject = new();
 
     /// <summary>Stores the c on ne ct io nl o c k used by this instance.</summary>
     private readonly SemaphoreSlim _connectionLock = new(1, 1);

@@ -209,7 +209,6 @@ public class ABPlcRx : IABPlcRx
                 .StartWith(RxVoid.Default)
                 .Select(__ => GetTagValue<T>(bit, t)))
             .Switch()
-            .DelaySubscription(_scanInterval)
             .DistinctUntilChanged()
             .OnErrorRetry()
             .Publish()

@@ -36,7 +36,7 @@ public class S7PlcRxMultiVarPduReadTests
     {
         await TUnit.Assertions.Assert.That(DebuggerDisplay).IsNotNull();
         using var server = new MockServer();
-        _ = server.Start();
+        await TUnit.Assertions.Assert.That(server.Start()).IsEqualTo(0);
 
         using var plc = new RxS7(new(new(CpuType.S71500, MockServer.Localhost, 0, 1), new(1)));
 

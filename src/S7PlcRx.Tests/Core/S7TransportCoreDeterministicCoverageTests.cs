@@ -945,17 +945,31 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
         var profile = GetPrivateTsapProfile("PG");
 #if NETFRAMEWORK
         const string handshakeMethodName = "PerformOptimizedHandshakeNetStandardAsync";
+        var handshakeParameterTypes = new[] { typeof(Socket), typeof(byte[]), profile.GetType() };
+        object?[] handshakeArguments = [disposedSocket, new byte[HandshakeReceiveBufferLength], profile];
 #else
         const string handshakeMethodName = "PerformOptimizedHandshakeModernAsync";
+        var handshakeParameterTypes = new[]
+        {
+            typeof(Socket),
+            typeof(byte[]),
+            profile.GetType(),
+            typeof(CancellationToken),
+        };
+        object?[] handshakeArguments =
+        [
+            disposedSocket,
+            new byte[HandshakeReceiveBufferLength],
+            profile,
+            CancellationToken.None,
+        ];
 #endif
         await TUnitAssert.That(
             await InvokePrivateTaskAsync<bool>(
                 disposedTransport,
                 handshakeMethodName,
-                [typeof(Socket), typeof(byte[]), profile.GetType()],
-                disposedSocket,
-                new byte[HandshakeReceiveBufferLength],
-                profile)).IsFalse();
+                handshakeParameterTypes,
+                handshakeArguments)).IsFalse();
     }
 
     /// <summary>Invokes a private transport method.</summary>
@@ -1078,12 +1092,28 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
     /// <returns>The private receive result.</returns>
     private static async Task<int> ReceivePrivateTpktAsync(byte[] frame, int expectedMinimum)
     {
+        var (transportSocket, peerSocket) = await CreateConnectedSocketPairAsync();
 #if NETFRAMEWORK
         const string receiveMethodName = "ReceiveTpktExactNetStandardAsync";
+        var receiveParameterTypes = new[] { typeof(Socket), typeof(byte[]), typeof(int) };
+        object?[] receiveArguments = [transportSocket, new byte[HandshakeReceiveBufferLength], expectedMinimum];
 #else
         const string receiveMethodName = "ReceiveTpktExactModernAsync";
+        var receiveParameterTypes = new[]
+        {
+            typeof(Socket),
+            typeof(byte[]),
+            typeof(int),
+            typeof(CancellationToken),
+        };
+        object?[] receiveArguments =
+        [
+            transportSocket,
+            new byte[HandshakeReceiveBufferLength],
+            expectedMinimum,
+            CancellationToken.None,
+        ];
 #endif
-        var (transportSocket, peerSocket) = await CreateConnectedSocketPairAsync();
         using var peer = peerSocket;
         using var transport = new S7SocketRx(
             IPAddress.Loopback.ToString(),
@@ -1097,10 +1127,8 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
         return await InvokePrivateTaskAsync<int>(
             transport,
             receiveMethodName,
-            [typeof(Socket), typeof(byte[]), typeof(int)],
-            transportSocket,
-            new byte[HandshakeReceiveBufferLength],
-            expectedMinimum);
+            receiveParameterTypes,
+            receiveArguments);
     }
 
     /// <summary>Rejects one connection handshake for every supported TSAP profile.</summary>

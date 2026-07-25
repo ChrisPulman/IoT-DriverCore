@@ -19,6 +19,9 @@ namespace IoT.DriverCore.MitsubishiRx.Tests;
 /// <summary>Provides Mitsubishi generated-client test helpers.</summary>
 internal sealed partial class MitsubishiGeneratedClientTests
 {
+    /// <summary>Maximum duration allowed for a nested .NET CLI operation.</summary>
+    private static readonly TimeSpan DotNetCommandTimeout = TimeSpan.FromMinutes(10);
+
     /// <summary>Verifies the generated client and individual tag surface.</summary>
     /// <param name="generated">The generated source.</param>
     /// <returns>A task that completes when the assertions finish.</returns>
@@ -470,6 +473,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
             $"/p:TargetFrameworks={targetFramework}",
             $"/p:LibraryTargetFrameworks={targetFramework}",
             $"/p:MSBuildProjectExtensionsPath={projectExtensionsPath}",
+            $"/p:MinVerVersionOverride={ConsumerPackageVersion}",
         ];
         var restore = await RunDotNetAsync(
             "restore",
@@ -549,6 +553,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
 
         startInfo.ArgumentList.Add(command);
         startInfo.ArgumentList.Add(projectPath);
+        startInfo.ArgumentList.Add("--disable-build-servers");
         foreach (string argument in extraArguments)
         {
             startInfo.ArgumentList.Add(argument);
@@ -556,9 +561,34 @@ internal sealed partial class MitsubishiGeneratedClientTests
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to start dotnet process.");
-        string standardOutput = await process.StandardOutput.ReadToEndAsync();
-        string standardError = await process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
+
+        Task<string> standardOutputTask = process.StandardOutput.ReadToEndAsync();
+        Task<string> standardErrorTask = process.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(DotNetCommandTimeout);
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException ex) when (timeout.IsCancellationRequested)
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync().ConfigureAwait(false);
+            }
+
+            string timedOutStandardOutput = await standardOutputTask.ConfigureAwait(false);
+            string timedOutStandardError = await standardErrorTask.ConfigureAwait(false);
+            throw new TimeoutException(
+                $"dotnet {command} exceeded {DotNetCommandTimeout}.{Environment.NewLine}" +
+                timedOutStandardOutput +
+                Environment.NewLine +
+                timedOutStandardError,
+                ex);
+        }
+
+        string standardOutput = await standardOutputTask.ConfigureAwait(false);
+        string standardError = await standardErrorTask.ConfigureAwait(false);
         return (process.ExitCode, standardOutput + Environment.NewLine + standardError);
     }
 

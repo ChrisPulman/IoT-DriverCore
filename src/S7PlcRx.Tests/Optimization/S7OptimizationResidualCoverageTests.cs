@@ -161,13 +161,13 @@ public sealed class S7OptimizationResidualCoverageTests
 
         var zeroThreshold = await AsyncCompatibility.WaitAsync(
             zeroThresholdChange.Task,
-            TimeSpan.FromSeconds(1));
+            AsyncCompatibility.TestCompletionTimeout);
         var numericThreshold = await AsyncCompatibility.WaitAsync(
             numericThresholdChange.Task,
-            TimeSpan.FromSeconds(1));
+            AsyncCompatibility.TestCompletionTimeout);
         var text = await AsyncCompatibility.WaitAsync(
             textChange.Task,
-            TimeSpan.FromSeconds(1));
+            AsyncCompatibility.TestCompletionTimeout);
 
         await TUnit.Assertions.Assert.That(zeroThreshold.PreviousValue).IsEqualTo(1);
         await TUnit.Assertions.Assert.That(zeroThreshold.CurrentValue).IsEqualTo(SecondObservedValue);
@@ -212,7 +212,7 @@ public sealed class S7OptimizationResidualCoverageTests
 
         await Task.WhenAll(requests.Select(request => AsyncCompatibility.WaitAsync(
             request.CompletionSource!.Task,
-            TimeSpan.FromSeconds(1))));
+            AsyncCompatibility.TestCompletionTimeout)));
         clock.Advance(TimeSpan.FromMinutes(CacheExpiryAdvanceMinutes));
         engine.ClearExpiredCache(TimeSpan.FromMinutes(1));
 
@@ -245,7 +245,7 @@ public sealed class S7OptimizationResidualCoverageTests
 
         var result = await AsyncCompatibility.WaitAsync(
             succeeding.CompletionSource!.Task,
-            TimeSpan.FromSeconds(1));
+            AsyncCompatibility.TestCompletionTimeout);
 
         await TUnit.Assertions.Assert.That(completed.CompletionSource.Task.Result).IsFalse();
         await TUnit.Assertions.Assert.That(cancelled.CompletionSource.Task.IsCanceled).IsTrue();

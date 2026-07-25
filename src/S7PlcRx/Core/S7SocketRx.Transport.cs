@@ -188,6 +188,7 @@ internal partial class S7SocketRx
             _consecutiveAvailabilityFailures = 0;
         }
 
+        _connectionStateSubject.OnNext(true);
         CloseSocketOptimized(oldSocket, _timeProvider);
         LogInfo(
             $"Successfully connected to {PLCType} at {IP}:{_s7TcpPort} with PDU length {DataReadLength}",
@@ -198,19 +199,29 @@ internal partial class S7SocketRx
     /// <summary>Performs an optimized asynchronous handshake using the specified TSAP profile.</summary>
     /// <param name="socket">The connected socket used for the handshake.</param>
     /// <param name="profile">The TSAP profile to use for the handshake operation. Cannot be null.</param>
+    /// <param name="cancellationToken">Cancels a stalled handshake or the owning transport lifetime.</param>
     /// <returns>A task that represents the asynchronous operation. The task result is <see langword="true"/> if the
     /// handshake
     /// succeeds; otherwise, <see langword="false"/>.</returns>
-    private async Task<bool> PerformOptimizedHandshakeAsync(Socket socket, TsapProfile profile)
+    private async Task<bool> PerformOptimizedHandshakeAsync(
+        Socket socket,
+        TsapProfile profile,
+        CancellationToken cancellationToken)
     {
         var receiveBuffer = _bufferPool.Rent(HandshakeReceiveBufferSize);
+        using var cancellationRegistration = cancellationToken.Register(
+            () => CloseSocketOptimized(socket, _timeProvider));
         try
         {
 #if NETFRAMEWORK
             return await PerformOptimizedHandshakeNetStandardAsync(socket, receiveBuffer, profile)
                 .ConfigureAwait(false);
 #else
-            return await PerformOptimizedHandshakeModernAsync(socket, receiveBuffer, profile).ConfigureAwait(false);
+            return await PerformOptimizedHandshakeModernAsync(
+                socket,
+                receiveBuffer,
+                profile,
+                cancellationToken).ConfigureAwait(false);
 #endif
         }
         finally
@@ -359,19 +370,24 @@ internal partial class S7SocketRx
     /// A buffer used to receive handshake response data from the remote endpoint. Must be large enough to hold the
     /// expected handshake messages.</param>
     /// <param name="profile">The connection profile containing parameters required for the handshake process.</param>
+    /// <param name="cancellationToken">Cancels a stalled handshake or the owning transport lifetime.</param>
     /// <returns>A task that represents the asynchronous operation. The task result is <see langword="true"/> if the
     /// handshake
     /// completes successfully; otherwise, <see langword="false"/>.</returns>
     private async Task<bool> PerformOptimizedHandshakeModernAsync(
         Socket socket,
         byte[] receiveBuffer,
-        TsapProfile profile)
+        TsapProfile profile,
+        CancellationToken cancellationToken)
     {
         try
         {
             // Step 1: Initial connection request
             var connectionRequest = GetConnectionRequestBytes(profile);
-            var sent = await socket.SendAsync(connectionRequest, SocketFlags.None).ConfigureAwait(false);
+            var sent = await socket.SendAsync(
+                connectionRequest.AsMemory(),
+                SocketFlags.None,
+                cancellationToken).ConfigureAwait(false);
             if (sent != connectionRequest.Length)
             {
                 LogError("Failed to send initial connection request", _timeProvider);
@@ -379,7 +395,11 @@ internal partial class S7SocketRx
             }
 
             // Step 2: Receive connection response (TPKT length based)
-            var received = await ReceiveTpktExactModernAsync(socket, receiveBuffer, ConnectionResponseLength)
+            var received = await ReceiveTpktExactModernAsync(
+                    socket,
+                    receiveBuffer,
+                    ConnectionResponseLength,
+                    cancellationToken)
                 .ConfigureAwait(false);
             if (received < ConnectionResponseLength)
             {
@@ -389,7 +409,10 @@ internal partial class S7SocketRx
 
             // Step 3: Communication setup request
             var communicationSetupRequest = GetCommunicationSetupBytes();
-            sent = await socket.SendAsync(communicationSetupRequest, SocketFlags.None).ConfigureAwait(false);
+            sent = await socket.SendAsync(
+                communicationSetupRequest.AsMemory(),
+                SocketFlags.None,
+                cancellationToken).ConfigureAwait(false);
             if (sent != communicationSetupRequest.Length)
             {
                 LogError("Failed to send communication setup request", _timeProvider);
@@ -397,7 +420,11 @@ internal partial class S7SocketRx
             }
 
             // Step 4: Receive communication setup response (TPKT length based)
-            received = await ReceiveTpktExactModernAsync(socket, receiveBuffer, CommunicationSetupResponseLength)
+            received = await ReceiveTpktExactModernAsync(
+                    socket,
+                    receiveBuffer,
+                    CommunicationSetupResponseLength,
+                    cancellationToken)
                 .ConfigureAwait(false);
             if (received < CommunicationSetupResponseLength)
             {

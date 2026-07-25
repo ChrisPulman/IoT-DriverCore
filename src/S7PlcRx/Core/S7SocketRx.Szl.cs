@@ -182,6 +182,7 @@ internal partial class S7SocketRx
         }
 
         _metricsSubject?.Dispose();
+        _connectionStateSubject.Dispose();
         _connectionLock.Dispose();
         _lifetimeCancellation.Dispose();
     }
@@ -378,16 +379,58 @@ internal partial class S7SocketRx
     }
 
 #if !NETFRAMEWORK
+    /// <summary>Receives exactly the requested number of bytes unless the peer closes or cancellation is requested.</summary>
+    /// <param name="socket">The connected socket to read from.</param>
+    /// <param name="buffer">The destination buffer.</param>
+    /// <param name="size">The number of bytes to receive.</param>
+    /// <param name="offset">The destination buffer offset.</param>
+    /// <param name="cancellationToken">Cancels a stalled receive.</param>
+    /// <returns>The total number of bytes received.</returns>
+    private static async Task<int> ReceiveExactModernAsync(
+        Socket socket,
+        byte[] buffer,
+        int size,
+        int offset,
+        CancellationToken cancellationToken)
+    {
+        var total = 0;
+        while (total < size)
+        {
+            var received = await socket.ReceiveAsync(
+                buffer.AsMemory(offset + total, size - total),
+                SocketFlags.None,
+                cancellationToken).ConfigureAwait(false);
+            if (received <= 0)
+            {
+                break;
+            }
+
+            total += received;
+        }
+
+        return total;
+    }
+
     /// <summary>Asynchronously receives a complete TPKT packet into the specified buffer.</summary>
     /// <param name="socket">The connected socket to read from.</param>
     /// <param name="buffer">The buffer that receives the TPKT packet data.</param>
     /// <param name="expectedMin">The minimum expected length of the TPKT packet, in bytes.</param>
+    /// <param name="cancellationToken">Cancels a stalled receive or the owning transport lifetime.</param>
     /// <returns>
     /// The total number of bytes read into the buffer, or a value less than 4 if the TPKT header could not be read.
     /// </returns>
-    private async Task<int> ReceiveTpktExactModernAsync(Socket socket, byte[] buffer, int expectedMin)
+    private async Task<int> ReceiveTpktExactModernAsync(
+        Socket socket,
+        byte[] buffer,
+        int expectedMin,
+        CancellationToken cancellationToken)
     {
-        var headerRead = await ReceiveExactAsync(socket, buffer, TpktHeaderLength, 0).ConfigureAwait(false);
+        var headerRead = await ReceiveExactModernAsync(
+            socket,
+            buffer,
+            TpktHeaderLength,
+            0,
+            cancellationToken).ConfigureAwait(false);
         if (headerRead != TpktHeaderLength)
         {
             return headerRead;
@@ -411,27 +454,13 @@ internal partial class S7SocketRx
             return headerRead;
         }
 
-        var bodyRead = await ReceiveExactAsync(socket, buffer, remaining, TpktHeaderLength).ConfigureAwait(false);
+        var bodyRead = await ReceiveExactModernAsync(
+            socket,
+            buffer,
+            remaining,
+            TpktHeaderLength,
+            cancellationToken).ConfigureAwait(false);
         return bodyRead <= 0 ? headerRead : headerRead + bodyRead;
-
-        static async Task<int> ReceiveExactAsync(Socket socket, byte[] buffer, int size, int offset)
-        {
-            var total = 0;
-            while (total < size)
-            {
-                var received = await socket.ReceiveAsync(
-                    buffer.AsMemory(offset + total, size - total),
-                    SocketFlags.None).ConfigureAwait(false);
-                if (received <= 0)
-                {
-                    break;
-                }
-
-                total += received;
-            }
-
-            return total;
-        }
     }
 #endif
 

@@ -169,19 +169,24 @@ internal class OptimizationEngine : IDisposable
     /// </param>
     protected virtual void Dispose(bool disposing)
     {
-        if (_disposed)
+        lock (_timerLock)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+        }
+
+        if (!disposing)
         {
             return;
         }
 
-        if (disposing)
-        {
-            _batchTimer?.Dispose();
-            _processingLock.Dispose();
-            _valueCache.Clear();
-        }
-
-        _disposed = true;
+        DisposeBatchTimer();
+        _processingLock.Dispose();
+        _valueCache.Clear();
     }
 
     /// <summary>Disposes the optimization engine.</summary>
@@ -289,11 +294,29 @@ internal class OptimizationEngine : IDisposable
         return int.TryParse(address[DataBlockPrefixLength..dotIndex], out var dbNumber) ? dbNumber : -1;
     }
 
+    /// <summary>Stops the timer and waits for any executing callback to release owned resources.</summary>
+    private void DisposeBatchTimer()
+    {
+        if (_batchTimer is null)
+        {
+            return;
+        }
+
+        using var callbacksCompleted = new ManualResetEvent(false);
+        if (_batchTimer.Dispose(callbacksCompleted))
+        {
+            _ = callbacksCompleted.WaitOne();
+        }
+
+        _batchTimer.Dispose();
+        _batchTimer = null;
+    }
+
     /// <summary>Processes a batch of queued requests, up to the configured maximum batch size.</summary>
     /// <remarks>This method is intended to be invoked by a timer or background scheduler. If the processing
     /// lock cannot be acquired within 100 milliseconds, the method exits without processing any requests. The method
     /// processes requests in batches to improve throughput and efficiency.</remarks>
-    private void BeginProcessBatchedRequests() => _ = ProcessBatchedRequestsAsync();
+    private void BeginProcessBatchedRequests() => ProcessBatchedRequests();
 
     /// <summary>Starts the batching timer after construction when it is first needed.</summary>
     private void EnsureTimerStarted()
@@ -316,12 +339,11 @@ internal class OptimizationEngine : IDisposable
         }
     }
 
-    /// <summary>Processes the next queued batch asynchronously.</summary>
-    /// <returns>A task representing the asynchronous batch operation.</returns>
-    private async Task ProcessBatchedRequestsAsync()
+    /// <summary>Processes the next queued batch on the timer callback.</summary>
+    private void ProcessBatchedRequests()
     {
         // Quick timeout to avoid blocking
-        if (!await _processingLock.WaitAsync(ProcessingLockTimeoutMilliseconds))
+        if (!_processingLock.Wait(ProcessingLockTimeoutMilliseconds))
         {
             return;
         }

@@ -7,6 +7,12 @@ namespace IoT.DriverCore.S7PlcRx.Tests.Testing;
 /// <summary>Provides target-independent asynchronous cancellation and timeout helpers.</summary>
 internal static class AsyncCompatibility
 {
+    /// <summary>Defines the bounded asynchronous test completion timeout in seconds.</summary>
+    private const int TestCompletionTimeoutSeconds = 5;
+
+    /// <summary>Gets the bounded timeout for asynchronous test orchestration.</summary>
+    internal static TimeSpan TestCompletionTimeout => TimeSpan.FromSeconds(TestCompletionTimeoutSeconds);
+
     /// <summary>Cancels a token source and returns a completed task.</summary>
     /// <param name="source">The cancellation source.</param>
     /// <returns>A completed task after synchronous cancellation finishes.</returns>

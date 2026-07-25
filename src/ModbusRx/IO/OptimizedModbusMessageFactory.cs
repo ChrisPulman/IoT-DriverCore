@@ -18,8 +18,8 @@ namespace IoT.DriverCore.ModbusRx.IO;
 /// <summary>High-performance Modbus message factory with cross-platform optimizations.</summary>
 public static class OptimizedModbusMessageFactory
 {
-    /// <summary>Executes the Buffer Manager operation.</summary>
-    private static readonly ModbusBufferManager BufferManager = new();
+    /// <summary>Stores the replaceable shared buffer manager.</summary>
+    private static ModbusBufferManager _bufferManager = new();
 
     /// <summary>Creates a read holding registers request with high performance.</summary>
     /// <param name="slaveAddress">The slave address.</param>
@@ -31,7 +31,8 @@ public static class OptimizedModbusMessageFactory
         ushort startAddress,
         ushort numberOfPoints)
     {
-        var buffer = BufferManager.RentByteBuffer(Eight);
+        var bufferManager = Volatile.Read(ref _bufferManager);
+        var buffer = bufferManager.RentByteBuffer(Eight);
         try
         {
             buffer[0] = slaveAddress;
@@ -50,7 +51,7 @@ public static class OptimizedModbusMessageFactory
         }
         finally
         {
-            BufferManager.ReturnByteBuffer(buffer, true);
+            bufferManager.ReturnByteBuffer(buffer, true);
         }
     }
 
@@ -61,7 +62,8 @@ public static class OptimizedModbusMessageFactory
     /// <returns>The serialized message bytes.</returns>
     public static byte[] CreateReadCoilsRequest(byte slaveAddress, ushort startAddress, ushort numberOfPoints)
     {
-        var buffer = BufferManager.RentByteBuffer(Eight);
+        var bufferManager = Volatile.Read(ref _bufferManager);
+        var buffer = bufferManager.RentByteBuffer(Eight);
         try
         {
             buffer[0] = slaveAddress;
@@ -80,7 +82,7 @@ public static class OptimizedModbusMessageFactory
         }
         finally
         {
-            BufferManager.ReturnByteBuffer(buffer, true);
+            bufferManager.ReturnByteBuffer(buffer, true);
         }
     }
 
@@ -91,7 +93,8 @@ public static class OptimizedModbusMessageFactory
     /// <returns>The serialized message bytes.</returns>
     public static byte[] CreateWriteSingleRegisterRequest(byte slaveAddress, ushort registerAddress, ushort value)
     {
-        var buffer = BufferManager.RentByteBuffer(Eight);
+        var bufferManager = Volatile.Read(ref _bufferManager);
+        var buffer = bufferManager.RentByteBuffer(Eight);
         try
         {
             buffer[0] = slaveAddress;
@@ -110,7 +113,7 @@ public static class OptimizedModbusMessageFactory
         }
         finally
         {
-            BufferManager.ReturnByteBuffer(buffer, true);
+            bufferManager.ReturnByteBuffer(buffer, true);
         }
     }
 
@@ -127,7 +130,8 @@ public static class OptimizedModbusMessageFactory
         }
 
         var messageLength = Nine + (values.Length * Two); // Header + byte count + data + CRC
-        var buffer = BufferManager.RentByteBuffer(messageLength);
+        var bufferManager = Volatile.Read(ref _bufferManager);
+        var buffer = bufferManager.RentByteBuffer(messageLength);
         try
         {
             buffer[0] = slaveAddress;
@@ -155,7 +159,7 @@ public static class OptimizedModbusMessageFactory
         }
         finally
         {
-            BufferManager.ReturnByteBuffer(buffer, true);
+            bufferManager.ReturnByteBuffer(buffer, true);
         }
     }
 
@@ -166,7 +170,8 @@ public static class OptimizedModbusMessageFactory
     /// <returns>The serialized message bytes.</returns>
     public static byte[] CreateWriteSingleCoilRequest(byte slaveAddress, ushort coilAddress, bool value)
     {
-        var buffer = BufferManager.RentByteBuffer(Eight);
+        var bufferManager = Volatile.Read(ref _bufferManager);
+        var buffer = bufferManager.RentByteBuffer(Eight);
         try
         {
             buffer[0] = slaveAddress;
@@ -185,7 +190,7 @@ public static class OptimizedModbusMessageFactory
         }
         finally
         {
-            BufferManager.ReturnByteBuffer(buffer, true);
+            bufferManager.ReturnByteBuffer(buffer, true);
         }
     }
 
@@ -203,7 +208,8 @@ public static class OptimizedModbusMessageFactory
 
         var byteCount = (values.Length + Seven) / Eight; // Round up to next byte
         var messageLength = Nine + byteCount; // Header + byte count + data + CRC
-        var buffer = BufferManager.RentByteBuffer(messageLength);
+        var bufferManager = Volatile.Read(ref _bufferManager);
+        var buffer = bufferManager.RentByteBuffer(messageLength);
         try
         {
             buffer[0] = slaveAddress;
@@ -236,7 +242,7 @@ public static class OptimizedModbusMessageFactory
         }
         finally
         {
-            BufferManager.ReturnByteBuffer(buffer, true);
+            bufferManager.ReturnByteBuffer(buffer, true);
         }
     }
 
@@ -338,6 +344,12 @@ public static class OptimizedModbusMessageFactory
         return ModbusBufferManager.CompareArrays(calculatedCrc, receivedCrc);
     }
 
-    /// <summary>Disposes the shared buffer manager.</summary>
-    public static void DisposeSharedResources() => BufferManager?.Dispose();
+    /// <summary>Releases the shared buffer manager reference and replaces it for subsequent factory operations.</summary>
+    /// <remarks>
+    /// In-flight operations retain their manager until their rented buffer is returned. Buffer managers only reference
+    /// shared pools or dedicated managed arrays, so a replaced manager requires no eager disposal and is collected
+    /// after the final in-flight operation releases it.
+    /// </remarks>
+    public static void DisposeSharedResources() =>
+        _ = Interlocked.Exchange(ref _bufferManager, new ModbusBufferManager());
 }

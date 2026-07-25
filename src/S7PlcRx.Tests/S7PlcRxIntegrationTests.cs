@@ -547,7 +547,7 @@ public class S7PlcRxIntegrationTests
 
         // Arrange
         using var server = new MockServer();
-        _ = server.Start();
+        await TUnit.Assertions.Assert.That(server.Start()).IsEqualTo(0);
         using var plc = S71500.Create(
             MockServer.Localhost,
             DefaultRack,
@@ -565,7 +565,7 @@ public class S7PlcRxIntegrationTests
         await WaitForConnectionStateAsync(plc, false);
 
         // Restart server to simulate cable plug back
-        _ = server.Start();
+        await TUnit.Assertions.Assert.That(server.Start()).IsEqualTo(0);
 
         // Wait for reconnection.
         await WaitForConnectionStateAsync(plc, true);
@@ -583,7 +583,7 @@ public class S7PlcRxIntegrationTests
 
         // Arrange
         using var server = new MockServer();
-        _ = server.Start();
+        await TUnit.Assertions.Assert.That(server.Start()).IsEqualTo(0);
         using var plc = S71500.Create(
             MockServer.Localhost,
             DefaultRack,
@@ -601,7 +601,7 @@ public class S7PlcRxIntegrationTests
         await WaitForConnectionStateAsync(plc, false);
 
         // Simulate PLC run by starting server
-        _ = server.Start();
+        await TUnit.Assertions.Assert.That(server.Start()).IsEqualTo(0);
 
         // Wait for reconnection.
         await WaitForConnectionStateAsync(plc, true);

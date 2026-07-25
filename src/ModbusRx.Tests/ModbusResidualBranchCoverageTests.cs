@@ -30,6 +30,9 @@ public sealed class ModbusResidualBranchCoverageTests
     /// <summary>The configured fast scan interval.</summary>
     private const int FastScanIntervalMilliseconds = 10;
 
+    /// <summary>The number of concurrent shared-resource reset operations.</summary>
+    private const int SharedResourceResetOperationCount = 100;
+
     /// <summary>The data-length helper name.</summary>
     private const string GetDataLengthMethod = "GetDataLength";
 
@@ -126,7 +129,28 @@ public sealed class ModbusResidualBranchCoverageTests
                 () => OptimizedModbusMessageFactory.ParseReadCoilsResponse([1, 1, Two, 1, 0], 1))
             .Throws<ArgumentException>();
         OptimizedModbusMessageFactory.DisposeSharedResources();
+        var request = OptimizedModbusMessageFactory.CreateReadHoldingRegistersRequest(1, 0, 1);
+        await NativeAssert.That(OptimizedModbusMessageFactory.ValidateMessageCrc(request)).IsTrue();
         await NativeAssert.That(OptimizedModbusMessageFactory.ValidateMessageCrc(null!)).IsFalse();
+    }
+
+    /// <summary>Verifies shared buffer-manager resets remain usable during concurrent factory operations.</summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [TUnit.Core.Test]
+    public async Task OptimizedFactory_ResetRemainsUsableUnderConcurrencyAsync()
+    {
+        var operations = Enumerable.Range(0, SharedResourceResetOperationCount)
+            .Select(_ => Task.Run(
+                () =>
+                {
+                    OptimizedModbusMessageFactory.DisposeSharedResources();
+                    var request = OptimizedModbusMessageFactory.CreateReadHoldingRegistersRequest(1, 0, 1);
+                    return OptimizedModbusMessageFactory.ValidateMessageCrc(request);
+                }));
+
+        var results = await Task.WhenAll(operations);
+
+        await NativeAssert.That(results.All(static result => result)).IsTrue();
     }
 
     /// <summary>Exercises discriminated-union formatting and register collection ownership.</summary>

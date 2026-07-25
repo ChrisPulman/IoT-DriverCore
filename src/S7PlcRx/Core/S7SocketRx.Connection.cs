@@ -290,7 +290,11 @@ internal partial class S7SocketRx
             };
 
             return timer;
-        }).OnErrorRetry().ReplayLastOnSubscribe(false).DistinctUntilChanged();
+        })
+        .Merge(_connectionStateSubject)
+        .OnErrorRetry()
+        .ReplayLastOnSubscribe(false)
+        .DistinctUntilChanged();
 
     /// <summary>Gets the type of PLC (Programmable Logic Controller) associated with this instance.</summary>
     internal CpuType PLCType { get; }

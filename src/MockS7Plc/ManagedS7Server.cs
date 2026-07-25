@@ -90,6 +90,9 @@ public sealed class ManagedS7Server : IDisposable
     /// <summary>The number of seconds allowed for listener shutdown.</summary>
     private const int ShutdownWaitSeconds = 2;
 
+    /// <summary>The interval used to poll the listener backlog before accepting a client.</summary>
+    private const int AcceptPollIntervalMilliseconds = 10;
+
     /// <summary>The deterministic CPU information payload length.</summary>
     private const int CpuInformationLength = 204;
 
@@ -380,13 +383,16 @@ public sealed class ManagedS7Server : IDisposable
             TcpClient client;
             try
             {
-#if NET8_0_OR_GREATER
-                client = await listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
-#else
-                client = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
-#endif
+                if (!listener.Pending())
+                {
+                    await Task.Delay(AcceptPollIntervalMilliseconds, cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+
+                client = listener.AcceptTcpClient();
             }
-            catch (Exception ex) when (ex is ObjectDisposedException or SocketException)
+            catch (Exception ex) when (
+                ex is InvalidOperationException or ObjectDisposedException or OperationCanceledException or SocketException)
             {
                 return;
             }

@@ -448,6 +448,8 @@ public class MalformedDevice
 
         AddReferenceIfMissing(references, serialPortAssemblyPath);
         AddReferenceIfMissing(references, typeof(Signal).Assembly.Location);
+        AddReferenceIfMissing(references, typeof(ISignal<>).Assembly.Location);
+        AddReferenceIfMissing(references, typeof(MultipleDisposable).Assembly.Location);
         AddReferenceIfMissing(references, typeof(IObservableAsync<>).Assembly.Location);
 
         return CSharpCompilation.Create(

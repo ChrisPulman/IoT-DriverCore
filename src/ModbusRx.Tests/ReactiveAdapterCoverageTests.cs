@@ -32,6 +32,9 @@ public sealed class ReactiveAdapterCoverageTests
     /// <summary>The register value written through reactive slave adapters.</summary>
     private const ushort RegisterValue = 321;
 
+    /// <summary>The maximum time allowed for asynchronous observer continuations on constrained runners.</summary>
+    private static readonly TimeSpan AsyncCompletionTimeout = TimeSpan.FromSeconds(5);
+
     /// <summary>Round-trips a value through both adapter directions.</summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [TUnit.Core.Test]
@@ -54,7 +57,7 @@ public sealed class ReactiveAdapterCoverageTests
         var completed = 0;
         var subscription = AsyncModbus.ToObservable(source)
             .Subscribe(values.Add, errors.Add, () => completed++);
-        var observer = await source.Observer.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        var observer = await source.Observer.Task.WaitAsync(AsyncCompletionTimeout);
 
         await observer.OnNextAsync(ExpectedValue, CancellationToken.None);
         await observer.OnErrorResumeAsync(new IOException("forwarded"), CancellationToken.None);
@@ -78,12 +81,12 @@ public sealed class ReactiveAdapterCoverageTests
         var delayedSubscription = AsyncModbus.ToObservable(delayed).Subscribe(_ => { });
         delayedSubscription.Dispose();
         _ = delayed.Release();
-        await delayed.SubscriptionDisposed.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        await delayed.SubscriptionDisposed.Task.WaitAsync(AsyncCompletionTimeout);
 
         var connectError = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var failed = AsyncModbus.ToObservable(new FaultingAsyncObservable<int>())
             .Subscribe(_ => { }, exception => connectError.TrySetResult(exception));
-        await NativeAssert.That(await connectError.Task.WaitAsync(TimeSpan.FromSeconds(1)))
+        await NativeAssert.That(await connectError.Task.WaitAsync(AsyncCompletionTimeout))
             .IsTypeOf<IOException>();
     }
 
@@ -109,7 +112,7 @@ public sealed class ReactiveAdapterCoverageTests
             .ToAsyncObservable(Observable.Return(ExpectedValue))
             .SubscribeAsync(delayedObserver, CancellationToken.None);
         delayedObserver.ReleaseNext();
-        await delayedObserver.NextCompleted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        await delayedObserver.NextCompleted.Task.WaitAsync(AsyncCompletionTimeout);
 
         await NativeAssert.That(canceledObserver.Values).IsEmpty();
         await NativeAssert.That(canceledObserver.Completed).IsTrue();
