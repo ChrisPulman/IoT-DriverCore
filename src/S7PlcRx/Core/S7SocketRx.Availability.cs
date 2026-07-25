@@ -148,14 +148,7 @@ internal partial class S7SocketRx
             () => CloseSocketOptimized(attemptSocket, _timeProvider));
         try
         {
-            attemptSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveTimeout, DefaultTimeout);
-            attemptSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendTimeout, DefaultTimeout);
-            attemptSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-            attemptSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
-
-            var bufferSize = DataReadLength * SocketBufferPduMultiplier;
-            attemptSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveBuffer, bufferSize);
-            attemptSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendBuffer, bufferSize);
+            ConfigureConnectionSocket(attemptSocket);
 
             var server = new IPEndPoint(IPAddress.Parse(IP), _s7TcpPort);
 #if NETFRAMEWORK
@@ -167,7 +160,9 @@ internal partial class S7SocketRx
 #else
             using var connectCancellation = CancellationTokenSource.CreateLinkedTokenSource(
                 _lifetimeCancellation.Token);
-            connectCancellation.CancelAfter(DefaultTimeout);
+            using var connectCancellationRegistration = connectCancellation.Token.Register(
+                () => CloseSocketOptimized(attemptSocket, _timeProvider));
+            connectCancellation.CancelAfter(ConnectionAttemptTimeoutMilliseconds);
             await attemptSocket.ConnectAsync(server, connectCancellation.Token).ConfigureAwait(false);
             var connected = attemptSocket.Connected;
 #endif
@@ -177,8 +172,7 @@ internal partial class S7SocketRx
                 return null;
             }
 
-            if (CheckConnectionStatusOptimized(attemptSocket) &&
-                await PerformOptimizedHandshakeAsync(attemptSocket, profile).ConfigureAwait(false))
+            if (await CompleteHandshakeAsync(attemptSocket, profile).ConfigureAwait(false))
             {
                 socketAccepted = true;
                 return attemptSocket;
@@ -186,11 +180,15 @@ internal partial class S7SocketRx
 
             return null;
         }
-        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
             return null;
         }
-        catch (ObjectDisposedException) when (_disposedValue || _lifetimeCancellation.IsCancellationRequested)
+        catch (ObjectDisposedException)
+        {
+            return null;
+        }
+        catch (SocketException)
         {
             return null;
         }
@@ -202,6 +200,36 @@ internal partial class S7SocketRx
                 CloseSocketOptimized(attemptSocket, _timeProvider);
             }
         }
+    }
+
+    /// <summary>Configures timeouts, keep-alive, latency, and buffers for a connection-attempt socket.</summary>
+    /// <param name="socket">The socket to configure.</param>
+    private void ConfigureConnectionSocket(Socket socket)
+    {
+        socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveTimeout, DefaultTimeout);
+        socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendTimeout, DefaultTimeout);
+        socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+        socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
+
+        var bufferSize = DataReadLength * SocketBufferPduMultiplier;
+        socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveBuffer, bufferSize);
+        socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendBuffer, bufferSize);
+    }
+
+    /// <summary>Completes a bounded S7 protocol handshake for a connected socket.</summary>
+    /// <param name="socket">The connected socket.</param>
+    /// <param name="profile">The TSAP profile to use.</param>
+    /// <returns><see langword="true"/> when the handshake succeeds; otherwise, <see langword="false"/>.</returns>
+    private async Task<bool> CompleteHandshakeAsync(Socket socket, TsapProfile profile)
+    {
+        using var handshakeCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            _lifetimeCancellation.Token);
+        handshakeCancellation.CancelAfter(HandshakeTimeoutMilliseconds);
+        return CheckConnectionStatusOptimized(socket) &&
+            await PerformOptimizedHandshakeAsync(
+                socket,
+                profile,
+                handshakeCancellation.Token).ConfigureAwait(false);
     }
 
     /// <summary>Registers a new connection-attempt socket when the transport is still active.</summary>

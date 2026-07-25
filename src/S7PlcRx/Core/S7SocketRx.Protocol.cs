@@ -178,6 +178,7 @@ internal partial class S7SocketRx
             _socket = null;
             _initComplete = false;
             _isConnected = false;
+            _connectionStateSubject.OnNext(false);
             CloseSocketOptimized(socket, _timeProvider);
 
             await Task.Delay(
