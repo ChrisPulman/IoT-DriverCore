@@ -5,7 +5,7 @@
 
   <ItemGroup>
 	  <!--ReactiveUI-->
-    <PackageVersion Include="ReactiveUI.Primitives" Version="7.0.0" />
+    <PackageVersion Include="ReactiveUI.Primitives" Version="7.1.0" />
     <PackageVersion Include="ReactiveUI.Primitives.Async" Version="7.0.0" />
     <PackageVersion Include="ReactiveUI.Primitives.Async.Reactive" Version="7.0.0" />
     <PackageVersion Include="ReactiveUI.Primitives.Extensions" Version="6.0.0" />
