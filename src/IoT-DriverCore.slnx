@@ -16,6 +16,8 @@
   <Folder Name="/Config/">
     <File Path="../.editorconfig" />
     <File Path="../.gitattributes" />
+    <File Path="../.github/workflows/BuildDeploy.yml" />
+    <File Path="../.github/workflows/BuildOnly.yml" />
     <File Path="../.gitignore" />
     <File Path="../global.json" />
     <File Path="../LICENSE" />
