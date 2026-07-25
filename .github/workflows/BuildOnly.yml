@@ -41,6 +41,8 @@ jobs:
 
       - name: 'Run: Compile'
         run: ./build.cmd Compile --configuration Release
+        env:
+          NUKE_TELEMETRY_OPTOUT: 'true'
 
       - name: Tests + Coverage (MTP)
         shell: bash
