@@ -1,16 +1,52 @@
-![License](https://img.shields.io/github/license/ChrisPulman/S7PlcRx.svg) [![Build](https://github.com/ChrisPulman/S7PlcRx/actions/workflows/BuildOnly.yml/badge.svg)](https://github.com/ChrisPulman/S7PlcRx/actions/workflows/BuildOnly.yml) ![Nuget](https://img.shields.io/nuget/dt/S7PlcRx?color=pink&style=plastic) [![NuGet](https://img.shields.io/nuget/v/S7PlcRx.svg?style=plastic)](https://www.nuget.org/packages/S7PlcRx)
-
-<p align="left">
-  <a href="https://github.com/ChrisPulman/S7PlcRx">
-    <img alt="S7PlcRx" src="./Images/S7PlcRx.png" width="200"/>
-  </a>
-</p>
-
 # S7PlcRx
 
 Reactive Siemens S7 PLC communication for .NET. S7PlcRx provides tag-based S7 reads/writes, Primitives-based observable streams, optimized batch helpers, caching, diagnostics, production reliability helpers, high-availability helpers, PLC byte conversion utilities, and source-generator assisted property bindings. Version 3 moves the core package to ReactiveUI.Primitives and adds a companion `S7PlcRx.Reactive` package for System.Reactive-compatible applications.
 
 > Siemens and S7 are trademarks of Siemens AG. This project is independent and is not affiliated with or endorsed by Siemens AG. Test all automation code against a simulator or safe test rig before using production equipment.
+
+## Overview
+
+The NuGet package is named `S7PlcRx`, while the migrated runtime namespace is `IoT.DriverCore.S7PlcRx`; the compatibility package uses `IoT.DriverCore.S7PlcRx.Reactive`. This guide is the contract for both packages: the reactive variant has the same PLC, tag, binding, optimisation, production, and logical-tag features, with its namespace segment `.Reactive` and ReactiveUI.Primitives Reactive dependencies.
+
+Every read is asynchronous or observable, and every write is a command sent to a PLC. A tag must be registered before it can be observed, read by name, batched, bound, cached, or written. A nullable read result means that the operation did not yield a value; it is not a safe substitute for inspecting connection and error streams.
+
+## Safety
+
+1. Prove IP, CPU model, rack/slot, PUT/GET permissions, address, data type, byte order, and machine interlocks in a simulator or isolated cell first.
+2. Treat `Value`, generated property setters, batch writes, and watchdog configuration as potentially actuating operations. Validate an acknowledgement/tag read after a command and always subscribe to `LastError` and `LastErrorCode`.
+3. Use a bounded cancellation token for each call path that accepts one. Dispose the `IRxS7` connection, subscriptions, binding sessions, pools, tag groups, and manager objects you create.
+4. Do not enable the watchdog until the PLC program explicitly owns its DB word, validates its value/range, and defines the safe result when communication stops.
+
+## Package matrix and variant choice
+
+| Package | Runtime namespace | Use it when | Generator delivery |
+|---|---|---|---|
+| `S7PlcRx` | `IoT.DriverCore.S7PlcRx` | New Primitives-based code | Install `S7PlcRx.Generators` separately when generated bindings are required. |
+| `S7PlcRx.Reactive` | `IoT.DriverCore.S7PlcRx.Reactive` | Existing System.Reactive-oriented applications | Install the standalone generator separately when generated bindings are required. |
+| `S7PlcRx.Generators` | `IoT.DriverCore.S7PlcRx.SourceGenerators` | Explicit analyzer dependency or generator development | Add as an analyzer, not as a normal runtime service. |
+
+The runtime packages target `net462`, `net472`, `net481`, `net8.0`, `net9.0`, `net10.0`, and `net11.0`. Do not pass core-package objects to the reactive-package API or vice versa.
+
+## Lifecycle and error model
+
+`IRxS7` exposes connection and operation state as `IsConnected`, `IsConnectedValue`, `IsPaused`, `Status`, `LastError`, `LastErrorCode`, and `ReadTime`. Subscribe before starting command traffic. A failed/invalid operation is reported by its return value, the nullable result of an async read, and/or these streams; do not infer success merely because a write was queued.
+
+`IRxS7` inherits `ReactiveUI.Primitives.Disposables.ICancelable`, which in turn is disposable. Therefore factory results must be disposed: `using IRxS7 plc = S71500.Create(...)` is the preferred scope. Dispose subscriptions before the PLC scope ends, pass cancellation tokens to the supported read and logical-tag operations, and scope owned auxiliary objects (`S7TagBindingSession`, `ConnectionPool`, `HighPerformanceTagGroup<T>`, and high-availability managers) with their own documented disposal contracts.
+
+```csharp
+using IoT.DriverCore.Core;
+using IoT.DriverCore.S7PlcRx;
+
+using IRxS7 plc = S71500.Create("192.168.10.20", rack: 0, slot: 1, interval: 100);
+using var errors = plc.LastError.Subscribe(message => Console.Error.WriteLine(message));
+using var codes = plc.LastErrorCode.Subscribe(code => Console.Error.WriteLine($"S7: {code}"));
+using var state = plc.IsConnected.Subscribe(connected => Console.WriteLine($"Connected: {connected}"));
+
+using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+var level = await plc.ReadAsync(new LogicalTagKey<float>("Level"), timeout.Token);
+if (level is null)
+    throw new InvalidOperationException("No level value; inspect LastError/LastErrorCode.");
+```
 
 ## Contents
 
@@ -41,8 +77,8 @@ Reactive Siemens S7 PLC communication for .NET. S7PlcRx provides tag-based S7 re
 V3 is a reactive dependency migration release. The PLC API surface remains tag-oriented, but the package model is now explicit:
 
 - `S7PlcRx` is the lean package for new code. It uses `ReactiveUI.Primitives`, `ReactiveUI.Primitives.Async`, and `ReactiveUI.Primitives.Extensions`; it no longer depends on `System.Reactive` or `ReactiveUI.Extensions`.
-- `S7PlcRx.Reactive` is the System.Reactive-compatible package for existing Rx consumers. It shares the same implementation sources, compiles them with `REACTIVE_SHIM`, and publishes the API under `S7PlcRx.Reactive.*` namespaces.
-- The source generator supports both namespace families. Generated attributes are emitted under `S7PlcRx.SourceGeneration` for the core package and `S7PlcRx.Reactive.SourceGeneration` for the reactive package.
+- `S7PlcRx.Reactive` is the System.Reactive-compatible package for existing Rx consumers. It shares the same implementation sources, compiles them with `REACTIVE_SHIM`, and publishes the API under `IoT.DriverCore.S7PlcRx.Reactive.*` namespaces.
+- The source generator supports both namespace families. Generated attributes are emitted under `IoT.DriverCore.S7PlcRx.SourceGeneration` for the core package and `IoT.DriverCore.S7PlcRx.Reactive.SourceGeneration` for the reactive package.
 - The core package uses Primitives conventions such as `ReactiveUI.Primitives.RxVoid` and `ISequencer`. The reactive package uses the `.Reactive` package variants and intentionally exposes System.Reactive conventions such as `System.Reactive.Unit`.
 - Both runtime packages now target `net462`, `net472`, `net481`, `net8.0`, `net9.0`, `net10.0`, and `net11.0`.
 - Analyzer coverage is stricter in V3. StyleSharp.Analyzers and the existing analyzer set are expected to run cleanly without `NoWarn` suppressions for fixable issues.
@@ -50,7 +86,7 @@ V3 is a reactive dependency migration release. The PLC API surface remains tag-o
 Breaking changes to check during migration:
 
 - Replace `ReactiveUI.Extensions` package references in consuming projects with the relevant `ReactiveUI.Primitives.Extensions` package family.
-- If application code imports `System.Reactive.Linq`, `System.Reactive.Disposables`, `System.Reactive.Subjects`, `System.Reactive.Concurrency`, or depends on `System.Reactive.Unit`, reference `S7PlcRx.Reactive` and update namespaces to `S7PlcRx.Reactive.*`.
+- If application code imports `System.Reactive.Linq`, `System.Reactive.Disposables`, `System.Reactive.Subjects`, `System.Reactive.Concurrency`, or depends on `System.Reactive.Unit`, reference `S7PlcRx.Reactive` and update namespaces to `IoT.DriverCore.S7PlcRx.Reactive.*`.
 - If application code only consumes `IObservable<T>` streams and Primitives extension methods, reference `S7PlcRx` and use `ReactiveUI.Primitives` / `ReactiveUI.Primitives.Extensions` imports.
 - Do not mix `S7PlcRx` and `S7PlcRx.Reactive` objects in the same object graph. They are compiled as separate assemblies with parallel namespaces.
 
@@ -67,7 +103,7 @@ Breaking changes to check during migration:
 
 `S7PlcRx` and `S7PlcRx.Reactive` target `net462`, `net472`, `net481`, `net8.0`, `net9.0`, `net10.0`, and `net11.0`.
 
-`S7PlcRx.SourceGenerators` targets `netstandard2.0` and runs as a Roslyn analyzer/source generator.
+`S7PlcRx.Generators` targets `netstandard2.0` and runs as a Roslyn analyzer/source generator. Install it explicitly only when using generated bindings.
 
 ## PLC prerequisites
 
@@ -89,6 +125,8 @@ Install-Package S7PlcRx
 
 ```bash
 dotnet add package S7PlcRx
+# Add this separately only when using [S7PlcBinding]/[S7Tag] generated bindings.
+dotnet add package S7PlcRx.Generators
 ```
 
 System.Reactive-compatible package:
@@ -104,7 +142,7 @@ dotnet add package S7PlcRx.Reactive
 Repository/analyzer usage for the source generator:
 
 ```xml
-<ProjectReference Include="..\S7PlcRx.SourceGenerators\S7PlcRx.SourceGenerators.csproj"
+<ProjectReference Include="..\S7PlcRx.Generators\S7PlcRx.Generators.csproj"
                   OutputItemType="Analyzer"
                   ReferenceOutputAssembly="false"
                   PrivateAssets="all" />
@@ -114,8 +152,8 @@ Use this package split deliberately:
 
 | Package | Main namespaces | Reactive model | Choose when |
 |---|---|---|---|
-| `S7PlcRx` | `S7PlcRx`, `S7PlcRx.Advanced`, `S7PlcRx.PlcTypes` | Lean ReactiveUI.Primitives over `System.IObservable<T>` | New applications, libraries that should avoid a `System.Reactive` runtime dependency, or code already using Primitives operators. |
-| `S7PlcRx.Reactive` | `S7PlcRx.Reactive`, `S7PlcRx.Reactive.Advanced`, `S7PlcRx.Reactive.PlcTypes` | ReactiveUI.Primitives `.Reactive` packages and System.Reactive conventions | Existing Rx applications that need System.Reactive `Unit`, scheduler conventions, or minimal migration churn. |
+| `S7PlcRx` | `IoT.DriverCore.S7PlcRx`, `IoT.DriverCore.S7PlcRx.Advanced`, `IoT.DriverCore.S7PlcRx.PlcTypes` | Lean ReactiveUI.Primitives over `System.IObservable<T>` | New applications, libraries that should avoid a `System.Reactive` runtime dependency, or code already using Primitives operators. |
+| `S7PlcRx.Reactive` | `IoT.DriverCore.S7PlcRx.Reactive`, `IoT.DriverCore.S7PlcRx.Reactive.Advanced`, `IoT.DriverCore.S7PlcRx.Reactive.PlcTypes` | ReactiveUI.Primitives `.Reactive` packages and System.Reactive conventions | Existing Rx applications that need System.Reactive `Unit`, scheduler conventions, or minimal migration churn. |
 
 If an application also uses R3, reference `R3` plus the relevant Primitives package. Do not add `ReactiveUI.Primitives.R3Bridge.Generator` directly; the bridge generator is packed by `ReactiveUI.Primitives` and `ReactiveUI.Primitives.Async`.
 
@@ -133,15 +171,17 @@ Use the core package when the application can standardize on ReactiveUI.Primitiv
 
 ```csharp
 using ReactiveUI.Primitives;
+using IoT.DriverCore.Core;
 using ReactiveUI.Primitives.Extensions;
-using S7PlcRx;
-using S7PlcRx.Enums;
+using IoT.DriverCore.Core;
+using IoT.DriverCore.S7PlcRx;
+using IoT.DriverCore.S7PlcRx.Enums;
 
-using var plc = S71500.Create("192.168.1.100", rack: 0, slot: 1, interval: 100);
+using IRxS7 plc = S71500.Create("192.168.1.100", rack: 0, slot: 1, interval: 100);
 
-plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
+TagOperations.AddUpdateTagItem(plc, typeof(float), "Temperature", "DB1.DBD0");
 
-using var subscription = plc.Observe<float>("Temperature")
+using var subscription = plc.Observe(new LogicalTagKey<float>("Temperature"))
     .Where(value => value.HasValue)
     .Subscribe(value => Console.WriteLine(value));
 ```
@@ -151,14 +191,15 @@ Use the reactive package when the consuming application is still System.Reactive
 ```csharp
 using ReactiveUI.Primitives.Extensions.Reactive;
 using ReactiveUI.Primitives.Reactive;
-using S7PlcRx.Reactive;
-using S7PlcRx.Reactive.Enums;
+using IoT.DriverCore.Core;
+using IoT.DriverCore.S7PlcRx.Reactive;
+using IoT.DriverCore.S7PlcRx.Reactive.Enums;
 
-using var plc = S71500.Create("192.168.1.100", rack: 0, slot: 1, interval: 100);
+using IRxS7 plc = S71500.Create("192.168.1.100", rack: 0, slot: 1, interval: 100);
 
-plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
+TagOperations.AddUpdateTagItem(plc, typeof(float), "Temperature", "DB1.DBD0");
 
-using var subscription = plc.Observe<float>("Temperature")
+using var subscription = plc.Observe(new LogicalTagKey<float>("Temperature"))
     .Where(value => value.HasValue)
     .Subscribe(value => Console.WriteLine(value));
 ```
@@ -168,8 +209,8 @@ The two packages expose the same PLC concepts and helper methods. The difference
 | Concern | `S7PlcRx` | `S7PlcRx.Reactive` |
 |---|---|---|
 | Assembly/package | `S7PlcRx` | `S7PlcRx.Reactive` |
-| Root namespace | `S7PlcRx` | `S7PlcRx.Reactive` |
-| Extension namespaces | `S7PlcRx.Advanced`, `S7PlcRx.Optimization`, `S7PlcRx.Production` | `S7PlcRx.Reactive.Advanced`, `S7PlcRx.Reactive.Optimization`, `S7PlcRx.Reactive.Production` |
+| Root namespace | `IoT.DriverCore.S7PlcRx` | `IoT.DriverCore.S7PlcRx.Reactive` |
+| Extension namespaces | `IoT.DriverCore.S7PlcRx.Advanced`, `IoT.DriverCore.S7PlcRx.Optimization`, `IoT.DriverCore.S7PlcRx.Production` | `IoT.DriverCore.S7PlcRx.Reactive.Advanced`, `IoT.DriverCore.S7PlcRx.Reactive.Optimization`, `IoT.DriverCore.S7PlcRx.Reactive.Production` |
 | Reactive packages | `ReactiveUI.Primitives`, `.Async`, `.Extensions` | `ReactiveUI.Primitives.Reactive`, `.Async.Reactive`, `.Extensions.Reactive` |
 | Unit convention | `ReactiveUI.Primitives.RxVoid` | `System.Reactive.Unit` |
 | Scheduler/sequencer convention | `ReactiveUI.Primitives.Concurrency.ISequencer` | System.Reactive scheduler-compatible `.Reactive` conventions |
@@ -185,15 +226,16 @@ Core `S7PlcRx` stream to R3:
 using R3;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.R3Bridge;
-using S7PlcRx;
-using S7PlcRx.Enums;
+using IoT.DriverCore.Core;
+using IoT.DriverCore.S7PlcRx;
+using IoT.DriverCore.S7PlcRx.Enums;
 
 var options = new RxS7Options(new S7ConnectionOptions(CpuType.S71500, "192.168.1.100", rack: 0, slot: 1));
 using var plc = new RxS7(options);
 
-plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
+TagOperations.AddUpdateTagItem(plc, typeof(float), "Temperature", "DB1.DBD0");
 
-System.IObservable<float?> primitivesTemperature = plc.Observe<float>("Temperature");
+System.IObservable<float?> primitivesTemperature = plc.Observe(new LogicalTagKey<float>("Temperature"));
 Observable<float?> r3Temperature = primitivesTemperature.AsR3Observable();
 
 using var subscription = r3Temperature.Subscribe(value =>
@@ -220,9 +262,9 @@ Async observable bridge:
 using R3;
 using ReactiveUI.Primitives.Async;
 using ReactiveUI.Primitives.R3Bridge;
-using S7PlcRx.Advanced;
+using IoT.DriverCore.S7PlcRx.Advanced;
 
-IObservableAsync<float?> asyncTemperature = plc.ObserveValue<float>("Temperature");
+IObservableAsync<float?> asyncTemperature = AsyncExtensions.ObserveValue(plc, default(float), "Temperature");
 Observable<float?> r3Temperature = asyncTemperature.AsR3Observable();
 IObservableAsync<float?> backToAsync = r3Temperature.AsPrimitivesAsyncObservable();
 ```
@@ -233,9 +275,9 @@ R3Async bridge:
 using R3Async;
 using ReactiveUI.Primitives.Async;
 using ReactiveUI.Primitives.R3Bridge;
-using S7PlcRx.Advanced;
+using IoT.DriverCore.S7PlcRx.Advanced;
 
-IObservableAsync<float?> asyncTemperature = plc.ObserveValue<float>("Temperature");
+IObservableAsync<float?> asyncTemperature = AsyncExtensions.ObserveValue(plc, default(float), "Temperature");
 AsyncObservable<float?> r3AsyncTemperature = asyncTemperature.AsR3AsyncObservable();
 IObservableAsync<float?> backToPrimitives = r3AsyncTemperature.AsPrimitivesAsyncObservable();
 ```
@@ -252,21 +294,22 @@ Generated bridge methods:
 
 ```csharp
 using ReactiveUI.Primitives;
-using S7PlcRx;
-using S7PlcRx.Enums;
+using IoT.DriverCore.Core;
+using IoT.DriverCore.S7PlcRx;
+using IoT.DriverCore.S7PlcRx.Enums;
 
 var options = new RxS7Options(new S7ConnectionOptions(CpuType.S71500, "192.168.1.100", rack: 0, slot: 1));
 using var plc = new RxS7(options);
 
-plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
-plc.AddUpdateTagItem<bool>("Running", "DB1.DBX4.0");
-plc.AddUpdateTagItem<float>("TemperatureSetPoint", "DB1.DBD8");
+TagOperations.AddUpdateTagItem(plc, typeof(float), "Temperature", "DB1.DBD0");
+TagOperations.AddUpdateTagItem(plc, typeof(bool), "Running", "DB1.DBX4.0");
+TagOperations.AddUpdateTagItem(plc, typeof(float), "TemperatureSetPoint", "DB1.DBD8");
 
 using var connected = plc.IsConnected
     .DistinctUntilChanged()
     .Subscribe(x => Console.WriteLine($"Connected: {x}"));
 
-using var temperature = plc.Observe<float>("Temperature")
+using var temperature = plc.Observe(new LogicalTagKey<float>("Temperature"))
     .Where(x => x.HasValue)
     .Subscribe(x => Console.WriteLine($"Temperature: {x:F1} deg C"));
 
@@ -312,36 +355,36 @@ using IRxS7 plc = S71500.Create("192.168.1.100", rack: 0, slot: 1, interval: 100
 Register tags:
 
 ```csharp
-plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
-plc.AddUpdateTagItem<bool>("Running", "DB1.DBX4.0");
-plc.AddUpdateTagItem<byte[]>("RecipeBytes", "DB10.DBB0", arrayLength: 64);
-plc.AddUpdateTagItem<float[]>("Curve", "DB20.DBD0", arrayLength: 16);
+TagOperations.AddUpdateTagItem(plc, typeof(float), "Temperature", "DB1.DBD0");
+TagOperations.AddUpdateTagItem(plc, typeof(bool), "Running", "DB1.DBX4.0");
+TagOperations.AddUpdateTagItem(plc, typeof(byte[]), "RecipeBytes", "DB10.DBB0", 64);
+TagOperations.AddUpdateTagItem(plc, typeof(float[]), "Curve", "DB20.DBD0", 16);
 ```
 
 Fluent registration and polling control:
 
 ```csharp
-plc.AddUpdateTagItem<float>("Temp1", "DB1.DBD0")
-   .AddUpdateTagItem<float>("Temp2", "DB1.DBD4")
-   .AddUpdateTagItem<bool>("Alarm", "DB1.DBX8.0")
-   .SetTagPollIng(false); // disables polling on the last tag
+TagOperations.AddUpdateTagItem(plc, typeof(float), "Temp1", "DB1.DBD0");
+TagOperations.AddUpdateTagItem(plc, typeof(float), "Temp2", "DB1.DBD4");
+TagOperations.AddUpdateTagItem(plc, typeof(bool), "Alarm", "DB1.DBX8.0")
+    .SetPolling(false); // disables polling for Alarm
 
-plc.GetTag("Temp1").SetTagPollIng(false);
-plc.GetTag("Temp1").SetTagPollIng(true);
-plc.RemoveTagItem("Temp1");
+TagOperations.GetTag(plc, "Temp1").SetPolling(false);
+TagOperations.GetTag(plc, "Temp1").SetPolling(true);
+TagOperations.RemoveTagItem(plc, "Temp1");
 ```
 
 Tag stream projections:
 
 ```csharp
-using S7PlcRx;
+using IoT.DriverCore.S7PlcRx;
 
-using var dictionary = plc.ObserveAll
-    .TagToDictionary<object>()
+using var dictionary = TagOperations.TagToDictionary(plc.ObserveAll)
     .Subscribe(values => Console.WriteLine(values.Count));
 
-using var namedValue = plc.Observe<float>("Temperature")
-    .ToTagValue("Temperature")
+using var namedValue = TagOperations.ToTagValue(
+        plc.Observe(new IoT.DriverCore.Core.LogicalTagKey<float>("Temperature")),
+        "Temperature")
     .Subscribe(item => Console.WriteLine($"{item.Tag}={item.Value}"));
 ```
 
@@ -349,16 +392,17 @@ using var namedValue = plc.Observe<float>("Temperature")
 
 ```csharp
 using ReactiveUI.Primitives;
+using IoT.DriverCore.Core;
 
-using var highTemp = plc.Observe<float>("Temperature")
+using var highTemp = plc.Observe(new LogicalTagKey<float>("Temperature"))
     .Where(x => x > 80.0f)
     .Subscribe(x => Console.WriteLine($"High temperature: {x:F1}"));
 
-using var sampledPressure = plc.Observe<float>("Pressure")
+using var sampledPressure = plc.Observe(new LogicalTagKey<float>("Pressure"))
     .Sample(TimeSpan.FromSeconds(5))
     .Subscribe(x => Console.WriteLine($"Pressure: {x:F2}"));
 
-using var averageFlow = plc.Observe<float>("FlowRate")
+using var averageFlow = plc.Observe(new LogicalTagKey<float>("FlowRate"))
     .Buffer(TimeSpan.FromMinutes(1))
     .Where(values => values.Count > 0)
     .Select(values => values.Average())
@@ -388,10 +432,12 @@ Console.WriteLine($"AS name: {cpuInfo[0]}, Module: {cpuInfo[1]}");
 ## Manual reads and writes
 
 ```csharp
-var temperature = await plc.Value<float>("Temperature");
+using IoT.DriverCore.Core;
+
+var temperature = await plc.ReadAsync(new LogicalTagKey<float>("Temperature"));
 
 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-var pressure = await plc.ValueAsync<float>("Pressure", cts.Token);
+var pressure = await plc.ReadAsync(new LogicalTagKey<float>("Pressure"), cts.Token);
 
 plc.Value("SetPoint", 72.5f);
 plc.Value("Enabled", true);
@@ -416,17 +462,17 @@ plcWithWatchdog.ShowWatchDogWriting = true;
 Advanced batch helpers:
 
 ```csharp
-using S7PlcRx.Advanced;
+using IoT.DriverCore.S7PlcRx.Advanced;
 
-var values = await plc.ValueBatch<float>("Temp1", "Temp2", "Temp3");
+var values = await AdvancedExtensions.ValueBatchAsync(plc, default(float), "Temp1", "Temp2", "Temp3");
 
-await plc.ValueBatch(new Dictionary<string, float>
+await AdvancedExtensions.ValueBatchAsync(plc, new Dictionary<string, float>
 {
     ["SetPoint1"] = 70.0f,
     ["SetPoint2"] = 75.0f,
 });
 
-using var batchSub = plc.ObserveBatch<float>("Temp1", "Temp2")
+using var batchSub = AdvancedExtensions.ObserveBatch(plc, default(float), "Temp1", "Temp2")
     .Subscribe(snapshot => Console.WriteLine(snapshot.Count));
 ```
 
@@ -439,8 +485,8 @@ var tagMap = new Dictionary<string, string>
     ["Pressure"] = "DB1.DBD4",
 };
 
-var read = await plc.ReadBatchOptimized<float>(tagMap, timeoutMs: 5000);
-var write = await plc.WriteBatchOptimized(
+var read = await AdvancedExtensions.ReadBatchOptimizedAsync(plc, default(float), tagMap, timeoutMs: 5000);
+var write = await AdvancedExtensions.WriteBatchOptimizedAsync(plc,
     new Dictionary<string, float> { ["Temperature"] = 22.5f },
     verifyWrites: false,
     enableRollback: false);
@@ -449,16 +495,18 @@ var write = await plc.WriteBatchOptimized(
 Async-first `ValueTask` helpers:
 
 ```csharp
-using S7PlcRx.Advanced;
+using IoT.DriverCore.S7PlcRx.Advanced;
 
-var current = await plc.ReadValueAsync<float>("Temperature");
-var many = await plc.ReadValuesAsync<float>("Temp1", "Temp2");
+using var readCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+var current = await AsyncExtensions.ReadValueAsync(plc, default(float), "Temperature", readCancellation.Token);
+var many = await AsyncExtensions.ReadValuesAsync(
+    plc, default(float), new[] { "Temp1", "Temp2" }, readCancellation.Token);
 
-await plc.WriteValuesAsync(new Dictionary<string, float>
+await AsyncExtensions.WriteValuesAsync(plc, new Dictionary<string, float>
 {
     ["SetPoint1"] = 72.5f,
     ["SetPoint2"] = 73.0f,
-});
+}, readCancellation.Token);
 ```
 
 .NET 8+ async observable helpers:
@@ -466,7 +514,7 @@ await plc.WriteValuesAsync(new Dictionary<string, float>
 ```csharp
 using ReactiveUI.Primitives.Async;
 using ReactiveUI.Primitives.Async.Advanced;
-using S7PlcRx.Advanced;
+using IoT.DriverCore.S7PlcRx.Advanced;
 
 var observer = new CallbackWitnessAsync<float>(
     async (value, cancellationToken) =>
@@ -477,7 +525,7 @@ var observer = new CallbackWitnessAsync<float>(
     static (error, cancellationToken) => ValueTask.FromException(error),
     static result => ValueTask.CompletedTask);
 
-await using var sub = await plc.ObserveValue<float>("Temperature")
+await using var sub = await AsyncExtensions.ObserveValue(plc, default(float), "Temperature")
     .SubscribeAsync(
         observer,
         CancellationToken.None);
@@ -485,14 +533,14 @@ await using var sub = await plc.ObserveValue<float>("Temperature")
 
 ## Source generator property binding
 
-`S7PlcRx.SourceGenerators` generates PLC-bound properties from attributes. It removes repetitive tag registration, polling assignment, and setter write hooks.
+`S7PlcRx.Generators` generates PLC-bound properties from attributes. It removes repetitive tag registration, polling assignment, and setter write hooks.
 
 ### Generated compile-time attributes
 
 The generator injects this namespace into the consuming compilation:
 
 ```csharp
-namespace S7PlcRx.SourceGeneration;
+namespace IoT.DriverCore.S7PlcRx.SourceGeneration;
 
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class S7PlcBindingAttribute : Attribute;
@@ -518,8 +566,8 @@ public enum S7TagDirection
 ### Generated binding example
 
 ```csharp
-using S7PlcRx;
-using S7PlcRx.SourceGeneration;
+using IoT.DriverCore.S7PlcRx;
+using IoT.DriverCore.S7PlcRx.SourceGeneration;
 
 [S7PlcBinding]
 public partial class MachineTags
@@ -537,7 +585,7 @@ public partial class MachineTags
     public partial float SetPoint { get; set; }
 }
 
-using var plc = S71500.Create("192.168.1.100");
+using IRxS7 plc = S71500.Create("192.168.1.100");
 var tags = new MachineTags();
 using var binding = tags.Bind(plc);
 
@@ -547,8 +595,8 @@ tags.SetPoint = 72.5f; // queues a PLC write
 Reactive package source-generator usage is the same shape with reactive namespaces:
 
 ```csharp
-using S7PlcRx.Reactive;
-using S7PlcRx.Reactive.SourceGeneration;
+using IoT.DriverCore.S7PlcRx.Reactive;
+using IoT.DriverCore.S7PlcRx.Reactive.SourceGeneration;
 
 [S7PlcBinding]
 public partial class ReactiveMachineTags
@@ -557,7 +605,7 @@ public partial class ReactiveMachineTags
     public partial float Temperature { get; set; }
 }
 
-using var plc = S71500.Create("192.168.1.100", rack: 0, slot: 1, interval: 100);
+using IRxS7 plc = S71500.Create("192.168.1.100", rack: 0, slot: 1, interval: 100);
 var tags = new ReactiveMachineTags();
 using var binding = tags.Bind(plc);
 ```
@@ -587,7 +635,7 @@ DB1.DBX8.0 Running      bool   byte 8 bit 0
 Runtime range tag:
 
 ```csharp
-plc.AddUpdateTagItem<byte[]>("__s7_binding_db1_0_9", "DB1.DBB0", arrayLength: 9);
+TagOperations.AddUpdateTagItem(plc, typeof(byte[]), "__s7_binding_db1_0_9", "DB1.DBB0", 9);
 ```
 
 Writes are coalesced on a short flush timer. The runtime performs read-modify-write byte-array writes so unrelated bytes/bits in the same range are preserved.
@@ -595,7 +643,7 @@ Writes are coalesced on a short flush timer. The runtime performs read-modify-wr
 ### Manual runtime binding API
 
 ```csharp
-using S7PlcRx.Binding;
+using IoT.DriverCore.S7PlcRx.Binding;
 
 var definitions = new[]
 {
@@ -614,47 +662,50 @@ runtime.Write("Temperature", 25.5f);
 ## Performance and cache features
 
 ```csharp
-using S7PlcRx.Optimization;
-using S7PlcRx.Performance;
+using IoT.DriverCore.S7PlcRx.Optimization;
+using IoT.DriverCore.S7PlcRx.Performance;
 
-var cached = await plc.ValueCached<float>("Temperature", TimeSpan.FromSeconds(1));
-var cacheStats = plc.GetCacheStatistics();
-plc.ClearCache("Temperature");
+var cached = await OptimizationExtensions.ValueCachedAsync(
+    plc, "Temperature", fallbackValue: default(float), cacheTimeout: TimeSpan.FromSeconds(1));
+var cacheStats = OptimizationExtensions.GetCacheStatistics(plc);
+OptimizationExtensions.ClearCache(plc, "Temperature");
 
-using var smart = plc.MonitorTagSmart<float>("Temperature", changeThreshold: 0.5, debounceMs: 100)
+using var smart = OptimizationExtensions.MonitorTagSmart(
+        plc, "Temperature", EqualityComparer<float>.Default, changeThreshold: 0.5, debounceMs: 100)
     .Subscribe(change => Console.WriteLine($"{change.TagName}: {change.PreviousValue} -> {change.CurrentValue}"));
 
-using var perf = plc.MonitorPerformance(TimeSpan.FromSeconds(30))
+using var perf = PerformanceExtensions.MonitorPerformance(plc, TimeSpan.FromSeconds(30))
     .Subscribe(metrics => Console.WriteLine($"{metrics.OperationsPerSecond:F1} ops/sec"));
 
-var optimizedReads = await plc.ReadOptimized<float>(new[] { "Temp1", "Temp2" });
-var optimizedWrite = await plc.WriteOptimized(new Dictionary<string, float>
+var optimizedReads = await PerformanceExtensions.ReadOptimizedAsync(
+    plc, new[] { "Temp1", "Temp2" }, typeMarker: default(float), optimizationConfig: null);
+var optimizedWrite = await PerformanceExtensions.WriteOptimizedAsync(plc, new Dictionary<string, float>
 {
     ["SetPoint1"] = 72.5f,
     ["SetPoint2"] = 73.0f,
-});
+}, optimizationConfig: null);
 
-var benchmark = await plc.RunBenchmark(new BenchmarkConfig
+var benchmark = await PerformanceExtensions.RunBenchmarkAsync(plc, new BenchmarkConfig
 {
     LatencyTestCount = 10,
     ThroughputTestDuration = TimeSpan.FromSeconds(10),
     ReliabilityTestCount = 20,
 });
 
-var stats = plc.GetPerformanceStatistics();
+var stats = PerformanceExtensions.GetPerformanceStatistics(plc);
 ```
 
 High-performance tag groups:
 
 ```csharp
-using S7PlcRx.Advanced;
-using S7PlcRx.Performance;
+using IoT.DriverCore.S7PlcRx.Advanced;
+using IoT.DriverCore.S7PlcRx.Performance;
 
-using var group = plc.CreateTagGroup<float>("Process", "Temperature", "Pressure", "Flow");
+using var group = AdvancedExtensions.CreateTagGroup(plc, default(float), "Process", "Temperature", "Pressure", "Flow");
 using var groupSub = group.ObserveGroup().Subscribe(snapshot => Console.WriteLine(snapshot.Count));
 
-var allValues = await group.ReadAll();
-await group.WriteAll(new Dictionary<string, float>
+var allValues = await group.ReadAllAsync();
+await group.WriteAllAsync(new Dictionary<string, float>
 {
     ["Temperature"] = 21.0f,
     ["Pressure"] = 1.2f,
@@ -666,7 +717,7 @@ await group.WriteAll(new Dictionary<string, float>
 Symbol tables:
 
 ```csharp
-using S7PlcRx.Enterprise;
+using IoT.DriverCore.S7PlcRx.Enterprise;
 
 var csv = """
 Name,Address,DataType,Length,Description
@@ -675,17 +726,17 @@ Running,DB1.DBX4.0,BOOL,1,Machine running
 Recipe,DB10.DBB0,ARRAY,64,Recipe bytes
 """;
 
-var table = await plc.LoadSymbolTable(csv, SymbolTableFormat.Csv);
-var temperature = await plc.ReadSymbol<float>("Temperature");
-plc.WriteSymbol("Running", true);
+var table = await EnterpriseExtensions.LoadSymbolTableAsync(plc, csv, SymbolTableFormat.Csv);
+var temperature = await EnterpriseExtensions.ReadSymbolAsync(plc, "Temperature");
+EnterpriseExtensions.WriteSymbol(plc, "Running", true);
 ```
 
 High availability:
 
 ```csharp
-using S7PlcRx.Enterprise;
+using IoT.DriverCore.S7PlcRx.Enterprise;
 
-using var primary = S71500.Create("192.168.1.100");
+using IRxS7 primary = S71500.Create("192.168.1.100");
 var backups = new List<IRxS7>
 {
     S71500.Create("192.168.1.101"),
@@ -695,15 +746,15 @@ var backups = new List<IRxS7>
 using var ha = EnterpriseExtensions.CreateHighAvailabilityConnection(primary, backups, TimeSpan.FromSeconds(10));
 using var failoverSub = ha.FailoverEvents.Subscribe(evt => Console.WriteLine(evt.Reason));
 IRxS7 active = ha.ActivePLC;
-await ha.TriggerFailover();
+await ha.TriggerFailoverAsync();
 ```
 
 Connection pool:
 
 ```csharp
-using S7PlcRx.Core;
-using S7PlcRx.Enterprise;
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx.Core;
+using IoT.DriverCore.S7PlcRx.Enterprise;
+using IoT.DriverCore.S7PlcRx.Enums;
 
 using var pool = EnterpriseExtensions.CreateConnectionPool(
     new[]
@@ -724,22 +775,23 @@ using var pool = EnterpriseExtensions.CreateConnectionPool(
         HealthCheckInterval = TimeSpan.FromMinutes(1),
     });
 
-IRxS7 connection = pool.GetConnection;
+IRxS7 connection = pool.Connection;
 ```
 
 ## Production reliability and diagnostics
 
 ```csharp
-using S7PlcRx.Advanced;
-using S7PlcRx.Production;
+using IoT.DriverCore.Core;
+using IoT.DriverCore.S7PlcRx.Advanced;
+using IoT.DriverCore.S7PlcRx.Production;
 
-var diagnostics = await plc.GetDiagnostics();
+var diagnostics = await AdvancedExtensions.GetDiagnosticsAsync(plc);
 Console.WriteLine($"Connected: {diagnostics.IsConnected}, latency: {diagnostics.ConnectionLatencyMs:F0} ms");
 
-var analysis = await plc.AnalyzePerformance(TimeSpan.FromMinutes(5));
+var analysis = await AdvancedExtensions.AnalyzePerformanceAsync(plc, TimeSpan.FromMinutes(5));
 Console.WriteLine($"Total changes: {analysis.TotalTagChanges}" );
 
-var validation = await plc.ValidateProductionReadiness(new ProductionValidationConfig
+var validation = await ProductionExtensions.ValidateProductionReadinessAsync(plc, new ProductionValidationConfig
 {
     MaxAcceptableResponseTime = TimeSpan.FromMilliseconds(500),
     MinimumReliabilityRate = 0.95,
@@ -747,8 +799,9 @@ var validation = await plc.ValidateProductionReadiness(new ProductionValidationC
     MinimumProductionScore = 80.0,
 });
 
-var result = await plc.ExecuteWithErrorHandling(
-    () => plc.Value<float>("CriticalSensor"),
+var result = await ProductionExtensions.ExecuteWithErrorHandlingAsync(
+    plc,
+    () => plc.ReadAsync(new LogicalTagKey<float>("CriticalSensor")),
     new ProductionErrorConfig
     {
         MaxRetryAttempts = 3,
@@ -758,8 +811,8 @@ var result = await plc.ExecuteWithErrorHandling(
         CircuitBreakerTimeout = TimeSpan.FromMinutes(1),
     });
 
-var handler = plc.EnableProductionErrorHandling(new ProductionErrorConfig());
-var guarded = await handler.ExecuteAsync(() => plc.Value<float>("Temperature"));
+var handler = ProductionExtensions.EnableProductionErrorHandling(plc, new ProductionErrorConfig());
+var guarded = await handler.ExecuteAsync(() => plc.ReadAsync(new LogicalTagKey<float>("Temperature")));
 ```
 
 ## PLC type conversion helpers
@@ -782,7 +835,7 @@ All conversion helpers use Siemens S7 byte ordering and are useful for codecs, t
 | `Struct`, `Class` | Reflection-based complex type conversion | `GetStructSize`/`GetClassSize`, `FromBytes`, `ToBytes` |
 
 ```csharp
-using S7PlcRx.PlcTypes;
+using IoT.DriverCore.S7PlcRx.PlcTypes;
 
 Span<byte> bytes = stackalloc byte[4];
 Real.ToSpan(12.5f, bytes);
@@ -807,50 +860,44 @@ The examples above cover the public API groups used by most applications. Use th
 
 | API group | Main namespaces | Example section |
 |---|---|---|
-| PLC factories, `IRxS7`, `RxS7`, tags, lifecycle | `S7PlcRx` | [Quick start](#quick-start), [Core tag API](#core-tag-api), lifecycle example below |
-| Reactive streams and diagnostics | `S7PlcRx`, `ReactiveUI.Primitives` | [Reactive reading](#reactive-reading), [R3 ReactiveUI.Primitives bridge](#r3-reactiveuiprimitives-bridge) |
-| Manual reads, writes, cancellation | `S7PlcRx` | [Manual reads and writes](#manual-reads-and-writes), lifecycle example below |
-| Batch and async observables | `S7PlcRx.Advanced`, `ReactiveUI.Primitives.Async` | [Batch, async, and optimized APIs](#batch-async-and-optimized-apis) |
-| Source generator and runtime binding | `S7PlcRx.SourceGeneration`, `S7PlcRx.Binding` | [Source generator property binding](#source-generator-property-binding) |
-| Optimization and cache | `S7PlcRx.Optimization`, `S7PlcRx.Cache`, `S7PlcRx.Performance` | [Performance and cache features](#performance-and-cache-features), optimization config example below |
-| Enterprise, symbols, failover, pooling | `S7PlcRx.Enterprise`, `S7PlcRx.Core` | [Enterprise features](#enterprise-features), connection pool example below |
-| Production reliability | `S7PlcRx.Production` | [Production reliability and diagnostics](#production-reliability-and-diagnostics) |
-| PLC type conversion | `S7PlcRx.PlcTypes` | [PLC type conversion helpers](#plc-type-conversion-helpers) |
-| Reactive shim package | `S7PlcRx.Reactive.*` | [Choosing S7PlcRx or S7PlcRx.Reactive](#choosing-s7plcrx-or-s7plcrxreactive) |
+| PLC factories, `IRxS7`, `RxS7`, tags, lifecycle | `IoT.DriverCore.S7PlcRx` | [Quick start](#quick-start), [Core tag API](#core-tag-api), lifecycle example below |
+| Reactive streams and diagnostics | `IoT.DriverCore.S7PlcRx`, `ReactiveUI.Primitives` | [Reactive reading](#reactive-reading), [R3 ReactiveUI.Primitives bridge](#r3-reactiveuiprimitives-bridge) |
+| Manual reads, writes, cancellation | `IoT.DriverCore.S7PlcRx` | [Manual reads and writes](#manual-reads-and-writes), lifecycle example below |
+| Batch and async observables | `IoT.DriverCore.S7PlcRx.Advanced`, `ReactiveUI.Primitives.Async` | [Batch, async, and optimized APIs](#batch-async-and-optimized-apis) |
+| Source generator and runtime binding | `IoT.DriverCore.S7PlcRx.SourceGeneration`, `IoT.DriverCore.S7PlcRx.Binding` | [Source generator property binding](#source-generator-property-binding) |
+| Optimization and cache | `IoT.DriverCore.S7PlcRx.Optimization`, `IoT.DriverCore.S7PlcRx.Cache`, `IoT.DriverCore.S7PlcRx.Performance` | [Performance and cache features](#performance-and-cache-features), optimization config example below |
+| Enterprise, symbols, failover, pooling | `IoT.DriverCore.S7PlcRx.Enterprise`, `IoT.DriverCore.S7PlcRx.Core` | [Enterprise features](#enterprise-features), connection pool example below |
+| Production reliability | `IoT.DriverCore.S7PlcRx.Production` | [Production reliability and diagnostics](#production-reliability-and-diagnostics) |
+| PLC type conversion | `IoT.DriverCore.S7PlcRx.PlcTypes` | [PLC type conversion helpers](#plc-type-conversion-helpers) |
+| Reactive shim package | `IoT.DriverCore.S7PlcRx.Reactive.*` | [Choosing S7PlcRx or S7PlcRx.Reactive](#choosing-s7plcrx-or-s7plcrxreactive) |
 
 Lifecycle and cancellation:
 
 ```csharp
 using ReactiveUI.Primitives;
-using S7PlcRx;
+using IoT.DriverCore.Core;
+using IoT.DriverCore.S7PlcRx;
 
-IRxS7 plc = S71500.Create("192.168.1.100", rack: 0, slot: 1, interval: 100);
+using IRxS7 plc = S71500.Create("192.168.1.100", rack: 0, slot: 1, interval: 100);
 
-try
-{
-    using var status = plc.Status.Subscribe(Console.WriteLine);
-    using var errors = plc.LastError.Subscribe(error => Console.WriteLine($"PLC error: {error}"));
+using var status = plc.Status.Subscribe(Console.WriteLine);
+using var errors = plc.LastError.Subscribe(error => Console.WriteLine($"PLC error: {error}"));
+using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 
-    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-    float? temperature = await plc.ValueAsync<float>("Temperature", cts.Token);
+float? temperature = await plc.ReadAsync(new LogicalTagKey<float>("Temperature"), cts.Token);
+Console.WriteLine($"Temperature: {temperature}");
 
-    Console.WriteLine($"Temperature: {temperature}");
-    Console.WriteLine($"Disposed before cleanup: {plc.IsDisposed}");
-}
-finally
-{
-    plc.Dispose();
-    Console.WriteLine($"Disposed after cleanup: {plc.IsDisposed}");
-}
+// Dispose every subscription and cancellation source that the application owns.
+// `using IRxS7` disposes the factory result through ICancelable/IDisposable.
 ```
 
 Direct connection pool:
 
 ```csharp
-using S7PlcRx;
-using S7PlcRx.Core;
-using S7PlcRx.Enterprise;
-using S7PlcRx.Enums;
+using IoT.DriverCore.S7PlcRx;
+using IoT.DriverCore.S7PlcRx.Core;
+using IoT.DriverCore.S7PlcRx.Enterprise;
+using IoT.DriverCore.S7PlcRx.Enums;
 
 using var pool = new ConnectionPool(
     new[]
@@ -887,8 +934,8 @@ Console.WriteLine($"Pool active: {pool.ActiveConnections}/{pool.MaxConnections}"
 Optimized read/write configuration:
 
 ```csharp
-using S7PlcRx.Optimization;
-using S7PlcRx.Performance;
+using IoT.DriverCore.S7PlcRx.Optimization;
+using IoT.DriverCore.S7PlcRx.Performance;
 
 var readConfig = new ReadOptimizationConfig
 {
@@ -898,9 +945,11 @@ var readConfig = new ReadOptimizationConfig
     InterGroupDelayMs = 10,
 };
 
-var values = await plc.ReadOptimized<float>(
+var values = await PerformanceExtensions.ReadOptimizedAsync(
+    plc,
     new[] { "Temperature", "Pressure", "Flow" },
-    readConfig);
+    typeMarker: default(float),
+    optimizationConfig: readConfig);
 
 var writeConfig = new WriteOptimizationConfig
 {
@@ -911,7 +960,8 @@ var writeConfig = new WriteOptimizationConfig
     InterGroupDelayMs = 25,
 };
 
-var writeResult = await plc.WriteOptimized(
+var writeResult = await PerformanceExtensions.WriteOptimizedAsync(
+    plc,
     new Dictionary<string, float>
     {
         ["SetPoint1"] = 72.5f,
@@ -925,10 +975,10 @@ Console.WriteLine($"Wrote {writeResult.SuccessfulWrites.Count} tags in {writeRes
 Diagnostics through public APIs:
 
 ```csharp
-using S7PlcRx.Advanced;
-using S7PlcRx.Production;
+using IoT.DriverCore.S7PlcRx.Advanced;
+using IoT.DriverCore.S7PlcRx.Production;
 
-var diagnostics = await plc.GetDiagnostics();
+var diagnostics = await AdvancedExtensions.GetDiagnosticsAsync(plc);
 
 Console.WriteLine($"Connected: {diagnostics.IsConnected}");
 Console.WriteLine($"Latency: {diagnostics.ConnectionLatencyMs:F1} ms");
@@ -943,33 +993,33 @@ Low-level socket transport is internal implementation detail. Use `IRxS7` connec
 
 ## Public API reference
 
-This section is generated from the public C# surface in `src/S7PlcRx` and `src/S7PlcRx.SourceGenerators`, then paired with the usage guidance above. It lists the core package type names; `S7PlcRx.Reactive` shares the same implementation and publishes the equivalent surface under `S7PlcRx.Reactive.*` namespaces.
+This section is generated from the public C# surface in `src/S7PlcRx` and `src/S7PlcRx.Generators`, then paired with the usage guidance above. It lists the core package type names; `S7PlcRx.Reactive` shares the same implementation and publishes the equivalent surface under `IoT.DriverCore.S7PlcRx.Reactive.*` namespaces.
 
 Reactive namespace equivalents:
 
 | Core namespace | Reactive package namespace |
 |---|---|
-| `S7PlcRx` | `S7PlcRx.Reactive` |
-| `S7PlcRx.Advanced` | `S7PlcRx.Reactive.Advanced` |
-| `S7PlcRx.BatchOperations` | `S7PlcRx.Reactive.BatchOperations` |
-| `S7PlcRx.Binding` | `S7PlcRx.Reactive.Binding` |
-| `S7PlcRx.Cache` | `S7PlcRx.Reactive.Cache` |
-| `S7PlcRx.Core` | `S7PlcRx.Reactive.Core` |
-| `S7PlcRx.Enterprise` | `S7PlcRx.Reactive.Enterprise` |
-| `S7PlcRx.Enums` | `S7PlcRx.Reactive.Enums` |
-| `S7PlcRx.Optimization` | `S7PlcRx.Reactive.Optimization` |
-| `S7PlcRx.Performance` | `S7PlcRx.Reactive.Performance` |
-| `S7PlcRx.PlcTypes` | `S7PlcRx.Reactive.PlcTypes` |
-| `S7PlcRx.Production` | `S7PlcRx.Reactive.Production` |
-| `S7PlcRx.SourceGeneration` | `S7PlcRx.Reactive.SourceGeneration` |
+| `IoT.DriverCore.S7PlcRx` | `IoT.DriverCore.S7PlcRx.Reactive` |
+| `IoT.DriverCore.S7PlcRx.Advanced` | `IoT.DriverCore.S7PlcRx.Reactive.Advanced` |
+| `IoT.DriverCore.S7PlcRx.BatchOperations` | `IoT.DriverCore.S7PlcRx.Reactive.BatchOperations` |
+| `IoT.DriverCore.S7PlcRx.Binding` | `IoT.DriverCore.S7PlcRx.Reactive.Binding` |
+| `IoT.DriverCore.S7PlcRx.Cache` | `IoT.DriverCore.S7PlcRx.Reactive.Cache` |
+| `IoT.DriverCore.S7PlcRx.Core` | `IoT.DriverCore.S7PlcRx.Reactive.Core` |
+| `IoT.DriverCore.S7PlcRx.Enterprise` | `IoT.DriverCore.S7PlcRx.Reactive.Enterprise` |
+| `IoT.DriverCore.S7PlcRx.Enums` | `IoT.DriverCore.S7PlcRx.Reactive.Enums` |
+| `IoT.DriverCore.S7PlcRx.Optimization` | `IoT.DriverCore.S7PlcRx.Reactive.Optimization` |
+| `IoT.DriverCore.S7PlcRx.Performance` | `IoT.DriverCore.S7PlcRx.Reactive.Performance` |
+| `IoT.DriverCore.S7PlcRx.PlcTypes` | `IoT.DriverCore.S7PlcRx.Reactive.PlcTypes` |
+| `IoT.DriverCore.S7PlcRx.Production` | `IoT.DriverCore.S7PlcRx.Reactive.Production` |
+| `IoT.DriverCore.S7PlcRx.SourceGeneration` | `IoT.DriverCore.S7PlcRx.Reactive.SourceGeneration` |
 
 ### Source generator generated API
 
 The source generator emits these compile-time-only types into consumer projects:
 
-- `S7PlcRx.SourceGeneration.S7PlcBindingAttribute` / `S7PlcRx.Reactive.SourceGeneration.S7PlcBindingAttribute` - marks a `partial class` for PLC property binding generation.
-- `S7PlcRx.SourceGeneration.S7TagAttribute` / `S7PlcRx.Reactive.SourceGeneration.S7TagAttribute` - marks a `partial` property with an S7 address; properties: `Address`, `PollIntervalMs`, `Direction`, `ArrayLength`.
-- `S7PlcRx.SourceGeneration.S7TagDirection` / `S7PlcRx.Reactive.SourceGeneration.S7TagDirection` - `ReadWrite`, `ReadOnly`, `WriteOnly`.
+- `IoT.DriverCore.S7PlcRx.SourceGeneration.S7PlcBindingAttribute` / `IoT.DriverCore.S7PlcRx.Reactive.SourceGeneration.S7PlcBindingAttribute` - marks a `partial class` for PLC property binding generation.
+- `IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagAttribute` / `IoT.DriverCore.S7PlcRx.Reactive.SourceGeneration.S7TagAttribute` - marks a `partial` property with an S7 address; properties: `Address`, `PollIntervalMs`, `Direction`, `ArrayLength`.
+- `IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagDirection` / `IoT.DriverCore.S7PlcRx.Reactive.SourceGeneration.S7TagDirection` - `ReadWrite`, `ReadOnly`, `WriteOnly`.
 - Generated instance method: `public IDisposable Bind(IRxS7 plc)` on each `[S7PlcBinding]` class.
 
 ### Runtime public surface
@@ -977,9 +1027,9 @@ The source generator emits these compile-time-only types into consumer projects:
 <details open>
 <summary>All public types and members</summary>
 
-#### Namespace `S7PlcRx`
+#### Namespace `IoT.DriverCore.S7PlcRx`
 
-##### `S7PlcRx.IRxS7`
+##### `IoT.DriverCore.S7PlcRx.IRxS7`
 Source: `IRxS7.cs:19`
 
 Defines an interface for reactive communication with a Siemens S7 PLC, providing observable access to connection status, errors, tag values, and PLC information, as well as methods for reading and writing variables asynchronously. <remarks>The IRxS7 interface exposes members for monitoring and interacting with a PLC in a reactive manner using observables. It supports observing connection state, errors, and tag values, as well as reading and writing variables with optional cancellation support. Implementations are expected to handle connection management and provide up-to-date PLC information. Thread safety and subscription management depend on the specific implementation.</remarks>
@@ -1003,13 +1053,13 @@ Defines an interface for reactive communication with a Siemens S7 PLC, providing
 | `public ushort WatchDogValueToWrite get; set; }` | Gets or sets the value to be written to the watchdog register. |
 | `public int WatchDogWritingTime get; }` | Gets the time interval, in milliseconds, used by the watchdog for writing operations. |
 | `public IObservable<long> ReadTime get; }` | Gets an observable sequence that provides the current read time in ticks. <remarks>Subscribers receive updates whenever the read time changes. The value represents the number of ticks elapsed, where one tick equals 100 nanoseconds.</remarks> |
-| `public IObservable<T?> Observe<T>(string? variable);` | Observes changes to the specified variable and returns a sequence of its values as they are updated. <typeparam name="T">The type of the variable to observe.</typeparam> <param name="variable">The name of the variable to observe. Can be null to observe the default variable, if applicable.</param> <returns>An observable sequence that emits the current and subsequent values of the specified variable. The value is null if the variable does not exist or has not been set.</returns> |
-| `public Task<T?> Value<T>(string? variable);` | Asynchronously retrieves the value of the specified variable, if it exists. <typeparam name="T">The type of the value to retrieve.</typeparam> <param name="variable">The name of the variable whose value is to be retrieved. Can be null to indicate the default variable.</param> <returns>A task that represents the asynchronous operation. The task result contains the value of the variable if found; otherwise, null.</returns> |
-| `public Task<T?> ValueAsync<T>(string? variable, CancellationToken cancellationToken);` | Asynchronously retrieves the value of the specified variable, if it exists. <typeparam name="T">The type of the value to retrieve.</typeparam> <param name="variable">The name of the variable to retrieve. Can be null to indicate the default variable, if supported.</param> <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param> <returns>A task that represents the asynchronous operation. The task result contains the value of the variable if found; otherwise, null.</returns> |
+| `IObservable<T?> Observe<T>(LogicalTagKey<T> tag)` | Observes updates for a registered typed key. Construct `new LogicalTagKey<T>(name)` with the same CLR type used in registration. |
+| `Task<T?> ReadAsync<T>(LogicalTagKey<T> tag)` / `ReadAsync<T>(LogicalTagKey<T>, CancellationToken)` | Performs a typed direct read. A null result means no compatible value was obtained; it is not a successful zero value. |
 | `public void Value<T>(string? variable, T? value);` | Sets the value of a variable with the specified name and value. <typeparam name="T">The type of the value to assign to the variable.</typeparam> <param name="variable">The name of the variable to set. Can be null to indicate an unnamed or default variable.</param> <param name="value">The value to assign to the variable. Can be null if the variable type allows null values.</param> |
+| `bool IsDisposed` (inherited `ICancelable` lifecycle) | `IRxS7` is disposable through `ICancelable`; use `using IRxS7 plc = ...` or call `Dispose` when the connection is no longer needed. |
 | `public IObservable<string[]> GetCpuInfo();` | Retrieves an observable sequence containing information about the system's CPU. <remarks>Subscribers receive updates as the CPU information changes. The format and content of each string array may vary depending on the platform or implementation.</remarks> <returns>An observable sequence of string arrays, where each array contains details about the CPU. The sequence emits new arrays when CPU information is updated.</returns> |
 
-##### `S7PlcRx.ITag`
+##### `IoT.DriverCore.S7PlcRx.ITag`
 Source: `Tags/ITag.cs:9`
 
 Represents a tag that can be configured to control polling behavior.
@@ -1018,7 +1068,7 @@ Represents a tag that can be configured to control polling behavior.
 |---|---|
 | `public void SetDoNotPoll(bool value);` | Sets whether the object should be excluded from polling operations. <param name="value">true to prevent the object from being polled; otherwise, false.</param> |
 
-##### `S7PlcRx.PlcException`
+##### `IoT.DriverCore.S7PlcRx.PlcException`
 Source: `PlcException.cs:16`
 
 | Member | Summary |
@@ -1029,7 +1079,7 @@ Source: `PlcException.cs:16`
 | `public PlcException(ErrorCode errorCode, string? message, Exception? inner) : base(message, inner) => ...` | Initializes a new instance of the <see cref="PlcException"/> class. <param name="errorCode">The error code.</param> <param name="message">The message.</param> <param name="inner">The inner.</param> |
 | `public ErrorCode ErrorCode get; }` | Gets the error code. <value> The error code. </value> |
 
-##### `S7PlcRx.RxS7`
+##### `IoT.DriverCore.S7PlcRx.RxS7`
 Source: `RxS7.cs:32`
 
 Provides an observable, reactive interface for reading from and writing to Siemens S7 PLCs, supporting tag-based access, status monitoring, and asynchronous operations. <remarks>The RxS7 class enables integration with Siemens S7 programmable logic controllers (PLCs) using a tag-based model and reactive programming patterns. It exposes observables for PLC data, connection status, errors, and operational metrics, allowing clients to subscribe to real-time updates. The class supports both synchronous and asynchronous read/write operations, as well as advanced features such as watchdog monitoring and batch variable access. Thread safety is maintained for concurrent operations. Dispose the instance when no longer needed to release resources and terminate background operations.</remarks>
@@ -1055,14 +1105,13 @@ Provides an observable, reactive interface for reading from and writing to Sieme
 | `public int WatchDogWritingTime get; } = 10;` | Gets the interval, in seconds, that the watchdog uses when writing status updates. |
 | `public bool IsDisposed get; private set; }` | Gets a value indicating whether gets a value that indicates whether the object is disposed. |
 | `public IObservable<long> ReadTime => ...` | Gets an observable sequence that emits the current read time in ticks whenever a read operation occurs. <remarks>The observable sequence is shared among all subscribers. Each subscriber receives notifications when a read operation is performed, with the value representing the read time in ticks. The sequence completes when the underlying source completes.</remarks> |
-| `public IObservable<T?> Observe<T>(string? variable) => ...` | Returns an observable sequence that emits the current and future values of the specified variable, cast to the specified type. <remarks>The returned observable is hot and shared among all subscribers. Subscribers receive the most recent value and all subsequent updates. If the variable does not exist or its value cannot be cast to the specified type, the observable emits null.</remarks> <typeparam name="T">The type to which the variable's value is cast in the observable sequence.</typeparam> <param name="variable">The name of the variable to observe. If null, all variables are observed.</param> <returns>An observable sequence of values of type T, or null if the variable's value is not present or cannot be cast to T. The sequence emits a new value each time the variable changes.</returns> |
-| `public async Task<T?> Value<T>(string? variable)` | Asynchronously retrieves the value of the specified variable, cast to the specified type, if available. <remarks>If the variable's type is not known, it is set to the requested type <typeparamref name="T"/> before retrieving the value. The method waits for an internal pause condition to be met before proceeding.</remarks> <typeparam name="T">The type to which the variable's value is cast and returned.</typeparam> <param name="variable">The name of the variable whose value is to be retrieved. Can be null.</param> <returns>A value of type <typeparamref name="T"/> if the variable exists and can be cast to the specified type; otherwise, <see langword="default"/>.</returns> |
-| `public async Task<T?> ValueAsync<T>(string? variable, CancellationToken cancellationToken)` | Asynchronously retrieves the value of the specified variable, pausing polling operations during the read. <remarks>Polling is temporarily paused while the value is being read to ensure consistency. If no polling is active, the method may wait briefly before proceeding. The method is cancellation-friendly and will respond promptly to cancellation requests.</remarks> <typeparam name="T">The expected type of the variable's value to retrieve.</typeparam> <param name="variable">The name of the variable whose value is to be retrieved. Cannot be null, empty, or consist only of white-space characters.</param> <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param> <returns>A task that represents the asynchronous operation. The task result contains the value of the specified variable cast to type T, or the default value of T if the variable is not found or cannot be cast.</returns> <exception cref="ArgumentNullException">Thrown if variable is null, empty, or consists only of white-space characters.</exception> <exception cref="OperationCanceledException">Thrown if the operation is canceled via the cancellation token.</exception> |
+| `public IObservable<T?> Observe<T>(LogicalTagKey<T> tag)` | Typed observable surface; tag-name overloads were removed. |
+| `public Task<T?> ReadAsync<T>(LogicalTagKey<T> tag)` / `ReadAsync<T>(LogicalTagKey<T>, CancellationToken)` | Typed direct read surface; use the cancellation overload for caller-controlled timeouts. |
 | `public void Value<T>(string? variable, T? value)` | Sets the value of the specified variable if it exists and the value is compatible with the variable's type. <remarks>If the variable does not exist or the value is null, this method does nothing. The value is only set if its type matches the variable's expected type or if the type parameter is object.</remarks> <typeparam name="T">The type of the value to assign to the variable.</typeparam> <param name="variable">The name of the variable whose value is to be set. Cannot be null.</param> <param name="value">The value to assign to the variable. Must be compatible with the variable's type.</param> |
 | `public void Dispose()` | Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources. |
 | `public IObservable<string[]> GetCpuInfo() => ...` | Retrieves detailed information about the connected CPU as an observable sequence. <remarks>The method waits until a connection is established before retrieving CPU information. If the required data is not immediately available, the method will retry until successful or until the subscription is disposed. The order and content of the returned string array correspond to specific CPU information fields. This method is intended for use in reactive programming scenarios where CPU information is needed asynchronously.</remarks> <returns>An observable sequence that emits a string array containing CPU information fields, such as the AS name, module name, copyright, serial number, module type name, order code, and version numbers. The sequence completes after emitting the data.</returns> |
 
-##### `S7PlcRx.S71200`
+##### `IoT.DriverCore.S7PlcRx.S71200`
 Source: `Create/S71200.cs:9`
 
 Provides factory methods for creating connections to Siemens S7-1200 PLC devices.
@@ -1071,7 +1120,7 @@ Provides factory methods for creating connections to Siemens S7-1200 PLC devices
 |---|---|
 | `public static IRxS7 Create(string ip, short rack = 0, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 100)` | Creates a new instance of an S7 PLC connection with the specified configuration parameters. <param name="ip">The IP address of the S7 PLC to connect to.</param> <param name="rack">The rack number of the PLC. Must be between 0 and 7. The default is 0.</param> <param name="watchDogAddress">The address of the watchdog variable in the PLC memory. If null, the watchdog feature is disabled.</param> <param name="interval">The polling interval, in milliseconds, for reading data from the PLC. The default is 100 milliseconds.</param> <param name="watchDogValueToWrite">The value to write to the watchdog variable, if specified. The default is 4500.</param> <param name="watchDogInterval">The interval, in milliseconds, at which the watchdog value is written. The default is 100 milliseconds.</param> <returns>An object implementing the IRxS7 interface that represents the configured PLC connection.</returns> <exception cref="ArgumentOutOfRangeException">Thrown if the value of rack is less than 0 or greater than 7.</exception> |
 
-##### `S7PlcRx.S71500`
+##### `IoT.DriverCore.S7PlcRx.S71500`
 Source: `Create/S71500.cs:9`
 
 Provides factory methods for creating connections to Siemens S7-1500 PLC devices.
@@ -1080,7 +1129,7 @@ Provides factory methods for creating connections to Siemens S7-1500 PLC devices
 |---|---|
 | `public static IRxS7 Create(string ip, short rack = 0, short slot = 1, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 10)` | Creates a new instance of an S7 PLC client configured for the specified IP address, rack, slot, and optional watchdog monitoring. <remarks>If <paramref name="watchDogAddress"/> is specified, the client will periodically write <paramref name="watchDogValueToWrite"/> to the given address at the specified <paramref name="watchDogInterval"/>. This can be used to implement a heartbeat or keep-alive mechanism with the PLC.</remarks> <param name="ip">The IP address of the S7 PLC to connect to.</param> <param name="rack">The rack number of the PLC. Must be between 0 and 7.</param> <param name="slot">The slot number of the PLC CPU module. Must be between 1 and 31.</param> <param name="watchDogAddress">The address of the watchdog variable in the PLC memory to monitor. If null, watchdog monitoring is disabled.</param> <param name="interval">The polling interval, in milliseconds, for communication with the PLC. Must be positive.</param> <param name="watchDogValueToWrite">The value to write to the watchdog variable when monitoring is enabled.</param> <param name="watchDogInterval">The interval, in seconds, at which the watchdog value is written. Must be positive.</param> <returns>An IRxS7 instance configured to communicate with the specified S7 PLC and optional watchdog monitoring.</returns> <exception cref="ArgumentOutOfRangeException">Thrown when the value of <paramref name="rack"/> is not between 0 and 7, or <paramref name="slot"/> is not between 1 and 31.</exception> |
 
-##### `S7PlcRx.S7200`
+##### `IoT.DriverCore.S7PlcRx.S7200`
 Source: `Create/S7200.cs:9`
 
 Provides factory methods for creating connections to Siemens S7-200 PLC devices.
@@ -1089,7 +1138,7 @@ Provides factory methods for creating connections to Siemens S7-200 PLC devices.
 |---|---|
 | `public static IRxS7 Create(string ip, short rack, short slot, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 100) => ...` | Creates a new instance of an S7-200 PLC client for communication over TCP/IP with optional watchdog monitoring. <remarks>If a watchdog address is specified, the client will periodically write the specified value to the PLC at the given interval to support connection monitoring or fail-safe logic. Ensure that the PLC is configured to handle the watchdog mechanism as expected.</remarks> <param name="ip">The IP address of the S7-200 PLC to connect to. Cannot be null or empty.</param> <param name="rack">The rack number of the PLC CPU module. Typically 0 for S7-200 devices.</param> <param name="slot">The slot number of the PLC CPU module. Typically 0 or 1 for S7-200 devices.</param> <param name="watchDogAddress">The address in the PLC memory to use for the watchdog mechanism, or null to disable watchdog monitoring.</param> <param name="interval">The polling interval, in milliseconds, for regular communication with the PLC. Must be greater than 0.</param> <param name="watchDogValueToWrite">The value to write to the watchdog address during each watchdog cycle.</param> <param name="watchDogInterval">The interval, in milliseconds, at which the watchdog value is written. Must be greater than 0.</param> <returns>An IRxS7 instance configured to communicate with the specified S7-200 PLC, with optional watchdog monitoring enabled.</returns> |
 
-##### `S7PlcRx.S7300`
+##### `IoT.DriverCore.S7PlcRx.S7300`
 Source: `Create/S7300.cs:9`
 
 Provides factory methods for creating connections to Siemens S7-300 PLC devices.
@@ -1098,7 +1147,7 @@ Provides factory methods for creating connections to Siemens S7-300 PLC devices.
 |---|---|
 | `public static IRxS7 Create(string ip, short rack, short slot, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 100)` | Creates a new instance of an S7 PLC connection with the specified configuration parameters. <param name="ip">The IP address of the S7 PLC to connect to.</param> <param name="rack">The rack number of the PLC. Must be between 0 and 7, inclusive.</param> <param name="slot">The slot number of the PLC. Must be between 1 and 31, inclusive.</param> <param name="watchDogAddress">The address in the PLC memory to use for the watchdog mechanism, or null to disable the watchdog.</param> <param name="interval">The polling interval, in milliseconds, for communication with the PLC. Must be greater than 0.</param> <param name="watchDogValueToWrite">The value to write to the watchdog address during each interval.</param> <param name="watchDogInterval">The interval, in milliseconds, at which the watchdog value is written. Must be greater than 0.</param> <returns>An object implementing the IRxS7 interface that represents the configured PLC connection.</returns> <exception cref="ArgumentOutOfRangeException">Thrown when the value of <paramref name="rack"/> is not between 0 and 7, or when the value of <paramref name="slot"/> is not between 1 and 31.</exception> |
 
-##### `S7PlcRx.S7400`
+##### `IoT.DriverCore.S7PlcRx.S7400`
 Source: `Create/S7400.cs:9`
 
 Provides factory methods for creating S7-400 PLC connections.
@@ -1107,7 +1156,7 @@ Provides factory methods for creating S7-400 PLC connections.
 |---|---|
 | `public static IRxS7 Create(string ip, short rack, short slot, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 100)` | Creates a new instance of an S7 PLC client configured for the specified IP address, rack, slot, and optional watchdog monitoring parameters. <remarks>If watchdog monitoring is enabled by specifying a non-null watchDogAddress, the client will periodically write the specified value to the given address at the defined interval. This can be used to implement a heartbeat or keep-alive mechanism with the PLC.</remarks> <param name="ip">The IP address of the S7 PLC to connect to.</param> <param name="rack">The rack number of the PLC. Must be between 0 and 7.</param> <param name="slot">The slot number of the PLC CPU. Must be between 1 and 31.</param> <param name="watchDogAddress">The address in the PLC memory to use for the watchdog mechanism, or null to disable watchdog monitoring.</param> <param name="interval">The polling interval, in milliseconds, for reading data from the PLC. Must be greater than 0.</param> <param name="watchDogValueToWrite">The value to write to the watchdog address during each interval if watchdog monitoring is enabled.</param> <param name="watchDogInterval">The interval, in milliseconds, at which the watchdog value is written if watchdog monitoring is enabled. Must be greater than 0.</param> <returns>An IRxS7 instance configured to communicate with the specified S7 PLC and optional watchdog monitoring.</returns> <exception cref="ArgumentOutOfRangeException">Thrown if rack is not between 0 and 7, or if slot is not between 1 and 31.</exception> |
 
-##### `S7PlcRx.S7Exception`
+##### `IoT.DriverCore.S7PlcRx.S7Exception`
 Source: `S7Exception.cs:13`
 
 | Member | Summary |
@@ -1116,7 +1165,7 @@ Source: `S7Exception.cs:13`
 | `public S7Exception(string message) : base(message)` | Initializes a new instance of the <see cref="S7Exception"/> class. <param name="message">The message that describes the error.</param> |
 | `public S7Exception(string message, Exception innerException) : base(message, innerException)` | Initializes a new instance of the <see cref="S7Exception"/> class. <param name="message">The error message that explains the reason for the exception.</param> <param name="innerException">The exception that is the cause of the current exception, or a null reference (<see langword="Nothing" /> in Visual Basic) if no inner exception is specified.</param> |
 
-##### `S7PlcRx.Tag`
+##### `IoT.DriverCore.S7PlcRx.Tag`
 Source: `Tags/Tag.cs:15`
 
 | Member | Summary |
@@ -1136,29 +1185,26 @@ Source: `Tags/Tag.cs:15`
 | `public bool DoNotPoll get; internal set; }` | Gets a value indicating whether polling operations should be suppressed for this instance. |
 | `public void SetDoNotPoll(bool value) => ...` | Sets a value indicating whether polling operations should be disabled. <param name="value">true to disable polling; otherwise, false.</param> |
 
-##### `S7PlcRx.TagAddressOutOfRangeException`
+##### `IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException`
 Source: `Tags/TagAddressOutOfRangeException.cs:15`
 
 No public instance/static members declared directly on this type.
 
-##### `S7PlcRx.TagExtensions`
-Source: `Tags/TagExtensions.cs:18`
+##### `IoT.DriverCore.S7PlcRx.TagOperations`
+Source: `Tags/TagOperations.cs`
 
-Provides extension methods for managing and interacting with tag items in IRxS7-based PLC systems. These methods enable adding, updating, retrieving, and removing tags, as well as converting tag streams to dictionary representations. <remarks>The TagExtensions class offers a fluent API for working with tags in Siemens S7 PLC communication scenarios. It includes methods for adding tags with type and array support, controlling polling behavior, and transforming tag data streams. All methods are implemented as extension methods to enhance usability and integration with IRxS7 and related types. Thread safety and error handling depend on the underlying IRxS7 and Tag implementations.</remarks>
+Provides static operations for registering, retrieving, removing, and projecting S7 tags. Register through `TagOperations` and retain the returned `TagRegistration` when polling configuration is required.
 
 | Member | Summary |
 |---|---|
-| `public static (ITag? tag, IRxS7? plc) AddUpdateTagItem<T>(this IRxS7 @this, string tagName, string address, int? arrayLength = null)` | Adds or updates a tag item of the specified type in the PLC and returns the created tag and the PLC instance. <remarks>If the specified type parameter is a string or an array type and an array length is provided, the tag will be created as an array with the given length. Otherwise, the tag will be created as a single value. This method is an extension method for IRxS7 implementations that support tag management.</remarks> <typeparam name="T">The data type of the tag to add or update. This determines the type of value the tag will hold.</typeparam> <param name="this">The PLC instance to which the tag item will be added or updated.</param> <param name="tagName">The name to assign to the tag item.</param> <param name="address">The address in the PLC where the tag item is located.</param> <param name="arrayLength">The length of the array for the tag item, if the tag represents an array type. Specify null for non-array types.</param> <returns>A tuple containing the created or updated tag as the first element and the PLC instance as the second element. The tag will be null if the PLC instance does not support tag operations.</returns> |
-| `public static (ITag? tag, IRxS7? plc) AddUpdateTagItem(this IRxS7 @this, Type type, string tagName, string address, int? arrayLength = null)` | Adds or updates a tag item in the specified PLC instance and returns the created tag and the PLC reference. <remarks>If the specified type is an array or a string, the array length must be provided. If the PLC instance does not support adding or updating tags, the returned tag will be null.</remarks> <param name="this">The PLC instance to which the tag item will be added or updated.</param> <param name="type">The data type of the tag to add or update. Must not be null.</param> <param name="tagName">The name of the tag to add or update.</param> <param name="address">The address in the PLC where the tag is located.</param> <param name="arrayLength">The length of the array if the tag type is an array or a string; otherwise, null.</param> <returns>A tuple containing the created tag (or null if the operation was not successful) and the PLC reference.</returns> |
-| `public static (ITag? tag, IRxS7? plc) AddUpdateTagItem<T>(this (ITag? _, IRxS7? plc) @this, string tagName, string address, int? arrayLength = null)` | Adds or updates a tag item of the specified type in the PLC and returns the created tag along with the PLC instance. <remarks>If the PLC instance is not of type <see cref="RxS7"/>, no tag is added or updated and the returned tag will be null. When adding a string or array tag, <paramref name="arrayLength"/> must be specified to define the size of the tag.</remarks> <typeparam name="T">The data type of the tag to add or update. This can be a primitive type, string, or array type.</typeparam> <param name="this">A tuple containing the current tag (which may be null) and the PLC instance in which to add or update the tag.</param> <param name="tagName">The name to assign to the tag item.</param> <param name="address">The address in the PLC where the tag is located.</param> <param name="arrayLength">The length of the array if the tag represents an array type. This parameter is required when <typeparamref name="T"/> is a string or an array type; otherwise, it is ignored.</param> <returns>A tuple containing the created or updated tag as <see cref="ITag"/> and the PLC instance as <see cref="IRxS7"/>. If the PLC instance is null, the tag will also be null.</returns> |
-| `public static (ITag? tag, IRxS7? plc) AddUpdateTagItem(this (ITag? _, IRxS7? plc) @this, Type type, string tagName, string address, int? arrayLength = null)` | Adds or updates a tag item in the specified PLC instance using the provided type, tag name, and address. <remarks>If the tag type is a string or an array, the array length must be specified. The method does not modify the PLC instance if it is null or if the type is null.</remarks> <param name="this">A tuple containing the current tag (ignored) and the PLC instance in which to add or update the tag item.</param> <param name="type">The type of the tag to add or update. Must not be null.</param> <param name="tagName">The name of the tag to add or update in the PLC.</param> <param name="address">The address in the PLC where the tag is located.</param> <param name="arrayLength">The length of the array if the tag type is an array or a string. Optional.</param> <returns>A tuple containing the created or updated tag and the PLC instance. The tag is null if the PLC instance or type is null.</returns> |
-| `public static (ITag? tag, IRxS7? plc) SetTagPollIng(this (ITag? tag, IRxS7? plc) @this, bool polling = true)` | Enables or disables polling for the specified tag by setting its polling state. <remarks>If the tag is null, this method has no effect. This method does not modify the PLC instance.</remarks> <param name="this">A tuple containing the tag and PLC instance to update.</param> <param name="polling">true to enable polling for the tag; false to disable polling. The default is true.</param> <returns>A tuple containing the original tag and PLC instance.</returns> |
-| `public static (ITag? tag, IRxS7? plc) GetTag(this IRxS7 @this, string tagName) => ...` | Retrieves the tag with the specified name from the PLC's tag list, along with the associated PLC instance. <remarks>If the specified tag name does not exist in the PLC's tag list, the method returns a tuple with a null tag and the original PLC instance. This method is an extension method for the IRxS7 interface.</remarks> <param name="this">The PLC instance from which to retrieve the tag.</param> <param name="tagName">The name of the tag to retrieve. Cannot be null.</param> <returns>A tuple containing the tag that matches the specified name and the PLC instance. If the tag is not found, the tag element of the tuple is null.</returns> |
-| `public static void RemoveTagItem(this IRxS7 @this, string tagName)` | Removes the tag item with the specified name from the underlying RxS7 instance, if applicable. <remarks>If the underlying object is not an RxS7 instance, this method has no effect.</remarks> <param name="this">The IRxS7 instance from which to remove the tag item.</param> <param name="tagName">The name of the tag item to remove. Cannot be null.</param> |
-| `public static IObservable<IDictionary<string, TValue>> TagToDictionary<TValue>(this IObservable<Tag?> source)` | Projects a sequence of nullable Tag objects into a stream of dictionaries containing the most recent values for each tag name, filtered by the specified value type. <remarks>Each emitted dictionary contains all tag names encountered so far whose values are of type TValue and are not null. The dictionary is updated with each new matching tag in the source sequence. The same dictionary instance is reused and updated for each emission; callers should not modify the returned dictionary.</remarks> <typeparam name="TValue">The type to which tag values are filtered and cast. Only tags whose values are of this type are included in the resulting dictionaries.</typeparam> <param name="source">The observable sequence of nullable Tag objects to process.</param> <returns>An observable sequence of dictionaries mapping tag names to their most recent non-null values of type TValue. Each dictionary reflects the accumulated state up to that point in the source sequence.</returns> |
-| `public static IObservable<(string Tag, TValue Value)> ToTagValue<TValue>(this IObservable<TValue?> source, string tag) => ...` | Projects each non-null value in the source sequence into a tuple containing the specified tag and the value. <remarks>Null values in the source sequence are filtered out. The resulting sequence will not contain any tuples with a null value.</remarks> <typeparam name="TValue">The type of the values in the source sequence.</typeparam> <param name="source">The observable sequence of nullable values to process. Only non-null values are included in the result.</param> <param name="tag">The tag to associate with each value in the resulting sequence. This value is included in each emitted tuple.</param> <returns>An observable sequence of tuples, where each tuple contains the specified tag and a non-null value from the source sequence.</returns> |
+| `TagOperations.AddUpdateTagItem(IRxS7, Type, string, string[, int])` | Static registration with scalar, fixed-length, and nullable-length overloads; returns `TagRegistration`. |
+| `TagRegistration.SetPolling()` / `SetPolling(bool)` | Enables or disables polling for the registration returned by `TagOperations.AddUpdateTagItem` or `GetTag`; this is the current replacement for the removed tuple helper. |
+| `TagOperations.GetTag(IRxS7, string)` | Returns a `TagRegistration`; its `Tag` is null when no tag is registered. |
+| `TagOperations.RemoveTagItem(IRxS7, string)` | Removes a named registration from a concrete `RxS7` instance. |
+| `TagOperations.TagToDictionary(IObservable<Tag?>)` | Produces dictionary snapshots of all non-null tag values. |
+| `TagOperations.ToTagValue<T>(IObservable<T?>, string)` | Associates each non-null typed value with the supplied tag name. |
 
-##### `S7PlcRx.Tags`
+##### `IoT.DriverCore.S7PlcRx.Tags`
 Source: `Tags/Tags.cs:18`
 
 | Member | Summary |
@@ -1175,48 +1221,58 @@ Source: `Tags/Tags.cs:18`
 | `public Tags GetTags()` | Retrieves a collection of tags that have non-null values. <returns>A <see cref="Tags"/> collection containing all tags with non-null values. The collection will be empty if no such tags exist.</returns> |
 | `public List<Tag> ToList()` | Returns a list containing all tags in the collection. <remarks>The returned list is a snapshot of the collection at the time of the call. Subsequent modifications to the collection are not reflected in the returned list. This method is thread-safe.</remarks> <returns>A list of <see cref="Tag"/> objects representing the tags in the collection. The list is empty if the collection contains no tags or if an error occurs while retrieving the tags.</returns> |
 
-#### Namespace `S7PlcRx.Advanced`
+#### Namespace `IoT.DriverCore.S7PlcRx.Advanced`
 
-##### `S7PlcRx.Advanced.AdvancedExtensions`
+##### `IoT.DriverCore.S7PlcRx.Advanced.AdvancedExtensions`
 Source: `Advanced/AdvancedExtensions.cs:22`
 
 Provides advanced extension methods for efficient batch operations, diagnostics, and performance analysis on PLC (Programmable Logic Controller) instances using the IRxS7 interface. <remarks>These extension methods enable high-performance reading, writing, monitoring, and analysis of PLC variables, supporting scenarios such as batch updates, optimized data access, and system diagnostics. Methods are designed to simplify complex PLC interactions and provide recommendations for optimization. All methods require a valid IRxS7 instance and may throw exceptions if invalid arguments are supplied. Thread safety and performance considerations are addressed where relevant in individual method documentation.</remarks>
 
+> **Current V3 names.** Use the `*Async` static methods below. Earlier migration drafts used extension-style, non-Async names; those names are not part of the current public surface.
+
+| Current member | Required arguments and result |
+|---|---|
+| `AdvancedExtensions.ObserveBatch<T>` | `(IRxS7 plc, T typeValue, params string[] variables)` returns observable snapshots. |
+| `AdvancedExtensions.ValueBatchAsync<T>` | `(IRxS7 plc, T typeValue, params string[] variables)` reads; `(IRxS7 plc, Dictionary<string,T> values)` writes. |
+| `AdvancedExtensions.ReadBatchOptimizedAsync<T>` | `(IRxS7 plc, T typeValue, Dictionary<string,string> tagMapping, int timeoutMs)` returns per-tag `BatchReadResult<T>`. |
+| `AdvancedExtensions.WriteBatchOptimizedAsync<T>` | `(IRxS7 plc, Dictionary<string,T> values, bool verifyWrites, bool enableRollback)` returns `BatchWriteResult`. |
+| `AdvancedExtensions.GetDiagnosticsAsync` / `AnalyzePerformanceAsync` | Accept `IRxS7`; analysis also accepts the observation duration. |
+| `AdvancedExtensions.CreateTagGroup<T>` | `(IRxS7 plc, T typeValue, string groupName, params string[] tagNames)` creates a disposable group. |
+
 | Member | Summary |
 |---|---|
-| `public static IObservable<Dictionary<string, T?>> ObserveBatch<T>(this IRxS7 plc, params string[] variables)` | Observes the values of multiple PLC variables as a batch and emits updates as a dictionary when any of the specified variables change. <remarks>The returned observable is hot and shared among all subscribers. If a specified variable is not already being polled, polling is automatically enabled for that variable. The sequence emits a new dictionary only when the set of variable values changes.</remarks> <typeparam name="T">The type of the variable values to observe. Must be compatible with the PLC variable types.</typeparam> <param name="plc">The PLC instance that provides access to the variables to observe. Cannot be null.</param> <param name="variables">The names of the PLC variables to observe. If empty, an empty dictionary is emitted.</param> <returns>An observable sequence that emits a dictionary mapping each specified variable name to its most recent value. The dictionary is updated and emitted whenever any of the observed variables change.</returns> <exception cref="ArgumentNullException">Thrown if the <paramref name="plc"/> parameter is null.</exception> |
-| `public static async Task<Dictionary<string, T?>> ValueBatch<T>(this IRxS7 plc, params string[] variables)` | Asynchronously reads the values of multiple variables from the PLC and returns a dictionary mapping variable names to their values. <remarks>If a variable name does not exist in the PLC or cannot be read, its value in the returned dictionary will be the default value for type T. The order of the returned dictionary corresponds to the order of the requested variable names. This method may perform the reads in parallel for efficiency.</remarks> <typeparam name="T">The type of the variable values to read from the PLC.</typeparam> <param name="plc">The PLC instance from which to read the variable values. Cannot be null.</param> <param name="variables">An array of variable names to read from the PLC. Each name must correspond to a valid variable in the PLC.</param> <returns>A task that represents the asynchronous operation. The task result contains a dictionary mapping each requested variable name to its value of type T, or to the default value of T if the variable could not be read or does not exist. If no variables are specified, returns an empty dictionary.</returns> <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception> |
-| `public static async Task ValueBatch<T>(this IRxS7 plc, Dictionary<string, T> values)` | Writes a batch of values to the PLC asynchronously using the specified tag-value pairs. <remarks>If the underlying PLC implementation supports batch writing, the method attempts to write all values in a single operation for improved performance. Otherwise, values are written individually in parallel. No action is taken if the dictionary is null or empty.</remarks> <typeparam name="T">The type of the values to write to the PLC.</typeparam> <param name="plc">The PLC interface to which the values will be written.</param> <param name="values">A dictionary containing tag names as keys and the corresponding values to write. Cannot be null or empty.</param> <returns>A task that represents the asynchronous write operation.</returns> |
-| `public static async Task<BatchReadResult<T>> ReadBatchOptimized<T>( this IRxS7 plc, Dictionary<string, string> tagMapping, int timeoutMs = 5000)` | Reads a batch of tags from the PLC in an optimized manner, grouping reads by data block to improve performance. <remarks>If the tagMapping dictionary is null or empty, the method returns a successful result with no values. Tags are grouped by data block to minimize communication overhead. If a tag does not exist in the PLC's tag list, it is added before reading. Each tag read is subject to the specified timeout.</remarks> <typeparam name="T">The type of the values to read from the PLC tags.</typeparam> <param name="plc">The PLC instance that provides access to the tags to be read. Cannot be null.</param> <param name="tagMapping">A dictionary mapping logical tag names to their corresponding PLC addresses. Each key is the tag name, and each value is the PLC address to read.</param> <param name="timeoutMs">The maximum time, in milliseconds, to wait for each tag read operation before timing out. The default is 5000 milliseconds.</param> <returns>A task that represents the asynchronous operation. The task result contains a BatchReadResult{T} with the values read, per-tag success status, and any errors encountered.</returns> <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception> |
-| `public static async Task<BatchWriteResult> WriteBatchOptimized<T>( this IRxS7 plc, Dictionary<string, T> values, bool verifyWrites = false, bool enableRollback = false)` | Writes a batch of values to the specified PLC in an optimized manner, with optional write verification and rollback support. <remarks>If enableRollback is set to true and any write fails, the method attempts to restore all affected PLC addresses to their original values. Write verification, if enabled, reads back each value after writing to ensure correctness. This method is asynchronous and should be awaited to ensure completion of all write and verification operations.</remarks> <typeparam name="T">The type of the values to write to the PLC.</typeparam> <param name="plc">The PLC instance to which the values will be written. Cannot be null.</param> <param name="values">A dictionary mapping PLC variable addresses to the values to write. Each key represents a PLC address, and each value is the data to write to that address. If the dictionary is null or empty, no write operations are performed.</param> <param name="verifyWrites">true to verify each write by reading back the value after writing; otherwise, false. Verification may increase operation time.</param> <param name="enableRollback">true to enable rollback of all written values to their original state if any write fails; otherwise, false. Rollback is attempted only if an error occurs during the batch write.</param> <returns>A BatchWriteResult object containing the outcome of the batch write operation, including per-address success and error information. If no values are provided, the result indicates overall success.</returns> <exception cref="ArgumentNullException">Thrown if plc is null.</exception> |
-| `public static async Task<ProductionDiagnostics> GetDiagnostics(this IRxS7 plc)` | Asynchronously collects diagnostic information and performance metrics from the specified PLC instance. <remarks>If the PLC is not connected, only basic information is included in the diagnostics. For S7-1500 PLCs, additional CPU information and connection latency are measured. Any errors encountered during diagnostic collection are recorded in the Errors property of the returned ProductionDiagnostics object.</remarks> <param name="plc">The PLC instance from which to retrieve diagnostics. Must implement the IRxS7 interface.</param> <returns>A task that represents the asynchronous operation. The task result contains a ProductionDiagnostics object with collected diagnostic data, tag metrics, and optimization recommendations.</returns> <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception> |
-| `public static async Task<PerformanceAnalysis> AnalyzePerformance(this IRxS7 plc, TimeSpan monitoringDuration)` | Analyzes tag change performance on the specified PLC over a given monitoring duration and returns a summary of tag change frequencies and recommendations. <remarks>This method subscribes to all tag changes on the PLC and tracks the frequency of changes for each tag during the specified monitoring period. The analysis includes total tag changes, per-tag change counts, and suggestions for optimizing performance based on observed activity. The method is thread-safe and does not block the calling thread.</remarks> <param name="plc">The PLC instance to monitor for tag changes. Cannot be null.</param> <param name="monitoringDuration">The length of time to observe tag changes. Must be a positive time span.</param> <returns>A task that represents the asynchronous operation. The task result contains a PerformanceAnalysis object with tag change statistics and performance recommendations for the monitored period.</returns> <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception> |
-| `public static HighPerformanceTagGroup<T> CreateTagGroup<T>(this IRxS7 plc, string groupName, params string[] tagNames) => ...` | Creates a new high-performance tag group for batch reading or writing of multiple tags from the specified PLC connection. <remarks>Use this method to efficiently manage and operate on multiple tags as a single group, which can improve performance for batch operations.</remarks> <typeparam name="T">The data type of the tag values in the group.</typeparam> <param name="plc">The PLC connection used to access the tags. Cannot be null.</param> <param name="groupName">The name assigned to the tag group. Used to identify the group within the PLC context.</param> <param name="tagNames">An array of tag names to include in the group. Each name must correspond to a valid tag in the PLC.</param> <returns>A new instance of HighPerformanceTagGroup{T} containing the specified tags, associated with the given PLC connection.</returns> |
+| `AdvancedExtensions.ObserveBatch<T>(IRxS7 plc, T typeValue, params string[] variables)` | Produces batch snapshots and enables polling for newly registered tags. Pass a marker such as `default(float)` so the compiler can infer `T`. |
+| `AdvancedExtensions.ValueBatchAsync<T>(IRxS7 plc, T typeValue, params string[] variables)` | Reads a same-type named set; use `ValueBatchAsync(IRxS7, Dictionary<string,T>)` to issue a batch write. |
+| `AdvancedExtensions.ValueBatchAsync<T>(IRxS7 plc, Dictionary<string,T> values)` | Writes a named set; it does not imply a transactional PLC commit. |
+| `AdvancedExtensions.ReadBatchOptimizedAsync<T>(IRxS7, T typeValue, Dictionary<string,string>, int timeoutMs)` | Registers mapped addresses as necessary, groups work by DB, and returns per-tag `BatchReadResult<T>`. |
+| `AdvancedExtensions.WriteBatchOptimizedAsync<T>(IRxS7, Dictionary<string,T>, bool verifyWrites, bool enableRollback)` | Writes mapped tags with optional readback and best-effort rollback; inspect every result field. |
+| `AdvancedExtensions.GetDiagnosticsAsync(IRxS7)` | Asynchronously gathers connection, CPU/tag, and recommendation diagnostics. |
+| `AdvancedExtensions.AnalyzePerformanceAsync(IRxS7, TimeSpan)` | Observes tag changes for the supplied duration and returns frequencies and recommendations. |
+| `AdvancedExtensions.CreateTagGroup<T>(IRxS7, T typeValue, string groupName, params string[] tagNames)` | Creates a disposable group with `ObserveGroup`, `ReadAllAsync`, and `WriteAllAsync`. |
 
-##### `S7PlcRx.Advanced.AsyncExtensions`
+##### `IoT.DriverCore.S7PlcRx.Advanced.AsyncExtensions`
 Source: `Advanced/AsyncExtensions.cs:18`
 
 Provides additional async-first helpers for reading, writing, and observing PLC values without changing the base <see cref="IRxS7"/> API surface. <remarks>These helpers layer <see cref="ValueTask"/> and async-observable patterns over the existing PLC API. Where possible, they complete synchronously from cached tag values or the existing multi-variable read/write paths to reduce avoidable allocations.</remarks>
 
 | Member | Summary |
 |---|---|
-| `public static ValueTask<T?> ReadValueAsync<T>(this IRxS7 plc, string? variable, CancellationToken cancellationToken = default)` | Reads a PLC value using a <see cref="ValueTask{TResult}"/>, returning synchronously when a compatible cached tag value is already available. <typeparam name="T">The expected PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="variable">The tag name to read.</param> <param name="cancellationToken">The cancellation token for the read operation.</param> <returns>A <see cref="ValueTask{TResult}"/> that resolves to the current PLC value.</returns> |
-| `public static ValueTask<Dictionary<string, T?>> ReadValuesAsync<T>(this IRxS7 plc, params string[] variables) => ...` | Reads multiple PLC values using a <see cref="ValueTask{TResult}"/>, preferring cached values and the optimized multi-variable read path where available. <typeparam name="T">The expected PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="variables">The tag names to read.</param> <returns>A <see cref="ValueTask{TResult}"/> that resolves to a dictionary of tag values keyed by tag name.</returns> |
-| `public static ValueTask<Dictionary<string, T?>> ReadValuesAsync<T>(this IRxS7 plc, IReadOnlyList<string> variables, CancellationToken cancellationToken = default)` | Reads multiple PLC values using a <see cref="ValueTask{TResult}"/>, honoring cancellation for deferred reads. <typeparam name="T">The expected PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="variables">The tag names to read.</param> <param name="cancellationToken">The cancellation token for deferred reads.</param> <returns>A <see cref="ValueTask{TResult}"/> that resolves to a dictionary of tag values keyed by tag name.</returns> |
-| `public static ValueTask WriteValuesAsync<T>(this IRxS7 plc, IReadOnlyDictionary<string, T> values, CancellationToken cancellationToken = default)` | Writes multiple PLC values using a <see cref="ValueTask"/>, preferring the optimized multi-variable write path where available. <typeparam name="T">The PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="values">The tag values to write.</param> <param name="cancellationToken">The cancellation token.</param> <returns>A completed <see cref="ValueTask"/> when the writes have been issued.</returns> |
-| `public static IObservableAsync<T?> ObserveValue<T>(this IRxS7 plc, string? variable)` | Exposes a PLC variable as an async observable sequence. <typeparam name="T">The expected PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="variable">The tag name to observe.</param> <returns>An <see cref="IObservableAsync{T}"/> that emits tag value updates asynchronously.</returns> |
-| `public static IObservableAsync<Dictionary<string, T?>> ObserveValues<T>(this IRxS7 plc, params string[] variables)` | Exposes a batch PLC observation as an async observable sequence. <typeparam name="T">The expected PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="variables">The tag names to observe.</param> <returns>An <see cref="IObservableAsync{T}"/> that emits dictionaries of tag values asynchronously.</returns> |
+| `AsyncExtensions.ReadValueAsync<T>(IRxS7, T typeValue, string variable, CancellationToken)` | ValueTask read with a type marker and caller cancellation. It can satisfy a compatible cached value synchronously. |
+| `AsyncExtensions.ReadValuesAsync<T>(IRxS7, T typeValue, IReadOnlyList<string>, CancellationToken)` | ValueTask multi-read with a type marker and cancellation. |
+| `AsyncExtensions.WriteValuesAsync<T>(IRxS7, IReadOnlyDictionary<string,T>, CancellationToken)` | ValueTask batch write. It uses the multi-variable path when available and still requires application-level command acknowledgement. |
+| `AsyncExtensions.ObserveValue<T>(IRxS7, T typeValue, string variable)` | .NET 8+ async observable for one typed key. Subscribe with a Primitives async observer and dispose the async subscription. |
+| `AsyncExtensions.ObserveValues<T>(IRxS7, T typeValue, params string[] variables)` | .NET 8+ async observable batch projection. |
 
-##### `S7PlcRx.Advanced.DictionaryEqualityComparer<TKey, TValue>`
+##### `IoT.DriverCore.S7PlcRx.Advanced.DictionaryEqualityComparer<TKey, TValue>`
 Source: `Advanced/DictionaryEqualityComparer.cs:15`
 
 Provides an equality comparer for dictionaries that determines equality based on their key-value pairs. <remarks>This comparer considers two dictionaries equal if they contain the same number of key-value pairs and each key in one dictionary exists in the other with an equal value, as determined by the default equality comparer for the value type. The order of key-value pairs does not affect equality. This comparer can be used to compare dictionaries in collections such as hash sets or as keys in other dictionaries.</remarks> <typeparam name="TKey">The type of keys in the dictionaries. Must be non-nullable.</typeparam> <typeparam name="TValue">The type of values in the dictionaries.</typeparam>
 
 No public instance/static members declared directly on this type.
 
-#### Namespace `S7PlcRx.BatchOperations`
+#### Namespace `IoT.DriverCore.S7PlcRx.BatchOperations`
 
-##### `S7PlcRx.BatchOperations.BatchOperationResult`
+##### `IoT.DriverCore.S7PlcRx.BatchOperations.BatchOperationResult`
 Source: `BatchOperations/BatchOperationResult.cs:14`
 
 Represents the result of executing a batch operation, including summary statistics and details for each operation. <remarks>Use this class to access aggregate information such as the number of successful and failed operations, processing times, and detailed results for each operation in the batch. The class provides both summary properties and collections for per-operation and error details.</remarks>
@@ -1233,7 +1289,7 @@ Represents the result of executing a batch operation, including summary statisti
 | `public List<OperationDetail> OperationDetails get; } = [];` | Gets operation details. |
 | `public List<string> ErrorDetails get; } = [];` | Gets error details for failed operations. |
 
-##### `S7PlcRx.BatchOperations.BatchReadResult<T>`
+##### `IoT.DriverCore.S7PlcRx.BatchOperations.BatchReadResult<T>`
 Source: `BatchOperations/BatchReadResult.cs:17`
 
 Represents the result of a batch read operation, including the values read, per-tag success status, error messages, and overall success information. <remarks>Use this class to access the outcome of a batch read, including which tags succeeded, which failed, and any associated error messages. The dictionaries provide per-tag details, while the overall success and count properties offer summary information. This class is typically used in scenarios where multiple items are read in a single operation and individual results must be tracked.</remarks> <typeparam name="T">The type of the values returned for each tag in the batch read operation.</typeparam>
@@ -1247,7 +1303,7 @@ Represents the result of a batch read operation, including the values read, per-
 | `public int SuccessCount => ...` | Gets the count of successful reads. |
 | `public int ErrorCount => ...` | Gets the count of failed reads. |
 
-##### `S7PlcRx.BatchOperations.BatchWriteResult`
+##### `IoT.DriverCore.S7PlcRx.BatchOperations.BatchWriteResult`
 Source: `BatchOperations/BatchWriteResult.cs:15`
 
 Represents the result of a batch write operation, including per-item success status, error messages, and overall outcome. <remarks>Use this class to inspect which items in a batch write succeeded or failed, retrieve error details for failed items, and determine whether the entire batch was successful or if a rollback was performed. The dictionaries map item identifiers (such as tag names) to their respective statuses and error messages.</remarks>
@@ -1261,9 +1317,9 @@ Represents the result of a batch write operation, including per-item success sta
 | `public int SuccessCount => ...` | Gets the count of successful writes. |
 | `public int ErrorCount => ...` | Gets the count of failed writes. |
 
-#### Namespace `S7PlcRx.Binding`
+#### Namespace `IoT.DriverCore.S7PlcRx.Binding`
 
-##### `S7PlcRx.Binding.S7TagDefinition`
+##### `IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition`
 Source: `Binding/S7TagDefinition.cs:9`
 
 Describes a generated PLC tag/property binding.
@@ -1280,14 +1336,14 @@ Describes a generated PLC tag/property binding.
 | `public bool CanRead => ...` | Gets a value indicating whether this tag should be read on polling intervals. |
 | `public bool CanWrite => ...` | Gets a value indicating whether this tag can write property changes to the PLC. |
 
-##### `S7PlcRx.Binding.S7TagDirection`
+##### `IoT.DriverCore.S7PlcRx.Binding.S7TagDirection`
 Source: `Binding/S7TagDirection.cs:9`
 
 Defines the PLC access direction for a generated tag binding.
 
 Enum values: `ReadWrite`, `ReadOnly`, `WriteOnly`.
 
-##### `S7PlcRx.Binding.S7TagRuntimeBinding`
+##### `IoT.DriverCore.S7PlcRx.Binding.S7TagRuntimeBinding`
 Source: `Binding/S7TagRuntimeBinding.cs:15`
 
 Runtime engine used by generated tag bindings to poll and write PLC DB values in byte-array batches.
@@ -1298,9 +1354,9 @@ Runtime engine used by generated tag bindings to poll and write PLC DB values in
 | `public void Write(string name, object? value)` | Queues a generated property change for a grouped byte-array write. <param name="name">The generated tag/property name.</param> <param name="value">The new property value.</param> |
 | `public void Dispose()` | Releases timers and pending write state. |
 
-#### Namespace `S7PlcRx.Cache`
+#### Namespace `IoT.DriverCore.S7PlcRx.Cache`
 
-##### `S7PlcRx.Cache.CacheStatistics`
+##### `IoT.DriverCore.S7PlcRx.Cache.CacheStatistics`
 Source: `Cache/CacheStatistics.cs:13`
 
 Provides statistical information about the state and performance of a cache, including entry counts, hit rates, and entry timestamps. <remarks>Use this class to monitor cache usage patterns and effectiveness. The statistics can help identify cache performance issues or guide tuning decisions. All values represent a snapshot at the time the object is created or updated; they do not update automatically.</remarks>
@@ -1316,7 +1372,7 @@ Provides statistical information about the state and performance of a cache, inc
 | `public int PendingRequestCount get; internal set; }` | Gets the pending request count. <value> The pending request count. </value> |
 | `public double CacheHitRatio get; internal set; }` | Gets the cache hit ratio. <value> The cache hit ratio. </value> |
 
-##### `S7PlcRx.Cache.CachedTagValue`
+##### `IoT.DriverCore.S7PlcRx.Cache.CachedTagValue`
 Source: `Cache/CachedTagValue.cs:12`
 
 Represents a cached value along with metadata about its storage and usage. <remarks>This class is typically used to store a value retrieved from a data source, along with the time it was cached and the number of times it has been accessed. It is intended for use in caching scenarios where tracking cache usage and freshness is important.</remarks>
@@ -1327,9 +1383,9 @@ Represents a cached value along with metadata about its storage and usage. <rema
 | `public DateTime Timestamp get; set; }` | Gets or sets when the value was cached. |
 | `public long HitCount get; set; }` | Gets or sets the number of cache hits. |
 
-#### Namespace `S7PlcRx.Core`
+#### Namespace `IoT.DriverCore.S7PlcRx.Core`
 
-##### `S7PlcRx.Core.ConnectionPool`
+##### `IoT.DriverCore.S7PlcRx.Core.ConnectionPool`
 Source: `Core/ConnectionPool.cs:17`
 
 Manages a pool of PLC connections, providing load-balanced access and connection reuse according to the specified configuration. <remarks>The ConnectionPool enables efficient management of multiple PLC connections by reusing and balancing requests across available connections. It supports configurable pool size and connection reuse strategies. This class is thread-safe for concurrent access. Call Dispose to release all connections when the pool is no longer needed.</remarks>
@@ -1341,10 +1397,10 @@ Manages a pool of PLC connections, providing load-balanced access and connection
 | `public int MaxConnections => ...` | Gets the maximum number of connections in the pool. |
 | `public int ActiveConnections => ...` | Gets the number of active connections. |
 | `public IRxS7 GetConnection` | Gets a connection from the pool using load balancing. <returns>An available PLC connection.</returns> |
-| `public IEnumerable<IRxS7> GetAllConnections() => ...` | Gets all connections in the pool. <returns>All connections.</returns> |
+| `public IEnumerable<IRxS7> AllConnections` | Snapshot of managed connections. Dispose the pool rather than attempting to dispose entries individually while it owns them. |
 | `public void Dispose()` | Disposes all connections in the pool. |
 
-##### `S7PlcRx.Core.ConnectionPoolConfig`
+##### `IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig`
 Source: `Core/ConnectionPoolConfig.cs:12`
 
 Represents the configuration settings for a connection pool, including limits, timeouts, and behavior options. <remarks>Use this class to specify parameters that control the size, performance, and health monitoring of a connection pool. Adjusting these settings can help optimize resource usage and connection reliability for applications that manage multiple concurrent connections.</remarks>
@@ -1358,7 +1414,7 @@ Represents the configuration settings for a connection pool, including limits, t
 | `public bool EnableConnectionReuse get; set; } = true;` | Gets or sets a value indicating whether to enable connection reuse. |
 | `public TimeSpan HealthCheckInterval get; set; } = TimeSpan.FromMinutes(1);` | Gets or sets the health check interval. |
 
-##### `S7PlcRx.Core.DataBlockInfo`
+##### `IoT.DriverCore.S7PlcRx.Core.DataBlockInfo`
 Source: `Core/DataBlockInfo.cs:14`
 
 Represents metadata and configuration information for a data block, including its identifier, size, tag details, access frequency, and optimization settings. <remarks>Use this class to describe the characteristics of a data block, such as its block number, size in bytes, and associated tag names. The properties provide information useful for managing, analyzing, or optimizing data storage and access patterns. Instances of this class are typically used in scenarios where data blocks are processed, monitored, or configured for batch operations.</remarks>
@@ -1372,7 +1428,7 @@ Represents metadata and configuration information for a data block, including it
 | `public bool IsBatchOptimized get; set; }` | Gets or sets a value indicating whether gets or sets whether the block is optimized for batch operations. |
 | `public List<string> TagNames get; } = [];` | Gets the tags in this data block. |
 
-##### `S7PlcRx.Core.OperationDetail`
+##### `IoT.DriverCore.S7PlcRx.Core.OperationDetail`
 Source: `Core/OperationDetail.cs:9`
 
 Represents the details of an operation, including its type, status, duration, and related metadata.
@@ -1386,16 +1442,16 @@ Represents the details of an operation, including its type, status, duration, an
 | `public string? ErrorMessage get; set; }` | Gets or sets any error message. |
 | `public int DataBlockNumber get; set; }` | Gets or sets the data block number. |
 
-##### `S7PlcRx.Core.RequestPriority`
+##### `IoT.DriverCore.S7PlcRx.Core.RequestPriority`
 Source: `Core/RequestPriority.cs:9`
 
 Request priority levels for batch processing.
 
 Enum values: `Low`, `Normal`, `High`, `Critical`.
 
-#### Namespace `S7PlcRx.Enterprise`
+#### Namespace `IoT.DriverCore.S7PlcRx.Enterprise`
 
-##### `S7PlcRx.Enterprise.EnterpriseExtensions`
+##### `IoT.DriverCore.S7PlcRx.Enterprise.EnterpriseExtensions`
 Source: `Enterprise/EnterpriseExtensions.cs:19`
 
 Provides extension methods for enhanced PLC connectivity, symbolic addressing, high-availability management, and connection pooling in enterprise automation scenarios. <remarks>The EnterpriseExtensions class offers advanced features for working with PLCs, including loading and caching symbol tables for symbolic access, reading and writing values by symbol name, creating high-availability connections with automatic failover, and managing connection pools for high-throughput applications. These methods are designed to simplify integration with industrial automation systems and improve reliability and scalability in production environments.</remarks>
@@ -1408,7 +1464,7 @@ Provides extension methods for enhanced PLC connectivity, symbolic addressing, h
 | `public static HighAvailabilityPlcManager CreateHighAvailabilityConnection( IRxS7 primaryPlc, IList<IRxS7> backupPlcs, TimeSpan? healthCheckInterval = null)` | Creates a high-availability connection manager that coordinates failover between a primary PLC and one or more backup PLCs. <remarks>The returned manager automatically monitors the health of the primary and backup PLCs and handles failover as needed. The order of backupPlcs determines the failover priority.</remarks> <param name="primaryPlc">The primary PLC instance to be used for initial communication and operations. Cannot be null.</param> <param name="backupPlcs">A list of backup PLC instances to be used for failover if the primary PLC becomes unavailable. Cannot be null or empty.</param> <param name="healthCheckInterval">The interval at which the health of the PLCs is checked. If null, a default interval is used.</param> <returns>A HighAvailabilityPlcManager instance that manages high-availability communication across the specified PLCs.</returns> <exception cref="ArgumentNullException">Thrown if primaryPlc or backupPlcs is null.</exception> |
 | `public static ConnectionPool CreateConnectionPool( IEnumerable<PlcConnectionConfig> connectionConfigs, ConnectionPoolConfig poolConfig)` | Creates a new connection pool using the specified PLC connection configurations and pool settings. <param name="connectionConfigs">A collection of PLC connection configurations to include in the pool. Must contain at least one configuration.</param> <param name="poolConfig">The configuration settings to apply to the connection pool. Cannot be null.</param> <returns>A new instance of <see cref="ConnectionPool"/> initialized with the provided connection configurations and pool settings.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="connectionConfigs"/> or <paramref name="poolConfig"/> is null.</exception> <exception cref="ArgumentException">Thrown if <paramref name="connectionConfigs"/> does not contain at least one configuration.</exception> |
 
-##### `S7PlcRx.Enterprise.HighAvailabilityPlcManager`
+##### `IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager`
 Source: `Enterprise/HighAvailabilityPlcManager.cs:17`
 
 Provides high-availability management for a set of PLC (Programmable Logic Controller) connections, automatically handling failover to backup PLCs in case of connection loss. <remarks>The HighAvailabilityPlcManager monitors the health of the primary PLC and automatically switches to a backup PLC if the primary becomes unavailable. It exposes an observable stream of failover events for monitoring and allows manual triggering of failover. This class is thread-safe for typical usage scenarios. Dispose the manager when it is no longer needed to release resources.</remarks>
@@ -1421,7 +1477,7 @@ Provides high-availability management for a set of PLC (Programmable Logic Contr
 | `public async Task<bool> TriggerFailover() => ...` | Manually triggers a failover to the next available backup. <returns>A value indicating whether failover was successful.</returns> |
 | `public void Dispose()` | Disposes the high-availability manager. |
 
-##### `S7PlcRx.Enterprise.PlcConnectionConfig`
+##### `IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig`
 Source: `Enterprise/PlcConnectionConfig.cs:14`
 
 Represents the configuration settings required to establish a connection to a programmable logic controller (PLC). <remarks>Use this class to specify connection parameters such as PLC type, network address, rack, slot, and an optional connection name when initializing or managing PLC connections. This configuration is typically used by PLC communication libraries to open and maintain a session with the target device.</remarks>
@@ -1434,7 +1490,7 @@ Represents the configuration settings required to establish a connection to a pr
 | `public short Slot get; set; }` | Gets or sets the slot number. |
 | `public string ConnectionName get; set; } = string.Empty;` | Gets or sets the connection name. |
 
-##### `S7PlcRx.Enterprise.PlcFailoverEvent`
+##### `IoT.DriverCore.S7PlcRx.Enterprise.PlcFailoverEvent`
 Source: `Enterprise/PlcFailoverEvent.cs:12`
 
 Represents an event that occurs when a failover between programmable logic controllers (PLCs) takes place. <remarks>This class encapsulates information about a PLC failover event, including the time of occurrence, the reason for the failover, and the identifiers of the PLCs involved. Instances of this class are typically used for logging, monitoring, or auditing failover activities within PLC-based systems.</remarks>
@@ -1446,7 +1502,7 @@ Represents an event that occurs when a failover between programmable logic contr
 | `public string OldPlc get; set; } = string.Empty;` | Gets or sets the old PLC identifier. |
 | `public string NewPlc get; set; } = string.Empty;` | Gets or sets the new PLC identifier. |
 
-##### `S7PlcRx.Enterprise.SecurityContext`
+##### `IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext`
 Source: `Enterprise/SecurityContext.cs:14`
 
 Represents the security context for a session, including encryption settings, session timing, and certificate information. <remarks>The SecurityContext class encapsulates all security-related parameters required to manage and validate a secure session. It provides properties for encryption keys, session validity, and certificate details, allowing consumers to configure and query the security state of a session. This class is sealed and cannot be inherited.</remarks>
@@ -1463,7 +1519,7 @@ Represents the security context for a session, including encryption settings, se
 | `public string? CertificatePath get; internal set; }` | Gets the certificate path. <value> The certificate path. </value> |
 | `public string? CertificatePassword get; internal set; }` | Gets the certificate password. <value> The certificate password. </value> |
 
-##### `S7PlcRx.Enterprise.Symbol`
+##### `IoT.DriverCore.S7PlcRx.Enterprise.Symbol`
 Source: `Enterprise/Symbol.cs:13`
 
 Represents a programmable logic controller (PLC) symbol, including its name, address, data type, length, and description. <remarks>Use the Symbol class to define and manage metadata for PLC variables, such as their symbolic name, address, and data type. This class is typically used in applications that interact with PLCs for automation or monitoring purposes.</remarks>
@@ -1476,7 +1532,7 @@ Represents a programmable logic controller (PLC) symbol, including its name, add
 | `public int Length get; set; } = 1;` | Gets or sets the length for array types. |
 | `public string Description get; set; } = string.Empty;` | Gets or sets the description. |
 
-##### `S7PlcRx.Enterprise.SymbolTable`
+##### `IoT.DriverCore.S7PlcRx.Enterprise.SymbolTable`
 Source: `Enterprise/SymbolTable.cs:9`
 
 Represents a read-only table of named symbols and the time at which it was loaded.
@@ -1486,58 +1542,58 @@ Represents a read-only table of named symbols and the time at which it was loade
 | `public Dictionary<string, Symbol> Symbols get; } = [];` | Gets the collection of symbols indexed by name. |
 | `public DateTime LoadedAt get; } = DateTime.UtcNow;` | Gets the timestamp when the symbol table was loaded. |
 
-##### `S7PlcRx.Enterprise.SymbolTableFormat`
+##### `IoT.DriverCore.S7PlcRx.Enterprise.SymbolTableFormat`
 Source: `Enterprise/SymbolTableFormat.cs:9`
 
 Specifies the supported formats for serializing or deserializing a symbol table.
 
 Enum values: `Csv`, `Json`, `Xml`.
 
-#### Namespace `S7PlcRx.Enums`
+#### Namespace `IoT.DriverCore.S7PlcRx.Enums`
 
-##### `S7PlcRx.Enums.CpuType`
+##### `IoT.DriverCore.S7PlcRx.Enums.CpuType`
 Source: `Enums/CpuType.cs:13`
 
 Specifies the supported CPU types for Siemens programmable logic controllers (PLCs). <remarks>Use this enumeration to indicate the model of CPU when configuring or communicating with Siemens PLC devices. The available values correspond to common Siemens PLC families, such as LOGO!, S7-200, S7-300, S7-400, S7-1200, and S7-1500. Selecting the correct CPU type ensures compatibility with device-specific protocols and features.</remarks>
 
 Enum values: `Logo0BA8`, `S7200`, `S7300`, `S7400`, `S71200`, `S71500`.
 
-##### `S7PlcRx.Enums.ErrorCode`
+##### `IoT.DriverCore.S7PlcRx.Enums.ErrorCode`
 Source: `Enums/ErrorCode.cs:12`
 
 Specifies error codes that indicate the result of an operation or the type of error encountered. <remarks>Use this enumeration to identify specific error conditions when handling operation results. The values represent distinct error types, such as connection failures, invalid data formats, or communication issues. The meaning of each code is defined by the context in which it is used.</remarks>
 
 Enum values: `NoError`, `WrongCPUType`, `ConnectionError`, `IPAddressNotAvailable`, `WrongVarFormat`, `WrongNumberReceivedBytes`, `SendData`, `ReadData`, `WriteData`.
 
-##### `S7PlcRx.Enums.S7StringType`
+##### `IoT.DriverCore.S7PlcRx.Enums.S7StringType`
 Source: `Enums/S7StringType.cs:12`
 
 Specifies the string encoding type used for S7 PLC string variables. <remarks>Use this enumeration to indicate whether a string variable should be interpreted as an ASCII (S7String) or Unicode (S7WString) string when communicating with Siemens S7 PLCs. The encoding type determines how string data is read from or written to the PLC.</remarks>
 
 Enum values: `S7String`, `S7WString`.
 
-#### Namespace `S7PlcRx.Optimization`
+#### Namespace `IoT.DriverCore.S7PlcRx.Optimization`
 
-##### `S7PlcRx.Optimization.OptimizationExtensions`
+##### `IoT.DriverCore.S7PlcRx.Optimization.OptimizationExtensions`
 Source: `Optimization/OptimizationExtensions.cs:18`
 
 Provides extension methods for IRxS7 to enable optimized tag monitoring, intelligent value caching, and cache management for PLC data access. <remarks>These extensions enhance performance and usability when interacting with PLC tags by offering adaptive polling, caching strategies, and cache statistics. All methods require a valid IRxS7 instance and are designed to be thread-safe. Use these methods to reduce unnecessary network traffic, improve responsiveness, and monitor tag changes efficiently.</remarks>
 
 | Member | Summary |
 |---|---|
-| `public static IObservable<SmartTagChange<T>> MonitorTagSmart<T>( this IRxS7 plc, string tagName, double changeThreshold = 0.0, int debounceMs = 100)` | Observes changes to a specified PLC tag and emits significant value changes as a stream of smart change events. <remarks>The returned observable emits a new event only when the tag value changes by at least the specified threshold and after the debounce interval has elapsed. This method uses a publish/subscribe mechanism to share the observable sequence among multiple subscribers.</remarks> <typeparam name="T">The type of the tag value to monitor.</typeparam> <param name="plc">The PLC instance that provides access to the tag to be monitored. Cannot be null.</param> <param name="tagName">The name of the tag to observe for changes. Cannot be null or empty.</param> <param name="changeThreshold">The minimum change required between consecutive tag values to consider the change significant. Use 0.0 to report all changes.</param> <param name="debounceMs">The minimum interval, in milliseconds, between emitted change events. Used to debounce rapid changes.</param> <returns>An observable sequence of smart tag change events containing details about each significant change detected in the tag value.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> <exception cref="ArgumentException">Thrown if <paramref name="tagName"/> is null or empty.</exception> |
-| `public static async Task<T?> ValueCached<T>( this IRxS7 plc, string tagName, TimeSpan? cacheTimeout = null)` | Asynchronously retrieves the value of the specified PLC tag, using a cached value if available and not expired. <remarks>If a cached value for the specified tag exists and has not expired, it is returned immediately. Otherwise, the method reads a fresh value from the PLC and updates the cache. This method is thread-safe.</remarks> <typeparam name="T">The type of the value to retrieve from the PLC tag.</typeparam> <param name="plc">The PLC interface used to access the tag value. Cannot be null.</param> <param name="tagName">The name of the PLC tag to read. Cannot be null or empty.</param> <param name="cacheTimeout">The maximum duration for which a cached value is considered valid. If null, a default of one second is used.</param> <returns>A task that represents the asynchronous operation. The task result contains the value of the specified tag, or the cached value if it is still valid. Returns null if the tag value cannot be retrieved.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> <exception cref="ArgumentException">Thrown if <paramref name="tagName"/> is null or empty.</exception> |
-| `public static void ClearCache(this IRxS7 plc, string? tagName = null)` | Clears cached values for the specified PLC instance, optionally restricting the operation to a single tag. <remarks>This method is thread-safe. Clearing the cache may affect subsequent read operations, which will retrieve fresh values from the PLC rather than cached results.</remarks> <param name="plc">The PLC instance whose cache entries will be cleared. Cannot be null.</param> <param name="tagName">The name of the tag to clear from the cache. If null or empty, all cache entries for the specified PLC are cleared.</param> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> |
-| `public static CacheStatistics GetCacheStatistics(this IRxS7 plc)` | Retrieves cache usage statistics for the specified PLC instance, including entry count, hit count, hit rate, and entry timestamps. <remarks>This method provides insight into the cache performance and usage for a particular PLC. The statistics can be used to monitor cache effectiveness or diagnose caching issues. The method is thread-safe.</remarks> <param name="plc">The PLC instance for which to obtain cache statistics. Cannot be null.</param> <returns>A CacheStatistics object containing aggregated cache metrics for the specified PLC. If no cache entries exist for the PLC, the statistics will reflect zero entries and hits.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> |
+| `OptimizationExtensions.MonitorTagSmart<T>(IRxS7, string, IEqualityComparer<T>, double, int)` | Emits debounced significant changes using the supplied comparer. |
+| `OptimizationExtensions.ValueCachedAsync<T>(IRxS7, string, T fallbackValue, TimeSpan)` | Reads through the cache, returning the supplied fallback if the PLC yields no value. |
+| `OptimizationExtensions.ClearCache(IRxS7)` / `ClearCache(IRxS7, string?)` | Clears all cache entries for the endpoint or one tag. |
+| `OptimizationExtensions.GetCacheStatistics(IRxS7)` | Returns endpoint cache hit and age statistics. |
 
-##### `S7PlcRx.Optimization.OptimizationRequestPriority`
+##### `IoT.DriverCore.S7PlcRx.Optimization.OptimizationRequestPriority`
 Source: `Optimization/OptimizationRequestPriority.cs:11`
 
 Specifies the priority level for an optimization request. <remarks>Use this enumeration to indicate the relative importance of an optimization request. Higher priority values may be processed before lower ones, depending on the scheduling or queuing logic of the system.</remarks>
 
 Enum values: `Low`, `Normal`, `High`, `Critical`.
 
-##### `S7PlcRx.Optimization.ReadOptimizationConfig`
+##### `IoT.DriverCore.S7PlcRx.Optimization.ReadOptimizationConfig`
 Source: `Optimization/ReadOptimizationConfig.cs:13`
 
 Provides configuration options for optimizing read operations, including parallelism, delays, concurrency limits, and timeouts within data block groups. <remarks>Use this class to fine-tune the performance characteristics of read operations in scenarios where data is organized into block groups. Adjusting these settings can help balance throughput, latency, and resource usage based on application requirements.</remarks>
@@ -1549,7 +1605,7 @@ Provides configuration options for optimizing read operations, including paralle
 | `public int MaxConcurrentReads get; set; } = 10;` | Gets or sets the maximum number of concurrent reads. |
 | `public int ReadTimeoutMs get; set; } = 5000;` | Gets or sets the read timeout in milliseconds. |
 
-##### `S7PlcRx.Optimization.SmartTagChange<T>`
+##### `IoT.DriverCore.S7PlcRx.Optimization.SmartTagChange<T>`
 Source: `Optimization/SmartTagChange.cs:16`
 
 Represents a change to a smart tag, including its name, previous and current values, the time of change, the amount of change for numeric types, and associated metadata. <remarks>Use this class to track changes to smart tags in applications that require auditing, history, or notification of tag value updates. The <see cref="ChangeAmount"/> property is intended for numeric types; for non-numeric types, its value may be ignored. The <see cref="Metadata"/> dictionary can be used to store additional context or information relevant to the change.</remarks> <typeparam name="T">The type of the value associated with the smart tag. This can be any type representing the tag's value before and after the change.</typeparam>
@@ -1563,7 +1619,7 @@ Represents a change to a smart tag, including its name, previous and current val
 | `public double ChangeAmount get; set; }` | Gets or sets the amount of change for numeric types. |
 | `public Dictionary<string, object> Metadata get; set; } = new();` | Gets or sets additional metadata about the change. |
 
-##### `S7PlcRx.Optimization.WriteOptimizationConfig`
+##### `IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationConfig`
 Source: `Optimization/WriteOptimizationConfig.cs:13`
 
 Provides configuration options for optimizing write operations, including parallelism, verification, timing, and concurrency settings. <remarks>Use this class to customize the behavior of write operations, such as enabling parallel writes, specifying verification requirements, and controlling delays and timeouts. Adjusting these settings can help balance performance and reliability based on application needs.</remarks>
@@ -1576,7 +1632,7 @@ Provides configuration options for optimizing write operations, including parall
 | `public int MaxConcurrentWrites get; set; } = 5;` | Gets or sets the maximum number of concurrent writes. |
 | `public int WriteTimeoutMs get; set; } = 5000;` | Gets or sets the write timeout in milliseconds. |
 
-##### `S7PlcRx.Optimization.WriteOptimizationResult`
+##### `IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult`
 Source: `Optimization/WriteOptimizationResult.cs:14`
 
 Represents the result of a write optimization operation, including timing information, per-write outcomes, and overall error details. <remarks>Use this class to access detailed results of a write optimization process, such as the start and end times, lists of successful and failed writes, and aggregate metrics like total duration and success rate. The dictionaries provide per-write information, with keys typically representing write identifiers. This type is immutable except for properties explicitly marked as settable.</remarks>
@@ -1591,9 +1647,9 @@ Represents the result of a write optimization operation, including timing inform
 | `public TimeSpan TotalDuration => ...` | Gets the total operation duration. |
 | `public double SuccessRate => ...` | Gets the success rate. |
 
-#### Namespace `S7PlcRx.Performance`
+#### Namespace `IoT.DriverCore.S7PlcRx.Performance`
 
-##### `S7PlcRx.Performance.BenchmarkConfig`
+##### `IoT.DriverCore.S7PlcRx.Performance.BenchmarkConfig`
 Source: `Performance/BenchmarkConfig.cs:12`
 
 Represents the configuration settings for benchmark tests, including parameters for latency, throughput, and reliability measurements. <remarks>Use this class to specify the number and duration of various benchmark tests when running performance evaluations. All properties are configurable to tailor the benchmarking process to specific requirements.</remarks>
@@ -1604,7 +1660,7 @@ Represents the configuration settings for benchmark tests, including parameters 
 | `public TimeSpan ThroughputTestDuration get; set; } = TimeSpan.FromSeconds(10);` | Gets or sets the duration for throughput testing. |
 | `public int ReliabilityTestCount get; set; } = 20;` | Gets or sets the number of reliability tests to perform. |
 
-##### `S7PlcRx.Performance.BenchmarkResult`
+##### `IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult`
 Source: `Performance/BenchmarkResult.cs:15`
 
 Represents the results of a performance benchmark, including timing, latency, throughput, reliability, and any errors encountered during execution. <remarks>Use this class to access detailed metrics and diagnostic information from a completed benchmark run. The properties provide summary statistics such as average, minimum, and maximum latency, as well as overall reliability and score. Errors encountered during benchmarking are available in the <see cref="Errors"/> collection for troubleshooting. This type is immutable except for its settable properties; thread safety is not guaranteed if modified concurrently.</remarks>
@@ -1623,7 +1679,7 @@ Represents the results of a performance benchmark, including timing, latency, th
 | `public List<string> Errors get; } = [];` | Gets any errors encountered during benchmarking. |
 | `public TimeSpan TotalDuration => ...` | Gets the total benchmark duration. |
 
-##### `S7PlcRx.Performance.HighPerformanceTagGroup<T>`
+##### `IoT.DriverCore.S7PlcRx.Performance.HighPerformanceTagGroup<T>`
 Source: `Performance/HighPerformanceTagGroup.cs:18`
 
 Provides high-performance batch operations for reading, writing, and observing a group of PLC tags as a single unit. <remarks>This class is designed to optimize communication with a PLC by grouping related tags and minimizing individual polling. It supports efficient batch reads and writes, and exposes an observable stream for monitoring group state changes. Instances of this class are not thread-safe; external synchronization may be required if accessed concurrently.</remarks> <typeparam name="T">The type of value associated with each PLC tag in the group.</typeparam>
@@ -1638,7 +1694,7 @@ Provides high-performance batch operations for reading, writing, and observing a
 | `public async Task WriteAll(Dictionary<string, T> values)` | Writes all specified values to the PLC in a single batch operation. <remarks>Entries in the dictionary with tag names not recognized by the PLC are ignored. This method performs the write operation asynchronously and does not block the calling thread.</remarks> <param name="values">A dictionary containing tag names as keys and their corresponding values to be written. Only entries with tag names recognized by the PLC will be processed.</param> <returns>A task that represents the asynchronous write operation.</returns> |
 | `public void Dispose()` | Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources. |
 
-##### `S7PlcRx.Performance.PerformanceAnalysis`
+##### `IoT.DriverCore.S7PlcRx.Performance.PerformanceAnalysis`
 Source: `Performance/PerformanceAnalysis.cs:13`
 
 Represents the results and metrics of a performance analysis, including time intervals, tag change statistics, and optimization recommendations. <remarks>Use this class to encapsulate data collected during a performance monitoring session, such as the frequency of tag changes and suggested improvements. The properties provide access to both raw metrics and calculated values, enabling further reporting or decision-making based on the analysis.</remarks>
@@ -1653,20 +1709,20 @@ Represents the results and metrics of a performance analysis, including time int
 | `public double AverageChangesPerTag get; set; }` | Gets or sets the average changes per tag. |
 | `public List<string> Recommendations get; set; } = [];` | Gets or sets the optimization recommendations. |
 
-##### `S7PlcRx.Performance.PerformanceExtensions`
+##### `IoT.DriverCore.S7PlcRx.Performance.PerformanceExtensions`
 Source: `Performance/PerformanceExtensions.cs:19`
 
 Provides extension methods for IRxS7 PLC instances to enable advanced performance monitoring, optimized read and write operations, and benchmarking capabilities. <remarks>The methods in this class facilitate efficient interaction with PLCs by offering features such as real-time performance metrics, automatic grouping and batching of read/write operations, and comprehensive benchmarking. These extensions are designed to improve throughput, reliability, and observability when working with industrial automation systems. All methods require a valid IRxS7 instance and may throw exceptions if invalid arguments are supplied. Thread safety is ensured for performance data collection and metrics aggregation.</remarks>
 
 | Member | Summary |
 |---|---|
-| `public static IObservable<PerformanceMetrics> MonitorPerformance( this IRxS7 plc, TimeSpan? monitoringInterval = null)` | Monitors the performance of the specified PLC and provides periodic updates as an observable sequence of performance metrics. <remarks>The returned observable begins emitting metrics immediately and continues at the specified interval. Metrics include connection status, tag counts, operation rates, and error rates. The observable is hot and shared among subscribers; unsubscribing from all observers will stop monitoring until a new subscription is made.</remarks> <param name="plc">The PLC instance to monitor. Cannot be null.</param> <param name="monitoringInterval">The interval at which performance metrics are sampled. If null, defaults to 30 seconds.</param> <returns>An observable sequence of <see cref="PerformanceMetrics"/> objects containing performance data for the PLC, emitted at each monitoring interval.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> |
-| `public static async Task<Dictionary<string, T?>> ReadOptimized<T>( this IRxS7 plc, IEnumerable<string> tagNames, Optimization.ReadOptimizationConfig? optimizationConfig = null)` | Reads the specified tags from the PLC using optimized grouping and optional parallelization, returning a dictionary of tag names and their corresponding values. <remarks>Tags are grouped by data block for efficient reading. When parallel reads are enabled in the optimization configuration, tag groups are read concurrently to improve performance. The method records performance metrics and errors for diagnostic purposes. If an error occurs while reading a tag, the operation is aborted and an exception is thrown.</remarks> <typeparam name="T">The type of the value to read for each tag.</typeparam> <param name="plc">The PLC instance from which to read tag values. Cannot be null.</param> <param name="tagNames">A collection of tag names to read from the PLC. Cannot be null. If empty, an empty dictionary is returned.</param> <param name="optimizationConfig">An optional configuration that controls read optimization behavior, such as enabling parallel reads and setting inter-group delays. If null, default optimization settings are used.</param> <returns>A dictionary mapping each requested tag name to its read value. If a tag cannot be read, an exception is thrown and the dictionary may be incomplete.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> or <paramref name="tagNames"/> is null.</exception> <exception cref="InvalidOperationException">Thrown if reading a tag fails due to a PLC communication error or invalid tag name.</exception> |
-| `public static async Task<Optimization.WriteOptimizationResult> WriteOptimized<T>( this IRxS7 plc, Dictionary<string, T> values, Optimization.WriteOptimizationConfig? optimizationConfig = null)` | Writes multiple values to the PLC in an optimized manner, grouping operations and optionally verifying writes for accuracy. <remarks>Writes are grouped by data block for performance optimization. If parallel writes are enabled in the configuration, write operations within each group are performed concurrently. When write verification is enabled, each value is read back after writing to ensure accuracy. Delays between groups can be configured to control write pacing. The method is thread-safe and intended for batch write scenarios to improve throughput and reliability.</remarks> <typeparam name="T">The type of the values to be written to the PLC.</typeparam> <param name="plc">The PLC interface to which the values will be written. Cannot be null.</param> <param name="values">A dictionary containing tag names and their corresponding values to write. Cannot be null.</param> <param name="optimizationConfig">An optional configuration object that controls optimization behavior, such as enabling parallel writes, write verification, and inter-group delays. If null, default optimization settings are used.</param> <returns>A task that represents the asynchronous operation. The result contains details about successful and failed writes, timing information, and any overall errors encountered during the operation.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> or <paramref name="values"/> is null.</exception> <exception cref="InvalidOperationException">Thrown if write verification is enabled and a written value does not match the value read back from the PLC.</exception> |
-| `public static async Task<BenchmarkResult> RunBenchmark( this IRxS7 plc, BenchmarkConfig? benchmarkConfig = null)` | Runs a set of benchmark tests on the specified PLC, measuring latency, throughput, and reliability. <remarks>The returned <see cref="BenchmarkResult"/> includes timing information, test scores, and any errors encountered during benchmarking. The method performs multiple tests and aggregates results to provide an overall score. This method does not throw on benchmark failures; errors are recorded in the result.</remarks> <param name="plc">The PLC instance to benchmark. Cannot be null.</param> <param name="benchmarkConfig">An optional configuration object specifying benchmark parameters. If null, default settings are used.</param> <returns>A task that represents the asynchronous operation. The result contains detailed benchmark metrics and scores for the PLC.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> |
-| `public static PerformanceStatistics GetPerformanceStatistics(this IRxS7 plc)` | Retrieves aggregated performance statistics for the specified PLC connection, including operation counts, error rates, response times, and connection metrics. <remarks>The returned statistics reflect metrics collected since the application started or since the PLC connection was first established. This method is thread-safe and can be called concurrently from multiple threads.</remarks> <param name="plc">The PLC connection for which to obtain performance statistics. Cannot be null.</param> <returns>A PerformanceStatistics object containing metrics such as total operations, error rate, average response time, connection uptime, and reconnection count for the specified PLC.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> |
+| `PerformanceExtensions.MonitorPerformance(IRxS7, TimeSpan?)` | Returns periodic connection, tag, rate, and error metrics. |
+| `PerformanceExtensions.ReadOptimizedAsync<T>(IRxS7, IEnumerable<string>, T typeMarker, ReadOptimizationConfig?)` | Reads optimized groups and returns the typed values. |
+| `PerformanceExtensions.WriteOptimizedAsync<T>(IRxS7, Dictionary<string,T>, WriteOptimizationConfig?)` | Writes optimized groups and returns detailed timing/outcome information. |
+| `PerformanceExtensions.RunBenchmarkAsync(IRxS7, BenchmarkConfig?)` | Runs latency, throughput, and reliability checks and records errors in the result. |
+| `PerformanceExtensions.GetPerformanceStatistics(IRxS7)` | Returns aggregate connection performance statistics. |
 
-##### `S7PlcRx.Performance.PerformanceMetrics`
+##### `IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics`
 Source: `Performance/PerformanceMetrics.cs:13`
 
 Represents a set of performance metrics for a programmable logic controller (PLC) at a specific point in time. <remarks>This class provides properties for tracking key operational statistics of a PLC, including connection status, tag activity, performance rates, and error metrics. It is typically used to monitor and analyze PLC performance in industrial automation scenarios. All properties are read-write, allowing metrics to be set or updated as needed.</remarks>
@@ -1684,7 +1740,7 @@ Represents a set of performance metrics for a programmable logic controller (PLC
 | `public TimeSpan ConnectionUptime get; set; }` | Gets or sets the connection uptime. |
 | `public int ReconnectionCount get; set; }` | Gets or sets the number of reconnections. |
 
-##### `S7PlcRx.Performance.PerformanceStatistics`
+##### `IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics`
 Source: `Performance/PerformanceStatistics.cs:14`
 
 Represents a set of performance statistics for a programmable logic controller (PLC) connection, including operation counts, error metrics, response times, and connection status information. <remarks>Use this class to track and analyze the operational performance and reliability of a PLC connection over time. The statistics provided can assist in monitoring system health, diagnosing issues, and optimizing performance. All properties are read-write, allowing for aggregation and updating of statistics as needed. This class is not thread-safe; synchronize access if used concurrently.</remarks>
@@ -1701,7 +1757,7 @@ Represents a set of performance statistics for a programmable logic controller (
 | `public int ReconnectionCount get; set; }` | Gets or sets the number of reconnections. |
 | `public DateTime LastUpdated get; set; }` | Gets or sets when these statistics were last updated. |
 
-##### `S7PlcRx.Performance.TagPerformanceMetrics`
+##### `IoT.DriverCore.S7PlcRx.Performance.TagPerformanceMetrics`
 Source: `Performance/TagPerformanceMetrics.cs:12`
 
 Represents performance metrics for a specific tag, including operation counts, timing statistics, and success rates. <remarks>Use this class to track and analyze the performance of tag-related operations, such as reads and writes, over time. The metrics provided can help identify bottlenecks, monitor reliability, and optimize system performance. All properties are intended to be updated as new operation data becomes available.</remarks>
@@ -1717,9 +1773,9 @@ Represents performance metrics for a specific tag, including operation counts, t
 | `public double SuccessRate get; set; }` | Gets or sets the success rate (0.0 to 1.0). |
 | `public DateTime LastOperationTime get; set; }` | Gets or sets the last operation timestamp. |
 
-#### Namespace `S7PlcRx.PlcTypes`
+#### Namespace `IoT.DriverCore.S7PlcRx.PlcTypes`
 
-##### `S7PlcRx.PlcTypes.Bit`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.Bit`
 Source: `PlcTypes/Bit.cs:11`
 
 Contains the conversion methods to convert Bit from S7 plc to C#.
@@ -1736,7 +1792,7 @@ Contains the conversion methods to convert Bit from S7 plc to C#.
 | `public static bool[] GetBits(ReadOnlySpan<byte> bytes, ReadOnlySpan<(int byteIndex, int bitIndex)> bitPositions)` | Extracts the values of specified bits from a sequence of bytes. <remarks>If a specified bit position refers to an index outside the bounds of the input span, an exception may be thrown.</remarks> <param name="bytes">The span of bytes from which bits will be read.</param> <param name="bitPositions">A span of tuples specifying the positions of bits to extract. Each tuple contains the zero-based index of the byte and the zero-based index of the bit within that byte.</param> <returns>An array of Boolean values indicating the state of each requested bit. Each element is <see langword="true"/> if the corresponding bit is set; otherwise, <see langword="false"/>.</returns> |
 | `public static void SetBits(Span<byte> bytes, ReadOnlySpan<(int byteIndex, int bitIndex, bool value)> bitUpdates)` | Sets the specified bits in the provided byte span according to the given updates. <remarks>Each tuple in <paramref name="bitUpdates"/> must reference a valid byte and bit index within <paramref name="bytes"/>. Modifying bits outside the bounds of <paramref name="bytes"/> may result in undefined behavior.</remarks> <param name="bytes">The span of bytes in which bits will be set or cleared. Each update modifies a bit within this span.</param> <param name="bitUpdates">A read-only span of tuples specifying the byte index, bit index, and value to set for each bit. Each tuple indicates which bit to update and whether to set it to <see langword="true"/> or <see langword="false"/>.</param> |
 
-##### `S7PlcRx.PlcTypes.Boolean`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.Boolean`
 Source: `PlcTypes/Boolean.cs:13`
 
 Provides static methods for manipulating individual bits within a byte value. <remarks>This class includes utility methods for reading, setting, and clearing specific bits in a byte. All bit indices are zero-based, ranging from 0 (least significant bit) to 7 (most significant bit). These methods are useful for low-level operations such as flag management, bitmasking, or protocol handling where direct bit manipulation is required.</remarks>
@@ -1749,7 +1805,7 @@ Provides static methods for manipulating individual bits within a byte value. <r
 | `public static byte ClearBit(byte value, int bit)` | Resets the value of a bit to 0 (false), given the address of the bit. Returns a copy of the value with the bit cleared. <param name="value">The input value to modify.</param> <param name="bit">The index (zero based) of the bit to clear.</param> <returns>The modified value with the bit at index cleared.</returns> |
 | `public static void ClearBit(ref byte value, int bit) => ...` | Resets the value of a bit to 0 (false), given the address of the bit. <param name="value">The input value to modify.</param> <param name="bit">The index (zero based) of the bit to clear.</param> |
 
-##### `S7PlcRx.PlcTypes.Byte`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.Byte`
 Source: `PlcTypes/Byte.cs:13`
 
 Provides utility methods for converting and manipulating byte values and byte arrays. <remarks>This static class includes methods for converting between single byte values and arrays or spans, as well as writing byte data to spans. All members are static and designed for efficient, low-level byte operations. Methods in this class do not perform validation beyond basic length checks and do not handle multi-byte conversions or encoding.</remarks>
@@ -1762,7 +1818,7 @@ Provides utility methods for converting and manipulating byte values and byte ar
 | `public static byte FromSpan(ReadOnlySpan<byte> bytes)` | Returns the first byte from the specified read-only span. <param name="bytes">A read-only span of bytes from which to retrieve the first byte. Must contain at least one byte.</param> <returns>The first byte in the <paramref name="bytes"/> span.</returns> <exception cref="ArgumentException">Thrown when <paramref name="bytes"/> does not contain at least one byte.</exception> |
 | `public static void ToSpan(ReadOnlySpan<byte> values, Span<byte> destination)` | Copies the contents of the specified read-only byte span to the destination span. <param name="values">The read-only span containing the bytes to copy.</param> <param name="destination">The span that receives the copied bytes. Must be at least as large as <paramref name="values"/>.</param> <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is smaller than <paramref name="values"/>.</exception> |
 
-##### `S7PlcRx.PlcTypes.ByteArray`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray`
 Source: `PlcTypes/ByteArray.cs:14`
 
 Provides a dynamically sized buffer for accumulating bytes, with efficient memory management using array pooling. <remarks>The buffer automatically grows as data is added. The internal array is rented from the shared array pool and returned when disposed. This class is not thread-safe.</remarks> <param name="size">The initial capacity of the internal buffer, in bytes. Must be greater than zero.</param>
@@ -1782,7 +1838,7 @@ Provides a dynamically sized buffer for accumulating bytes, with efficient memor
 | `public bool TryCopyTo(Span<byte> destination)` | Attempts to copy the written bytes to the specified destination buffer. <remarks>No data is copied if the destination buffer is too small. The method does not modify the destination buffer if it returns false.</remarks> <param name="destination">The buffer to which the written bytes will be copied. Must have a length greater than or equal to the number of bytes written.</param> <returns>true if the copy operation succeeds; otherwise, false.</returns> |
 | `public void Dispose()` | Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources. |
 
-##### `S7PlcRx.PlcTypes.Class`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.Class`
 Source: `PlcTypes/Class.cs:19`
 
 Provides static methods for serializing and deserializing class and struct instances to and from byte arrays, as well as calculating the size of a class in bytes for serialization purposes. <remarks>This class is intended for scenarios where objects need to be converted to a byte representation, such as communication with PLCs or other systems requiring structured binary formats. All methods operate statically and require the caller to supply instances and byte arrays as needed. Properties within serialized classes must be accessible and, for string fields, decorated with the appropriate S7StringAttribute. Methods may throw exceptions if required attributes are missing or if input values are invalid. Thread safety is not guaranteed; callers should ensure appropriate synchronization if accessing shared objects.</remarks>
@@ -1793,7 +1849,7 @@ Provides static methods for serializing and deserializing class and struct insta
 | `public static double FromBytes(object sourceClass, byte[] bytes, double numBytes = 0, bool isInnerClass = false)` | Populates the properties of the specified object instance from the provided byte array, deserializing each property value according to its type. <remarks>Properties that are arrays are deserialized element by element. The method updates numBytes to reflect the number of bytes read. If bytes is shorter than required for all properties, only the available bytes are used.</remarks> <param name="sourceClass">The object instance whose properties will be set from the byte array. Must not be null.</param> <param name="bytes">The byte array containing serialized property values to be assigned to the object. If null, no properties are set and the method returns the value of numBytes.</param> <param name="numBytes">The starting offset, in bytes, within the byte array from which to begin deserialization. This value is incremented as properties are read.</param> <param name="isInnerClass">Indicates whether the object instance represents an inner class. This may affect how properties are deserialized.</param> <returns>The total number of bytes consumed from the byte array during deserialization.</returns> <exception cref="ArgumentNullException">Thrown if sourceClass is null.</exception> <exception cref="ArgumentException">Thrown if a property on sourceClass that is expected to be an array is not initialized.</exception> |
 | `public static double ToBytes(object sourceClass, byte[] bytes, double numBytes = 0.0)` | Serializes the accessible properties of the specified source object into the provided byte array, starting at the given offset. <remarks>If a property of the source object is an array, its elements are serialized sequentially into the byte array. Serialization stops if the end of the byte array is reached before all properties are written.</remarks> <param name="sourceClass">The object whose properties will be serialized into the byte array. Cannot be null. All accessible properties must have non-null values.</param> <param name="bytes">The byte array that receives the serialized property values. Cannot be null.</param> <param name="numBytes">The starting offset, in bytes, within the array at which serialization begins. If not specified, serialization starts at the beginning of the array.</param> <returns>The total number of bytes written to the array after serialization is complete.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="sourceClass"/> or <paramref name="bytes"/> is null.</exception> <exception cref="ArgumentException">Thrown if any accessible property of <paramref name="sourceClass"/> is null.</exception> |
 
-##### `S7PlcRx.PlcTypes.Counter`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.Counter`
 Source: `PlcTypes/Counter.cs:15`
 
 Provides static methods for converting between S7 Counter byte representations and <see cref="ushort"/> values. <remarks>The <see cref="Counter"/> class supports parsing and serializing S7 Counter values, which are commonly used in Siemens S7 PLC communication protocols. All methods use big-endian byte order, with the high byte first, to match the S7 Counter format. This class is thread-safe as it contains only static methods and does not maintain any internal state.</remarks>
@@ -1811,7 +1867,7 @@ Provides static methods for converting between S7 Counter byte representations a
 | `public static void ToSpan(ReadOnlySpan<ushort> values, Span<byte> destination)` | Copies the contents of a span of 16-bit unsigned integers into a span of bytes, encoding each value as two bytes in little-endian order. <remarks>Each <see cref="ushort"/> value in <paramref name="values"/> is encoded as two bytes in little-endian format and written sequentially to <paramref name="destination"/>. The method does not allocate additional memory.</remarks> <param name="values">The read-only span of 16-bit unsigned integers to copy from.</param> <param name="destination">The span of bytes to copy the encoded values into. Must be at least twice the length of <paramref name="values"/>.</param> <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is not large enough to hold the encoded bytes.</exception> |
 | `public static byte[] ToByteArray(ushort[] value)` | Converts an array of 16-bit unsigned integers to a byte array. <param name="value">An array of <see cref="ushort"/> values to convert. Cannot be <see langword="null"/>.</param> <returns>A byte array representing the binary data of the input <see cref="ushort"/> array.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="value"/> is <see langword="null"/>.</exception> |
 
-##### `S7PlcRx.PlcTypes.DInt`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.DInt`
 Source: `PlcTypes/DInt.cs:17`
 
 Provides static methods for converting between Siemens S7 DInt (32-bit signed integer) representations and .NET int values. <remarks>This class supports conversion between S7 DInt values, which use big-endian byte order, and .NET int values. Methods are provided for reading and writing single or multiple DInt values from and to byte arrays and spans. All methods assume S7 DInt format and handle endianness as required. This class is intended for internal use when working with S7 PLC data structures.</remarks>
@@ -1830,7 +1886,7 @@ Provides static methods for converting between Siemens S7 DInt (32-bit signed in
 | `public static void ToSpan(ReadOnlySpan<int> values, Span<byte> destination)` | Writes the binary representation of each 32-bit integer in the specified read-only span to the provided destination span of bytes. <param name="values">A read-only span of 32-bit integers to convert to their binary representation.</param> <param name="destination">A span of bytes that receives the binary data. Must be at least four times the length of <paramref name="values"/>.</param> <exception cref="ArgumentException">Thrown if <paramref name="destination"/> is not large enough to contain the binary representations of all values.</exception> |
 | `public static byte[] ToByteArray(int[] value)` | Converts an array of 32-bit integers to its equivalent byte array representation. <param name="value">An array of 32-bit integers to convert. Cannot be null.</param> <returns>A byte array containing the binary representation of the input integer array. The length of the returned array is four times the length of the input array.</returns> |
 
-##### `S7PlcRx.PlcTypes.DWord`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.DWord`
 Source: `PlcTypes/DWord.cs:16`
 
 Provides utility methods for converting between S7 DWord (4-byte) representations and unsigned 32-bit integers (uint). <remarks>All conversions assume S7 DWord format, which uses big-endian byte order. These methods are intended for working with Siemens S7 PLC data or other protocols that represent 32-bit unsigned integers in big-endian format. Methods throw exceptions if provided buffers are too small to contain a DWord value.</remarks>
@@ -1848,7 +1904,7 @@ Provides utility methods for converting between S7 DWord (4-byte) representation
 | `public static void ToSpan(ReadOnlySpan<uint> values, Span<byte> destination)` | Converts each 32-bit unsigned integer in the specified read-only span to its byte representation and writes the result to the provided destination span. <param name="values">A read-only span of 32-bit unsigned integers to convert to bytes.</param> <param name="destination">A span of bytes that receives the byte representations of the input values. Must be at least four times the length of <paramref name="values"/>.</param> <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is not large enough to contain the byte representations of all elements in <paramref name="values"/>.</exception> |
 | `public static byte[] ToByteArray(uint[] value)` | Converts the specified array of 32-bit unsigned integers to a byte array. <param name="value">An array of 32-bit unsigned integers to convert. Cannot be null.</param> <returns>A byte array containing the binary representation of the input values. The length of the returned array is four times the length of the input array.</returns> |
 
-##### `S7PlcRx.PlcTypes.DateTime`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.DateTime`
 Source: `PlcTypes/DateTime.cs:11`
 
 Contains the methods to convert between <see cref="T:System.DateTime"/> and S7 representation of datetime values.
@@ -1866,7 +1922,7 @@ Contains the methods to convert between <see cref="T:System.DateTime"/> and S7 r
 | `public static byte[] ToByteArray(System.DateTime[] dateTimes)` | Converts an array of <see cref="T:System.DateTime"/> values to a byte array. <param name="dateTimes">The DateTime values to convert.</param> <returns>A byte array containing the S7 date time representations of <paramref name="dateTimes"/>.</returns> |
 | `public static void ToSpan(ReadOnlySpan<System.DateTime> dateTimes, Span<byte> destination)` | Converts multiple DateTime values to the specified span. <param name="dateTimes">The DateTime values.</param> <param name="destination">The destination span.</param> |
 
-##### `S7PlcRx.PlcTypes.DateTimeLong`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.DateTimeLong`
 Source: `PlcTypes/DateTimeLong.cs:11`
 
 Contains the methods to convert between <see cref="T:System.DateTime" /> and S7 representation of DateTimeLong (DTL) values.
@@ -1885,7 +1941,7 @@ Contains the methods to convert between <see cref="T:System.DateTime" /> and S7 
 | `public static byte[] ToByteArray(System.DateTime[] dateTimes)` | Converts an array of <see cref="T:System.DateTime" /> values to a byte array. <param name="dateTimes">The DateTime values to convert.</param> <returns>A byte array containing the S7 DateTimeLong representations of <paramref name="dateTimes" />.</returns> |
 | `public static void ToSpan(ReadOnlySpan<System.DateTime> dateTimes, Span<byte> destination)` | Converts multiple DateTime values to the specified span. <param name="dateTimes">The DateTime values.</param> <param name="destination">The destination span.</param> |
 
-##### `S7PlcRx.PlcTypes.Int`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.Int`
 Source: `PlcTypes/Int.cs:16`
 
 Provides static methods for converting between S7 Int (16-bit signed integer) representations and .NET types, including byte arrays and spans. <remarks>This class is intended for working with Siemens S7 PLC data formats, which use big-endian byte order for 16-bit signed integers. All methods assume S7 Int format unless otherwise specified. The class is internal and not intended for direct use outside of the containing assembly.</remarks>
@@ -1904,7 +1960,7 @@ Provides static methods for converting between S7 Int (16-bit signed integer) re
 | `public static void ToSpan(ReadOnlySpan<short> values, Span<byte> destination)` | Writes the contents of a span of 16-bit signed integers to a span of bytes in little-endian order. <param name="values">The source span containing the 16-bit signed integer values to write.</param> <param name="destination">The destination span where the bytes will be written. Must be at least twice the length of <paramref name="values"/>.</param> <exception cref="ArgumentException">Thrown if <paramref name="destination"/> is not large enough to contain the converted bytes.</exception> |
 | `public static byte[] ToByteArray(short[] value)` | Converts an array of 16-bit signed integers to a byte array. <param name="value">An array of 16-bit signed integers to convert. Cannot be null.</param> <returns>A byte array containing the binary representation of the input values.</returns> |
 
-##### `S7PlcRx.PlcTypes.LReal`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.LReal`
 Source: `PlcTypes/LReal.cs:17`
 
 Provides static methods for converting between S7 LReal (64-bit floating point) representations and .NET double values. <remarks>The methods in this class handle conversion between S7 LReal format (used in Siemens S7 PLCs) and .NET double values, including proper handling of endianness. All methods are static and intended for internal use when working with S7 protocol data. This class is not thread-safe, but all members are stateless and safe for concurrent use.</remarks>
@@ -1920,10 +1976,10 @@ Provides static methods for converting between S7 LReal (64-bit floating point) 
 | `public static double[] ToArray(ReadOnlySpan<byte> bytes)` | Converts a read-only span of bytes to an array of double-precision floating-point values. <remarks>The method interprets each consecutive group of 8 bytes in the span as a double-precision floating-point value. The conversion uses the system's endianness. Any remaining bytes that do not form a complete double are ignored.</remarks> <param name="bytes">A read-only span of bytes representing the binary data to convert. The length must be a multiple of 8, as each double value is represented by 8 bytes.</param> <returns>An array of double values parsed from the specified byte span. The length of the array is equal to the number of complete double values in the input.</returns> |
 | `public static byte[] ToByteArray(double value)` | Converts the specified double-precision floating-point value to its equivalent 8-byte array representation. <param name="value">The double-precision floating-point number to convert.</param> <returns>A byte array containing the 8-byte binary representation of the specified value.</returns> |
 | `public static void ToSpan(double value, Span<byte> destination)` | Writes the specified double-precision floating-point value to the provided span in big-endian byte order. <remarks>This method writes the value in big-endian format, which is commonly used in certain binary protocols such as Siemens S7. If the current platform is little-endian, the bytes are reversed to ensure correct ordering.</remarks> <param name="value">The double-precision floating-point value to write to the span.</param> <param name="destination">The span of bytes that will receive the 8-byte big-endian representation of the value. Must be at least 8 bytes in length.</param> <exception cref="ArgumentException">Thrown if the length of destination is less than 8 bytes.</exception> |
-| `public static void ToSpan(ReadOnlySpan<double> values, Span<byte> destination)` | Writes each double-precision floating-point value from the specified read-only span to the specified destination span as a sequence of bytes. <param name="values">The read-only span of double values to convert to their byte representations.</param> <param name="destination">The span of bytes that receives the byte representations of the values. Must be at least values.Length × 8 bytes in length.</param> <exception cref="ArgumentException">Thrown when the length of destination is less than values.Length × 8 bytes.</exception> |
+| `public static void ToSpan(ReadOnlySpan<double> values, Span<byte> destination)` | Writes each double-precision value to the destination as S7 bytes. The destination must be at least `values.Length * 8` bytes; otherwise it throws `ArgumentException`. |
 | `public static byte[] ToByteArray(double[] value)` | Converts an array of double-precision floating-point numbers to a byte array representation. <param name="value">The array of double values to convert. Cannot be null.</param> <returns>A byte array containing the binary representation of the input double array. The array will be empty if the input array is empty.</returns> |
 
-##### `S7PlcRx.PlcTypes.Real`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.Real`
 Source: `PlcTypes/Real.cs:16`
 
 Provides static methods for converting between Siemens S7 Real (4-byte IEEE 754 floating-point) representations and .NET float values. <remarks>The methods in this class handle endianness according to the S7 protocol, which uses big-endian byte order. Use these methods to serialize and deserialize float values when communicating with Siemens S7 PLCs or working with S7 Real data formats. All methods are static and intended for internal use.</remarks>
@@ -1939,7 +1995,7 @@ Provides static methods for converting between Siemens S7 Real (4-byte IEEE 754 
 | `public static float[] ToArray(byte[] bytes) => ...` | Converts a byte array to an array of single-precision floating-point values. <remarks>The method interprets each group of four bytes in the input array as a single-precision floating-point value, using the default endianness of the system. If the length of <paramref name="bytes"/> is not a multiple of 4, an exception may be thrown.</remarks> <param name="bytes">The byte array containing the binary representation of the floating-point values. The length must be a multiple of 4.</param> <returns>An array of <see cref="float"/> values converted from the specified byte array.</returns> |
 | `public static float[] ToArray(ReadOnlySpan<byte> bytes)` | Converts a read-only span of bytes to an array of 32-bit floating-point values. <remarks>The method interprets each consecutive group of 4 bytes in the input span as a single-precision floating-point value. The byte order and format must match the expected representation for floats on the current platform.</remarks> <param name="bytes">The read-only span of bytes to convert. The length must be a multiple of 4, as each float consists of 4 bytes.</param> <returns>An array of 32-bit floating-point values parsed from the input byte span.</returns> |
 
-##### `S7PlcRx.PlcTypes.S7String`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.S7String`
 Source: `PlcTypes/S7String.cs:15`
 
 Provides methods for encoding and decoding S7 string values to and from byte arrays using the S7 protocol format. <remarks>This static class supports conversion between .NET strings and the S7 string format used in Siemens PLCs, which includes a 2-byte header indicating the reserved and actual string lengths. The encoding used for string conversion can be configured via the StringEncoding property. All methods are thread-safe.</remarks>
@@ -1947,14 +2003,14 @@ Provides methods for encoding and decoding S7 string values to and from byte arr
 | Member | Summary |
 |---|---|
 | `public static Encoding StringEncoding` | Gets or sets the Encoding used when serializing and deserializing S7String (Encoding.ASCII by default). <value> The string encoding. </value> <exception cref="System.ArgumentNullException">StringEncoding.</exception> <exception cref="ArgumentNullException">StringEncoding must not be null.</exception> |
-| `public static string FromByteArray(byte[] bytes) => ...` | Converts S7 bytes to a string. <param name="bytes">The bytes.</param> <returns>A string.</returns> <exception cref="S7PlcRx.PlcException"> Malformed S7 String / too short or Malformed S7 String / length larger than capacity or Failed to parse {VarType.S7String} from data. Following fields were read: size: '{size}', actual length: '{length}', total number of bytes (including header): '{bytes.Length}'. </exception> |
-| `public static string FromSpan(ReadOnlySpan<byte> bytes)` | Converts S7 bytes from span to a string. <param name="bytes">The bytes span.</param> <returns>A string.</returns> <exception cref="S7PlcRx.PlcException"> Malformed S7 String / too short or Malformed S7 String / length larger than capacity or Failed to parse {VarType.S7String} from data. Following fields were read: size: '{size}', actual length: '{length}', total number of bytes (including header): '{bytes.Length}'. </exception> |
+| `public static string FromByteArray(byte[] bytes) => ...` | Converts S7 bytes to a string. <param name="bytes">The bytes.</param> <returns>A string.</returns> <exception cref="IoT.DriverCore.S7PlcRx.PlcException"> Malformed S7 String / too short or Malformed S7 String / length larger than capacity or Failed to parse {VarType.S7String} from data. Following fields were read: size: '{size}', actual length: '{length}', total number of bytes (including header): '{bytes.Length}'. </exception> |
+| `public static string FromSpan(ReadOnlySpan<byte> bytes)` | Converts S7 bytes from span to a string. <param name="bytes">The bytes span.</param> <returns>A string.</returns> <exception cref="IoT.DriverCore.S7PlcRx.PlcException"> Malformed S7 String / too short or Malformed S7 String / length larger than capacity or Failed to parse {VarType.S7String} from data. Following fields were read: size: '{size}', actual length: '{length}', total number of bytes (including header): '{bytes.Length}'. </exception> |
 | `public static byte[] ToByteArray(string? value, int reservedLength)` | Converts a <see cref="T:string"/> to S7 string with 2-byte header. <param name="value">The string to convert to byte array.</param> <param name="reservedLength">The length (in characters) allocated in PLC for the string.</param> <returns>A <see cref="T:byte[]" /> containing the string header and string value with a maximum length of <paramref name="reservedLength"/> + 2.</returns> |
 | `public static int ToSpan(string? value, int reservedLength, Span<byte> destination)` | Converts a string to S7 string format in the specified span. <param name="value">The string to convert.</param> <param name="reservedLength">The length allocated in PLC for the string.</param> <param name="destination">The destination span.</param> <returns>The number of bytes written.</returns> <exception cref="ArgumentNullException">value.</exception> <exception cref="ArgumentException"> The maximum string length supported is 254. or Destination span is too small. </exception> |
 | `public static bool TryToSpan(string? value, int reservedLength, Span<byte> destination, out int bytesWritten)` | Tries to convert a string to S7 string format in the specified span. <param name="value">The string to convert.</param> <param name="reservedLength">The length allocated in PLC for the string.</param> <param name="destination">The destination span.</param> <param name="bytesWritten">The number of bytes written.</param> <returns>True if successful, false if the destination is too small.</returns> |
 | `public static int GetByteLength(int reservedLength) => ...` | Gets the total byte length for an S7 string with the specified reserved length. <param name="reservedLength">The reserved length for the string.</param> <returns>The total byte length including header.</returns> |
 
-##### `S7PlcRx.PlcTypes.S7StringAttribute`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.S7StringAttribute`
 Source: `PlcTypes/S7StringAttribute.cs:16`
 
 | Member | Summary |
@@ -1964,7 +2020,7 @@ Source: `PlcTypes/S7StringAttribute.cs:16`
 | `public int ReservedLength get; }` | Gets the number of characters reserved for the value. |
 | `public int ReservedLengthInBytes => ...` | Gets the total number of bytes reserved for the string, including any protocol-specific header or length fields. <remarks>The reserved length in bytes depends on the string type. For S7String, the value includes 2 bytes for header information; for S7WString, it includes 4 bytes for header information and accounts for UTF-16 encoding. This value is typically used to allocate buffers or validate data boundaries when working with S7 string types.</remarks> |
 
-##### `S7PlcRx.PlcTypes.S7WString`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.S7WString`
 Source: `PlcTypes/S7WString.cs:15`
 
 Provides static methods for converting between S7 WString byte arrays and .NET strings. <remarks>The S7WString class supports encoding and decoding of S7 WString values, which are commonly used in Siemens S7 PLCs. All methods are static and thread-safe. The S7 WString format includes a 4-byte header specifying the reserved and actual string lengths, followed by the UTF-16 encoded string data.</remarks>
@@ -1974,7 +2030,7 @@ Provides static methods for converting between S7 WString byte arrays and .NET s
 | `public static string FromByteArray(byte[] bytes)` | Converts a byte array containing an S7 WString value to its corresponding .NET string representation. <remarks>The input array must follow the S7 WString format, where the first two bytes specify the maximum capacity, the next two bytes specify the actual string length, and the remaining bytes contain the UTF-16 encoded string data in big-endian order.</remarks> <param name="bytes">The byte array containing the S7 WString data, including the 4-byte header. Must not be null and must have a length of at least 4 bytes.</param> <returns>A string representing the decoded S7 WString value from the specified byte array.</returns> <exception cref="PlcException">Thrown if the input array is null, too short, contains malformed S7 WString data, or if decoding fails.</exception> |
 | `public static byte[] ToByteArray(string? value, int reservedLength)` | Converts the specified string to a big-endian Unicode byte array with a reserved length prefix. <remarks>The returned byte array begins with a 4-byte header: the first two bytes represent the reserved length, and the next two bytes represent the actual string length, both in big-endian order. The string is encoded using big-endian Unicode (UTF-16BE).</remarks> <param name="value">The string to convert to a byte array. Cannot be null.</param> <param name="reservedLength">The number of characters to reserve in the output buffer. Must be less than or equal to 16,382 and greater than or equal to the length of <paramref name="value"/>.</param> <returns>A byte array containing a 4-byte header followed by the big-endian Unicode bytes of the string, padded to the reserved length if necessary.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="value"/> is null.</exception> <exception cref="ArgumentException">Thrown if <paramref name="reservedLength"/> is greater than 16,382, or if the length of <paramref name="value"/> exceeds <paramref name="reservedLength"/>.</exception> |
 
-##### `S7PlcRx.PlcTypes.String`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.String`
 Source: `PlcTypes/String.cs:14`
 
 Provides utility methods for converting between strings and byte arrays using ASCII encoding. <remarks>All methods in this class use ASCII encoding for conversions. These methods are intended for scenarios where data is known to be ASCII-compatible. Non-ASCII characters will be replaced with '?' during encoding and decoding. The class is internal and intended for use within the assembly.</remarks>
@@ -1988,7 +2044,7 @@ Provides utility methods for converting between strings and byte arrays using AS
 | `public static int ToSpan(string? value, Span<byte> destination)` | Encodes the specified string as ASCII bytes and writes the result to the provided destination span. <remarks>Characters in the input string that cannot be represented in ASCII are replaced with a question mark ('?').</remarks> <param name="value">The string to encode as ASCII. If null or empty, no bytes are written.</param> <param name="destination">The span to which the encoded ASCII bytes are written. Must be large enough to hold the encoded bytes.</param> <returns>The number of bytes written to the destination span. Returns 0 if the input string is null or empty.</returns> <exception cref="ArgumentException">Thrown if the destination span is not large enough to contain the encoded bytes.</exception> |
 | `public static bool TryToSpan(string? value, Span<byte> destination, out int bytesWritten)` | Attempts to encode the specified string as ASCII bytes and write the result to the provided destination buffer. <remarks>If the input string is null or empty, no bytes are written and the method returns true. The method returns false if the destination buffer is not large enough to hold the encoded bytes.</remarks> <param name="value">The string to encode as ASCII. Can be null or empty.</param> <param name="destination">The buffer that receives the ASCII-encoded bytes of the string.</param> <param name="bytesWritten">When this method returns, contains the number of bytes written to the destination buffer. Set to 0 if the input string is null or empty.</param> <returns>true if the string was successfully encoded and written to the destination buffer; otherwise, false.</returns> |
 
-##### `S7PlcRx.PlcTypes.Struct`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.Struct`
 Source: `PlcTypes/Struct.cs:17`
 
 Provides utility methods for working with struct types, including calculating their size in bytes and converting between structs and byte arrays. <remarks>The methods in this class are primarily intended for scenarios where struct data needs to be serialized to or deserialized from byte arrays, such as communication with PLCs or binary protocols. The struct types used with these methods should have public fields and, for string fields, must be decorated with the S7StringAttribute to specify their encoding and length. All methods are static and thread-safe.</remarks>
@@ -1999,7 +2055,7 @@ Provides utility methods for working with struct types, including calculating th
 | `public static object? FromBytes(Type structType, byte[] bytes)` | Deserializes a byte array into an instance of the specified structure type. <remarks>The method supports deserialization of structures containing fields of supported primitive types, strings with S7StringAttribute, and nested structures. All fields must be public. The structure's layout and field order must match the serialized byte format.</remarks> <param name="structType">The type of the structure to deserialize the byte array into. Must be a type with a parameterless constructor and supported field types.</param> <param name="bytes">The byte array containing the serialized data for the structure. The length must match the expected size of the structure.</param> <returns>An object representing the deserialized structure, or null if the byte array is null or does not match the expected size.</returns> <exception cref="ArgumentException">Thrown if an instance of the specified type cannot be created, or if a string field is missing the required S7StringAttribute, or if an invalid string type is specified for the S7StringAttribute.</exception> |
 | `public static byte[] ToBytes(object structValue)` | Converts the specified structure object to its byte array representation. <remarks>Supported field types include Boolean, Byte, Int16, UInt16, Int32, UInt32, Single, Double, String (with S7StringAttribute), and TimeSpan. All fields of the structure must be of these types for successful conversion.</remarks> <param name="structValue">The structure object to convert to a byte array. Must not be null. The object's fields must be of supported types.</param> <returns>A byte array containing the serialized representation of the structure. Returns an empty array if <paramref name="structValue"/> is null.</returns> <exception cref="ArgumentException">Thrown if a field value cannot be converted to its corresponding type, or if a string field is missing the required S7StringAttribute, or if an invalid string type is specified in the S7StringAttribute.</exception> |
 
-##### `S7PlcRx.PlcTypes.TimeSpan`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.TimeSpan`
 Source: `PlcTypes/TimeSpan.cs:16`
 
 Provides methods and constants for converting between S7 PLC time representations and .NET <see cref="T:System.TimeSpan"/> values. <remarks>This class supports parsing and serializing <see cref="T:System.TimeSpan"/> values to and from the S7 PLC binary format, where time spans are represented as 4-byte signed integers in milliseconds. All methods assume the S7 time format and enforce the valid range defined by <see cref="F:SpecMinimumTimeSpan"/> and <see cref="F:SpecMaximumTimeSpan"/>. The class is static and cannot be instantiated.</remarks>
@@ -2018,7 +2074,7 @@ Provides methods and constants for converting between S7 PLC time representation
 | `public static byte[] ToByteArray(System.TimeSpan[] timeSpans)` | Converts an array of <see cref="System.TimeSpan"/> values to a byte array representation. <param name="timeSpans">An array of <see cref="System.TimeSpan"/> values to convert. Cannot be null.</param> <returns>A byte array containing the serialized representation of the input <see cref="System.TimeSpan"/> values. The length of the array is proportional to the number of elements in <paramref name="timeSpans"/>.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="timeSpans"/> is null.</exception> |
 | `public static void ToSpan(ReadOnlySpan<System.TimeSpan> timeSpans, Span<byte> destination)` | Converts a sequence of <see cref="System.TimeSpan"/> values to their binary representation and writes the result to the specified destination span. <param name="timeSpans">The read-only span containing the <see cref="System.TimeSpan"/> values to convert.</param> <param name="destination">The span of bytes that receives the binary representation of the <paramref name="timeSpans"/> values. Must be large enough to hold all converted values.</param> <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is not large enough to contain the binary representation of all <paramref name="timeSpans"/> values.</exception> |
 
-##### `S7PlcRx.PlcTypes.Timer`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.Timer`
 Source: `PlcTypes/Timer.cs:14`
 
 Provides static methods for converting between S7 Timer byte representations and .NET numeric types. <remarks>This class is intended for working with Siemens S7 PLC timer values, enabling conversion to and from the S7-specific byte format and standard .NET types such as double and ushort. All members are static and the class cannot be instantiated.</remarks>
@@ -2036,7 +2092,7 @@ Provides static methods for converting between S7 Timer byte representations and
 | `public static void ToSpan(ReadOnlySpan<ushort> values, Span<byte> destination)` | Converts a sequence of 16-bit unsigned integers to their byte representations and writes the result to the specified destination span. <param name="values">The read-only span of 16-bit unsigned integers to convert.</param> <param name="destination">The span of bytes that receives the converted values. Must be at least twice the length of <paramref name="values"/>.</param> <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is not large enough to contain the converted bytes.</exception> |
 | `public static byte[] ToByteArray(ushort[] value)` | Converts an array of 16-bit unsigned integers to a byte array. <param name="value">The array of 16-bit unsigned integers to convert. Cannot be null.</param> <returns>A byte array containing the binary representation of the input values.</returns> |
 
-##### `S7PlcRx.PlcTypes.Word`
+##### `IoT.DriverCore.S7PlcRx.PlcTypes.Word`
 Source: `PlcTypes/Word.cs:16`
 
 Provides utility methods for converting between 16-bit unsigned integers (words) and their byte array or span representations, using big-endian (high byte first) byte order. <remarks>All methods in this class assume that words are represented in big-endian format, where the first byte is the high-order byte and the second byte is the low-order byte. These methods are intended for scenarios where explicit control over byte order is required, such as binary serialization, communication protocols, or file I/O. The class is static and cannot be instantiated.</remarks>
@@ -2055,9 +2111,9 @@ Provides utility methods for converting between 16-bit unsigned integers (words)
 | `public static byte[] ToByteArray(ushort[] value)` | Converts an array of 16-bit unsigned integers to a byte array. <param name="value">The array of 16-bit unsigned integers to convert. Cannot be null.</param> <returns>A byte array containing the binary representation of the input values.</returns> |
 | `public static void ToSpan(ReadOnlySpan<ushort> values, Span<byte> destination)` | Converts a sequence of 16-bit unsigned integers to their byte representation and writes the result to the specified destination span. <param name="values">The sequence of 16-bit unsigned integers to convert.</param> <param name="destination">The span of bytes that receives the converted values. Must be at least twice the length of <paramref name="values"/>.</param> <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is not large enough to contain the converted bytes.</exception> |
 
-#### Namespace `S7PlcRx.Production`
+#### Namespace `IoT.DriverCore.S7PlcRx.Production`
 
-##### `S7PlcRx.Production.CircuitBreaker`
+##### `IoT.DriverCore.S7PlcRx.Production.CircuitBreaker`
 Source: `Production/CircuitBreaker.cs:17`
 
 Provides a thread-safe implementation of the circuit breaker pattern to prevent repeated execution of failing operations and to allow recovery after a specified timeout. <remarks>The circuit breaker monitors consecutive operation failures and transitions between Closed, Open, and HalfOpen states based on the provided configuration. When the failure threshold is reached, the circuit breaker enters the Open state and blocks further operations until the timeout elapses. After the timeout, it transitions to HalfOpen to test if operations can succeed before fully closing again. This class is thread-safe and intended for use in scenarios where repeated failures should be prevented from overwhelming a system or external dependency.</remarks> <param name="config">The configuration settings that control circuit breaker thresholds, retry behavior, and timeouts.</param>
@@ -2071,14 +2127,14 @@ Provides a thread-safe implementation of the circuit breaker pattern to prevent 
 | `public double SuccessRate => ...` | Gets the percentage of operations that completed successfully. |
 | `public async Task<T> ExecuteAsync<T>(Func<Task<T>> operation)` | Executes the specified asynchronous operation within the circuit breaker, applying retry and failure handling policies as configured. <remarks>If the circuit breaker is open due to previous failures, the operation will be blocked until the configured timeout has elapsed. Upon successful execution, the circuit breaker state is reset. This method is thread-safe.</remarks> <typeparam name="T">The type of the result returned by the asynchronous operation.</typeparam> <param name="operation">A function that represents the asynchronous operation to execute. Cannot be null.</param> <returns>A task that represents the asynchronous execution of the operation. The task result contains the value returned by the operation if it completes successfully.</returns> <exception cref="ArgumentNullException">Thrown if the operation parameter is null.</exception> <exception cref="InvalidOperationException">Thrown if the circuit breaker is open and the timeout period has not elapsed, preventing the operation from being executed.</exception> |
 
-##### `S7PlcRx.Production.CircuitBreakerState`
+##### `IoT.DriverCore.S7PlcRx.Production.CircuitBreakerState`
 Source: `Production/CircuitBreakerState.cs:12`
 
 Specifies the operational state of a circuit breaker used to control the flow of operations in response to failures. <remarks>Use this enumeration to determine or set the current state of a circuit breaker implementation. The state controls whether operations are allowed, blocked, or tested for recovery. Typical usage involves transitioning between these states based on error rates or recovery attempts.</remarks>
 
 Enum values: `Closed`, `Open`, `HalfOpen`.
 
-##### `S7PlcRx.Production.ProductionDiagnostics`
+##### `IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics`
 Source: `Production/ProductionDiagnostics.cs:16`
 
 Represents diagnostic information collected from a production programmable logic controller (PLC) connection, including connection details, performance metrics, and recommendations. <remarks>This class is typically used to capture and analyze the state of a PLC connection and its associated metrics at a specific point in time. It aggregates connection parameters, diagnostic results, and any errors or optimization suggestions identified during the diagnostic process. All properties are intended to be set and read by consumers managing or monitoring PLC diagnostics.</remarks>
@@ -2097,7 +2153,7 @@ Represents diagnostic information collected from a production programmable logic
 | `public List<string> Recommendations get; set; } = [];` | Gets or sets the optimization recommendations. |
 | `public List<string> Errors get; set; } = [];` | Gets or sets any errors encountered during diagnostics. |
 
-##### `S7PlcRx.Production.ProductionErrorConfig`
+##### `IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig`
 Source: `Production/ProductionErrorConfig.cs:12`
 
 Represents the configuration settings for error handling and retry logic in a production environment. <remarks>This class provides options to control retry attempts, delay strategies, and circuit breaker behavior for handling transient errors. It is typically used to configure error resilience policies in applications that interact with external systems or services.</remarks>
@@ -2110,7 +2166,7 @@ Represents the configuration settings for error handling and retry logic in a pr
 | `public int CircuitBreakerThreshold get; set; } = 5;` | Gets or sets the circuit breaker failure threshold. |
 | `public TimeSpan CircuitBreakerTimeout get; set; } = TimeSpan.FromMinutes(1);` | Gets or sets the circuit breaker timeout. |
 
-##### `S7PlcRx.Production.ProductionErrorHandler`
+##### `IoT.DriverCore.S7PlcRx.Production.ProductionErrorHandler`
 Source: `Production/ProductionErrorHandler.cs:16`
 
 Provides error handling for production environments by executing operations with circuit breaker protection and configurable error handling policies. <remarks>This class is intended for use in production scenarios where robust error handling and resilience are required. It wraps operations in a circuit breaker to prevent repeated failures and applies the error handling strategies specified in the provided configuration. Instances of this class are thread-safe and can be reused across multiple operations.</remarks> <param name="config">The configuration settings that define error handling behavior, including circuit breaker thresholds and retry policies. Cannot be null.</param>
@@ -2119,7 +2175,7 @@ Provides error handling for production environments by executing operations with
 |---|---|
 | `public async Task<T> ExecuteAsync<T>(Func<Task<T>> operation) => ...` | Executes an operation with comprehensive error handling. <typeparam name="T">The return type.</typeparam> <param name="operation">The operation to execute.</param> <returns>The result of the operation.</returns> |
 
-##### `S7PlcRx.Production.ProductionExtensions`
+##### `IoT.DriverCore.S7PlcRx.Production.ProductionExtensions`
 Source: `Production/ProductionExtensions.cs:18`
 
 Provides extension methods for enabling production-grade error handling, retry logic, and system validation on PLC instances using the circuit breaker pattern. <remarks>These extension methods are intended to enhance the reliability and readiness of PLC-based systems in production environments. They offer mechanisms for robust error handling, configurable retry strategies, and comprehensive validation routines to assess system health and readiness for production deployment. All methods require a valid IRxS7 PLC instance and may utilize user-supplied or default configuration objects. Thread safety is ensured for shared resources such as circuit breakers.</remarks>
@@ -2130,7 +2186,7 @@ Provides extension methods for enabling production-grade error handling, retry l
 | `public static async Task<T> ExecuteWithErrorHandling<T>( this IRxS7 plc, Func<Task<T>> operation, ProductionErrorConfig? config = null)` | Executes the specified asynchronous PLC operation with error handling and circuit breaker protection. <remarks>This method ensures that the provided operation is executed with error handling policies defined by the specified or default configuration. It uses a circuit breaker to prevent repeated execution of failing operations, which can help protect the PLC and improve system resilience.</remarks> <typeparam name="T">The type of the result returned by the operation.</typeparam> <param name="plc">The PLC instance on which to perform the operation. Cannot be null.</param> <param name="operation">A function that represents the asynchronous operation to execute. Cannot be null.</param> <param name="config">An optional configuration object that specifies error handling and circuit breaker behavior. If null, a default configuration is used.</param> <returns>A task that represents the asynchronous operation. The task result contains the value returned by the operation.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> or <paramref name="operation"/> is null.</exception> |
 | `public static async Task<SystemValidationResult> ValidateProductionReadiness( this IRxS7 plc, ProductionValidationConfig? validationConfig = null)` | Performs a comprehensive validation of the specified PLC to determine its readiness for production deployment. <remarks>The validation process includes checks for connectivity, performance, and reliability. The method aggregates results and determines production readiness based on the provided or default configuration. The returned result includes timestamps, scores, and any critical errors encountered during validation.</remarks> <param name="plc">The PLC instance to validate for production readiness. Cannot be null.</param> <param name="validationConfig">An optional configuration object that specifies validation parameters and thresholds. If null, default validation settings are used.</param> <returns>A task that represents the asynchronous operation. The task result contains a SystemValidationResult object with detailed validation outcomes, including overall readiness, scores, and any detected issues.</returns> <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception> |
 
-##### `S7PlcRx.Production.ProductionMetrics`
+##### `IoT.DriverCore.S7PlcRx.Production.ProductionMetrics`
 Source: `Production/ProductionMetrics.cs:13`
 
 Represents a set of metrics related to the monitoring and connectivity status of a PLC (Programmable Logic Controller) over a specified period. <remarks>This class is typically used to capture and report operational statistics for a PLC, such as connection times, uptime percentage, and tag counts. All properties are mutable, allowing for incremental updates as new data is collected.</remarks>
@@ -2147,7 +2203,7 @@ Represents a set of metrics related to the monitoring and connectivity status of
 | `public int ActiveTagCount get; set; }` | Gets or sets the number of active tags. |
 | `public int TotalTagCount get; set; }` | Gets or sets the total number of tags. |
 
-##### `S7PlcRx.Production.ProductionTagMetrics`
+##### `IoT.DriverCore.S7PlcRx.Production.ProductionTagMetrics`
 Source: `Production/ProductionTagMetrics.cs:12`
 
 Represents aggregated metrics related to production tags, including counts and distribution information. <remarks>Use this class to track and analyze the status and distribution of tags within a production environment. The metrics provided can assist in monitoring tag activity and identifying trends or anomalies in tag usage.</remarks>
@@ -2159,7 +2215,7 @@ Represents aggregated metrics related to production tags, including counts and d
 | `public int InactiveTags get; set; }` | Gets or sets the number of inactive tags. |
 | `public Dictionary<string, int> DataBlockDistribution get; set; } = [];` | Gets or sets the distribution of tags by data block. |
 
-##### `S7PlcRx.Production.ProductionValidationConfig`
+##### `IoT.DriverCore.S7PlcRx.Production.ProductionValidationConfig`
 Source: `Production/ProductionValidationConfig.cs:12`
 
 Represents configuration settings for validating production system performance and reliability. <remarks>Use this class to specify thresholds and criteria for production validation checks, such as acceptable response times, reliability rates, and minimum production scores. These settings can be adjusted to match the requirements of different production environments.</remarks>
@@ -2171,7 +2227,7 @@ Represents configuration settings for validating production system performance a
 | `public int ReliabilityTestCount get; set; } = 10;` | Gets or sets the number of operations to test for reliability. |
 | `public double MinimumProductionScore get; set; } = 80.0;` | Gets or sets the minimum production score (0 to 100). |
 
-##### `S7PlcRx.Production.SystemValidationResult`
+##### `IoT.DriverCore.S7PlcRx.Production.SystemValidationResult`
 Source: `Production/SystemValidationResult.cs:13`
 
 Represents the result of a system validation process, including timing, test results, and production readiness status. <remarks>Use this class to capture and inspect the outcome of a system validation run, such as for a PLC or similar automated system. It provides details about the validation period, individual test results, critical errors, and an overall score indicating system readiness for production.</remarks>
@@ -2187,7 +2243,7 @@ Represents the result of a system validation process, including timing, test res
 | `public List<string> CriticalErrors get; } = [];` | Gets critical errors that prevent production use. |
 | `public TimeSpan TotalValidationTime => ...` | Gets the total validation time. |
 
-##### `S7PlcRx.Production.ValidationTest`
+##### `IoT.DriverCore.S7PlcRx.Production.ValidationTest`
 Source: `Production/ValidationTest.cs:9`
 
 Represents the result and metadata of a validation test, including timing, outcome, and related details.
@@ -2202,14 +2258,14 @@ Represents the result and metadata of a validation test, including timing, outco
 | `public List<string> Details get; } = [];` | Gets additional test details. |
 | `public TimeSpan Duration => ...` | Gets the test duration. |
 
-#### Namespace `S7PlcRx.SourceGeneration`
+#### Namespace `IoT.DriverCore.S7PlcRx.SourceGeneration`
 
-##### `S7PlcRx.SourceGeneration.S7PlcBindingAttribute`
+##### `IoT.DriverCore.S7PlcRx.SourceGeneration.S7PlcBindingAttribute`
 Source: `S7TagBindingSourceGenerator.cs:273`
 
 No public instance/static members declared directly on this type.
 
-##### `S7PlcRx.SourceGeneration.S7TagAttribute`
+##### `IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagAttribute`
 Source: `S7TagBindingSourceGenerator.cs:278`
 
 | Member | Summary |
@@ -2220,14 +2276,14 @@ Source: `S7TagBindingSourceGenerator.cs:278`
 | `public S7TagDirection Direction get; set; }` |  |
 | `public int ArrayLength get; set; } = 1;` |  |
 
-##### `S7PlcRx.SourceGeneration.S7TagDirection`
+##### `IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagDirection`
 Source: `S7TagBindingSourceGenerator.cs:294`
 
 Enum values: `ReadWrite`, `ReadOnly`, `WriteOnly`.
 
-#### Namespace `S7PlcRx.SourceGenerators`
+#### Namespace `IoT.DriverCore.S7PlcRx.SourceGenerators`
 
-##### `S7PlcRx.SourceGenerators.S7TagBindingSourceGenerator`
+##### `IoT.DriverCore.S7PlcRx.SourceGenerators.S7TagBindingSourceGenerator`
 Source: `S7TagBindingSourceGenerator.cs:17`
 
 | Member | Summary |
@@ -2237,10 +2293,173 @@ Source: `S7TagBindingSourceGenerator.cs:17`
 </details>
 
 
+## Migrated API additions and full member-family guide
+
+The preceding API reference retains the complete original feature documentation. This section records the migrated public surface that was added or expanded in IoT-DriverCore, including its overload families and the two composition patterns most commonly used in an application.
+
+### Tag registration, polling, and observable adaptation
+
+| Type/member family | Purpose, result, errors, and lifecycle |
+|---|---|
+| `TagOperations.AddUpdateTagItem(plc, type, name, address[, length])` | Creates or replaces a tag and returns `TagRegistration`. The scalar, fixed-length, and nullable-length overloads select the PLC value shape. Invalid addresses/types surface through the PLC error streams; call `SetPolling(bool)` on the result before relying on observation. |
+| `TagOperations.GetTag` / `RemoveTagItem` | Retrieves a registration wrapper or removes a named tag. Removing a tag produces an `ObserveAll` null notification and invalidates later reads by that name. |
+| `TagOperations.ToTagValue<T>` / `TagToDictionary` | Converts a tag notification stream to typed name/value pairs or a dictionary for UI/state projections. Dispose the resulting subscription with the projection owner. |
+| `TagRegistration.SetPolling()` / `SetPolling(bool)` / `Deconstruct` | Enables/disables polling or exposes its `ITag` and `IRxS7`. It changes tag scheduling only; it does not validate a write nor close the PLC connection. |
+| `S7TagValueObservable<T>` | Small multicast observable with `Subscribe` and `Publish`; use for your own binding projection, then dispose each returned subscription. |
+| `S7TagObservableAdapter.ToAsyncEnumerable<T>` | Turns any `IObservable<T>` into an `IAsyncEnumerable<T>`. Cancellation stops the enumerator/subscription; errors are rethrown by `MoveNextAsync`. |
+
+```csharp
+using IoT.DriverCore.Core;
+using IoT.DriverCore.S7PlcRx;
+
+TagOperations.AddUpdateTagItem(plc, typeof(bool), "Pump.Enabled", "DB10.DBX0.0").SetPolling();
+TagOperations.AddUpdateTagItem(plc, typeof(short), "Pump.Speed", "DB10.DBW2").SetPolling(false);
+
+using var updates = TagOperations.ToTagValue<bool>(plc.ObserveAll)
+    .Subscribe(change => Console.WriteLine($"{change.Tag}={change.Value}"));
+
+await foreach (var tag in S7TagObservableAdapter.ToAsyncEnumerable(plc.ObserveAll)
+                   .WithCancellation(CancellationToken.None))
+{
+    if (tag?.Name == "Pump.Enabled")
+        Console.WriteLine($"State is {tag.Value}");
+}
+```
+
+### Runtime binding and generated binding
+
+`S7TagRuntimeBinding.Bind(IRxS7, IReadOnlyList<S7TagDefinition>, Action<string, object?>)` registers a supplied definition set and returns a disposable binding. `Write(name, value)` performs the corresponding managed write and throws argument/address/type exceptions before a PLC command if the definition cannot be resolved. `S7TagBindingSession` composes the runtime binding with a logical-tag client and disposes both exactly once. `S7TagDefinition` carries the definition name, address, type, poll interval, direction, and array-length metadata; `S7TagDirection` distinguishes read/write intent.
+
+The analyzer is `S7PlcRx.Generators`. It consumes public `[S7PlcBinding]` and `[S7Tag(address)]` attributes from `IoT.DriverCore.S7PlcRx.SourceGeneration`; `Address` is required, while `PollIntervalMs`, `Direction`, and `ArrayLength` configure the generated registration. The target class and attributed properties must be `partial`. Build diagnostics are deliberately actionable: fix invalid address/property/type/direction metadata instead of suppressing them.
+
+```csharp
+using IoT.DriverCore.S7PlcRx;
+using IoT.DriverCore.S7PlcRx.SourceGeneration;
+
+[S7PlcBinding]
+public partial class MixerBinding
+{
+    [S7Tag("DB20.DBX0.0", PollIntervalMs = 250, Direction = S7TagDirection.ReadWrite)]
+    public partial bool Run { get; set; }
+
+    [S7Tag("DB20.DBD4", Direction = S7TagDirection.ReadOnly)]
+    public partial float Temperature { get; set; }
+}
+
+// The generated API connects this binding to the IRxS7 instance and emits typed
+// observable/property hooks. Handle its build diagnostics before deploying.
+```
+
+```csharp
+using IoT.DriverCore.S7PlcRx.Binding;
+
+var definitions = new[]
+{
+    new S7TagDefinition("Mix.Run", "DB20.DBX0.0", typeof(bool), 250, S7TagDirection.ReadWrite, 1),
+    new S7TagDefinition("Mix.Target", "DB20.DBW2", typeof(short), 0, S7TagDirection.ReadWrite, 1),
+};
+using var runtime = S7TagRuntimeBinding.Bind(plc, definitions, (_, _) => { });
+runtime.Write("Mix.Target", (short)850);
+
+// In an application that owns both resources, create a catalog/client and make
+// its teardown explicit. Do not also dispose runtime separately after session.
+var catalog = S7LogicalTagExtensions.CreateLogicalTagCatalog(definitions);
+using var logicalClient = S7LogicalTagExtensions.CreateLogicalTagClient(plc, catalog);
+```
+
+### Logical tags, persistence, CSV, and typed operations
+
+`S7LogicalTagExtensions.CreateLogicalTagCatalog` creates a shared catalog. `CreateLogicalTagClient` has overloads for catalog/store construction; the returned `S7LogicalTagClient` implements `IDisposable` and must be disposed. Its constructor overloads accept the PLC, catalog, optional store, and composition dependencies. `RegisterTag`, `CreateTag`, and `RemoveTag` modify the in-memory catalog; `InitializeStoreAsync`, `LoadTagsAsync`, `GetTagAsync`, `ListTagsAsync`, `UpsertTagAsync`, `EditTagAsync`, `UpdateTagAsync`, and `DeleteTagAsync` are store-backed operations with cancellation-token overloads. The matching group methods are `GetGroupAsync`, `ListGroupsAsync`, `UpsertGroupAsync`, and `DeleteGroupAsync`.
+
+`ImportCsvAsync` and `ExportCsvAsync` have default-delimiter, explicit-delimiter, and cancellation-aware overloads. Use a caller-owned `TextReader`/`TextWriter`; the client does not own or close it. `ReadAsync`, `ReadManyAsync`, `WriteAsync`, and `WriteManyAsync` return `TagOperationResult<LogicalTagValue>` or a list, preserving per-tag failures. `Observe`/`ObserveMany` return observables, while `ObserveAsync`/`ObserveManyAsync` return cancelable async streams.
+
+```csharp
+using IoT.DriverCore.Core;
+using IoT.DriverCore.S7PlcRx.LogicalTags;
+
+var catalog = S7LogicalTagExtensions.CreateLogicalTagCatalog(definitions);
+using var client = S7LogicalTagExtensions.CreateLogicalTagClient(plc, catalog);
+var store = new LogicalTagSqliteStore("Data Source=tags.db;Pooling=False");
+await client.InitializeStoreAsync(store, cancellationToken);
+await client.ImportCsvAsync(reader, delimiter: ';', cancellationToken);
+
+var result = await client.WriteAsync(
+    new LogicalTagValue("Recipe.Target", 1200, DateTimeOffset.UtcNow), cancellationToken);
+if (!result.Succeeded)
+    throw new InvalidOperationException(result.Error);
+
+using var observed = client.ObserveMany(["Recipe.Target", "Recipe.Actual"])
+    .Subscribe(value => Console.WriteLine($"{value.Name}: {value.Value}"));
+```
+
+### Combined workflow 1: safe command with verification and timeout
+
+Register command and feedback tags, observe errors before writing, send the command, then verify feedback by a bounded read. This combines tag registration, queued writes, cancellation, and error observability without treating a setter as an acknowledgement.
+
+```csharp
+using IoT.DriverCore.Core;
+using IoT.DriverCore.S7PlcRx;
+
+TagOperations.AddUpdateTagItem(plc, typeof(bool), "StartCommand", "DB1.DBX0.0").SetPolling(false);
+TagOperations.AddUpdateTagItem(plc, typeof(bool), "RunningFeedback", "DB1.DBX0.1").SetPolling();
+using var faults = plc.LastError.Subscribe(Console.Error.WriteLine);
+using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+
+plc.Value("StartCommand", true);
+bool? running = await plc.ReadAsync(new LogicalTagKey<bool>("RunningFeedback"), stop.Token);
+if (running != true)
+    throw new TimeoutException("Start was not acknowledged; inspect PLC diagnostics.");
+```
+
+### Combined workflow 2: imported logical schema, generated display, batch update
+
+Use CSV/store import for the operational schema, generated bindings for fixed application properties, and logical batch operations for an audited recipe update. Dispose each subscription/session/client you own; the PLC factory result itself has the lifecycle limitation described above.
+
+```csharp
+using IoT.DriverCore.S7PlcRx;
+using IoT.DriverCore.S7PlcRx.Binding;
+
+var catalog = S7LogicalTagExtensions.CreateLogicalTagCatalog(screenDefinitions);
+using var client = S7LogicalTagExtensions.CreateLogicalTagClient(plc, catalog);
+await client.LoadTagsAsync(cancellationToken);
+
+var changes = await client.WriteManyAsync(
+[
+    new LogicalTagValue("Recipe.Speed", (short)1200, DateTimeOffset.UtcNow),
+    new LogicalTagValue("Recipe.Enabled", true, DateTimeOffset.UtcNow),
+], cancellationToken);
+
+foreach (var change in changes.Where(result => !result.Succeeded))
+    Console.Error.WriteLine(change.Error);
+
+using var binding = S7TagRuntimeBinding.Bind(plc, screenDefinitions, (_, _) => { });
+```
+
+### Complete migrated public API reference
+
+| Namespace/type | Public member families and how to use them |
+|---|---|
+| `IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient` | Constructors; catalog tag methods; CSV import/export; store init/load/get/list/upsert/edit/update/delete for tags and groups; typed single/many read/write; observable and async-enumerable single/many observe; `Dispose`. Cancellation overloads are for I/O and streaming boundaries. |
+| `S7LogicalTagExtensions` | Catalog/client creation plus typed logical `ReadAsync<T>` and `WriteAsync<T>`. The package's batch implementation is intentionally internal; call the public logical-client and extension methods and check each operation result rather than assuming an all-or-nothing PLC commit. |
+| `IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition`, `S7TagDirection`, `S7TagRuntimeBinding`, `S7TagBindingSession` | Definition metadata, direction, static `Bind`, named `Write`, and deterministic binding/session disposal. `S7TagObservableAdapter` offers `ToAsyncEnumerable`; `S7TagValueObservable<T>` offers `Subscribe`/`Publish`. |
+| `IoT.DriverCore.S7PlcRx.Tags.TagOperations`, `TagRegistration`, `Tag`, `ITag`, `Tags` | All registration overloads, lookup/removal, typed stream/dictionary projection, per-tag polling, and tag model metadata. Combine with `IRxS7.Observe`/read/write member families documented in the original API reference above. |
+| `IoT.DriverCore.S7PlcRx.SourceGeneration.S7PlcBindingAttribute`, `S7TagAttribute`, `S7TagDirection` | Compile-time binding configuration: class marker; address plus `PollIntervalMs`, `Direction`, `ArrayLength`; direction enum. `IoT.DriverCore.S7PlcRx.SourceGenerators.S7TagBindingSourceGenerator` is the analyzer implementation packaged by `S7PlcRx.Generators`. |
+
+## Operations and troubleshooting
+
+| Symptom | Cause and corrective action |
+|---|---|
+| Connection state never reaches true | Check CPU-specific factory, IP, rack/slot, firewall/VLAN, PUT/GET, and `LastErrorCode`; do not retry writes blindly. |
+| Read is null or wrong-shaped | Register the tag, make key/property CLR type match PLC data, verify DB/bit/array address, and check non-optimised DB layout. |
+| Generated binding does not appear | Ensure the analyzer package is referenced, class/property declarations are partial, attributes use the migrated namespace, and generator diagnostics are fixed. |
+| Stale/high-load updates | Reduce polling set/interval, group contiguous DB data, use batch/optimisation helpers, and measure with performance APIs before increasing parallelism. |
+| Store/CSV operation fails | Keep the reader/writer/store alive for the await, pass a cancellation token, inspect per-tag `TagOperationResult`, and dispose the logical client only after streams stop. |
+| Shutdown needs deterministic PLC disposal | `IRxS7` inherits disposable `ICancelable`; use a `using IRxS7` scope (or call `Dispose`) after disposing owned subscriptions, bindings, clients, pools, and groups. |
+
 ## Build and test
 
 ```bash
-dotnet build src/S7PlcRx.sln
+dotnet build src/IoT-DriverCore.slnx
 dotnet build src/S7PlcRx/S7PlcRx.csproj
 dotnet build src/S7PlcRx.Reactive/S7PlcRx.Reactive.csproj
 dotnet test src/S7PlcRx.Tests/S7PlcRx.Tests.csproj --framework net8.0
@@ -2249,17 +2468,7932 @@ dotnet test src/S7PlcRx.Tests/S7PlcRx.Tests.csproj --framework net8.0
 From WSL when only Windows .NET is installed:
 
 ```bash
-"/mnt/c/Program Files/dotnet/dotnet.exe" build src/S7PlcRx.sln
+"/mnt/c/Program Files/dotnet/dotnet.exe" build src/IoT-DriverCore.slnx
 "/mnt/c/Program Files/dotnet/dotnet.exe" build src/S7PlcRx.Reactive/S7PlcRx.Reactive.csproj
 "/mnt/c/Program Files/dotnet/dotnet.exe" test src/S7PlcRx.Tests/S7PlcRx.Tests.csproj --framework net8.0
 ```
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See the repository [LICENSE](https://github.com/ChrisPulman/IoT-DriverCore/blob/main/LICENSE).
 
 ## Support
 
-- Issues: <https://github.com/ChrisPulman/S7PlcRx/issues>
+- Issues: <https://github.com/ChrisPulman/IoT-DriverCore/issues>
 - NuGet: <https://www.nuget.org/packages/S7PlcRx>
 - NuGet reactive package: <https://www.nuget.org/packages/S7PlcRx.Reactive>
+
+## AI skill
+
+For a concise agent workflow, load [`skills/s7-plc-rx/SKILL.md`](../../skills/s7-plc-rx/SKILL.md). This README remains the exhaustive package API and operational reference.
+
+<!-- BEGIN GENERATED PUBLIC API -->
+
+## Exhaustive public API reference
+
+This catalogue is generated from the packaged runtime assemblies and their XML documentation. It includes exported public types and their declared public members; inherited members and non-public implementation details are intentionally omitted.
+
+### `S7PlcRx`
+
+Exported public types: 100; declared public members: 736.
+
+#### `T:IoT.DriverCore.S7PlcRx.Advanced.AdvancedExtensions`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Advanced.AdvancedExtensions
+```
+Provides advanced extension methods for efficient batch operations, diagnostics, and performance analysis on PLC (Programmable Logic Controller) instances using the IRxS7 interface.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.AdvancedExtensions.AnalyzePerformanceAsync(IoT.DriverCore.S7PlcRx.IRxS7,System.TimeSpan)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.Performance.PerformanceAnalysis> AnalyzePerformanceAsync(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.TimeSpan monitoringDuration)
+```
+Analyzes tag change performance on the specified PLC over a given monitoring duration and returns a summary of tag change frequencies and recommendations.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `monitoringDuration`: The positive duration over which to observe tag changes.
+- Returns: A task that produces a PerformanceAnalysis object with tag change statistics and performance recommendations for the monitored period.
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.AdvancedExtensions.AnalyzePerformanceAsync(IoT.DriverCore.S7PlcRx.IRxS7,System.TimeSpan,System.TimeProvider)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.Performance.PerformanceAnalysis> AnalyzePerformanceAsync(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.TimeSpan monitoringDuration, System.TimeProvider timeProvider)
+```
+Analyzes tag change performance on the specified PLC over a given monitoring duration and returns a summary of tag change frequencies and recommendations.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `monitoringDuration`: The positive duration over which to observe tag changes.
+- Parameter `timeProvider`: The time provider.
+- Returns: A task that produces a PerformanceAnalysis object with tag change statistics and performance recommendations for the monitored period.
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.AdvancedExtensions.CreateTagGroup``1(IoT.DriverCore.S7PlcRx.IRxS7,``0,System.String,System.String[])`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.Performance.HighPerformanceTagGroup<T> CreateTagGroup<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, T typeValue, string groupName, string[] tagNames)
+```
+Creates a new high-performance tag group for batch reading or writing of multiple tags from the specified PLC connection.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `typeValue`: A value used to infer the tag-group value type.
+- Parameter `groupName`: The name used to identify the tag group.
+- Parameter `tagNames`: The tag names to include in the group.
+- Returns: A new HighPerformanceTagGroup{T} that contains the specified tags and PLC connection.
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.AdvancedExtensions.GetDiagnosticsAsync(IoT.DriverCore.S7PlcRx.IRxS7)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics> GetDiagnosticsAsync(IoT.DriverCore.S7PlcRx.IRxS7 plc)
+```
+Asynchronously collects diagnostics and performance metrics from a PLC instance.
+
+- Parameter `plc`: The PLC instance.
+- Returns: A task that produces a ProductionDiagnostics object with collected diagnostic data, tag metrics, and optimization recommendations.
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.AdvancedExtensions.GetDiagnosticsAsync(IoT.DriverCore.S7PlcRx.IRxS7,System.TimeProvider)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics> GetDiagnosticsAsync(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.TimeProvider timeProvider)
+```
+Asynchronously collects diagnostics and performance metrics from a PLC instance.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `timeProvider`: The time provider.
+- Returns: A task that produces a ProductionDiagnostics object with collected diagnostic data, tag metrics, and optimization recommendations.
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.AdvancedExtensions.ObserveBatch``1(IoT.DriverCore.S7PlcRx.IRxS7,``0,System.String[])`
+
+```csharp
+public static System.IObservable<System.Collections.Generic.Dictionary<string, T>> ObserveBatch<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, T typeValue, string[] variables)
+```
+Observes the values of multiple PLC variables as a batch and emits updates as a dictionary when any of the specified variables change.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `typeValue`: A value used to infer the PLC value type.
+- Parameter `variables`: The PLC variables to observe.
+- Returns: An observable that emits the latest value for each variable. The dictionary is updated and emitted whenever any of the observed variables change.
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.AdvancedExtensions.ReadBatchOptimizedAsync``1(IoT.DriverCore.S7PlcRx.IRxS7,``0,System.Collections.Generic.Dictionary`2{System.String,System.String},System.Int32)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.BatchOperations.BatchReadResult<T>> ReadBatchOptimizedAsync<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, T typeValue, System.Collections.Generic.Dictionary<string, string> tagMapping, int timeoutMs)
+```
+Executes the `ReadBatchOptimizedAsync` operation.
+
+- Parameter `plc`: The `plc` value.
+- Parameter `typeValue`: The `typeValue` value.
+- Parameter `tagMapping`: The `tagMapping` value.
+- Parameter `timeoutMs`: The `timeoutMs` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.BatchOperations.BatchReadResult<T>>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.AdvancedExtensions.ValueBatchAsync``1(IoT.DriverCore.S7PlcRx.IRxS7,System.Collections.Generic.Dictionary`2{System.String,``0})`
+
+```csharp
+public static System.Threading.Tasks.Task ValueBatchAsync<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.Collections.Generic.Dictionary<string, T> values)
+```
+Executes the `ValueBatchAsync` operation.
+
+- Parameter `plc`: The `plc` value.
+- Parameter `values`: The `values` value.
+- Returns: A `System.Threading.Tasks.Task` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.AdvancedExtensions.ValueBatchAsync``1(IoT.DriverCore.S7PlcRx.IRxS7,``0,System.String[])`
+
+```csharp
+public static System.Threading.Tasks.Task<System.Collections.Generic.Dictionary<string, T>> ValueBatchAsync<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, T typeValue, string[] variables)
+```
+Asynchronously reads the values of multiple variables from the PLC and returns a dictionary mapping variable names to their values.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `typeValue`: A value used to infer the PLC value type.
+- Parameter `variables`: The PLC variables to read.
+- Returns: A task that produces a dictionary mapping each requested variable name to its value of type T, or to the default value of T if the variable could not be read or does not exist. If no variables are specified, returns an empty dictionary.
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.AdvancedExtensions.WriteBatchOptimizedAsync``1(IoT.DriverCore.S7PlcRx.IRxS7,System.Collections.Generic.Dictionary`2{System.String,``0},System.Boolean,System.Boolean)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.BatchOperations.BatchWriteResult> WriteBatchOptimizedAsync<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.Collections.Generic.Dictionary<string, T> values, bool verifyWrites, bool enableRollback)
+```
+Executes the `WriteBatchOptimizedAsync` operation.
+
+- Parameter `plc`: The `plc` value.
+- Parameter `values`: The `values` value.
+- Parameter `verifyWrites`: The `verifyWrites` value.
+- Parameter `enableRollback`: The `enableRollback` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.BatchOperations.BatchWriteResult>` result.
+
+#### `T:IoT.DriverCore.S7PlcRx.Advanced.AsyncExtensions`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Advanced.AsyncExtensions
+```
+Provides additional async-first helpers for reading, writing, and observing PLC values without changing the base `T:IoT.DriverCore.S7PlcRx.IRxS7` API surface.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.AsyncExtensions.ObserveValue``1(IoT.DriverCore.S7PlcRx.IRxS7,``0,System.String)`
+
+```csharp
+public static ReactiveUI.Primitives.Async.IObservableAsync<T> ObserveValue<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, T typeValue, string variable)
+```
+Exposes a PLC variable as an async observable sequence.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `typeValue`: A value used to infer the PLC value type.
+- Parameter `variable`: The tag name to observe.
+- Returns: An async observable that emits tag value updates asynchronously.
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.AsyncExtensions.ObserveValues``1(IoT.DriverCore.S7PlcRx.IRxS7,``0,System.String[])`
+
+```csharp
+public static ReactiveUI.Primitives.Async.IObservableAsync<System.Collections.Generic.Dictionary<string, T>> ObserveValues<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, T typeValue, string[] variables)
+```
+Exposes a batch PLC observation as an async observable sequence.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `typeValue`: A value used to infer the PLC value type.
+- Parameter `variables`: The tag names to observe.
+- Returns: An async observable that emits dictionaries of tag values asynchronously.
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.AsyncExtensions.ReadValueAsync``1(IoT.DriverCore.S7PlcRx.IRxS7,``0,System.String,System.Threading.CancellationToken)`
+
+```csharp
+public static System.Threading.Tasks.ValueTask<T> ReadValueAsync<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, T typeValue, string variable, System.Threading.CancellationToken cancellationToken)
+```
+Reads a PLC value using a `T:System.Threading.Tasks.ValueTask`1` .
+
+- Parameter `plc`: The PLC instance.
+- Parameter `typeValue`: A value used to infer the PLC value type.
+- Parameter `variable`: The tag name to read.
+- Parameter `cancellationToken`: The cancellation token for the read operation.
+- Returns: A `T:System.Threading.Tasks.ValueTask`1` that resolves to the current PLC value.
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.AsyncExtensions.ReadValuesAsync``1(IoT.DriverCore.S7PlcRx.IRxS7,``0,System.Collections.Generic.IReadOnlyList`1{System.String},System.Threading.CancellationToken)`
+
+```csharp
+public static System.Threading.Tasks.ValueTask<System.Collections.Generic.Dictionary<string, T>> ReadValuesAsync<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, T typeValue, System.Collections.Generic.IReadOnlyList<string> variables, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `ReadValuesAsync` operation.
+
+- Parameter `plc`: The `plc` value.
+- Parameter `typeValue`: The `typeValue` value.
+- Parameter `variables`: The `variables` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.ValueTask<System.Collections.Generic.Dictionary<string, T>>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.AsyncExtensions.WriteValuesAsync``1(IoT.DriverCore.S7PlcRx.IRxS7,System.Collections.Generic.IReadOnlyDictionary`2{System.String,``0},System.Threading.CancellationToken)`
+
+```csharp
+public static System.Threading.Tasks.ValueTask WriteValuesAsync<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.Collections.Generic.IReadOnlyDictionary<string, T> values, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `WriteValuesAsync` operation.
+
+- Parameter `plc`: The `plc` value.
+- Parameter `values`: The `values` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.ValueTask` result.
+
+#### `T:IoT.DriverCore.S7PlcRx.Advanced.DictionaryEqualityComparer`2`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Advanced.DictionaryEqualityComparer`2
+```
+Compares dictionaries by their key-value pairs.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.DictionaryEqualityComparer`2.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Advanced.DictionaryEqualityComparer<TKey, TValue>()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Advanced.DictionaryEqualityComparer`2`.
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.DictionaryEqualityComparer`2.Equals(System.Collections.Generic.Dictionary`2{`0,`1},System.Collections.Generic.Dictionary`2{`0,`1})`
+
+```csharp
+public bool Equals(System.Collections.Generic.Dictionary<TKey, TValue> x, System.Collections.Generic.Dictionary<TKey, TValue> y)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `x`: The `x` value.
+- Parameter `y`: The `y` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Advanced.DictionaryEqualityComparer`2.GetHashCode(System.Collections.Generic.Dictionary`2{`0,`1})`
+
+```csharp
+public int GetHashCode(System.Collections.Generic.Dictionary<TKey, TValue> obj)
+```
+Returns the hash code for the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `int` result.
+
+#### `T:IoT.DriverCore.S7PlcRx.BatchOperations.BatchOperationResult`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.BatchOperations.BatchOperationResult
+```
+Represents the result and summary statistics of a batch operation.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.BatchOperations.BatchOperationResult.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.BatchOperations.BatchOperationResult()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.BatchOperations.BatchOperationResult`.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchOperationResult.AverageTimePerOperation`
+
+```csharp
+public double AverageTimePerOperation { get; }
+```
+Gets the average time per operation.
+
+- Value: The `AverageTimePerOperation` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchOperationResult.EndTime`
+
+```csharp
+public System.DateTimeOffset EndTime { get; set; }
+```
+Gets or sets the operation end time.
+
+- Value: The `EndTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchOperationResult.ErrorDetails`
+
+```csharp
+public System.Collections.Generic.List<string> ErrorDetails { get; }
+```
+Gets error details for failed operations.
+
+- Value: The `ErrorDetails` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchOperationResult.FailedOperations`
+
+```csharp
+public int FailedOperations { get; set; }
+```
+Gets or sets the number of failed operations.
+
+- Value: The `FailedOperations` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchOperationResult.OperationCount`
+
+```csharp
+public int OperationCount { get; set; }
+```
+Gets or sets the number of operations in the batch.
+
+- Value: The `OperationCount` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchOperationResult.OperationDetails`
+
+```csharp
+public System.Collections.Generic.List<IoT.DriverCore.S7PlcRx.Core.OperationDetail> OperationDetails { get; }
+```
+Gets operation details.
+
+- Value: The `OperationDetails` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchOperationResult.ProcessingTime`
+
+```csharp
+public System.TimeSpan ProcessingTime { get; }
+```
+Gets the total processing time.
+
+- Value: The `ProcessingTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchOperationResult.StartTime`
+
+```csharp
+public System.DateTimeOffset StartTime { get; set; }
+```
+Gets or sets the operation start time.
+
+- Value: The `StartTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchOperationResult.SuccessfulOperations`
+
+```csharp
+public int SuccessfulOperations { get; set; }
+```
+Gets or sets the number of successful operations.
+
+- Value: The `SuccessfulOperations` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.BatchOperations.BatchReadResult`1`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.BatchOperations.BatchReadResult`1
+```
+Represents the result of a batch read operation, including the values read, per-tag success status, error messages, and overall success information.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.BatchOperations.BatchReadResult`1.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.BatchOperations.BatchReadResult<T>()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.BatchOperations.BatchReadResult`1`.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchReadResult`1.ErrorCount`
+
+```csharp
+public int ErrorCount { get; }
+```
+Gets the count of failed reads.
+
+- Value: The `ErrorCount` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchReadResult`1.Errors`
+
+```csharp
+public System.Collections.Generic.Dictionary<string, string> Errors { get; }
+```
+Gets error messages for failed reads.
+
+- Value: The `Errors` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchReadResult`1.OverallSuccess`
+
+```csharp
+public bool OverallSuccess { get; set; }
+```
+Gets or sets a value indicating whether gets whether all reads were successful.
+
+- Value: The `OverallSuccess` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchReadResult`1.Success`
+
+```csharp
+public System.Collections.Generic.Dictionary<string, bool> Success { get; }
+```
+Gets the success status for each tag.
+
+- Value: The `Success` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchReadResult`1.SuccessCount`
+
+```csharp
+public int SuccessCount { get; }
+```
+Gets the count of successful reads.
+
+- Value: The `SuccessCount` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchReadResult`1.Values`
+
+```csharp
+public System.Collections.Generic.Dictionary<string, T> Values { get; }
+```
+Gets the successfully read values.
+
+- Value: The `Values` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.BatchOperations.BatchWriteResult`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.BatchOperations.BatchWriteResult
+```
+Represents the result of a batch write operation, including per-item success status, error messages, and overall outcome.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.BatchOperations.BatchWriteResult.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.BatchOperations.BatchWriteResult()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.BatchOperations.BatchWriteResult`.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchWriteResult.ErrorCount`
+
+```csharp
+public int ErrorCount { get; }
+```
+Gets the count of failed writes.
+
+- Value: The `ErrorCount` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchWriteResult.Errors`
+
+```csharp
+public System.Collections.Generic.Dictionary<string, string> Errors { get; }
+```
+Gets error messages for failed writes.
+
+- Value: The `Errors` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchWriteResult.OverallSuccess`
+
+```csharp
+public bool OverallSuccess { get; set; }
+```
+Gets or sets a value indicating whether gets whether all writes were successful.
+
+- Value: The `OverallSuccess` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchWriteResult.RollbackPerformed`
+
+```csharp
+public bool RollbackPerformed { get; set; }
+```
+Gets or sets a value indicating whether gets whether rollback was performed.
+
+- Value: The `RollbackPerformed` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchWriteResult.Success`
+
+```csharp
+public System.Collections.Generic.Dictionary<string, bool> Success { get; }
+```
+Gets the success status for each tag.
+
+- Value: The `Success` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.BatchOperations.BatchWriteResult.SuccessCount`
+
+```csharp
+public int SuccessCount { get; }
+```
+Gets the count of successful writes.
+
+- Value: The `SuccessCount` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Binding.S7TagBindingSession`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Binding.S7TagBindingSession
+```
+Owns the runtime and common logical clients created for one generated binding session.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Binding.S7TagBindingSession.#ctor(System.IDisposable,System.IDisposable)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Binding.S7TagBindingSession(System.IDisposable runtimeBinding, System.IDisposable logicalClient)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.Binding.S7TagBindingSession` class.
+
+- Parameter `runtimeBinding`: The runtime binding.
+- Parameter `logicalClient`: The common logical client.
+
+###### `M:IoT.DriverCore.S7PlcRx.Binding.S7TagBindingSession.Dispose`
+
+```csharp
+public void Dispose()
+```
+Inherits XML documentation from its implemented or overridden member.
+
+#### `T:IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition
+```
+Describes a generated PLC tag/property binding.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition.#ctor(System.String,System.String,System.Type,System.Int32,IoT.DriverCore.S7PlcRx.Binding.S7TagDirection,System.Int32)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition(string name, string address, System.Type valueType, int pollIntervalMs, IoT.DriverCore.S7PlcRx.Binding.S7TagDirection direction, int arrayLength)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition` class.
+
+- Parameter `name`: The property and PLC tag name.
+- Parameter `address`: The S7 DB address.
+- Parameter `valueType`: The .NET value type.
+- Parameter `pollIntervalMs`: The read polling interval in milliseconds.
+- Parameter `direction`: The tag access direction.
+- Parameter `arrayLength`: The array/string element length.
+
+###### `P:IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition.Address`
+
+```csharp
+public string Address { get; }
+```
+Gets the S7 DB address.
+
+- Value: The `Address` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition.ArrayLength`
+
+```csharp
+public int ArrayLength { get; }
+```
+Gets the array/string element length.
+
+- Value: The `ArrayLength` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition.CanRead`
+
+```csharp
+public bool CanRead { get; }
+```
+Gets a value indicating whether this tag should be read on polling intervals.
+
+- Value: The `CanRead` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition.CanWrite`
+
+```csharp
+public bool CanWrite { get; }
+```
+Gets a value indicating whether this tag can write property changes to the PLC.
+
+- Value: The `CanWrite` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition.Direction`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Binding.S7TagDirection Direction { get; }
+```
+Gets the tag access direction.
+
+- Value: The `Direction` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition.Name`
+
+```csharp
+public string Name { get; }
+```
+Gets the property and PLC tag name.
+
+- Value: The `Name` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition.PollIntervalMs`
+
+```csharp
+public int PollIntervalMs { get; }
+```
+Gets the read polling interval in milliseconds.
+
+- Value: The `PollIntervalMs` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition.ValueType`
+
+```csharp
+public System.Type ValueType { get; }
+```
+Gets the .NET value type.
+
+- Value: The `ValueType` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Binding.S7TagDirection`
+
+```csharp
+public enum IoT.DriverCore.S7PlcRx.Binding.S7TagDirection
+```
+Defines the PLC access direction for a generated tag binding.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.S7PlcRx.Binding.S7TagDirection.ReadOnly`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Binding.S7TagDirection ReadOnly
+```
+The tag is read from the PLC only.
+
+###### `F:IoT.DriverCore.S7PlcRx.Binding.S7TagDirection.ReadWrite`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Binding.S7TagDirection ReadWrite
+```
+The tag is read from and written to the PLC.
+
+###### `F:IoT.DriverCore.S7PlcRx.Binding.S7TagDirection.WriteOnly`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Binding.S7TagDirection WriteOnly
+```
+The tag is written to the PLC only.
+
+#### `T:IoT.DriverCore.S7PlcRx.Binding.S7TagObservableAdapter`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Binding.S7TagObservableAdapter
+```
+Bridges generated classic observables to async enumeration.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Binding.S7TagObservableAdapter.ToAsyncEnumerable``1(System.IObservable`1{``0})`
+
+```csharp
+public static System.Collections.Generic.IAsyncEnumerable<T> ToAsyncEnumerable<T>(System.IObservable<T> source)
+```
+Executes the `ToAsyncEnumerable` operation.
+
+- Parameter `source`: The `source` value.
+- Returns: A `System.Collections.Generic.IAsyncEnumerable<T>` result.
+
+#### `T:IoT.DriverCore.S7PlcRx.Binding.S7TagRuntimeBinding`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Binding.S7TagRuntimeBinding
+```
+Runtime engine for tag bindings that polls and writes PLC DB values in byte-array batches.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Binding.S7TagRuntimeBinding.Bind(IoT.DriverCore.S7PlcRx.IRxS7,System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition},System.Action`2{System.String,System.Object})`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.Binding.S7TagRuntimeBinding Bind(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.Collections.Generic.IReadOnlyList<IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition> definitions, System.Action<string, object> applyRead)
+```
+Executes the `Bind` operation.
+
+- Parameter `plc`: The `plc` value.
+- Parameter `definitions`: The `definitions` value.
+- Parameter `applyRead`: The `applyRead` value.
+- Returns: A `IoT.DriverCore.S7PlcRx.Binding.S7TagRuntimeBinding` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Binding.S7TagRuntimeBinding.Dispose`
+
+```csharp
+public void Dispose()
+```
+Releases timers and pending write state.
+
+###### `M:IoT.DriverCore.S7PlcRx.Binding.S7TagRuntimeBinding.Write(System.String,System.Object)`
+
+```csharp
+public void Write(string name, object value)
+```
+Queues a generated property change for a grouped byte-array write.
+
+- Parameter `name`: The generated tag/property name.
+- Parameter `value`: The new property value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Binding.S7TagValueObservable`1`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Binding.S7TagValueObservable`1
+```
+Provides generated bindings with a small replaying observable that has no subject dependency.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Binding.S7TagValueObservable`1.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Binding.S7TagValueObservable<T>()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Binding.S7TagValueObservable`1`.
+
+###### `M:IoT.DriverCore.S7PlcRx.Binding.S7TagValueObservable`1.Publish(`0)`
+
+```csharp
+public void Publish(T value)
+```
+Publishes a property value and retains it for later subscribers.
+
+- Parameter `value`: The new property value.
+
+###### `M:IoT.DriverCore.S7PlcRx.Binding.S7TagValueObservable`1.Subscribe(System.IObserver`1{`0})`
+
+```csharp
+public System.IDisposable Subscribe(System.IObserver<T> observer)
+```
+Executes the `Subscribe` operation.
+
+- Parameter `observer`: The `observer` value.
+- Returns: A `System.IDisposable` result.
+
+#### `T:IoT.DriverCore.S7PlcRx.Cache.CacheStatistics`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Cache.CacheStatistics
+```
+Provides statistical information about the state and performance of a cache, including entry counts, hit rates, and entry timestamps.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Cache.CacheStatistics.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Cache.CacheStatistics()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Cache.CacheStatistics`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Cache.CacheStatistics.CacheHitRatio`
+
+```csharp
+public double CacheHitRatio { get; }
+```
+Gets the cache hit ratio.
+
+- Value: The cache hit ratio.
+
+###### `P:IoT.DriverCore.S7PlcRx.Cache.CacheStatistics.CachedValueCount`
+
+```csharp
+public int CachedValueCount { get; }
+```
+Gets the cached value count.
+
+- Value: The cached value count.
+
+###### `P:IoT.DriverCore.S7PlcRx.Cache.CacheStatistics.HitRate`
+
+```csharp
+public double HitRate { get; set; }
+```
+Gets or sets the cache hit rate (0.0 to 1.0).
+
+- Value: The `HitRate` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Cache.CacheStatistics.NewestEntry`
+
+```csharp
+public System.DateTimeOffset NewestEntry { get; set; }
+```
+Gets or sets the timestamp of the newest cache entry.
+
+- Value: The `NewestEntry` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Cache.CacheStatistics.OldestEntry`
+
+```csharp
+public System.DateTimeOffset OldestEntry { get; set; }
+```
+Gets or sets the timestamp of the oldest cache entry.
+
+- Value: The `OldestEntry` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Cache.CacheStatistics.PendingRequestCount`
+
+```csharp
+public int PendingRequestCount { get; }
+```
+Gets the pending request count.
+
+- Value: The pending request count.
+
+###### `P:IoT.DriverCore.S7PlcRx.Cache.CacheStatistics.TotalEntries`
+
+```csharp
+public int TotalEntries { get; set; }
+```
+Gets or sets the total number of cached entries.
+
+- Value: The `TotalEntries` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Cache.CacheStatistics.TotalHits`
+
+```csharp
+public long TotalHits { get; set; }
+```
+Gets or sets the total number of cache hits.
+
+- Value: The `TotalHits` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Cache.CachedTagValue`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Cache.CachedTagValue
+```
+Represents a cached value along with metadata about its storage and usage.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Cache.CachedTagValue.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Cache.CachedTagValue()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Cache.CachedTagValue`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Cache.CachedTagValue.HitCount`
+
+```csharp
+public long HitCount { get; set; }
+```
+Gets or sets the number of cache hits.
+
+- Value: The `HitCount` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Cache.CachedTagValue.Timestamp`
+
+```csharp
+public System.DateTimeOffset Timestamp { get; set; }
+```
+Gets or sets when the value was cached.
+
+- Value: The `Timestamp` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Cache.CachedTagValue.Value`
+
+```csharp
+public object Value { get; set; }
+```
+Gets or sets the cached value.
+
+- Value: The `Value` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Core.ConnectionPool`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Core.ConnectionPool
+```
+Manages a pool of PLC connections, providing load-balanced access and connection reuse according to the specified configuration.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Core.ConnectionPool.#ctor(IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Core.ConnectionPool(IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig config)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.Core.ConnectionPool` class.
+
+- Parameter `config`: The pool configuration.
+
+###### `M:IoT.DriverCore.S7PlcRx.Core.ConnectionPool.#ctor(System.Collections.Generic.IEnumerable`1{IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig},IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Core.ConnectionPool(System.Collections.Generic.IEnumerable<IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig> connectionConfigs, IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig poolConfig)
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Core.ConnectionPool`.
+
+- Parameter `connectionConfigs`: The `connectionConfigs` value.
+- Parameter `poolConfig`: The `poolConfig` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.Core.ConnectionPool.Dispose`
+
+```csharp
+public void Dispose()
+```
+Disposes all connections in the pool.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.ConnectionPool.ActiveConnections`
+
+```csharp
+public int ActiveConnections { get; }
+```
+Gets the number of active connections.
+
+- Value: The `ActiveConnections` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.ConnectionPool.AllConnections`
+
+```csharp
+public System.Collections.Generic.IEnumerable<IoT.DriverCore.S7PlcRx.IRxS7> AllConnections { get; }
+```
+Gets all connections in the pool.
+
+- Value: The `AllConnections` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.ConnectionPool.Connection`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.IRxS7 Connection { get; }
+```
+Gets a connection from the pool using load balancing.
+
+- Returns: An available PLC connection.
+- Value: The `Connection` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.ConnectionPool.MaxConnections`
+
+```csharp
+public int MaxConnections { get; }
+```
+Gets the maximum number of connections in the pool.
+
+- Value: The `MaxConnections` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig
+```
+Configures connection-pool limits, timeouts, and behavior.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig.ConnectionTimeout`
+
+```csharp
+public System.TimeSpan ConnectionTimeout { get; set; }
+```
+Gets or sets the connection timeout.
+
+- Value: The `ConnectionTimeout` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig.EnableConnectionReuse`
+
+```csharp
+public bool EnableConnectionReuse { get; set; }
+```
+Gets or sets a value indicating whether to enable connection reuse.
+
+- Value: The `EnableConnectionReuse` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig.EnableLoadBalancing`
+
+```csharp
+public bool EnableLoadBalancing { get; set; }
+```
+Gets or sets a value indicating whether to enable load balancing.
+
+- Value: The `EnableLoadBalancing` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig.HealthCheckInterval`
+
+```csharp
+public System.TimeSpan HealthCheckInterval { get; set; }
+```
+Gets or sets the health check interval.
+
+- Value: The `HealthCheckInterval` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig.MaxConnections`
+
+```csharp
+public int MaxConnections { get; set; }
+```
+Gets or sets the maximum number of connections in the pool.
+
+- Value: The `MaxConnections` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig.MaxPoolSize`
+
+```csharp
+public int MaxPoolSize { get; set; }
+```
+Gets or sets the maximum pool size.
+
+- Value: The `MaxPoolSize` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Core.DataBlockInfo`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Core.DataBlockInfo
+```
+Represents metadata and configuration information for a data block, including its identifier, size, tag details, access frequency, and optimization settings.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Core.DataBlockInfo.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Core.DataBlockInfo()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Core.DataBlockInfo`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.DataBlockInfo.AccessFrequency`
+
+```csharp
+public double AccessFrequency { get; set; }
+```
+Gets or sets the access frequency.
+
+- Value: The `AccessFrequency` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.DataBlockInfo.BlockNumber`
+
+```csharp
+public int BlockNumber { get; set; }
+```
+Gets or sets the data block number.
+
+- Value: The `BlockNumber` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.DataBlockInfo.IsBatchOptimized`
+
+```csharp
+public bool IsBatchOptimized { get; set; }
+```
+Gets or sets whether the block is optimized for batch operations.
+
+- Value: The `IsBatchOptimized` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.DataBlockInfo.SizeBytes`
+
+```csharp
+public int SizeBytes { get; set; }
+```
+Gets or sets the total size in bytes.
+
+- Value: The `SizeBytes` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.DataBlockInfo.TagCount`
+
+```csharp
+public int TagCount { get; set; }
+```
+Gets or sets the number of tags in this block.
+
+- Value: The `TagCount` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.DataBlockInfo.TagNames`
+
+```csharp
+public System.Collections.Generic.List<string> TagNames { get; }
+```
+Gets the tags in this data block.
+
+- Value: The `TagNames` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Core.OperationDetail`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Core.OperationDetail
+```
+Describes an operation and its status, duration, and metadata.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Core.OperationDetail.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Core.OperationDetail()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Core.OperationDetail`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.OperationDetail.DataBlockNumber`
+
+```csharp
+public int DataBlockNumber { get; set; }
+```
+Gets or sets the data block number.
+
+- Value: The `DataBlockNumber` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.OperationDetail.Duration`
+
+```csharp
+public System.TimeSpan Duration { get; set; }
+```
+Gets or sets the operation duration.
+
+- Value: The `Duration` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.OperationDetail.ErrorMessage`
+
+```csharp
+public string ErrorMessage { get; set; }
+```
+Gets or sets any error message.
+
+- Value: The `ErrorMessage` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.OperationDetail.OperationType`
+
+```csharp
+public string OperationType { get; set; }
+```
+Gets or sets the operation type.
+
+- Value: The `OperationType` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.OperationDetail.Success`
+
+```csharp
+public bool Success { get; set; }
+```
+Gets or sets a value indicating whether gets or sets whether the operation succeeded.
+
+- Value: The `Success` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Core.OperationDetail.TagName`
+
+```csharp
+public string TagName { get; set; }
+```
+Gets or sets the tag name.
+
+- Value: The `TagName` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Core.RequestPriority`
+
+```csharp
+public enum IoT.DriverCore.S7PlcRx.Core.RequestPriority
+```
+Request priority levels for batch processing.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.S7PlcRx.Core.RequestPriority.Critical`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Core.RequestPriority Critical
+```
+Critical priority request.
+
+###### `F:IoT.DriverCore.S7PlcRx.Core.RequestPriority.High`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Core.RequestPriority High
+```
+High priority request.
+
+###### `F:IoT.DriverCore.S7PlcRx.Core.RequestPriority.Low`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Core.RequestPriority Low
+```
+Low priority request.
+
+###### `F:IoT.DriverCore.S7PlcRx.Core.RequestPriority.Normal`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Core.RequestPriority Normal
+```
+Normal priority request.
+
+#### `T:IoT.DriverCore.S7PlcRx.Enterprise.EnterpriseExtensions`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Enterprise.EnterpriseExtensions
+```
+Provides enterprise PLC connectivity and symbolic-addressing extensions.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.EnterpriseExtensions.CreateConnectionPool(System.Collections.Generic.IEnumerable`1{IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig},IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.Core.ConnectionPool CreateConnectionPool(System.Collections.Generic.IEnumerable<IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig> connectionConfigs, IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig poolConfig)
+```
+Executes the `CreateConnectionPool` operation.
+
+- Parameter `connectionConfigs`: The `connectionConfigs` value.
+- Parameter `poolConfig`: The `poolConfig` value.
+- Returns: A `IoT.DriverCore.S7PlcRx.Core.ConnectionPool` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.EnterpriseExtensions.CreateConnectionPool(System.Collections.Generic.IEnumerable`1{IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig},IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig,System.TimeProvider)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.Core.ConnectionPool CreateConnectionPool(System.Collections.Generic.IEnumerable<IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig> connectionConfigs, IoT.DriverCore.S7PlcRx.Core.ConnectionPoolConfig poolConfig, System.TimeProvider timeProvider)
+```
+Executes the `CreateConnectionPool` operation.
+
+- Parameter `connectionConfigs`: The `connectionConfigs` value.
+- Parameter `poolConfig`: The `poolConfig` value.
+- Parameter `timeProvider`: The `timeProvider` value.
+- Returns: A `IoT.DriverCore.S7PlcRx.Core.ConnectionPool` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.EnterpriseExtensions.CreateHighAvailabilityConnection(IoT.DriverCore.S7PlcRx.IRxS7,System.Collections.Generic.IList`1{IoT.DriverCore.S7PlcRx.IRxS7})`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager CreateHighAvailabilityConnection(IoT.DriverCore.S7PlcRx.IRxS7 primaryPlc, System.Collections.Generic.IList<IoT.DriverCore.S7PlcRx.IRxS7> backupPlcs)
+```
+Executes the `CreateHighAvailabilityConnection` operation.
+
+- Parameter `primaryPlc`: The `primaryPlc` value.
+- Parameter `backupPlcs`: The `backupPlcs` value.
+- Returns: A `IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.EnterpriseExtensions.CreateHighAvailabilityConnection(IoT.DriverCore.S7PlcRx.IRxS7,System.Collections.Generic.IList`1{IoT.DriverCore.S7PlcRx.IRxS7},System.TimeSpan)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager CreateHighAvailabilityConnection(IoT.DriverCore.S7PlcRx.IRxS7 primaryPlc, System.Collections.Generic.IList<IoT.DriverCore.S7PlcRx.IRxS7> backupPlcs, System.TimeSpan healthCheckInterval)
+```
+Executes the `CreateHighAvailabilityConnection` operation.
+
+- Parameter `primaryPlc`: The `primaryPlc` value.
+- Parameter `backupPlcs`: The `backupPlcs` value.
+- Parameter `healthCheckInterval`: The `healthCheckInterval` value.
+- Returns: A `IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.EnterpriseExtensions.LoadSymbolTableAsync(IoT.DriverCore.S7PlcRx.IRxS7,System.String)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.Enterprise.SymbolTable> LoadSymbolTableAsync(IoT.DriverCore.S7PlcRx.IRxS7 plc, string symbolTableData)
+```
+Loads and caches a CSV symbol table for symbolic addressing support.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `symbolTableData`: CSV symbol table data.
+- Returns: The loaded symbol table.
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.EnterpriseExtensions.LoadSymbolTableAsync(IoT.DriverCore.S7PlcRx.IRxS7,System.String,IoT.DriverCore.S7PlcRx.Enterprise.SymbolTableFormat)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.Enterprise.SymbolTable> LoadSymbolTableAsync(IoT.DriverCore.S7PlcRx.IRxS7 plc, string symbolTableData, IoT.DriverCore.S7PlcRx.Enterprise.SymbolTableFormat format)
+```
+Loads and caches a symbol table for symbolic addressing support.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `symbolTableData`: Symbol table data.
+- Parameter `format`: The format of the symbol table data.
+- Returns: The loaded symbol table.
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.EnterpriseExtensions.ReadSymbolAsync(IoT.DriverCore.S7PlcRx.IRxS7,System.String)`
+
+```csharp
+public static System.Threading.Tasks.Task<object> ReadSymbolAsync(IoT.DriverCore.S7PlcRx.IRxS7 plc, string symbolName)
+```
+Reads the value of the specified symbol from the PLC.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `symbolName`: The symbol name.
+- Returns: A task containing the symbol value.
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.EnterpriseExtensions.WriteSymbol``1(IoT.DriverCore.S7PlcRx.IRxS7,System.String,``0)`
+
+```csharp
+public static void WriteSymbol<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, string symbolName, T value)
+```
+Writes a value to the specified PLC symbol by name.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `symbolName`: The symbol name.
+- Parameter `value`: The value to write.
+
+#### `T:IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager
+```
+Provides high-availability management for PLC connections.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager.#ctor(IoT.DriverCore.S7PlcRx.IRxS7,System.Collections.Generic.IList`1{IoT.DriverCore.S7PlcRx.IRxS7})`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager(IoT.DriverCore.S7PlcRx.IRxS7 primaryPlc, System.Collections.Generic.IList<IoT.DriverCore.S7PlcRx.IRxS7> backupPlcs)
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager`.
+
+- Parameter `primaryPlc`: The `primaryPlc` value.
+- Parameter `backupPlcs`: The `backupPlcs` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager.#ctor(IoT.DriverCore.S7PlcRx.IRxS7,System.Collections.Generic.IList`1{IoT.DriverCore.S7PlcRx.IRxS7},System.TimeSpan)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager(IoT.DriverCore.S7PlcRx.IRxS7 primaryPlc, System.Collections.Generic.IList<IoT.DriverCore.S7PlcRx.IRxS7> backupPlcs, System.TimeSpan healthCheckInterval)
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager`.
+
+- Parameter `primaryPlc`: The `primaryPlc` value.
+- Parameter `backupPlcs`: The `backupPlcs` value.
+- Parameter `healthCheckInterval`: The `healthCheckInterval` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager.#ctor(IoT.DriverCore.S7PlcRx.IRxS7,System.Collections.Generic.IList`1{IoT.DriverCore.S7PlcRx.IRxS7},System.TimeSpan,System.TimeProvider)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager(IoT.DriverCore.S7PlcRx.IRxS7 primaryPlc, System.Collections.Generic.IList<IoT.DriverCore.S7PlcRx.IRxS7> backupPlcs, System.TimeSpan healthCheckInterval, System.TimeProvider timeProvider)
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager`.
+
+- Parameter `primaryPlc`: The `primaryPlc` value.
+- Parameter `backupPlcs`: The `backupPlcs` value.
+- Parameter `healthCheckInterval`: The `healthCheckInterval` value.
+- Parameter `timeProvider`: The `timeProvider` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager.Dispose`
+
+```csharp
+public void Dispose()
+```
+Disposes the high-availability manager.
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager.TriggerFailoverAsync`
+
+```csharp
+public System.Threading.Tasks.Task<bool> TriggerFailoverAsync()
+```
+Manually triggers a failover to the next available backup.
+
+- Returns: A value indicating whether failover was successful.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager.ActivePLC`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.IRxS7 ActivePLC { get; }
+```
+Gets the currently active PLC connection.
+
+- Value: The `ActivePLC` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.HighAvailabilityPlcManager.FailoverEvents`
+
+```csharp
+public System.IObservable<IoT.DriverCore.S7PlcRx.Enterprise.PlcFailoverEvent> FailoverEvents { get; }
+```
+Gets the observable stream of failover events.
+
+- Value: The `FailoverEvents` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig
+```
+Represents the settings required to establish a programmable logic controller connection.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig.ConnectionName`
+
+```csharp
+public string ConnectionName { get; set; }
+```
+Gets or sets the connection name.
+
+- Value: The `ConnectionName` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig.IPAddress`
+
+```csharp
+public string IPAddress { get; set; }
+```
+Gets or sets the IP address.
+
+- Value: The `IPAddress` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig.PLCType`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enums.CpuType PLCType { get; set; }
+```
+Gets or sets the PLC type.
+
+- Value: The `PLCType` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig.Rack`
+
+```csharp
+public short Rack { get; set; }
+```
+Gets or sets the rack number.
+
+- Value: The `Rack` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.PlcConnectionConfig.Slot`
+
+```csharp
+public short Slot { get; set; }
+```
+Gets or sets the slot number.
+
+- Value: The `Slot` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Enterprise.PlcFailoverEvent`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Enterprise.PlcFailoverEvent
+```
+Represents an event that occurs when a programmable logic controller failover takes place.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.PlcFailoverEvent.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enterprise.PlcFailoverEvent()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Enterprise.PlcFailoverEvent`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.PlcFailoverEvent.NewPlc`
+
+```csharp
+public string NewPlc { get; set; }
+```
+Gets or sets the new PLC identifier.
+
+- Value: The `NewPlc` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.PlcFailoverEvent.OldPlc`
+
+```csharp
+public string OldPlc { get; set; }
+```
+Gets or sets the old PLC identifier.
+
+- Value: The `OldPlc` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.PlcFailoverEvent.Reason`
+
+```csharp
+public string Reason { get; set; }
+```
+Gets or sets the reason for failover.
+
+- Value: The `Reason` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.PlcFailoverEvent.Timestamp`
+
+```csharp
+public System.DateTimeOffset Timestamp { get; set; }
+```
+Gets or sets the timestamp of the failover.
+
+- Value: The `Timestamp` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext
+```
+Represents the security context for a session, including encryption settings, session timing, and certificate information.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext()
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext` class.
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext.#ctor(System.TimeProvider)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext(System.TimeProvider timeProvider)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext` class.
+
+- Parameter `timeProvider`: The time provider.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext.CertificatePassword`
+
+```csharp
+public string CertificatePassword { get; }
+```
+Gets the certificate password.
+
+- Value: The certificate password.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext.CertificatePath`
+
+```csharp
+public string CertificatePath { get; }
+```
+Gets the certificate path.
+
+- Value: The certificate path.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext.EnableEncryption`
+
+```csharp
+public bool EnableEncryption { get; }
+```
+Gets a value indicating whether [enable encryption].
+
+- Value: true if [enable encryption]; otherwise, false .
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext.EncryptionKey`
+
+```csharp
+public string EncryptionKey { get; set; }
+```
+Gets or sets the encryption key.
+
+- Value: The `EncryptionKey` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext.IsEnabled`
+
+```csharp
+public bool IsEnabled { get; set; }
+```
+Gets or sets a value indicating whether security is enabled.
+
+- Value: The `IsEnabled` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext.IsSessionValid`
+
+```csharp
+public bool IsSessionValid { get; }
+```
+Gets a value indicating whether the session is still valid.
+
+- Value: The `IsSessionValid` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext.PLCKey`
+
+```csharp
+public string PLCKey { get; set; }
+```
+Gets or sets the PLC key identifier.
+
+- Value: The `PLCKey` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext.SessionStartTime`
+
+```csharp
+public System.DateTimeOffset SessionStartTime { get; set; }
+```
+Gets or sets the session start time.
+
+- Value: The `SessionStartTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.SecurityContext.SessionTimeout`
+
+```csharp
+public System.TimeSpan SessionTimeout { get; set; }
+```
+Gets or sets the session timeout.
+
+- Value: The `SessionTimeout` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Enterprise.Symbol`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Enterprise.Symbol
+```
+Represents a programmable logic controller (PLC) symbol, including its name, address, data type, length, and description.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.Symbol.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enterprise.Symbol()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Enterprise.Symbol`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.Symbol.Address`
+
+```csharp
+public string Address { get; set; }
+```
+Gets or sets the PLC address.
+
+- Value: The `Address` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.Symbol.DataType`
+
+```csharp
+public string DataType { get; set; }
+```
+Gets or sets the data type.
+
+- Value: The `DataType` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.Symbol.Description`
+
+```csharp
+public string Description { get; set; }
+```
+Gets or sets the description.
+
+- Value: The `Description` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.Symbol.Length`
+
+```csharp
+public int Length { get; set; }
+```
+Gets or sets the length for array types.
+
+- Value: The `Length` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.Symbol.Name`
+
+```csharp
+public string Name { get; set; }
+```
+Gets or sets the symbol name.
+
+- Value: The `Name` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Enterprise.SymbolTable`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Enterprise.SymbolTable
+```
+Represents a read-only table of named symbols and the time at which it was loaded.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.SymbolTable.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enterprise.SymbolTable()
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.Enterprise.SymbolTable` class.
+
+###### `M:IoT.DriverCore.S7PlcRx.Enterprise.SymbolTable.#ctor(System.TimeProvider)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enterprise.SymbolTable(System.TimeProvider timeProvider)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.Enterprise.SymbolTable` class.
+
+- Parameter `timeProvider`: The time provider.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.SymbolTable.LoadedAt`
+
+```csharp
+public System.DateTimeOffset LoadedAt { get; }
+```
+Gets the timestamp when the symbol table was loaded.
+
+- Value: The `LoadedAt` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Enterprise.SymbolTable.Symbols`
+
+```csharp
+public System.Collections.Generic.Dictionary<string, IoT.DriverCore.S7PlcRx.Enterprise.Symbol> Symbols { get; }
+```
+Gets the collection of symbols indexed by name.
+
+- Value: The `Symbols` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Enterprise.SymbolTableFormat`
+
+```csharp
+public enum IoT.DriverCore.S7PlcRx.Enterprise.SymbolTableFormat
+```
+Specifies the supported formats for serializing or deserializing a symbol table.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.S7PlcRx.Enterprise.SymbolTableFormat.Csv`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enterprise.SymbolTableFormat Csv
+```
+CSV format.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enterprise.SymbolTableFormat.Json`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enterprise.SymbolTableFormat Json
+```
+JSON format.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enterprise.SymbolTableFormat.Xml`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enterprise.SymbolTableFormat Xml
+```
+XML format.
+
+#### `T:IoT.DriverCore.S7PlcRx.Enums.CpuType`
+
+```csharp
+public enum IoT.DriverCore.S7PlcRx.Enums.CpuType
+```
+Specifies the supported CPU types for Siemens programmable logic controllers (PLCs).
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.CpuType.Logo0BA8`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.CpuType Logo0BA8
+```
+The logo0ba8.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.CpuType.S71200`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.CpuType S71200
+```
+The Siemens S7 1200 CPU family.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.CpuType.S71500`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.CpuType S71500
+```
+The Siemens S7 1500 CPU family.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.CpuType.S7200`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.CpuType S7200
+```
+The S7200.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.CpuType.S7300`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.CpuType S7300
+```
+The S7300.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.CpuType.S7400`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.CpuType S7400
+```
+The S7400.
+
+#### `T:IoT.DriverCore.S7PlcRx.Enums.ErrorCode`
+
+```csharp
+public enum IoT.DriverCore.S7PlcRx.Enums.ErrorCode
+```
+Specifies error codes that indicate the result of an operation or the type of error encountered.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.ErrorCode.ConnectionError`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.ErrorCode ConnectionError
+```
+The connection error.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.ErrorCode.IPAddressNotAvailable`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.ErrorCode IPAddressNotAvailable
+```
+The IP address not available.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.ErrorCode.NoError`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.ErrorCode NoError
+```
+The no error.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.ErrorCode.ReadData`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.ErrorCode ReadData
+```
+The read data.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.ErrorCode.SendData`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.ErrorCode SendData
+```
+The send data.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.ErrorCode.WriteData`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.ErrorCode WriteData
+```
+The write data.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.ErrorCode.WrongCPUType`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.ErrorCode WrongCPUType
+```
+The wrong CPU type.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.ErrorCode.WrongNumberReceivedBytes`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.ErrorCode WrongNumberReceivedBytes
+```
+The wrong number received bytes.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.ErrorCode.WrongVarFormat`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.ErrorCode WrongVarFormat
+```
+The wrong variable format.
+
+#### `T:IoT.DriverCore.S7PlcRx.Enums.S7StringType`
+
+```csharp
+public enum IoT.DriverCore.S7PlcRx.Enums.S7StringType
+```
+Specifies the string encoding type used for S7 PLC string variables.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.S7StringType.None`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.S7StringType None
+```
+No S7 string encoding type has been selected.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.S7StringType.S7String`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.S7StringType S7String
+```
+ASCII string.
+
+###### `F:IoT.DriverCore.S7PlcRx.Enums.S7StringType.S7WString`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Enums.S7StringType S7WString
+```
+Unicode string.
+
+#### `T:IoT.DriverCore.S7PlcRx.IRxS7`
+
+```csharp
+public interface IoT.DriverCore.S7PlcRx.IRxS7
+```
+Defines an interface for reactive communication with a Siemens S7 PLC, providing observable access to connection status, errors, tag values, and PLC information, as well as methods for reading and writing variables asynchronously.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.IRxS7.GetCpuInfo`
+
+```csharp
+public System.IObservable<string[]> GetCpuInfo()
+```
+Retrieves an observable sequence containing information about the system's CPU.
+
+- Returns: An observable sequence of string arrays, where each array contains details about the CPU. It emits new arrays when CPU information is updated.
+
+###### `M:IoT.DriverCore.S7PlcRx.IRxS7.Observe``1(IoT.DriverCore.Core.LogicalTagKey`1{``0})`
+
+```csharp
+public System.IObservable<T> Observe<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag)
+```
+Executes the `Observe` operation.
+
+- Parameter `tag`: The `tag` value.
+- Returns: A `System.IObservable<T>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.IRxS7.ReadAsync``1(IoT.DriverCore.Core.LogicalTagKey`1{``0})`
+
+```csharp
+public System.Threading.Tasks.Task<T> ReadAsync<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag)
+```
+Executes the `ReadAsync` operation.
+
+- Parameter `tag`: The `tag` value.
+- Returns: A `System.Threading.Tasks.Task<T>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.IRxS7.ReadAsync``1(IoT.DriverCore.Core.LogicalTagKey`1{``0},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<T> ReadAsync<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `ReadAsync` operation.
+
+- Parameter `tag`: The `tag` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<T>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.IRxS7.Value``1(System.String,``0)`
+
+```csharp
+public void Value<T>(string variable, T value)
+```
+Sets the value of a variable with the specified name and value.
+
+- Parameter `variable`: The name of the variable to set. Can be null to indicate an unnamed or default variable.
+- Parameter `value`: The value to assign to the variable. Can be null if the variable type allows null values.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.IP`
+
+```csharp
+public string IP { get; }
+```
+Gets the IP address associated with the current instance.
+
+- Value: The `IP` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.IsConnected`
+
+```csharp
+public System.IObservable<bool> IsConnected { get; }
+```
+Gets an observable sequence that indicates whether the connection is currently established.
+
+- Value: The `IsConnected` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.IsConnectedValue`
+
+```csharp
+public bool IsConnectedValue { get; }
+```
+Gets a value indicating whether the connection is currently established.
+
+- Value: The `IsConnectedValue` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.IsPaused`
+
+```csharp
+public System.IObservable<bool> IsPaused { get; }
+```
+Gets an observable sequence that indicates whether the operation is currently paused.
+
+- Value: The `IsPaused` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.LastError`
+
+```csharp
+public System.IObservable<string> LastError { get; }
+```
+Gets an observable sequence that provides error messages encountered during operation.
+
+- Value: The `LastError` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.LastErrorCode`
+
+```csharp
+public System.IObservable<IoT.DriverCore.S7PlcRx.Enums.ErrorCode> LastErrorCode { get; }
+```
+Gets an observable sequence of the most recent error codes.
+
+- Value: The `LastErrorCode` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.ObserveAll`
+
+```csharp
+public System.IObservable<IoT.DriverCore.S7PlcRx.Tag> ObserveAll { get; }
+```
+Gets an observable sequence that emits all tag updates as they occur.
+
+- Value: The `ObserveAll` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.PLCType`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enums.CpuType PLCType { get; }
+```
+Gets the type of programmable logic controller (PLC) associated with this instance.
+
+- Value: The `PLCType` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.Rack`
+
+```csharp
+public short Rack { get; }
+```
+Gets the rack number associated with the device or connection.
+
+- Value: The `Rack` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.ReadTime`
+
+```csharp
+public System.IObservable<long> ReadTime { get; }
+```
+Gets an observable sequence that provides the current read time in ticks.
+
+- Value: The `ReadTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.ShowWatchDogWriting`
+
+```csharp
+public bool ShowWatchDogWriting { get; set; }
+```
+Gets or sets a value indicating whether WatchDog writing operations are displayed.
+
+- Value: The `ShowWatchDogWriting` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.Slot`
+
+```csharp
+public short Slot { get; }
+```
+Gets the slot number associated with the current instance.
+
+- Value: The `Slot` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.Status`
+
+```csharp
+public System.IObservable<string> Status { get; }
+```
+Gets an observable sequence that provides status updates as strings.
+
+- Value: The `Status` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.TagList`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Tags TagList { get; }
+```
+Gets the collection of tags associated with the current instance.
+
+- Value: The `TagList` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.WatchDogAddress`
+
+```csharp
+public string WatchDogAddress { get; }
+```
+Gets the network address of the WatchDog service, if configured.
+
+- Value: The `WatchDogAddress` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.WatchDogValueToWrite`
+
+```csharp
+public ushort WatchDogValueToWrite { get; set; }
+```
+Gets or sets the value to be written to the watchdog register.
+
+- Value: The `WatchDogValueToWrite` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.IRxS7.WatchDogWritingTime`
+
+```csharp
+public int WatchDogWritingTime { get; }
+```
+Gets the time interval, in milliseconds, used by the watchdog for writing operations.
+
+- Value: The `WatchDogWritingTime` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.ITag`
+
+```csharp
+public interface IoT.DriverCore.S7PlcRx.ITag
+```
+Represents a tag that can be configured to control polling behavior.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.ITag.SetDoNotPoll(System.Boolean)`
+
+```csharp
+public void SetDoNotPoll(bool value)
+```
+Sets whether the object should be excluded from polling operations.
+
+- Parameter `value`: true to prevent the object from being polled; otherwise, false.
+
+#### `T:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient
+```
+Composes an S7 connection with the common logical-tag catalog, persistence, and client contracts.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.#ctor(IoT.DriverCore.S7PlcRx.IRxS7,IoT.DriverCore.Core.ILogicalTagCatalog)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient(IoT.DriverCore.S7PlcRx.IRxS7 plc, IoT.DriverCore.Core.ILogicalTagCatalog catalog)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient` class.
+
+- Parameter `plc`: The S7 connection.
+- Parameter `catalog`: The common logical-tag catalog.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.#ctor(IoT.DriverCore.S7PlcRx.IRxS7,IoT.DriverCore.Core.ILogicalTagCatalog,IoT.DriverCore.Core.LogicalTagSqliteStore)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient(IoT.DriverCore.S7PlcRx.IRxS7 plc, IoT.DriverCore.Core.ILogicalTagCatalog catalog, IoT.DriverCore.Core.LogicalTagSqliteStore store)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient` class.
+
+- Parameter `plc`: The S7 connection.
+- Parameter `catalog`: The common logical-tag catalog.
+- Parameter `store`: The SQLite store used by persistence forwarding methods, or .
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.#ctor(IoT.DriverCore.S7PlcRx.IRxS7,IoT.DriverCore.Core.ILogicalTagCatalog,IoT.DriverCore.Core.LogicalTagSqliteStore,System.TimeProvider)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient(IoT.DriverCore.S7PlcRx.IRxS7 plc, IoT.DriverCore.Core.ILogicalTagCatalog catalog, IoT.DriverCore.Core.LogicalTagSqliteStore store, System.TimeProvider timeProvider)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient` class.
+
+- Parameter `plc`: The S7 connection.
+- Parameter `catalog`: The common logical-tag catalog.
+- Parameter `store`: The SQLite store used by persistence forwarding methods, or .
+- Parameter `timeProvider`: The time provider.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.#ctor(IoT.DriverCore.S7PlcRx.IRxS7,IoT.DriverCore.Core.ILogicalTagCatalog,System.TimeProvider)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient(IoT.DriverCore.S7PlcRx.IRxS7 plc, IoT.DriverCore.Core.ILogicalTagCatalog catalog, System.TimeProvider timeProvider)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient` class.
+
+- Parameter `plc`: The S7 connection.
+- Parameter `catalog`: The common logical-tag catalog.
+- Parameter `timeProvider`: The time provider.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.CreateTag(IoT.DriverCore.Core.LogicalTag)`
+
+```csharp
+public IoT.DriverCore.Core.LogicalTag CreateTag(IoT.DriverCore.Core.LogicalTag tag)
+```
+Registers and returns an S7 logical tag.
+
+- Parameter `tag`: The logical tag to register.
+- Returns: The registered logical tag.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.DeleteGroupAsync(System.String)`
+
+```csharp
+public System.Threading.Tasks.Task<bool> DeleteGroupAsync(string name)
+```
+Deletes a persisted logical group.
+
+- Parameter `name`: The logical group name.
+- Returns: True when the group was deleted.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.DeleteGroupAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<bool> DeleteGroupAsync(string name, System.Threading.CancellationToken cancellationToken)
+```
+Deletes a persisted logical group.
+
+- Parameter `name`: The logical group name.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: True when the group was deleted.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.DeleteTagAsync(System.String)`
+
+```csharp
+public System.Threading.Tasks.Task<bool> DeleteTagAsync(string name)
+```
+Deletes a persisted tag and removes it from the live catalog when successful.
+
+- Parameter `name`: The logical tag name.
+- Returns: True when the tag was deleted.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.DeleteTagAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<bool> DeleteTagAsync(string name, System.Threading.CancellationToken cancellationToken)
+```
+Deletes a persisted tag and removes it from the live catalog when successful.
+
+- Parameter `name`: The logical tag name.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: True when the tag was deleted.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.Dispose`
+
+```csharp
+public void Dispose()
+```
+Inherits XML documentation from its implemented or overridden member.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.EditTagAsync(IoT.DriverCore.Core.LogicalTag)`
+
+```csharp
+public System.Threading.Tasks.Task<bool> EditTagAsync(IoT.DriverCore.Core.LogicalTag tag)
+```
+Edits an existing persisted logical tag and updates the live catalog when successful.
+
+- Parameter `tag`: The logical tag.
+- Returns: True when the tag was updated.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.EditTagAsync(IoT.DriverCore.Core.LogicalTag,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<bool> EditTagAsync(IoT.DriverCore.Core.LogicalTag tag, System.Threading.CancellationToken cancellationToken)
+```
+Edits an existing persisted logical tag and updates the live catalog when successful.
+
+- Parameter `tag`: The logical tag.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: True when the tag was updated.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.ExportCsvAsync(System.IO.TextWriter)`
+
+```csharp
+public System.Threading.Tasks.Task ExportCsvAsync(System.IO.TextWriter writer)
+```
+Exports the catalog using the common RFC 4180 CSV representation.
+
+- Parameter `writer`: The CSV writer.
+- Returns: A task that represents the export operation.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.ExportCsvAsync(System.IO.TextWriter,System.Char)`
+
+```csharp
+public System.Threading.Tasks.Task ExportCsvAsync(System.IO.TextWriter writer, char delimiter)
+```
+Exports the catalog using the common CSV representation.
+
+- Parameter `writer`: The CSV writer.
+- Parameter `delimiter`: The CSV delimiter.
+- Returns: A task that represents the export operation.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.ExportCsvAsync(System.IO.TextWriter,System.Char,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task ExportCsvAsync(System.IO.TextWriter writer, char delimiter, System.Threading.CancellationToken cancellationToken)
+```
+Exports the catalog using the common CSV representation.
+
+- Parameter `writer`: The CSV writer.
+- Parameter `delimiter`: The CSV delimiter.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: A task that represents the export operation.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.GetGroupAsync(System.String)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.Core.LogicalTagGroup> GetGroupAsync(string name)
+```
+Gets a persisted logical group.
+
+- Parameter `name`: The logical group name.
+- Returns: The persisted logical group, if found.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.GetGroupAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.Core.LogicalTagGroup> GetGroupAsync(string name, System.Threading.CancellationToken cancellationToken)
+```
+Gets a persisted logical group.
+
+- Parameter `name`: The logical group name.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: The persisted logical group, if found.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.GetTagAsync(System.String)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.Core.LogicalTag> GetTagAsync(string name)
+```
+Gets a persisted logical tag.
+
+- Parameter `name`: The logical tag name.
+- Returns: The persisted logical tag, if found.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.GetTagAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.Core.LogicalTag> GetTagAsync(string name, System.Threading.CancellationToken cancellationToken)
+```
+Gets a persisted logical tag.
+
+- Parameter `name`: The logical tag name.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: The persisted logical tag, if found.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.ImportCsvAsync(System.IO.TextReader)`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> ImportCsvAsync(System.IO.TextReader reader)
+```
+Imports RFC 4180 common-tag CSV and dynamically upserts every definition.
+
+- Parameter `reader`: The CSV reader.
+- Returns: The imported logical tags.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.ImportCsvAsync(System.IO.TextReader,System.Char)`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> ImportCsvAsync(System.IO.TextReader reader, char delimiter)
+```
+Imports common-tag CSV and dynamically upserts every definition.
+
+- Parameter `reader`: The CSV reader.
+- Parameter `delimiter`: The CSV delimiter.
+- Returns: The imported logical tags.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.ImportCsvAsync(System.IO.TextReader,System.Char,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> ImportCsvAsync(System.IO.TextReader reader, char delimiter, System.Threading.CancellationToken cancellationToken)
+```
+Imports common-tag CSV and dynamically upserts every definition.
+
+- Parameter `reader`: The CSV reader.
+- Parameter `delimiter`: The CSV delimiter.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: The imported logical tags.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.InitializeStoreAsync(IoT.DriverCore.Core.LogicalTagSqliteStore)`
+
+```csharp
+public System.Threading.Tasks.Task InitializeStoreAsync(IoT.DriverCore.Core.LogicalTagSqliteStore store)
+```
+Assigns and initializes the SQLite store used by this client.
+
+- Parameter `store`: The SQLite store.
+- Returns: A task that represents the initialization operation.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.InitializeStoreAsync(IoT.DriverCore.Core.LogicalTagSqliteStore,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task InitializeStoreAsync(IoT.DriverCore.Core.LogicalTagSqliteStore store, System.Threading.CancellationToken cancellationToken)
+```
+Assigns and initializes the SQLite store used by this client.
+
+- Parameter `store`: The SQLite store.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: A task that represents the initialization operation.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.InitializeStoreAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task InitializeStoreAsync(System.Threading.CancellationToken cancellationToken)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.ListGroupsAsync`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTagGroup>> ListGroupsAsync()
+```
+Lists persisted logical groups.
+
+- Returns: The persisted logical groups.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.ListGroupsAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTagGroup>> ListGroupsAsync(System.Threading.CancellationToken cancellationToken)
+```
+Lists persisted logical groups.
+
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: The persisted logical groups.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.ListTagsAsync`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> ListTagsAsync()
+```
+Lists persisted logical tags.
+
+- Returns: The persisted logical tags.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.ListTagsAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> ListTagsAsync(System.Threading.CancellationToken cancellationToken)
+```
+Lists persisted logical tags.
+
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: The persisted logical tags.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.LoadTagsAsync`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> LoadTagsAsync()
+```
+Loads every SQLite tag into the live catalog.
+
+- Returns: The loaded logical tags.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.LoadTagsAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> LoadTagsAsync(System.Threading.CancellationToken cancellationToken)
+```
+Loads every SQLite tag into the live catalog.
+
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: The loaded logical tags.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.Observe(System.String)`
+
+```csharp
+public System.IObservable<IoT.DriverCore.Core.LogicalTagValue> Observe(string tagName)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `tagName`: The `tagName` value.
+- Returns: A `System.IObservable<IoT.DriverCore.Core.LogicalTagValue>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.ObserveAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Collections.Generic.IAsyncEnumerable<IoT.DriverCore.Core.LogicalTagValue> ObserveAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `tagName`: The `tagName` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Collections.Generic.IAsyncEnumerable<IoT.DriverCore.Core.LogicalTagValue>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.ObserveMany(System.Collections.Generic.IReadOnlyCollection`1{System.String})`
+
+```csharp
+public System.IObservable<IoT.DriverCore.Core.LogicalTagValue> ObserveMany(System.Collections.Generic.IReadOnlyCollection<string> tagNames)
+```
+Executes the `ObserveMany` operation.
+
+- Parameter `tagNames`: The `tagNames` value.
+- Returns: A `System.IObservable<IoT.DriverCore.Core.LogicalTagValue>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.ObserveManyAsync(System.Collections.Generic.IReadOnlyCollection`1{System.String},System.Threading.CancellationToken)`
+
+```csharp
+public System.Collections.Generic.IAsyncEnumerable<IoT.DriverCore.Core.LogicalTagValue> ObserveManyAsync(System.Collections.Generic.IReadOnlyCollection<string> tagNames, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `ObserveManyAsync` operation.
+
+- Parameter `tagNames`: The `tagNames` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Collections.Generic.IAsyncEnumerable<IoT.DriverCore.Core.LogicalTagValue>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.ReadAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>> ReadAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `tagName`: The `tagName` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.ReadManyAsync(System.Collections.Generic.IReadOnlyCollection`1{System.String},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>> ReadManyAsync(System.Collections.Generic.IReadOnlyCollection<string> tagNames, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `ReadManyAsync` operation.
+
+- Parameter `tagNames`: The `tagNames` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.RegisterTag(IoT.DriverCore.Core.LogicalTag)`
+
+```csharp
+public void RegisterTag(IoT.DriverCore.Core.LogicalTag tag)
+```
+Adds or replaces a logical definition and registers it with the S7 connection.
+
+- Parameter `tag`: The logical tag.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.RemoveTag(System.String)`
+
+```csharp
+public bool RemoveTag(string name)
+```
+Removes a logical definition and its S7 registration.
+
+- Parameter `name`: The logical tag name.
+- Returns: True when the tag existed.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.UpdateTagAsync(IoT.DriverCore.Core.LogicalTag)`
+
+```csharp
+public System.Threading.Tasks.Task<bool> UpdateTagAsync(IoT.DriverCore.Core.LogicalTag tag)
+```
+Alias for `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.EditTagAsync(IoT.DriverCore.Core.LogicalTag)` .
+
+- Parameter `tag`: The logical tag.
+- Returns: True when the tag was updated.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.UpdateTagAsync(IoT.DriverCore.Core.LogicalTag,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<bool> UpdateTagAsync(IoT.DriverCore.Core.LogicalTag tag, System.Threading.CancellationToken cancellationToken)
+```
+Alias for `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.EditTagAsync(IoT.DriverCore.Core.LogicalTag,System.Threading.CancellationToken)` .
+
+- Parameter `tag`: The logical tag.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: True when the tag was updated.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.UpsertGroupAsync(IoT.DriverCore.Core.LogicalTagGroup)`
+
+```csharp
+public System.Threading.Tasks.Task UpsertGroupAsync(IoT.DriverCore.Core.LogicalTagGroup group)
+```
+Persists a logical group.
+
+- Parameter `group`: The logical group.
+- Returns: A task that represents the persistence operation.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.UpsertGroupAsync(IoT.DriverCore.Core.LogicalTagGroup,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task UpsertGroupAsync(IoT.DriverCore.Core.LogicalTagGroup group, System.Threading.CancellationToken cancellationToken)
+```
+Persists a logical group.
+
+- Parameter `group`: The logical group.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: A task that represents the persistence operation.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.UpsertTagAsync(IoT.DriverCore.Core.LogicalTag)`
+
+```csharp
+public System.Threading.Tasks.Task UpsertTagAsync(IoT.DriverCore.Core.LogicalTag tag)
+```
+Persists and dynamically registers a logical tag.
+
+- Parameter `tag`: The logical tag.
+- Returns: A task that represents the persistence operation.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.UpsertTagAsync(IoT.DriverCore.Core.LogicalTag,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task UpsertTagAsync(IoT.DriverCore.Core.LogicalTag tag, System.Threading.CancellationToken cancellationToken)
+```
+Persists and dynamically registers a logical tag.
+
+- Parameter `tag`: The logical tag.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: A task that represents the persistence operation.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.WriteAsync(IoT.DriverCore.Core.LogicalTagValue,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>> WriteAsync(IoT.DriverCore.Core.LogicalTagValue value, System.Threading.CancellationToken cancellationToken)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `value`: The `value` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.WriteManyAsync(System.Collections.Generic.IReadOnlyCollection`1{IoT.DriverCore.Core.LogicalTagValue},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>> WriteManyAsync(System.Collections.Generic.IReadOnlyCollection<IoT.DriverCore.Core.LogicalTagValue> values, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `WriteManyAsync` operation.
+
+- Parameter `values`: The `values` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>>` result.
+
+###### `P:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient.Catalog`
+
+```csharp
+public IoT.DriverCore.Core.ILogicalTagCatalog Catalog { get; }
+```
+Gets the mutable logical-tag catalog observed by this client.
+
+- Value: The `Catalog` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagExtensions`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagExtensions
+```
+Creates common logical clients and typed operation-result projections for S7 callers.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagExtensions.CreateLogicalTagCatalog(System.Collections.Generic.IEnumerable`1{IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition})`
+
+```csharp
+public static IoT.DriverCore.Core.LogicalTagCatalog CreateLogicalTagCatalog(System.Collections.Generic.IEnumerable<IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition> definitions)
+```
+Executes the `CreateLogicalTagCatalog` operation.
+
+- Parameter `definitions`: The `definitions` value.
+- Returns: A `IoT.DriverCore.Core.LogicalTagCatalog` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagExtensions.CreateLogicalTagClient(IoT.DriverCore.S7PlcRx.IRxS7,IoT.DriverCore.Core.ILogicalTagCatalog)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient CreateLogicalTagClient(IoT.DriverCore.S7PlcRx.IRxS7 plc, IoT.DriverCore.Core.ILogicalTagCatalog catalog)
+```
+Creates a dynamically synchronized logical client.
+
+- Parameter `plc`: The S7 connection.
+- Parameter `catalog`: The logical-tag catalog.
+- Returns: The dynamically synchronized logical client.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagExtensions.CreateLogicalTagClient(IoT.DriverCore.S7PlcRx.IRxS7,IoT.DriverCore.Core.ILogicalTagCatalog,IoT.DriverCore.Core.LogicalTagSqliteStore)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagClient CreateLogicalTagClient(IoT.DriverCore.S7PlcRx.IRxS7 plc, IoT.DriverCore.Core.ILogicalTagCatalog catalog, IoT.DriverCore.Core.LogicalTagSqliteStore store)
+```
+Creates a dynamically synchronized logical client with persistence.
+
+- Parameter `plc`: The S7 connection.
+- Parameter `catalog`: The logical-tag catalog.
+- Parameter `store`: The SQLite store.
+- Returns: The dynamically synchronized logical client.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagExtensions.ReadAsync``1(IoT.DriverCore.Core.ILogicalTagClient,System.String,``0)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<T>> ReadAsync<T>(IoT.DriverCore.Core.ILogicalTagClient client, string tagName, T type)
+```
+Reads and converts a common logical result to the requested payload type.
+
+- Parameter `client`: The logical-tag client.
+- Parameter `tagName`: The logical tag name.
+- Parameter `type`: A value that supplies the requested payload type.
+- Returns: The typed tag operation result.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagExtensions.ReadAsync``1(IoT.DriverCore.Core.ILogicalTagClient,System.String,``0,System.Threading.CancellationToken)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<T>> ReadAsync<T>(IoT.DriverCore.Core.ILogicalTagClient client, string tagName, T type, System.Threading.CancellationToken cancellationToken)
+```
+Reads and converts a common logical result to the requested payload type.
+
+- Parameter `client`: The logical-tag client.
+- Parameter `tagName`: The logical tag name.
+- Parameter `type`: A value that supplies the requested payload type.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: The typed tag operation result.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagExtensions.WriteAsync``1(IoT.DriverCore.Core.ILogicalTagClient,System.String,``0,System.Threading.CancellationToken)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<T>> WriteAsync<T>(IoT.DriverCore.Core.ILogicalTagClient client, string tagName, T value, System.Threading.CancellationToken cancellationToken)
+```
+Writes a typed common logical value and projects the result payload.
+
+- Parameter `client`: The logical-tag client.
+- Parameter `tagName`: The logical tag name.
+- Parameter `value`: The value to write.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: The typed tag operation result.
+
+###### `M:IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagExtensions.WriteAsync``1(IoT.DriverCore.Core.ILogicalTagClient,System.String,``0,System.TimeProvider,System.Threading.CancellationToken)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<T>> WriteAsync<T>(IoT.DriverCore.Core.ILogicalTagClient client, string tagName, T value, System.TimeProvider timeProvider, System.Threading.CancellationToken cancellationToken)
+```
+Writes a typed common logical value and projects the result payload.
+
+- Parameter `client`: The logical-tag client.
+- Parameter `tagName`: The logical tag name.
+- Parameter `value`: The value to write.
+- Parameter `timeProvider`: The time provider.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: The typed tag operation result.
+
+#### `T:IoT.DriverCore.S7PlcRx.Optimization.OptimizationExtensions`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Optimization.OptimizationExtensions
+```
+Provides extension methods for IRxS7 to enable optimized tag monitoring, intelligent value caching, and cache management for PLC data access.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Optimization.OptimizationExtensions.ClearCache(IoT.DriverCore.S7PlcRx.IRxS7)`
+
+```csharp
+public static void ClearCache(IoT.DriverCore.S7PlcRx.IRxS7 plc)
+```
+Clears all cached values for the specified PLC instance.
+
+- Parameter `plc`: The PLC instance.
+
+###### `M:IoT.DriverCore.S7PlcRx.Optimization.OptimizationExtensions.ClearCache(IoT.DriverCore.S7PlcRx.IRxS7,System.String)`
+
+```csharp
+public static void ClearCache(IoT.DriverCore.S7PlcRx.IRxS7 plc, string tagName)
+```
+Clears a cached value for the specified PLC tag.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `tagName`: The name of the tag to clear from the cache.
+
+###### `M:IoT.DriverCore.S7PlcRx.Optimization.OptimizationExtensions.GetCacheStatistics(IoT.DriverCore.S7PlcRx.IRxS7)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.Cache.CacheStatistics GetCacheStatistics(IoT.DriverCore.S7PlcRx.IRxS7 plc)
+```
+Retrieves cache usage statistics for the specified PLC instance.
+
+- Parameter `plc`: The PLC instance.
+- Returns: A CacheStatistics object containing aggregated cache metrics for the specified PLC.
+
+###### `M:IoT.DriverCore.S7PlcRx.Optimization.OptimizationExtensions.GetCacheStatistics(IoT.DriverCore.S7PlcRx.IRxS7,System.TimeProvider)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.Cache.CacheStatistics GetCacheStatistics(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.TimeProvider timeProvider)
+```
+Retrieves cache usage statistics for the specified PLC instance.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `timeProvider`: The time provider.
+- Returns: A CacheStatistics object containing aggregated cache metrics for the specified PLC.
+
+###### `M:IoT.DriverCore.S7PlcRx.Optimization.OptimizationExtensions.MonitorTagSmart``1(IoT.DriverCore.S7PlcRx.IRxS7,System.String,System.Collections.Generic.IEqualityComparer`1{``0},System.Double,System.Int32)`
+
+```csharp
+public static System.IObservable<IoT.DriverCore.S7PlcRx.Optimization.SmartTagChange<T>> MonitorTagSmart<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, string tagName, System.Collections.Generic.IEqualityComparer<T> comparer, double changeThreshold, int debounceMs)
+```
+Executes the `MonitorTagSmart` operation.
+
+- Parameter `plc`: The `plc` value.
+- Parameter `tagName`: The `tagName` value.
+- Parameter `comparer`: The `comparer` value.
+- Parameter `changeThreshold`: The `changeThreshold` value.
+- Parameter `debounceMs`: The `debounceMs` value.
+- Returns: A `System.IObservable<IoT.DriverCore.S7PlcRx.Optimization.SmartTagChange<T>>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Optimization.OptimizationExtensions.MonitorTagSmart``1(IoT.DriverCore.S7PlcRx.IRxS7,System.String,System.Collections.Generic.IEqualityComparer`1{``0},System.Double,System.Int32,System.TimeProvider)`
+
+```csharp
+public static System.IObservable<IoT.DriverCore.S7PlcRx.Optimization.SmartTagChange<T>> MonitorTagSmart<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, string tagName, System.Collections.Generic.IEqualityComparer<T> comparer, double changeThreshold, int debounceMs, System.TimeProvider timeProvider)
+```
+Executes the `MonitorTagSmart` operation.
+
+- Parameter `plc`: The `plc` value.
+- Parameter `tagName`: The `tagName` value.
+- Parameter `comparer`: The `comparer` value.
+- Parameter `changeThreshold`: The `changeThreshold` value.
+- Parameter `debounceMs`: The `debounceMs` value.
+- Parameter `timeProvider`: The `timeProvider` value.
+- Returns: A `System.IObservable<IoT.DriverCore.S7PlcRx.Optimization.SmartTagChange<T>>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Optimization.OptimizationExtensions.ValueCachedAsync``1(IoT.DriverCore.S7PlcRx.IRxS7,System.String,``0,System.TimeSpan)`
+
+```csharp
+public static System.Threading.Tasks.Task<T> ValueCachedAsync<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, string tagName, T fallbackValue, System.TimeSpan cacheTimeout)
+```
+Retrieves a PLC tag value, using a valid cached value when available.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `tagName`: The name of the PLC tag to read.
+- Parameter `fallbackValue`: The value returned when the PLC does not provide a value.
+- Parameter `cacheTimeout`: The maximum duration for which a cached value is considered valid.
+- Returns: A task that represents the asynchronous operation.
+
+###### `M:IoT.DriverCore.S7PlcRx.Optimization.OptimizationExtensions.ValueCachedAsync``1(IoT.DriverCore.S7PlcRx.IRxS7,System.String,``0,System.TimeSpan,System.TimeProvider)`
+
+```csharp
+public static System.Threading.Tasks.Task<T> ValueCachedAsync<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, string tagName, T fallbackValue, System.TimeSpan cacheTimeout, System.TimeProvider timeProvider)
+```
+Retrieves a PLC tag value, using a valid cached value when available.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `tagName`: The name of the PLC tag to read.
+- Parameter `fallbackValue`: The value returned when the PLC does not provide a value.
+- Parameter `cacheTimeout`: The maximum duration for which a cached value is considered valid.
+- Parameter `timeProvider`: The time provider.
+- Returns: A task that represents the asynchronous operation.
+
+#### `T:IoT.DriverCore.S7PlcRx.Optimization.OptimizationRequestPriority`
+
+```csharp
+public enum IoT.DriverCore.S7PlcRx.Optimization.OptimizationRequestPriority
+```
+Specifies the priority level for an optimization request.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.S7PlcRx.Optimization.OptimizationRequestPriority.Critical`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Optimization.OptimizationRequestPriority Critical
+```
+Critical priority.
+
+###### `F:IoT.DriverCore.S7PlcRx.Optimization.OptimizationRequestPriority.High`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Optimization.OptimizationRequestPriority High
+```
+High priority.
+
+###### `F:IoT.DriverCore.S7PlcRx.Optimization.OptimizationRequestPriority.Low`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Optimization.OptimizationRequestPriority Low
+```
+Low priority.
+
+###### `F:IoT.DriverCore.S7PlcRx.Optimization.OptimizationRequestPriority.Normal`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Optimization.OptimizationRequestPriority Normal
+```
+Normal priority.
+
+#### `T:IoT.DriverCore.S7PlcRx.Optimization.ReadOptimizationConfig`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Optimization.ReadOptimizationConfig
+```
+Provides configuration options for optimizing read operations, including parallelism, delays, concurrency limits, and timeouts within data block groups.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Optimization.ReadOptimizationConfig.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Optimization.ReadOptimizationConfig()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Optimization.ReadOptimizationConfig`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.ReadOptimizationConfig.EnableParallelReads`
+
+```csharp
+public bool EnableParallelReads { get; set; }
+```
+Gets or sets whether parallel reads within data block groups are enabled.
+
+- Value: The `EnableParallelReads` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.ReadOptimizationConfig.InterGroupDelayMs`
+
+```csharp
+public int InterGroupDelayMs { get; set; }
+```
+Gets or sets the delay between data block groups in milliseconds.
+
+- Value: The `InterGroupDelayMs` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.ReadOptimizationConfig.MaxConcurrentReads`
+
+```csharp
+public int MaxConcurrentReads { get; set; }
+```
+Gets or sets the maximum number of concurrent reads.
+
+- Value: The `MaxConcurrentReads` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.ReadOptimizationConfig.ReadTimeoutMs`
+
+```csharp
+public int ReadTimeoutMs { get; set; }
+```
+Gets or sets the read timeout in milliseconds.
+
+- Value: The `ReadTimeoutMs` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Optimization.SmartTagChange`1`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Optimization.SmartTagChange`1
+```
+Represents a change to a smart tag, including its name, previous and current values, the time of change, the amount of change for numeric types, and associated metadata.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Optimization.SmartTagChange`1.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Optimization.SmartTagChange<T>()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Optimization.SmartTagChange`1`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.SmartTagChange`1.ChangeAmount`
+
+```csharp
+public double ChangeAmount { get; set; }
+```
+Gets or sets the amount of change for numeric types.
+
+- Value: The `ChangeAmount` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.SmartTagChange`1.ChangeTime`
+
+```csharp
+public System.DateTimeOffset ChangeTime { get; set; }
+```
+Gets or sets the change timestamp.
+
+- Value: The `ChangeTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.SmartTagChange`1.CurrentValue`
+
+```csharp
+public T CurrentValue { get; set; }
+```
+Gets or sets the current value.
+
+- Value: The `CurrentValue` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.SmartTagChange`1.Metadata`
+
+```csharp
+public System.Collections.Generic.Dictionary<string, object> Metadata { get; }
+```
+Gets additional metadata about the change.
+
+- Value: The `Metadata` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.SmartTagChange`1.PreviousValue`
+
+```csharp
+public T PreviousValue { get; set; }
+```
+Gets or sets the previous value.
+
+- Value: The `PreviousValue` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.SmartTagChange`1.TagName`
+
+```csharp
+public string TagName { get; set; }
+```
+Gets or sets the tag name.
+
+- Value: The `TagName` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationConfig`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationConfig
+```
+Provides configuration options for optimizing write operations, including parallelism, verification, timing, and concurrency settings.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationConfig.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationConfig()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationConfig`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationConfig.EnableParallelWrites`
+
+```csharp
+public bool EnableParallelWrites { get; set; }
+```
+Gets or sets whether parallel writes within data block groups are enabled.
+
+- Value: The `EnableParallelWrites` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationConfig.InterGroupDelayMs`
+
+```csharp
+public int InterGroupDelayMs { get; set; }
+```
+Gets or sets the delay between data block groups in milliseconds.
+
+- Value: The `InterGroupDelayMs` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationConfig.MaxConcurrentWrites`
+
+```csharp
+public int MaxConcurrentWrites { get; set; }
+```
+Gets or sets the maximum number of concurrent writes.
+
+- Value: The `MaxConcurrentWrites` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationConfig.VerifyWrites`
+
+```csharp
+public bool VerifyWrites { get; set; }
+```
+Gets or sets a value indicating whether writes are verified by reading them back.
+
+- Value: The `VerifyWrites` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationConfig.WriteTimeoutMs`
+
+```csharp
+public int WriteTimeoutMs { get; set; }
+```
+Gets or sets the write timeout in milliseconds.
+
+- Value: The `WriteTimeoutMs` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult
+```
+Represents the result of a write optimization operation, including timing information, per-write outcomes, and overall error details.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult.EndTime`
+
+```csharp
+public System.DateTimeOffset EndTime { get; set; }
+```
+Gets or sets the operation end time.
+
+- Value: The `EndTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult.FailedWrites`
+
+```csharp
+public System.Collections.Generic.Dictionary<string, string> FailedWrites { get; }
+```
+Gets failed writes with error messages.
+
+- Value: The `FailedWrites` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult.OverallError`
+
+```csharp
+public string OverallError { get; set; }
+```
+Gets or sets any overall error message.
+
+- Value: The `OverallError` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult.StartTime`
+
+```csharp
+public System.DateTimeOffset StartTime { get; set; }
+```
+Gets or sets the operation start time.
+
+- Value: The `StartTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult.SuccessRate`
+
+```csharp
+public double SuccessRate { get; }
+```
+Gets the success rate.
+
+- Value: The `SuccessRate` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult.SuccessfulWrites`
+
+```csharp
+public System.Collections.Generic.Dictionary<string, System.TimeSpan> SuccessfulWrites { get; }
+```
+Gets successful writes with their durations.
+
+- Value: The `SuccessfulWrites` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult.TotalDuration`
+
+```csharp
+public System.TimeSpan TotalDuration { get; }
+```
+Gets the total operation duration.
+
+- Value: The `TotalDuration` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Performance.BenchmarkConfig`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Performance.BenchmarkConfig
+```
+Represents the configuration settings for benchmark tests, including parameters for latency, throughput, and reliability measurements.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.BenchmarkConfig.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Performance.BenchmarkConfig()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Performance.BenchmarkConfig`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.BenchmarkConfig.LatencyTestCount`
+
+```csharp
+public int LatencyTestCount { get; set; }
+```
+Gets or sets the number of latency tests to perform.
+
+- Value: The `LatencyTestCount` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.BenchmarkConfig.ReliabilityTestCount`
+
+```csharp
+public int ReliabilityTestCount { get; set; }
+```
+Gets or sets the number of reliability tests to perform.
+
+- Value: The `ReliabilityTestCount` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.BenchmarkConfig.ThroughputTestDuration`
+
+```csharp
+public System.TimeSpan ThroughputTestDuration { get; set; }
+```
+Gets or sets the duration for throughput testing.
+
+- Value: The `ThroughputTestDuration` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult
+```
+Represents the results of a performance benchmark, including timing, latency, throughput, reliability, and any errors encountered during execution.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult.AverageLatencyMs`
+
+```csharp
+public double AverageLatencyMs { get; set; }
+```
+Gets or sets the average latency in milliseconds.
+
+- Value: The `AverageLatencyMs` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult.EndTime`
+
+```csharp
+public System.DateTimeOffset EndTime { get; set; }
+```
+Gets or sets the benchmark end time.
+
+- Value: The `EndTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult.Errors`
+
+```csharp
+public System.Collections.Generic.List<string> Errors { get; }
+```
+Gets any errors encountered during benchmarking.
+
+- Value: The `Errors` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult.MaxLatencyMs`
+
+```csharp
+public double MaxLatencyMs { get; set; }
+```
+Gets or sets the maximum latency in milliseconds.
+
+- Value: The `MaxLatencyMs` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult.MinLatencyMs`
+
+```csharp
+public double MinLatencyMs { get; set; }
+```
+Gets or sets the minimum latency in milliseconds.
+
+- Value: The `MinLatencyMs` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult.OperationsPerSecond`
+
+```csharp
+public double OperationsPerSecond { get; set; }
+```
+Gets or sets the operations per second.
+
+- Value: The `OperationsPerSecond` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult.OverallScore`
+
+```csharp
+public double OverallScore { get; set; }
+```
+Gets or sets the overall benchmark score (0 to 100).
+
+- Value: The `OverallScore` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult.PLCIdentifier`
+
+```csharp
+public string PLCIdentifier { get; set; }
+```
+Gets or sets the PLC identifier.
+
+- Value: The `PLCIdentifier` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult.ReliabilityRate`
+
+```csharp
+public double ReliabilityRate { get; set; }
+```
+Gets or sets the reliability rate (0.0 to 1.0).
+
+- Value: The `ReliabilityRate` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult.StartTime`
+
+```csharp
+public System.DateTimeOffset StartTime { get; set; }
+```
+Gets or sets the benchmark start time.
+
+- Value: The `StartTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult.TotalDuration`
+
+```csharp
+public System.TimeSpan TotalDuration { get; }
+```
+Gets the total benchmark duration.
+
+- Value: The `TotalDuration` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Performance.HighPerformanceTagGroup`1`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Performance.HighPerformanceTagGroup`1
+```
+Provides high-performance batch operations for a group of PLC tags.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.HighPerformanceTagGroup`1.#ctor(IoT.DriverCore.S7PlcRx.IRxS7,System.String,System.String[])`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Performance.HighPerformanceTagGroup<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, string groupName, string[] tagNames)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.Performance.HighPerformanceTagGroup`1` class, associating a set of tag names with a specified. PLC for optimized group operations.
+
+- Parameter `plc`: The PLC connection used to manage and access the specified tags.
+- Parameter `groupName`: The name assigned to this tag group. Cannot be null or whitespace.
+- Parameter `tagNames`: An array of tag names to include in the group. Cannot be null or empty.
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.HighPerformanceTagGroup`1.Dispose`
+
+```csharp
+public void Dispose()
+```
+Disposes this tag group.
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.HighPerformanceTagGroup`1.ObserveGroup`
+
+```csharp
+public System.IObservable<System.Collections.Generic.Dictionary<string, T>> ObserveGroup()
+```
+Observes changes to the group of tags and provides a stream of their current values.
+
+- Returns: An observable sequence that emits a dictionary containing the latest values for each tag in the group. Each dictionary maps tag names to their corresponding values of type T. The sequence emits a new dictionary whenever any tag value changes.
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.HighPerformanceTagGroup`1.ReadAllAsync`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.Dictionary<string, T>> ReadAllAsync()
+```
+Asynchronously reads the values of all configured PLC tags and returns a dictionary mapping tag names to their corresponding values.
+
+- Returns: A dictionary containing the tag names as keys and their associated values of type as values. If a tag value cannot be read, its value will be .
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.HighPerformanceTagGroup`1.WriteAllAsync(System.Collections.Generic.Dictionary`2{System.String,`0})`
+
+```csharp
+public System.Threading.Tasks.Task WriteAllAsync(System.Collections.Generic.Dictionary<string, T> values)
+```
+Executes the `WriteAllAsync` operation.
+
+- Parameter `values`: The `values` value.
+- Returns: A `System.Threading.Tasks.Task` result.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.HighPerformanceTagGroup`1.CurrentValues`
+
+```csharp
+public System.Collections.Generic.IReadOnlyDictionary<string, T> CurrentValues { get; }
+```
+Gets a read-only dictionary containing the current values associated with each key.
+
+- Value: The `CurrentValues` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.HighPerformanceTagGroup`1.GroupName`
+
+```csharp
+public string GroupName { get; }
+```
+Gets the name of the group associated with this instance.
+
+- Value: The `GroupName` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Performance.PerformanceAnalysis`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Performance.PerformanceAnalysis
+```
+Represents the results and metrics of a performance analysis, including time intervals, tag change statistics, and optimization recommendations.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.PerformanceAnalysis.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Performance.PerformanceAnalysis()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Performance.PerformanceAnalysis`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceAnalysis.AverageChangesPerTag`
+
+```csharp
+public double AverageChangesPerTag { get; set; }
+```
+Gets or sets the average changes per tag.
+
+- Value: The `AverageChangesPerTag` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceAnalysis.EndTime`
+
+```csharp
+public System.DateTimeOffset EndTime { get; set; }
+```
+Gets or sets the end time of the analysis.
+
+- Value: The `EndTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceAnalysis.MonitoringDuration`
+
+```csharp
+public System.TimeSpan MonitoringDuration { get; set; }
+```
+Gets or sets the monitoring duration.
+
+- Value: The `MonitoringDuration` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceAnalysis.Recommendations`
+
+```csharp
+public System.Collections.Generic.List<string> Recommendations { get; }
+```
+Gets or sets the optimization recommendations.
+
+- Value: The `Recommendations` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceAnalysis.StartTime`
+
+```csharp
+public System.DateTimeOffset StartTime { get; set; }
+```
+Gets or sets the start time of the analysis.
+
+- Value: The `StartTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceAnalysis.TagChangeFrequencies`
+
+```csharp
+public System.Collections.Generic.Dictionary<string, int> TagChangeFrequencies { get; }
+```
+Gets or sets the tag change frequencies.
+
+- Value: The `TagChangeFrequencies` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceAnalysis.TotalTagChanges`
+
+```csharp
+public int TotalTagChanges { get; set; }
+```
+Gets or sets the total tag changes observed.
+
+- Value: The `TotalTagChanges` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Performance.PerformanceExtensions`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Performance.PerformanceExtensions
+```
+Provides compositional methods for IRxS7 PLC instances to enable advanced performance monitoring, optimized read and write operations, and benchmarking capabilities.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.PerformanceExtensions.GetPerformanceStatistics(IoT.DriverCore.S7PlcRx.IRxS7)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics GetPerformanceStatistics(IoT.DriverCore.S7PlcRx.IRxS7 plc)
+```
+Retrieves aggregated performance statistics for the specified PLC connection, including operation counts, error rates, response times, and connection metrics.
+
+- Parameter `plc`: The PLC for which to retrieve performance statistics.
+- Returns: A PerformanceStatistics object containing metrics such as total operations, error rate, average response time, connection uptime, and reconnection count for the specified PLC.
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.PerformanceExtensions.GetPerformanceStatistics(IoT.DriverCore.S7PlcRx.IRxS7,System.TimeProvider)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics GetPerformanceStatistics(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.TimeProvider timeProvider)
+```
+Retrieves aggregated performance statistics for the specified PLC connection, including operation counts, error rates, response times, and connection metrics.
+
+- Parameter `plc`: The PLC for which to retrieve performance statistics.
+- Parameter `timeProvider`: The time provider.
+- Returns: A PerformanceStatistics object containing metrics such as total operations, error rate, average response time, connection uptime, and reconnection count for the specified PLC.
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.PerformanceExtensions.MonitorPerformance(IoT.DriverCore.S7PlcRx.IRxS7,System.Nullable`1{System.TimeSpan})`
+
+```csharp
+public static System.IObservable<IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics> MonitorPerformance(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.Nullable<System.TimeSpan> monitoringInterval)
+```
+Executes the `MonitorPerformance` operation.
+
+- Parameter `plc`: The `plc` value.
+- Parameter `monitoringInterval`: The `monitoringInterval` value.
+- Returns: A `System.IObservable<IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.PerformanceExtensions.MonitorPerformance(IoT.DriverCore.S7PlcRx.IRxS7,System.Nullable`1{System.TimeSpan},System.TimeProvider)`
+
+```csharp
+public static System.IObservable<IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics> MonitorPerformance(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.Nullable<System.TimeSpan> monitoringInterval, System.TimeProvider timeProvider)
+```
+Executes the `MonitorPerformance` operation.
+
+- Parameter `plc`: The `plc` value.
+- Parameter `monitoringInterval`: The `monitoringInterval` value.
+- Parameter `timeProvider`: The `timeProvider` value.
+- Returns: A `System.IObservable<IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.PerformanceExtensions.ReadOptimizedAsync``1(IoT.DriverCore.S7PlcRx.IRxS7,System.Collections.Generic.IEnumerable`1{System.String},``0,IoT.DriverCore.S7PlcRx.Optimization.ReadOptimizationConfig)`
+
+```csharp
+public static System.Threading.Tasks.Task<System.Collections.Generic.Dictionary<string, T>> ReadOptimizedAsync<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.Collections.Generic.IEnumerable<string> tagNames, T typeMarker, IoT.DriverCore.S7PlcRx.Optimization.ReadOptimizationConfig optimizationConfig)
+```
+Executes the `ReadOptimizedAsync` operation.
+
+- Parameter `plc`: The `plc` value.
+- Parameter `tagNames`: The `tagNames` value.
+- Parameter `typeMarker`: The `typeMarker` value.
+- Parameter `optimizationConfig`: The `optimizationConfig` value.
+- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.Dictionary<string, T>>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.PerformanceExtensions.RunBenchmarkAsync(IoT.DriverCore.S7PlcRx.IRxS7,IoT.DriverCore.S7PlcRx.Performance.BenchmarkConfig)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult> RunBenchmarkAsync(IoT.DriverCore.S7PlcRx.IRxS7 plc, IoT.DriverCore.S7PlcRx.Performance.BenchmarkConfig benchmarkConfig)
+```
+Runs latency, throughput, and reliability benchmarks.
+
+- Parameter `plc`: The PLC to benchmark.
+- Parameter `benchmarkConfig`: An optional configuration object specifying benchmark parameters. If null, default settings are used.
+- Returns: A task that represents the asynchronous operation. The result contains detailed benchmark metrics and scores for the PLC.
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.PerformanceExtensions.RunBenchmarkAsync(IoT.DriverCore.S7PlcRx.IRxS7,IoT.DriverCore.S7PlcRx.Performance.BenchmarkConfig,System.TimeProvider)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.Performance.BenchmarkResult> RunBenchmarkAsync(IoT.DriverCore.S7PlcRx.IRxS7 plc, IoT.DriverCore.S7PlcRx.Performance.BenchmarkConfig benchmarkConfig, System.TimeProvider timeProvider)
+```
+Runs latency, throughput, and reliability benchmarks.
+
+- Parameter `plc`: The PLC to benchmark.
+- Parameter `benchmarkConfig`: An optional configuration object specifying benchmark parameters. If null, default settings are used.
+- Parameter `timeProvider`: The time provider.
+- Returns: A task that represents the asynchronous operation. The result contains detailed benchmark metrics and scores for the PLC.
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.PerformanceExtensions.WriteOptimizedAsync``1(IoT.DriverCore.S7PlcRx.IRxS7,System.Collections.Generic.Dictionary`2{System.String,``0},IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationConfig)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult> WriteOptimizedAsync<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.Collections.Generic.Dictionary<string, T> values, IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationConfig optimizationConfig)
+```
+Executes the `WriteOptimizedAsync` operation.
+
+- Parameter `plc`: The `plc` value.
+- Parameter `values`: The `values` value.
+- Parameter `optimizationConfig`: The `optimizationConfig` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.PerformanceExtensions.WriteOptimizedAsync``1(IoT.DriverCore.S7PlcRx.IRxS7,System.Collections.Generic.Dictionary`2{System.String,``0},IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationConfig,System.TimeProvider)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult> WriteOptimizedAsync<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.Collections.Generic.Dictionary<string, T> values, IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationConfig optimizationConfig, System.TimeProvider timeProvider)
+```
+Executes the `WriteOptimizedAsync` operation.
+
+- Parameter `plc`: The `plc` value.
+- Parameter `values`: The `values` value.
+- Parameter `optimizationConfig`: The `optimizationConfig` value.
+- Parameter `timeProvider`: The `timeProvider` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.Optimization.WriteOptimizationResult>` result.
+
+#### `T:IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics
+```
+Represents PLC performance metrics at a specific point in time.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics.ActiveTagCount`
+
+```csharp
+public int ActiveTagCount { get; set; }
+```
+Gets or sets the number of active tags.
+
+- Value: The `ActiveTagCount` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics.AverageResponseTime`
+
+```csharp
+public double AverageResponseTime { get; set; }
+```
+Gets or sets the average response time in milliseconds.
+
+- Value: The `AverageResponseTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics.ConnectionUptime`
+
+```csharp
+public System.TimeSpan ConnectionUptime { get; set; }
+```
+Gets or sets the connection uptime.
+
+- Value: The `ConnectionUptime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics.ErrorRate`
+
+```csharp
+public double ErrorRate { get; set; }
+```
+Gets or sets the error rate (0.0 to 1.0).
+
+- Value: The `ErrorRate` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics.IsConnected`
+
+```csharp
+public bool IsConnected { get; set; }
+```
+Gets or sets a value indicating whether gets or sets whether the PLC is connected.
+
+- Value: The `IsConnected` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics.OperationsPerSecond`
+
+```csharp
+public double OperationsPerSecond { get; set; }
+```
+Gets or sets the operations per second.
+
+- Value: The `OperationsPerSecond` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics.PLCIdentifier`
+
+```csharp
+public string PLCIdentifier { get; set; }
+```
+Gets or sets the PLC identifier.
+
+- Value: The `PLCIdentifier` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics.ReconnectionCount`
+
+```csharp
+public int ReconnectionCount { get; set; }
+```
+Gets or sets the number of reconnections.
+
+- Value: The `ReconnectionCount` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics.TagCount`
+
+```csharp
+public int TagCount { get; set; }
+```
+Gets or sets the total number of tags.
+
+- Value: The `TagCount` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceMetrics.Timestamp`
+
+```csharp
+public System.DateTimeOffset Timestamp { get; set; }
+```
+Gets or sets the timestamp of these metrics.
+
+- Value: The `Timestamp` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics
+```
+Represents a set of performance statistics for a programmable logic controller (PLC) connection, including operation counts, error metrics, response times, and connection status information.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics.AverageResponseTime`
+
+```csharp
+public double AverageResponseTime { get; set; }
+```
+Gets or sets the average response time in milliseconds.
+
+- Value: The `AverageResponseTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics.ConnectionUptime`
+
+```csharp
+public System.TimeSpan ConnectionUptime { get; set; }
+```
+Gets or sets the connection uptime.
+
+- Value: The `ConnectionUptime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics.ErrorRate`
+
+```csharp
+public double ErrorRate { get; set; }
+```
+Gets or sets the error rate (0.0 to 1.0).
+
+- Value: The `ErrorRate` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics.LastUpdated`
+
+```csharp
+public System.DateTimeOffset LastUpdated { get; set; }
+```
+Gets or sets when these statistics were last updated.
+
+- Value: The `LastUpdated` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics.OperationsPerSecond`
+
+```csharp
+public double OperationsPerSecond { get; set; }
+```
+Gets or sets the operations per second.
+
+- Value: The `OperationsPerSecond` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics.PLCIdentifier`
+
+```csharp
+public string PLCIdentifier { get; set; }
+```
+Gets or sets the PLC identifier.
+
+- Value: The `PLCIdentifier` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics.ReconnectionCount`
+
+```csharp
+public int ReconnectionCount { get; set; }
+```
+Gets or sets the number of reconnections.
+
+- Value: The `ReconnectionCount` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics.TotalErrors`
+
+```csharp
+public long TotalErrors { get; set; }
+```
+Gets or sets the total number of errors.
+
+- Value: The `TotalErrors` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.PerformanceStatistics.TotalOperations`
+
+```csharp
+public long TotalOperations { get; set; }
+```
+Gets or sets the total number of operations.
+
+- Value: The `TotalOperations` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Performance.TagPerformanceMetrics`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Performance.TagPerformanceMetrics
+```
+Represents operation counts, timings, and success rates for a tag.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Performance.TagPerformanceMetrics.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Performance.TagPerformanceMetrics()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Performance.TagPerformanceMetrics`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.TagPerformanceMetrics.AverageReadTimeMs`
+
+```csharp
+public double AverageReadTimeMs { get; set; }
+```
+Gets or sets the average read time in milliseconds.
+
+- Value: The `AverageReadTimeMs` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.TagPerformanceMetrics.AverageWriteTimeMs`
+
+```csharp
+public double AverageWriteTimeMs { get; set; }
+```
+Gets or sets the average write time in milliseconds.
+
+- Value: The `AverageWriteTimeMs` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.TagPerformanceMetrics.FailedOperations`
+
+```csharp
+public long FailedOperations { get; set; }
+```
+Gets or sets the number of failed operations.
+
+- Value: The `FailedOperations` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.TagPerformanceMetrics.LastOperationTime`
+
+```csharp
+public System.DateTimeOffset LastOperationTime { get; set; }
+```
+Gets or sets the last operation timestamp.
+
+- Value: The `LastOperationTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.TagPerformanceMetrics.ReadOperations`
+
+```csharp
+public long ReadOperations { get; set; }
+```
+Gets or sets the total number of read operations.
+
+- Value: The `ReadOperations` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.TagPerformanceMetrics.SuccessRate`
+
+```csharp
+public double SuccessRate { get; set; }
+```
+Gets or sets the success rate (0.0 to 1.0).
+
+- Value: The `SuccessRate` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.TagPerformanceMetrics.TagName`
+
+```csharp
+public string TagName { get; set; }
+```
+Gets or sets the tag name.
+
+- Value: The `TagName` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Performance.TagPerformanceMetrics.WriteOperations`
+
+```csharp
+public long WriteOperations { get; set; }
+```
+Gets or sets the total number of write operations.
+
+- Value: The `WriteOperations` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcException`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcException
+```
+Represents errors that occur during communication with a programmable logic controller (PLC).
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcException.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.PlcException()
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.PlcException` class.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcException.#ctor(IoT.DriverCore.S7PlcRx.Enums.ErrorCode)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.PlcException(IoT.DriverCore.S7PlcRx.Enums.ErrorCode errorCode)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.PlcException` class.
+
+- Parameter `errorCode`: The error code.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcException.#ctor(IoT.DriverCore.S7PlcRx.Enums.ErrorCode,System.Exception)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.PlcException(IoT.DriverCore.S7PlcRx.Enums.ErrorCode errorCode, System.Exception innerException)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.PlcException` class.
+
+- Parameter `errorCode`: The error code.
+- Parameter `innerException`: The inner exception.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcException.#ctor(IoT.DriverCore.S7PlcRx.Enums.ErrorCode,System.String)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.PlcException(IoT.DriverCore.S7PlcRx.Enums.ErrorCode errorCode, string message)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.PlcException` class.
+
+- Parameter `errorCode`: The error code.
+- Parameter `message`: The message.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcException.#ctor(IoT.DriverCore.S7PlcRx.Enums.ErrorCode,System.String,System.Exception)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.PlcException(IoT.DriverCore.S7PlcRx.Enums.ErrorCode errorCode, string message, System.Exception inner)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.PlcException` class.
+
+- Parameter `errorCode`: The error code.
+- Parameter `message`: The message.
+- Parameter `inner`: The inner.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcException.#ctor(System.String)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.PlcException(string message)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.PlcException` class.
+
+- Parameter `message`: The message that describes the error.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcException.#ctor(System.String,System.Exception)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.PlcException(string message, System.Exception innerException)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.PlcException` class.
+
+- Parameter `message`: The message that describes the error.
+- Parameter `innerException`: The exception that caused the current exception.
+
+###### `P:IoT.DriverCore.S7PlcRx.PlcException.ErrorCode`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enums.ErrorCode ErrorCode { get; }
+```
+Gets the error code.
+
+- Value: The error code.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.Bit`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.Bit
+```
+Contains the conversion methods to convert Bit from S7 plc to C#.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Bit.FromByte(System.Byte,System.Byte)`
+
+```csharp
+public static bool FromByte(byte v, byte bitAdr)
+```
+Determines whether the specified bit in a byte value is set.
+
+- Parameter `v`: The byte value to examine.
+- Parameter `bitAdr`: The zero-based position of the bit to check. Must be in the range 0 to 7.
+- Returns: true if the bit at the specified position is set; otherwise, false.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Bit.FromSpan(System.ReadOnlySpan`1{System.Byte},System.Int32,System.Int32)`
+
+```csharp
+public static bool FromSpan(System.ReadOnlySpan<byte> bytes, int byteIndex, int bitIndex)
+```
+Executes the `FromSpan` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Parameter `byteIndex`: The `byteIndex` value.
+- Parameter `bitIndex`: The `bitIndex` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Bit.GetBits(System.ReadOnlySpan`1{System.Byte},System.ReadOnlySpan`1{System.ValueTuple`2{System.Int32,System.Int32}})`
+
+```csharp
+public static bool[] GetBits(System.ReadOnlySpan<byte> bytes, System.ReadOnlySpan<System.ValueTuple<int, int>> bitPositions)
+```
+Executes the `GetBits` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Parameter `bitPositions`: The `bitPositions` value.
+- Returns: A `bool[]` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Bit.SetBit(System.Span`1{System.Byte},System.Int32,System.Int32,System.Boolean)`
+
+```csharp
+public static void SetBit(System.Span<byte> bytes, int byteIndex, int bitIndex, bool value)
+```
+Executes the `SetBit` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Parameter `byteIndex`: The `byteIndex` value.
+- Parameter `bitIndex`: The `bitIndex` value.
+- Parameter `value`: The `value` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Bit.SetBits(System.Span`1{System.Byte},System.ReadOnlySpan`1{System.ValueTuple`3{System.Int32,System.Int32,System.Boolean}})`
+
+```csharp
+public static void SetBits(System.Span<byte> bytes, System.ReadOnlySpan<System.ValueTuple<int, int, bool>> bitUpdates)
+```
+Executes the `SetBits` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Parameter `bitUpdates`: The `bitUpdates` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Bit.ToBitArray(System.Byte[])`
+
+```csharp
+public static System.Collections.BitArray ToBitArray(byte[] bytes)
+```
+Converts bytes to a BitArray.
+
+- Parameter `bytes`: The byte array to convert. Each byte is interpreted in order, with the least significant bit first in each byte.
+- Returns: A BitArray containing the bits from the input byte array. If the input array is null or empty, returns an empty BitArray.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Bit.ToBitArray(System.Byte[],System.Nullable`1{System.Int32})`
+
+```csharp
+public static System.Collections.BitArray ToBitArray(byte[] bytes, System.Nullable<int> length)
+```
+Executes the `ToBitArray` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Parameter `length`: The `length` value.
+- Returns: A `System.Collections.BitArray` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Bit.ToBitArray(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static System.Collections.BitArray ToBitArray(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `ToBitArray` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `System.Collections.BitArray` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Bit.ToBitArray(System.ReadOnlySpan`1{System.Byte},System.Nullable`1{System.Int32})`
+
+```csharp
+public static System.Collections.BitArray ToBitArray(System.ReadOnlySpan<byte> bytes, System.Nullable<int> length)
+```
+Executes the `ToBitArray` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Parameter `length`: The `length` value.
+- Returns: A `System.Collections.BitArray` result.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.Boolean`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.Boolean
+```
+Provides static methods for manipulating individual bits within a byte value.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Boolean.ClearBit(System.Byte,System.Int32)`
+
+```csharp
+public static byte ClearBit(byte value, int bit)
+```
+Returns a copy of the value with the addressed bit cleared.
+
+- Parameter `value`: The input value to modify.
+- Parameter `bit`: The index (zero based) of the bit to clear.
+- Returns: The modified value with the bit at index cleared.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Boolean.ClearBit(System.Byte@,System.Int32)`
+
+```csharp
+public static void ClearBit(ref byte value, int bit)
+```
+Resets the value of a bit to 0 (false), given the address of the bit.
+
+- Parameter `value`: The input value to modify.
+- Parameter `bit`: The index (zero based) of the bit to clear.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Boolean.GetValue(System.Byte,System.Int32)`
+
+```csharp
+public static bool GetValue(byte value, int bit)
+```
+Determines whether the specified bit is set in the given byte value.
+
+- Parameter `value`: The byte value to examine for the specified bit.
+- Parameter `bit`: The zero-based position of the bit to check. Must be in the range 0 to 7.
+- Returns: true if the bit at the specified position is set; otherwise, false.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Boolean.SetBit(System.Byte,System.Int32)`
+
+```csharp
+public static byte SetBit(byte value, int bit)
+```
+Returns a copy of the value with the addressed bit set.
+
+- Parameter `value`: The input value to modify.
+- Parameter `bit`: The index (zero based) of the bit to set.
+- Returns: The modified value with the bit at index set.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Boolean.SetBit(System.Byte@,System.Int32)`
+
+```csharp
+public static void SetBit(ref byte value, int bit)
+```
+Sets the value of a bit to 1 (true), given the address of the bit.
+
+- Parameter `value`: The value to modify.
+- Parameter `bit`: The index (zero based) of the bit to set.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.Byte`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.Byte
+```
+Provides utility methods for converting and manipulating byte values and byte arrays.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Byte.FromByteArray(System.Byte[])`
+
+```csharp
+public static byte FromByteArray(byte[] bytes)
+```
+Creates a byte value from the specified byte array.
+
+- Parameter `bytes`: The array of bytes to convert. Must contain at least one element.
+- Returns: A byte value created from the first element of the specified array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Byte.FromSpan(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static byte FromSpan(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `FromSpan` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `byte` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Byte.ToByteArray(System.Byte)`
+
+```csharp
+public static byte[] ToByteArray(byte value)
+```
+Converts the specified byte value to a single-element byte array.
+
+- Parameter `value`: The byte value to include in the returned array.
+- Returns: A byte array containing the specified value as its only element.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Byte.ToSpan(System.Byte,System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(byte value, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `value`: The `value` value.
+- Parameter `destination`: The `destination` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Byte.ToSpan(System.ReadOnlySpan`1{System.Byte},System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(System.ReadOnlySpan<byte> values, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `values`: The `values` value.
+- Parameter `destination`: The `destination` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray
+```
+Provides a growable pooled byte buffer.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray()
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray` class.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray.#ctor(System.Int32)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray(int size)
+```
+Provides a growable pooled byte buffer.
+
+- Parameter `size`: The initial capacity of the internal buffer, in bytes. Must be greater than zero.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray.Add(IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray)`
+
+```csharp
+public void Add(IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray byteArray)
+```
+Adds the contents of the specified `T:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray` to the collection.
+
+- Parameter `byteArray`: The `T:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray` instance whose contents will be added. Cannot be null.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray.Add(System.Byte)`
+
+```csharp
+public void Add(byte item)
+```
+Adds a byte value to the end of the buffer.
+
+- Parameter `item`: The byte value to add to the buffer.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray.Add(System.Byte[])`
+
+```csharp
+public void Add(byte[] items)
+```
+Adds the specified array of bytes to the collection.
+
+- Parameter `items`: An array of bytes to add. Cannot be null.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray.Add(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public void Add(System.ReadOnlySpan<byte> items)
+```
+Executes the `Add` operation.
+
+- Parameter `items`: The `items` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray.Clear`
+
+```csharp
+public void Clear()
+```
+Resets the current position to the beginning.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray.Dispose`
+
+```csharp
+public void Dispose()
+```
+Releases resources used by this instance.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray.TryCopyTo(System.Span`1{System.Byte})`
+
+```csharp
+public bool TryCopyTo(System.Span<byte> destination)
+```
+Executes the `TryCopyTo` operation.
+
+- Parameter `destination`: The `destination` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray.Array`
+
+```csharp
+public byte[] Array { get; }
+```
+Gets the array. Use Span property for better performance when possible.
+
+- Value: The array.
+
+###### `P:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray.Length`
+
+```csharp
+public int Length { get; }
+```
+Gets the current position (length of data).
+
+- Value: The `Length` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray.Memory`
+
+```csharp
+public System.ReadOnlyMemory<byte> Memory { get; }
+```
+Gets the current data as memory.
+
+- Value: The current data as memory.
+
+###### `P:IoT.DriverCore.S7PlcRx.PlcTypes.ByteArray.Span`
+
+```csharp
+public System.ReadOnlySpan<byte> Span { get; }
+```
+Gets the current data as a span.
+
+- Value: The current data as a span.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.Class`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.Class
+```
+Provides static methods for serializing and deserializing class and struct instances to and from byte arrays, as well as calculating the size of a class in bytes for serialization purposes.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Class.FromBytes(System.Object,System.Byte[])`
+
+```csharp
+public static double FromBytes(object sourceClass, byte[] bytes)
+```
+Deserializes accessible properties from the beginning of a byte array.
+
+- Parameter `sourceClass`: The object whose properties receive deserialized values.
+- Parameter `bytes`: The source byte array.
+- Returns: The number of bytes consumed.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Class.FromBytes(System.Object,System.Byte[],System.Double)`
+
+```csharp
+public static double FromBytes(object sourceClass, byte[] bytes, double numBytes)
+```
+Deserializes accessible properties from a specified byte offset.
+
+- Parameter `sourceClass`: The object whose properties receive deserialized values.
+- Parameter `bytes`: The source byte array.
+- Parameter `numBytes`: The initial byte offset.
+- Returns: The number of bytes consumed.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Class.FromBytes(System.Object,System.Byte[],System.Double,System.Boolean)`
+
+```csharp
+public static double FromBytes(object sourceClass, byte[] bytes, double numBytes, bool isInnerClass)
+```
+Deserializes accessible properties from a specified byte offset.
+
+- Parameter `sourceClass`: The object whose properties receive deserialized values.
+- Parameter `bytes`: The source byte array.
+- Parameter `numBytes`: The initial byte offset.
+- Parameter `isInnerClass`: Whether the object is nested within another serialized object.
+- Returns: The number of bytes consumed.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Class.GetClassSize(System.Object)`
+
+```csharp
+public static double GetClassSize(object instance)
+```
+Calculates the aligned serialized size of an object's accessible properties.
+
+- Parameter `instance`: The object whose accessible properties are measured.
+- Returns: The aligned serialized size in bytes.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Class.GetClassSize(System.Object,System.Double)`
+
+```csharp
+public static double GetClassSize(object instance, double numBytes)
+```
+Calculates the aligned serialized size from a specified byte offset.
+
+- Parameter `instance`: The object whose accessible properties are measured.
+- Parameter `numBytes`: The initial byte offset.
+- Returns: The aligned serialized size in bytes.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Class.GetClassSize(System.Object,System.Double,System.Boolean)`
+
+```csharp
+public static double GetClassSize(object instance, double numBytes, bool isInnerProperty)
+```
+Calculates the serialized size from a specified byte offset.
+
+- Parameter `instance`: The object whose accessible properties are measured.
+- Parameter `numBytes`: The initial byte offset.
+- Parameter `isInnerProperty`: Whether the object is nested and should not receive final alignment.
+- Returns: The serialized size in bytes.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Class.ToBytes(System.Object,System.Byte[])`
+
+```csharp
+public static double ToBytes(object sourceClass, byte[] bytes)
+```
+Serializes accessible properties to the beginning of a byte array.
+
+- Parameter `sourceClass`: The object whose properties are serialized.
+- Parameter `bytes`: The destination byte array.
+- Returns: The number of bytes written.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Class.ToBytes(System.Object,System.Byte[],System.Double)`
+
+```csharp
+public static double ToBytes(object sourceClass, byte[] bytes, double numBytes)
+```
+Serializes accessible properties to a specified byte offset.
+
+- Parameter `sourceClass`: The object whose properties are serialized.
+- Parameter `bytes`: The destination byte array.
+- Parameter `numBytes`: The initial byte offset.
+- Returns: The number of bytes written.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.Counter`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.Counter
+```
+Converts between S7 Counter bytes and unsigned 16-bit values.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Counter.FromByteArray(System.Byte[])`
+
+```csharp
+public static ushort FromByteArray(byte[] bytes)
+```
+Converts a byte array to a 16-bit unsigned integer.
+
+- Parameter `bytes`: The byte array containing the bytes to convert. Must contain at least two bytes representing the value in the expected byte order.
+- Returns: A 16-bit unsigned integer represented by the first two bytes of the array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Counter.FromByteArray(System.Byte[],System.Int32)`
+
+```csharp
+public static ushort FromByteArray(byte[] bytes, int start)
+```
+Reads an unsigned 16-bit value from bytes at an index.
+
+- Parameter `bytes`: The byte array containing the data to convert. Cannot be null.
+- Parameter `start`: The zero-based index in the array at which to begin reading bytes. Must be within the bounds of the array.
+- Returns: A 16-bit unsigned integer represented by the bytes at the specified position in the array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Counter.FromBytes(System.Byte,System.Byte)`
+
+```csharp
+public static ushort FromBytes(byte lowValue, byte highValue)
+```
+Creates an unsigned 16-bit value from low and high bytes.
+
+- Parameter `lowValue`: The low-order byte of the resulting 16-bit unsigned integer.
+- Parameter `highValue`: The high-order byte of the resulting 16-bit unsigned integer.
+- Returns: A 16-bit unsigned integer composed from the specified low and high bytes.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Counter.FromSpan(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static ushort FromSpan(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `FromSpan` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `ushort` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Counter.ToArray(System.Byte[])`
+
+```csharp
+public static ushort[] ToArray(byte[] bytes)
+```
+Converts a byte array to an array of 16-bit unsigned integers.
+
+- Parameter `bytes`: The byte array to convert. The length must be a multiple of 2.
+- Returns: An array of `T:System.UInt16` values representing the converted data from the input byte array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Counter.ToArray(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static ushort[] ToArray(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `ToArray` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `ushort[]` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Counter.ToByteArray(System.UInt16)`
+
+```csharp
+public static byte[] ToByteArray(ushort value)
+```
+Converts the specified 16-bit unsigned integer to a byte array in little-endian order.
+
+- Parameter `value`: The 16-bit unsigned integer to convert to a byte array.
+- Returns: A two-element byte array containing the little-endian representation of the specified value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Counter.ToByteArray(System.UInt16[])`
+
+```csharp
+public static byte[] ToByteArray(ushort[] value)
+```
+Converts an array of 16-bit unsigned integers to a byte array.
+
+- Parameter `value`: An array of `T:System.UInt16` values to convert. Cannot be .
+- Returns: A byte array representing the binary data of the input `T:System.UInt16` array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Counter.ToSpan(System.ReadOnlySpan`1{System.UInt16},System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(System.ReadOnlySpan<ushort> values, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `values`: The `values` value.
+- Parameter `destination`: The `destination` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Counter.ToSpan(System.UInt16,System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(ushort value, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `value`: The `value` value.
+- Parameter `destination`: The `destination` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.DInt`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.DInt
+```
+Provides static methods for converting between Siemens S7 DInt (32-bit signed integer) representations and .NET int values.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DInt.CDWord(System.Int64)`
+
+```csharp
+public static int CDWord(long value)
+```
+Converts a 64-bit signed value to the S7 32-bit signed representation.
+
+- Parameter `value`: The 64-bit signed integer value to convert.
+- Returns: A 32-bit signed integer representing the converted value. For values greater than `F:System.Int32.MaxValue` , a custom transformation is applied before conversion.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DInt.FromByteArray(System.Byte[])`
+
+```csharp
+public static int FromByteArray(byte[] bytes)
+```
+Creates an integer value from the specified byte array.
+
+- Parameter `bytes`: The byte array containing the bytes to convert to an integer. The array must contain at least the number of bytes required to represent an integer.
+- Returns: An integer value represented by the specified byte array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DInt.FromByteArray(System.Byte[],System.Int32)`
+
+```csharp
+public static int FromByteArray(byte[] bytes, int start)
+```
+Creates an integer value from a byte array starting at the specified index.
+
+- Parameter `bytes`: The byte array containing the data to convert.
+- Parameter `start`: The zero-based index in the array at which to begin reading bytes.
+- Returns: The integer value represented by the bytes starting at the specified index.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DInt.FromBytes(System.Byte,System.Byte,System.Byte,System.Byte)`
+
+```csharp
+public static int FromBytes(byte v1, byte v2, byte v3, byte v4)
+```
+Creates a 32-bit signed integer from four bytes, using little-endian byte order.
+
+- Parameter `v1`: The least significant byte of the resulting integer.
+- Parameter `v2`: The second byte of the resulting integer.
+- Parameter `v3`: The third byte of the resulting integer.
+- Parameter `v4`: The most significant byte of the resulting integer.
+- Returns: A 32-bit signed integer composed from the specified bytes in little-endian order.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DInt.FromSpan(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static int FromSpan(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `FromSpan` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DInt.ToArray(System.Byte[])`
+
+```csharp
+public static int[] ToArray(byte[] bytes)
+```
+Converts a byte array to an array of 32-bit integers.
+
+- Parameter `bytes`: The byte array to convert. The length must be a multiple of 4.
+- Returns: An array of 32-bit integers representing the converted values from the input byte array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DInt.ToArray(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static int[] ToArray(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `ToArray` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `int[]` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DInt.ToByteArray(System.Int32)`
+
+```csharp
+public static byte[] ToByteArray(int value)
+```
+Converts the specified 32-bit signed integer to a byte array in little-endian order.
+
+- Parameter `value`: The 32-bit signed integer to convert to a byte array.
+- Returns: A 4-element byte array containing the little-endian representation of the specified integer.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DInt.ToByteArray(System.Int32[])`
+
+```csharp
+public static byte[] ToByteArray(int[] value)
+```
+Converts an array of 32-bit integers to its equivalent byte array representation.
+
+- Parameter `value`: An array of 32-bit integers to convert. Cannot be null.
+- Returns: A byte array containing the binary representation of the input integer array. The length of the returned array is four times the length of the input array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DInt.ToSpan(System.Int32,System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(int value, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `value`: The `value` value.
+- Parameter `destination`: The `destination` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DInt.ToSpan(System.ReadOnlySpan`1{System.Int32},System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(System.ReadOnlySpan<int> values, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `values`: The `values` value.
+- Parameter `destination`: The `destination` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.DWord`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.DWord
+```
+Converts between S7 DWord bytes and unsigned 32-bit values.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DWord.FromByteArray(System.Byte[])`
+
+```csharp
+public static uint FromByteArray(byte[] bytes)
+```
+Creates a 32-bit unsigned integer from a byte array.
+
+- Parameter `bytes`: The byte array containing the bytes to convert. Must contain at least four bytes starting at the beginning of the array.
+- Returns: A 32-bit unsigned integer represented by the first four bytes of the array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DWord.FromByteArray(System.Byte[],System.Int32)`
+
+```csharp
+public static uint FromByteArray(byte[] bytes, int start)
+```
+Reads an unsigned 32-bit value from bytes at an index.
+
+- Parameter `bytes`: The array containing the bytes to convert.
+- Parameter `start`: The zero-based index in the array at which to begin reading bytes.
+- Returns: A 32-bit unsigned integer representing the converted value from the specified byte sequence.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DWord.FromBytes(System.Byte,System.Byte,System.Byte,System.Byte)`
+
+```csharp
+public static uint FromBytes(byte v1, byte v2, byte v3, byte v4)
+```
+Creates a 32-bit unsigned integer from four individual bytes, using little-endian byte order.
+
+- Parameter `v1`: The least significant byte of the resulting 32-bit unsigned integer.
+- Parameter `v2`: The second byte, which becomes the second least significant byte of the resulting value.
+- Parameter `v3`: The third byte, which becomes the third least significant byte of the resulting value.
+- Parameter `v4`: The most significant byte of the resulting 32-bit unsigned integer.
+- Returns: A 32-bit unsigned integer composed from the specified bytes in little-endian order.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DWord.FromSpan(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static uint FromSpan(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `FromSpan` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `uint` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DWord.ToArray(System.Byte[])`
+
+```csharp
+public static uint[] ToArray(byte[] bytes)
+```
+Converts the specified byte array to an array of 32-bit unsigned integers.
+
+- Parameter `bytes`: The byte array to convert. The length must be a multiple of 4.
+- Returns: An array of 32-bit unsigned integers representing the converted values from the input byte array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DWord.ToArray(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static uint[] ToArray(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `ToArray` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `uint[]` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DWord.ToByteArray(System.UInt32)`
+
+```csharp
+public static byte[] ToByteArray(uint value)
+```
+Converts the specified 32-bit unsigned integer to a byte array in little-endian order.
+
+- Parameter `value`: The 32-bit unsigned integer to convert to a byte array.
+- Returns: A 4-element byte array containing the bytes of the specified value in little-endian order.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DWord.ToByteArray(System.UInt32[])`
+
+```csharp
+public static byte[] ToByteArray(uint[] value)
+```
+Converts the specified array of 32-bit unsigned integers to a byte array.
+
+- Parameter `value`: An array of 32-bit unsigned integers to convert. Cannot be null.
+- Returns: A byte array containing the binary representation of the input values. The length of the returned array is four times the length of the input array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DWord.ToSpan(System.ReadOnlySpan`1{System.UInt32},System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(System.ReadOnlySpan<uint> values, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `values`: The `values` value.
+- Parameter `destination`: The `destination` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DWord.ToSpan(System.UInt32,System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(uint value, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `value`: The `value` value.
+- Parameter `destination`: The `destination` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.DateTime`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.DateTime
+```
+Converts offset-aware values to and from the S7 date-time representation.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.S7PlcRx.PlcTypes.DateTime.SpecMaximumDateTime`
+
+```csharp
+public static System.DateTimeOffset SpecMaximumDateTime
+```
+The maximum value supported by the specification.
+
+###### `F:IoT.DriverCore.S7PlcRx.PlcTypes.DateTime.SpecMinimumDateTime`
+
+```csharp
+public static System.DateTimeOffset SpecMinimumDateTime
+```
+The minimum value supported by the specification.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DateTime.FromByteArray(System.Byte[])`
+
+```csharp
+public static System.DateTimeOffset FromByteArray(byte[] bytes)
+```
+Parses a `T:System.DateTimeOffset` value from bytes.
+
+- Parameter `bytes`: Input bytes read from PLC.
+- Returns: A value representing the date and time read from the PLC.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DateTime.FromSpan(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static System.DateTimeOffset FromSpan(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `FromSpan` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `System.DateTimeOffset` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DateTime.ToArray(System.Byte[])`
+
+```csharp
+public static System.DateTimeOffset[] ToArray(byte[] bytes)
+```
+Parses an array of `T:System.DateTimeOffset` values from bytes.
+
+- Parameter `bytes`: Input bytes read from PLC.
+- Returns: An array of values representing the dates and times read from the PLC.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DateTime.ToArray(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static System.DateTimeOffset[] ToArray(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `ToArray` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `System.DateTimeOffset[]` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DateTime.ToByteArray(System.DateTimeOffset)`
+
+```csharp
+public static byte[] ToByteArray(System.DateTimeOffset dateTime)
+```
+Converts a `T:System.DateTimeOffset` value to a byte array.
+
+- Parameter `dateTime`: The date and time value to convert.
+- Returns: A byte array containing the S7 date time representation of `dateTime` .
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DateTime.ToByteArray(System.DateTimeOffset[])`
+
+```csharp
+public static byte[] ToByteArray(System.DateTimeOffset[] dateTimes)
+```
+Converts an array of date and time values to a byte array.
+
+- Parameter `dateTimes`: The date and time values to convert.
+- Returns: A byte array containing the S7 date time representations of `dateTimes` .
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DateTime.ToSpan(System.DateTimeOffset,System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(System.DateTimeOffset dateTime, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `dateTime`: The `dateTime` value.
+- Parameter `destination`: The `destination` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DateTime.ToSpan(System.ReadOnlySpan`1{System.DateTimeOffset},System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(System.ReadOnlySpan<System.DateTimeOffset> dateTimes, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `dateTimes`: The `dateTimes` value.
+- Parameter `destination`: The `destination` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.DateTimeLong`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.DateTimeLong
+```
+Converts offset-aware values to and from the S7 DateTimeLong representation.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.S7PlcRx.PlcTypes.DateTimeLong.SpecMaximumDateTime`
+
+```csharp
+public static System.DateTimeOffset SpecMaximumDateTime
+```
+The maximum value supported by the specification.
+
+###### `F:IoT.DriverCore.S7PlcRx.PlcTypes.DateTimeLong.SpecMinimumDateTime`
+
+```csharp
+public static System.DateTimeOffset SpecMinimumDateTime
+```
+The minimum value supported by the specification.
+
+###### `F:IoT.DriverCore.S7PlcRx.PlcTypes.DateTimeLong.TypeLengthInBytes`
+
+```csharp
+public static int TypeLengthInBytes
+```
+The type length in bytes.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DateTimeLong.FromByteArray(System.Byte[])`
+
+```csharp
+public static System.DateTimeOffset FromByteArray(byte[] bytes)
+```
+Parses a `T:System.DateTimeOffset` value from bytes.
+
+- Parameter `bytes`: Input bytes read from PLC.
+- Returns: A value representing the date and time read from the PLC.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DateTimeLong.FromSpan(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static System.DateTimeOffset FromSpan(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `FromSpan` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `System.DateTimeOffset` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DateTimeLong.ToArray(System.Byte[])`
+
+```csharp
+public static System.DateTimeOffset[] ToArray(byte[] bytes)
+```
+Parses an array of `T:System.DateTime` values from bytes.
+
+- Parameter `bytes`: Input bytes read from PLC.
+- Returns: An array of `T:System.DateTime` objects representing the values read from PLC.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DateTimeLong.ToArray(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static System.DateTimeOffset[] ToArray(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `ToArray` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `System.DateTimeOffset[]` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DateTimeLong.ToByteArray(System.DateTimeOffset)`
+
+```csharp
+public static byte[] ToByteArray(System.DateTimeOffset dateTime)
+```
+Converts a `T:System.DateTime` value to a byte array.
+
+- Parameter `dateTime`: The DateTime value to convert.
+- Returns: A byte array containing the S7 DateTimeLong representation of `dateTime` .
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DateTimeLong.ToByteArray(System.DateTimeOffset[])`
+
+```csharp
+public static byte[] ToByteArray(System.DateTimeOffset[] dateTimes)
+```
+Converts an array of `T:System.DateTime` values to a byte array.
+
+- Parameter `dateTimes`: The DateTime values to convert.
+- Returns: A byte array containing the S7 DateTimeLong representations of `dateTimes` .
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DateTimeLong.ToSpan(System.DateTimeOffset,System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(System.DateTimeOffset dateTime, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `dateTime`: The `dateTime` value.
+- Parameter `destination`: The `destination` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.DateTimeLong.ToSpan(System.ReadOnlySpan`1{System.DateTimeOffset},System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(System.ReadOnlySpan<System.DateTimeOffset> dateTimes, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `dateTimes`: The `dateTimes` value.
+- Parameter `destination`: The `destination` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.Int`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.Int
+```
+Provides static methods for converting between S7 Int (16-bit signed integer) representations and .NET types, including byte arrays and spans.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Int.CWord(System.Int32)`
+
+```csharp
+public static short CWord(int value)
+```
+Converts a 32-bit signed integer to a 16-bit signed integer, applying a custom transformation for values greater than 32,767.
+
+- Parameter `value`: The 32-bit signed integer to convert.
+- Returns: A 16-bit signed integer representing the converted value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Int.FromByteArray(System.Byte[])`
+
+```csharp
+public static short FromByteArray(byte[] bytes)
+```
+Converts a byte array to a 16-bit signed integer.
+
+- Parameter `bytes`: The byte array containing the bytes to convert. Must contain at least two bytes starting at index zero.
+- Returns: A 16-bit signed integer represented by the first two bytes of the array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Int.FromByteArray(System.Byte[],System.Int32)`
+
+```csharp
+public static short FromByteArray(byte[] bytes, int start)
+```
+Reads a signed 16-bit value from bytes at an index.
+
+- Parameter `bytes`: The byte array containing the data to convert.
+- Parameter `start`: The zero-based index in the array at which to begin reading the bytes.
+- Returns: A 16-bit signed integer represented by the two bytes starting at the specified index in the array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Int.FromBytes(System.Byte,System.Byte)`
+
+```csharp
+public static short FromBytes(byte lowValue, byte highValue)
+```
+Creates a 16-bit signed integer from two bytes, using the specified low and high byte values.
+
+- Parameter `lowValue`: The low-order byte of the 16-bit value.
+- Parameter `highValue`: The high-order byte of the 16-bit value.
+- Returns: A 16-bit signed integer formed by combining the specified low and high bytes.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Int.FromSpan(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static short FromSpan(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `FromSpan` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `short` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Int.ToArray(System.Byte[])`
+
+```csharp
+public static short[] ToArray(byte[] bytes)
+```
+Converts the specified byte array to an array of 16-bit signed integers.
+
+- Parameter `bytes`: The byte array to convert. The length must be a multiple of 2.
+- Returns: An array of 16-bit signed integers representing the converted values from the input byte array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Int.ToArray(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static short[] ToArray(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `ToArray` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `short[]` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Int.ToByteArray(System.Int16)`
+
+```csharp
+public static byte[] ToByteArray(short value)
+```
+Converts the specified 16-bit signed integer to a byte array.
+
+- Parameter `value`: The 16-bit signed integer to convert.
+- Returns: A byte array containing the two bytes that represent the specified value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Int.ToByteArray(System.Int16[])`
+
+```csharp
+public static byte[] ToByteArray(short[] value)
+```
+Converts an array of 16-bit signed integers to a byte array.
+
+- Parameter `value`: An array of 16-bit signed integers to convert. Cannot be null.
+- Returns: A byte array containing the binary representation of the input values.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Int.ToSpan(System.Int16,System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(short value, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `value`: The `value` value.
+- Parameter `destination`: The `destination` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Int.ToSpan(System.ReadOnlySpan`1{System.Int16},System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(System.ReadOnlySpan<short> values, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `values`: The `values` value.
+- Parameter `destination`: The `destination` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.LReal`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.LReal
+```
+Converts between S7 LReal bytes and .NET double values.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.LReal.FromByteArray(System.Byte[])`
+
+```csharp
+public static double FromByteArray(byte[] bytes)
+```
+Converts a byte array to a double-precision floating-point number.
+
+- Parameter `bytes`: The byte array containing the binary representation of a double-precision floating-point value. Must be at least 8 bytes in length.
+- Returns: A double-precision floating-point number represented by the specified byte array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.LReal.FromByteArray(System.Byte[],System.Int32)`
+
+```csharp
+public static double FromByteArray(byte[] bytes, int start)
+```
+Converts a sequence of bytes from the specified array, starting at the given index, to a double-precision floating-point number.
+
+- Parameter `bytes`: The byte array containing the value to convert.
+- Parameter `start`: The zero-based index in the array at which to begin reading the bytes.
+- Returns: A double-precision floating-point number represented by the specified bytes.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.LReal.FromDWord(System.Int32)`
+
+```csharp
+public static double FromDWord(int value)
+```
+Converts an S7 32-bit signed value to a double.
+
+- Parameter `value`: The 32-bit signed integer value in DWord format to convert.
+- Returns: A double-precision floating-point value that represents the specified DWord.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.LReal.FromDWord(System.UInt32)`
+
+```csharp
+public static double FromDWord(uint value)
+```
+Converts an unsigned 32-bit value to a double.
+
+- Parameter `value`: The 32-bit unsigned integer value to convert.
+- Returns: A double-precision floating-point number that represents the specified 32-bit unsigned integer.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.LReal.FromSpan(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static double FromSpan(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `FromSpan` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `double` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.LReal.ToArray(System.Byte[])`
+
+```csharp
+public static double[] ToArray(byte[] bytes)
+```
+Converts a byte array to an array of double-precision floating-point values.
+
+- Parameter `bytes`: The byte array to convert. The length must be a multiple of the size of a double (8 bytes).
+- Returns: An array of double values created from the input byte array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.LReal.ToArray(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static double[] ToArray(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `ToArray` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `double[]` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.LReal.ToByteArray(System.Double)`
+
+```csharp
+public static byte[] ToByteArray(double value)
+```
+Converts a double to its 8-byte representation.
+
+- Parameter `value`: The double-precision floating-point number to convert.
+- Returns: A byte array containing the 8-byte binary representation of the specified value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.LReal.ToByteArray(System.Double[])`
+
+```csharp
+public static byte[] ToByteArray(double[] value)
+```
+Converts an array of double-precision floating-point numbers to a byte array representation.
+
+- Parameter `value`: The array of double values to convert. Cannot be null.
+- Returns: A byte array containing the binary representation of the input double array. The array will be empty if the input array is empty.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.LReal.ToSpan(System.Double,System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(double value, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `value`: The `value` value.
+- Parameter `destination`: The `destination` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.LReal.ToSpan(System.ReadOnlySpan`1{System.Double},System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(System.ReadOnlySpan<double> values, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `values`: The `values` value.
+- Parameter `destination`: The `destination` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.Real`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.Real
+```
+Provides static methods for converting between Siemens S7 Real (4-byte IEEE 754 floating-point) representations and .NET float values.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Real.FromByteArray(System.Byte[])`
+
+```csharp
+public static float FromByteArray(byte[] bytes)
+```
+Converts a byte array to a single-precision floating-point value.
+
+- Parameter `bytes`: The byte array containing the bytes to convert. Must contain at least four bytes representing a 32-bit floating-point value in the expected format.
+- Returns: A single-precision floating-point value represented by the specified byte array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Real.FromSpan(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static float FromSpan(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `FromSpan` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `float` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Real.ToArray(System.Byte[])`
+
+```csharp
+public static float[] ToArray(byte[] bytes)
+```
+Converts a byte array to an array of single-precision floating-point values.
+
+- Parameter `bytes`: The byte array containing the binary representation of the floating-point values. The length must be a multiple of 4.
+- Returns: An array of `T:System.Single` values converted from the specified byte array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Real.ToArray(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static float[] ToArray(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `ToArray` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `float[]` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Real.ToByteArray(System.Single)`
+
+```csharp
+public static byte[] ToByteArray(float value)
+```
+Converts a float to its byte-array representation.
+
+- Parameter `value`: The single-precision floating-point value to convert.
+- Returns: A 4-byte array containing the binary representation of `value` .
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Real.ToByteArray(System.Single[])`
+
+```csharp
+public static byte[] ToByteArray(float[] value)
+```
+Converts an array of single-precision floating-point values to a byte array.
+
+- Parameter `value`: The array of `T:System.Single` values to convert. Cannot be null.
+- Returns: A byte array containing the binary representation of the input values.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Real.ToSpan(System.ReadOnlySpan`1{System.Single},System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(System.ReadOnlySpan<float> values, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `values`: The `values` value.
+- Parameter `destination`: The `destination` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Real.ToSpan(System.Single,System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(float value, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `value`: The `value` value.
+- Parameter `destination`: The `destination` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.S7String`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.S7String
+```
+Encodes and decodes S7 strings in the S7 protocol format.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.S7String.FromByteArray(System.Byte[])`
+
+```csharp
+public static string FromByteArray(byte[] bytes)
+```
+Converts S7 bytes to a string.
+
+- Parameter `bytes`: The bytes.
+- Returns: A string.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.S7String.FromSpan(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static string FromSpan(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `FromSpan` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.S7String.GetByteLength(System.Int32)`
+
+```csharp
+public static int GetByteLength(int reservedLength)
+```
+Gets the total byte length for an S7 string with the specified reserved length.
+
+- Parameter `reservedLength`: The reserved length for the string.
+- Returns: The total byte length including header.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.S7String.ToByteArray(System.String,System.Int32)`
+
+```csharp
+public static byte[] ToByteArray(string value, int reservedLength)
+```
+Converts a `T:string` to S7 string with 2-byte header.
+
+- Parameter `value`: The string to convert to byte array.
+- Parameter `reservedLength`: The length (in characters) allocated in PLC for the string.
+- Returns: A `T:byte[]` containing the string header and string value with a maximum length of `reservedLength` + 2.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.S7String.ToSpan(System.String,System.Int32,System.Span`1{System.Byte})`
+
+```csharp
+public static int ToSpan(string value, int reservedLength, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `value`: The `value` value.
+- Parameter `reservedLength`: The `reservedLength` value.
+- Parameter `destination`: The `destination` value.
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.S7String.TryToSpan(System.String,System.Int32,System.Span`1{System.Byte},System.Int32@)`
+
+```csharp
+public static bool TryToSpan(string value, int reservedLength, System.Span<byte> destination, out int bytesWritten)
+```
+Executes the `TryToSpan` operation.
+
+- Parameter `value`: The `value` value.
+- Parameter `reservedLength`: The `reservedLength` value.
+- Parameter `destination`: The `destination` value.
+- Parameter `bytesWritten`: The `bytesWritten` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.S7PlcRx.PlcTypes.S7String.StringEncoding`
+
+```csharp
+public System.Text.Encoding StringEncoding { get; set; }
+```
+Gets or sets the encoding used for S7String serialization.
+
+- Value: The string encoding.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.S7StringAttribute`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.S7StringAttribute
+```
+Maps a member to an S7 string with a reserved length.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.S7StringAttribute.#ctor(IoT.DriverCore.S7PlcRx.Enums.S7StringType,System.Int32)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.PlcTypes.S7StringAttribute(IoT.DriverCore.S7PlcRx.Enums.S7StringType type, int reservedLength)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.PlcTypes.S7StringAttribute` class.
+
+- Parameter `type`: The type of S7 string to use. Must be a defined value of the S7StringType enumeration.
+- Parameter `reservedLength`: The reserved length for the string. Specifies the maximum number of characters the string can hold.
+
+###### `P:IoT.DriverCore.S7PlcRx.PlcTypes.S7StringAttribute.ReservedLength`
+
+```csharp
+public int ReservedLength { get; }
+```
+Gets the number of characters reserved for the value.
+
+- Value: The `ReservedLength` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.PlcTypes.S7StringAttribute.ReservedLengthInBytes`
+
+```csharp
+public int ReservedLengthInBytes { get; }
+```
+Gets the total bytes reserved for the string.
+
+- Value: The `ReservedLengthInBytes` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.PlcTypes.S7StringAttribute.Type`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enums.S7StringType Type { get; }
+```
+Gets the type of the S7 string represented by this instance.
+
+- Value: The `Type` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.S7WString`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.S7WString
+```
+Provides static methods for converting between S7 WString byte arrays and .NET strings.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.S7WString.FromByteArray(System.Byte[])`
+
+```csharp
+public static string FromByteArray(byte[] bytes)
+```
+Decodes an S7 WString byte array to a .NET string.
+
+- Parameter `bytes`: The byte array containing the S7 WString data, including the 4-byte header. Must not be null and must have a length of at least 4 bytes.
+- Returns: A string representing the decoded S7 WString value from the specified byte array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.S7WString.ToByteArray(System.String,System.Int32)`
+
+```csharp
+public static byte[] ToByteArray(string value, int reservedLength)
+```
+Encodes a string as big-endian Unicode with a length prefix.
+
+- Parameter `value`: The string to convert to a byte array. Cannot be null.
+- Parameter `reservedLength`: The number of characters to reserve in the output buffer. Must be less than or equal to 16,382 and greater than or equal to the length of `value` .
+- Returns: A byte array containing a 4-byte header followed by the big-endian Unicode bytes of the string, padded to the reserved length if necessary.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.String`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.String
+```
+Provides utility methods for converting between strings and byte arrays using ASCII encoding.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.String.FromByteArray(System.Byte[])`
+
+```csharp
+public static string FromByteArray(byte[] bytes)
+```
+Decodes a UTF-8 encoded byte array into a string.
+
+- Parameter `bytes`: The byte array containing the UTF-8 encoded text to decode. Cannot be null.
+- Returns: A string representation of the decoded UTF-8 text. Returns an empty string if the array is empty.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.String.FromByteArray(System.Byte[],System.Int32,System.Int32)`
+
+```csharp
+public static string FromByteArray(byte[] bytes, int start, int length)
+```
+Converts a specified range of bytes from a byte array to a string.
+
+- Parameter `bytes`: The byte array containing the data to convert.
+- Parameter `start`: The zero-based index in the array at which to begin conversion.
+- Parameter `length`: The number of bytes to convert starting from `start` .
+- Returns: A string representation of the specified range of bytes, or an empty string if the range exceeds the bounds of the array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.String.FromSpan(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static string FromSpan(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `FromSpan` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.String.ToByteArray(System.String)`
+
+```csharp
+public static byte[] ToByteArray(string value)
+```
+Converts the specified string to a byte array using ASCII encoding.
+
+- Parameter `value`: The string to convert to a byte array. If null or empty, an empty array is returned.
+- Returns: A byte array containing the ASCII-encoded bytes of the input string, or an empty array if the input is null or empty.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.String.ToSpan(System.String,System.Span`1{System.Byte})`
+
+```csharp
+public static int ToSpan(string value, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `value`: The `value` value.
+- Parameter `destination`: The `destination` value.
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.String.TryToSpan(System.String,System.Span`1{System.Byte},System.Int32@)`
+
+```csharp
+public static bool TryToSpan(string value, System.Span<byte> destination, out int bytesWritten)
+```
+Executes the `TryToSpan` operation.
+
+- Parameter `value`: The `value` value.
+- Parameter `destination`: The `destination` value.
+- Parameter `bytesWritten`: The `bytesWritten` value.
+- Returns: A `bool` result.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.Struct`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.Struct
+```
+Provides utility methods for working with struct types, including calculating their size in bytes and converting between structs and byte arrays.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Struct.FromBytes(System.Type,System.Byte[])`
+
+```csharp
+public static object FromBytes(System.Type structType, byte[] bytes)
+```
+Deserializes a byte array into an instance of the specified structure type.
+
+- Parameter `structType`: The type of the structure to deserialize the byte array into. Must be a type with a parameterless constructor and supported field types.
+- Parameter `bytes`: The byte array containing the serialized data for the structure. The length must match the expected size of the structure.
+- Returns: An object representing the deserialized structure, or null if the byte array is null or does not match the expected size.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Struct.GetStructSize(System.Type)`
+
+```csharp
+public static int GetStructSize(System.Type structType)
+```
+Calculates the total size, in bytes, required to store an instance of the specified struct type, based on its fields and their types.
+
+- Parameter `structType`: The type of the struct for which to calculate the size. Must not be null.
+- Returns: The total size, in bytes, needed to represent an instance of the specified struct type.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Struct.ToBytes(System.Object)`
+
+```csharp
+public static byte[] ToBytes(object structValue)
+```
+Converts the specified structure object to its byte array representation.
+
+- Parameter `structValue`: The structure object to convert to a byte array. Must not be null. The object's fields must be of supported types.
+- Returns: A byte array containing the serialized representation of the structure. Returns an empty array if `structValue` is null.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.TimeSpan`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.TimeSpan
+```
+Converts between S7 PLC time values and .NET TimeSpan values.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.S7PlcRx.PlcTypes.TimeSpan.SpecMaximumTimeSpan`
+
+```csharp
+public static System.TimeSpan SpecMaximumTimeSpan
+```
+Represents the maximum allowable time span for specification purposes, set to the largest value expressible in milliseconds as an integer.
+
+###### `F:IoT.DriverCore.S7PlcRx.PlcTypes.TimeSpan.SpecMinimumTimeSpan`
+
+```csharp
+public static System.TimeSpan SpecMinimumTimeSpan
+```
+Gets the minimum S7 time value.
+
+###### `F:IoT.DriverCore.S7PlcRx.PlcTypes.TimeSpan.TypeLengthInBytes`
+
+```csharp
+public static int TypeLengthInBytes
+```
+The size, in bytes, of the type.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.TimeSpan.FromByteArray(System.Byte[])`
+
+```csharp
+public static System.TimeSpan FromByteArray(byte[] bytes)
+```
+Creates a TimeSpan structure from its binary representation in a byte array.
+
+- Parameter `bytes`: A byte array containing the binary representation of a TimeSpan. The array must be at least 8 bytes in length and encoded in the expected format.
+- Returns: A TimeSpan value represented by the specified byte array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.TimeSpan.FromSpan(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static System.TimeSpan FromSpan(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `FromSpan` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `System.TimeSpan` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.TimeSpan.ToArray(System.Byte[])`
+
+```csharp
+public static System.TimeSpan[] ToArray(byte[] bytes)
+```
+Converts a byte array to an array of `T:System.TimeSpan` values.
+
+- Parameter `bytes`: The byte array containing the binary representation of one or more `T:System.TimeSpan` values. The array length must be a multiple of the size of a `T:System.TimeSpan` structure.
+- Returns: An array of `T:System.TimeSpan` values deserialized from the specified byte array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.TimeSpan.ToArray(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static System.TimeSpan[] ToArray(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `ToArray` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `System.TimeSpan[]` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.TimeSpan.ToByteArray(System.TimeSpan)`
+
+```csharp
+public static byte[] ToByteArray(System.TimeSpan timeSpan)
+```
+Converts a TimeSpan to its S7 byte representation.
+
+- Parameter `timeSpan`: The `T:System.TimeSpan` value to convert to a byte array.
+- Returns: A byte array containing the binary representation of the specified `T:System.TimeSpan` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.TimeSpan.ToByteArray(System.TimeSpan[])`
+
+```csharp
+public static byte[] ToByteArray(System.TimeSpan[] timeSpans)
+```
+Converts an array of `T:System.TimeSpan` values to a byte array representation.
+
+- Parameter `timeSpans`: An array of `T:System.TimeSpan` values to convert. Cannot be null.
+- Returns: A byte array containing the serialized representation of the input `T:System.TimeSpan` values. The length of the array is proportional to the number of elements in `timeSpans` .
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.TimeSpan.ToSpan(System.ReadOnlySpan`1{System.TimeSpan},System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(System.ReadOnlySpan<System.TimeSpan> timeSpans, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `timeSpans`: The `timeSpans` value.
+- Parameter `destination`: The `destination` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.TimeSpan.ToSpan(System.TimeSpan,System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(System.TimeSpan timeSpan, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `timeSpan`: The `timeSpan` value.
+- Parameter `destination`: The `destination` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.Timer`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.Timer
+```
+Converts between S7 Timer bytes and .NET numeric types.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Timer.FromByteArray(System.Byte[])`
+
+```csharp
+public static double FromByteArray(byte[] bytes)
+```
+Converts a byte array to a double-precision floating-point number.
+
+- Parameter `bytes`: The byte array containing the bytes to convert. Must represent a valid double value in the expected byte order.
+- Returns: A double-precision floating-point number represented by the specified byte array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Timer.FromByteArray(System.Byte[],System.Int32)`
+
+```csharp
+public static double FromByteArray(byte[] bytes, int start)
+```
+Converts a sequence of bytes from the specified array, starting at the given index, to a double-precision floating-point number.
+
+- Parameter `bytes`: The byte array containing the value to convert.
+- Parameter `start`: The zero-based index in the array at which to begin reading the bytes.
+- Returns: A double-precision floating-point number represented by the eight bytes starting at the specified index in the array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Timer.FromByteArray(System.ReadOnlySpan`1{System.Byte},System.Int32)`
+
+```csharp
+public static double FromByteArray(System.ReadOnlySpan<byte> bytes, int start)
+```
+Executes the `FromByteArray` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Parameter `start`: The `start` value.
+- Returns: A `double` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Timer.FromSpan(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static double FromSpan(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `FromSpan` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `double` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Timer.ToArray(System.Byte[])`
+
+```csharp
+public static double[] ToArray(byte[] bytes)
+```
+Converts a byte array to an array of double-precision floating-point values.
+
+- Parameter `bytes`: The byte array to convert. The length must be a multiple of the size of a double (8 bytes).
+- Returns: An array of double values created from the input byte array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Timer.ToArray(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static double[] ToArray(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `ToArray` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `double[]` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Timer.ToByteArray(System.UInt16)`
+
+```csharp
+public static byte[] ToByteArray(ushort value)
+```
+Converts the specified 16-bit unsigned integer to a byte array.
+
+- Parameter `value`: The 16-bit unsigned integer to convert to a byte array.
+- Returns: A byte array containing the two bytes of the specified value in platform endianness.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Timer.ToByteArray(System.UInt16[])`
+
+```csharp
+public static byte[] ToByteArray(ushort[] value)
+```
+Converts an array of 16-bit unsigned integers to a byte array.
+
+- Parameter `value`: The array of 16-bit unsigned integers to convert. Cannot be null.
+- Returns: A byte array containing the binary representation of the input values.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Timer.ToSpan(System.ReadOnlySpan`1{System.UInt16},System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(System.ReadOnlySpan<ushort> values, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `values`: The `values` value.
+- Parameter `destination`: The `destination` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Timer.ToSpan(System.UInt16,System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(ushort value, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `value`: The `value` value.
+- Parameter `destination`: The `destination` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.PlcTypes.Word`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.PlcTypes.Word
+```
+Provides utility methods for converting between 16-bit unsigned integers (words) and their byte array or span representations, using big-endian (high byte first) byte order.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Word.FromByteArray(System.Byte[])`
+
+```csharp
+public static ushort FromByteArray(byte[] bytes)
+```
+Creates a 16-bit unsigned integer from a byte array.
+
+- Parameter `bytes`: The byte array containing the bytes to convert. Must contain at least two elements.
+- Returns: A 16-bit unsigned integer represented by the first two bytes of the array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Word.FromByteArray(System.Byte[],System.Int32)`
+
+```csharp
+public static ushort FromByteArray(byte[] bytes, int start)
+```
+Creates a 16-bit unsigned integer from a byte array starting at the specified index.
+
+- Parameter `bytes`: The byte array containing the data to convert.
+- Parameter `start`: The zero-based index in the array at which to begin reading the value.
+- Returns: A 16-bit unsigned integer formed from the specified bytes.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Word.FromBytes(System.Byte,System.Byte)`
+
+```csharp
+public static ushort FromBytes(byte lowValue, byte highValue)
+```
+Creates an unsigned 16-bit value from low and high bytes.
+
+- Parameter `lowValue`: The low-order byte of the resulting 16-bit unsigned integer.
+- Parameter `highValue`: The high-order byte of the resulting 16-bit unsigned integer.
+- Returns: A 16-bit unsigned integer composed from the specified low and high bytes.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Word.FromSpan(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static ushort FromSpan(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `FromSpan` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `ushort` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Word.ToArray(System.Byte[])`
+
+```csharp
+public static ushort[] ToArray(byte[] bytes)
+```
+Converts a byte array to an array of 16-bit unsigned integers.
+
+- Parameter `bytes`: The byte array to convert. The length must be a multiple of 2.
+- Returns: An array of 16-bit unsigned integers representing the converted values from the input byte array.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Word.ToArray(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static ushort[] ToArray(System.ReadOnlySpan<byte> bytes)
+```
+Executes the `ToArray` operation.
+
+- Parameter `bytes`: The `bytes` value.
+- Returns: A `ushort[]` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Word.ToByteArray(System.UInt16)`
+
+```csharp
+public static byte[] ToByteArray(ushort value)
+```
+Converts the specified 16-bit unsigned integer to a byte array.
+
+- Parameter `value`: The 16-bit unsigned integer to convert.
+- Returns: A byte array containing the bytes of the specified value in little-endian order.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Word.ToByteArray(System.UInt16,System.Array,System.Int32)`
+
+```csharp
+public static void ToByteArray(ushort value, System.Array destination, int start)
+```
+Copies the byte representation of the specified 16-bit unsigned integer into the given array starting at the specified index.
+
+- Parameter `value`: The 16-bit unsigned integer to convert to bytes.
+- Parameter `destination`: The array that will receive the bytes representing the value. Must have sufficient space to accommodate two bytes starting at the specified index.
+- Parameter `start`: The zero-based index in the destination array at which to begin copying the bytes.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Word.ToByteArray(System.UInt16[])`
+
+```csharp
+public static byte[] ToByteArray(ushort[] value)
+```
+Converts an array of 16-bit unsigned integers to a byte array.
+
+- Parameter `value`: The array of 16-bit unsigned integers to convert. Cannot be null.
+- Returns: A byte array containing the binary representation of the input values.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Word.ToSpan(System.ReadOnlySpan`1{System.UInt16},System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(System.ReadOnlySpan<ushort> values, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `values`: The `values` value.
+- Parameter `destination`: The `destination` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.PlcTypes.Word.ToSpan(System.UInt16,System.Span`1{System.Byte})`
+
+```csharp
+public static void ToSpan(ushort value, System.Span<byte> destination)
+```
+Executes the `ToSpan` operation.
+
+- Parameter `value`: The `value` value.
+- Parameter `destination`: The `destination` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Production.CircuitBreaker`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Production.CircuitBreaker
+```
+Provides a thread-safe circuit breaker that prevents repeated failing operations.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.CircuitBreaker.#ctor(IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig,System.TimeProvider)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Production.CircuitBreaker(IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig config, System.TimeProvider timeProvider)
+```
+Provides a thread-safe circuit breaker that prevents repeated failing operations.
+
+- Parameter `config`: The configuration settings that control circuit-breaker thresholds, retry behavior, and timeouts.
+- Parameter `timeProvider`: The time provider; defaults to `P:System.TimeProvider.System` .
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.CircuitBreaker.ExecuteAsync``1(System.Func`1{System.Threading.Tasks.Task`1{``0}})`
+
+```csharp
+public System.Threading.Tasks.Task<T> ExecuteAsync<T>(System.Func<System.Threading.Tasks.Task<T>> operation)
+```
+Executes the `ExecuteAsync` operation.
+
+- Parameter `operation`: The `operation` value.
+- Returns: A `System.Threading.Tasks.Task<T>` result.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.CircuitBreaker.FailedOperations`
+
+```csharp
+public long FailedOperations { get; }
+```
+Gets the total number of operations that have failed.
+
+- Value: The `FailedOperations` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.CircuitBreaker.State`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Production.CircuitBreakerState State { get; }
+```
+Gets the current state of the circuit breaker.
+
+- Value: The `State` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.CircuitBreaker.SuccessRate`
+
+```csharp
+public double SuccessRate { get; }
+```
+Gets the percentage of operations that completed successfully.
+
+- Value: The `SuccessRate` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.CircuitBreaker.SuccessfulOperations`
+
+```csharp
+public long SuccessfulOperations { get; }
+```
+Gets the total number of operations that have completed successfully.
+
+- Value: The `SuccessfulOperations` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.CircuitBreaker.TotalOperations`
+
+```csharp
+public long TotalOperations { get; }
+```
+Gets the total number of operations that have been performed.
+
+- Value: The `TotalOperations` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Production.CircuitBreakerState`
+
+```csharp
+public enum IoT.DriverCore.S7PlcRx.Production.CircuitBreakerState
+```
+Specifies the operational state of a circuit breaker.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.S7PlcRx.Production.CircuitBreakerState.Closed`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Production.CircuitBreakerState Closed
+```
+Circuit is closed (normal operation).
+
+###### `F:IoT.DriverCore.S7PlcRx.Production.CircuitBreakerState.HalfOpen`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Production.CircuitBreakerState HalfOpen
+```
+Circuit is half-open (testing recovery).
+
+###### `F:IoT.DriverCore.S7PlcRx.Production.CircuitBreakerState.Open`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.Production.CircuitBreakerState Open
+```
+Circuit is open (blocking operations).
+
+#### `T:IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics
+```
+Represents diagnostic information collected from a production programmable logic controller (PLC) connection, including connection details, performance metrics, and recommendations.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics.CPUInformation`
+
+```csharp
+public System.Collections.Generic.List<string> CPUInformation { get; }
+```
+Gets or sets the CPU information.
+
+- Value: The `CPUInformation` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics.ConnectionLatencyMs`
+
+```csharp
+public double ConnectionLatencyMs { get; set; }
+```
+Gets or sets the connection latency in milliseconds.
+
+- Value: The `ConnectionLatencyMs` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics.DiagnosticTime`
+
+```csharp
+public System.DateTimeOffset DiagnosticTime { get; set; }
+```
+Gets or sets when diagnostics were collected.
+
+- Value: The `DiagnosticTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics.Errors`
+
+```csharp
+public System.Collections.Generic.List<string> Errors { get; }
+```
+Gets or sets any errors encountered during diagnostics.
+
+- Value: The `Errors` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics.IPAddress`
+
+```csharp
+public string IPAddress { get; set; }
+```
+Gets or sets the IP address.
+
+- Value: The `IPAddress` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics.IsConnected`
+
+```csharp
+public bool IsConnected { get; set; }
+```
+Gets or sets a value indicating whether gets or sets the connection status.
+
+- Value: The `IsConnected` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics.PLCType`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enums.CpuType PLCType { get; set; }
+```
+Gets or sets the PLC type.
+
+- Value: The `PLCType` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics.Rack`
+
+```csharp
+public short Rack { get; set; }
+```
+Gets or sets the rack number.
+
+- Value: The `Rack` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics.Recommendations`
+
+```csharp
+public System.Collections.Generic.List<string> Recommendations { get; }
+```
+Gets or sets the optimization recommendations.
+
+- Value: The `Recommendations` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics.Slot`
+
+```csharp
+public short Slot { get; set; }
+```
+Gets or sets the slot number.
+
+- Value: The `Slot` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionDiagnostics.TagMetrics`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Production.ProductionTagMetrics TagMetrics { get; set; }
+```
+Gets or sets the tag metrics.
+
+- Value: The `TagMetrics` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig
+```
+Represents production error-handling and retry configuration.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig.BaseRetryDelayMs`
+
+```csharp
+public int BaseRetryDelayMs { get; set; }
+```
+Gets or sets the base retry delay in milliseconds.
+
+- Value: The `BaseRetryDelayMs` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig.CircuitBreakerThreshold`
+
+```csharp
+public int CircuitBreakerThreshold { get; set; }
+```
+Gets or sets the circuit breaker failure threshold.
+
+- Value: The `CircuitBreakerThreshold` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig.CircuitBreakerTimeout`
+
+```csharp
+public System.TimeSpan CircuitBreakerTimeout { get; set; }
+```
+Gets or sets the circuit breaker timeout.
+
+- Value: The `CircuitBreakerTimeout` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig.MaxRetryAttempts`
+
+```csharp
+public int MaxRetryAttempts { get; set; }
+```
+Gets or sets the maximum retry attempts.
+
+- Value: The `MaxRetryAttempts` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig.UseExponentialBackoff`
+
+```csharp
+public bool UseExponentialBackoff { get; set; }
+```
+Gets or sets a value indicating whether gets or sets whether to use exponential backoff.
+
+- Value: The `UseExponentialBackoff` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Production.ProductionErrorHandler`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Production.ProductionErrorHandler
+```
+Provides error handling for production environments by executing operations with circuit breaker protection and configurable error handling policies.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.ProductionErrorHandler.#ctor(IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Production.ProductionErrorHandler(IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig config)
+```
+Provides error handling for production environments by executing operations with circuit breaker protection and configurable error handling policies.
+
+- Parameter `config`: The non-null settings that define error handling, circuit breaking, and retries.
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.ProductionErrorHandler.ExecuteAsync``1(System.Func`1{System.Threading.Tasks.Task`1{``0}})`
+
+```csharp
+public System.Threading.Tasks.Task<T> ExecuteAsync<T>(System.Func<System.Threading.Tasks.Task<T>> operation)
+```
+Executes the `ExecuteAsync` operation.
+
+- Parameter `operation`: The `operation` value.
+- Returns: A `System.Threading.Tasks.Task<T>` result.
+
+#### `T:IoT.DriverCore.S7PlcRx.Production.ProductionExtensions`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Production.ProductionExtensions
+```
+Provides extension methods for enabling production-grade error handling, retry logic, and system validation on PLC instances using the circuit breaker pattern.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.ProductionExtensions.EnableProductionErrorHandling(IoT.DriverCore.S7PlcRx.IRxS7,IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.Production.ProductionErrorHandler EnableProductionErrorHandling(IoT.DriverCore.S7PlcRx.IRxS7 plc, IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig config)
+```
+Enables production error handling for the specified PLC using the provided configuration.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `config`: The configuration settings to use for production error handling.
+- Returns: A new instance of `T:IoT.DriverCore.S7PlcRx.Production.ProductionErrorHandler` configured for the specified PLC.
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.ProductionExtensions.ExecuteWithErrorHandlingAsync``1(IoT.DriverCore.S7PlcRx.IRxS7,System.Func`1{System.Threading.Tasks.Task`1{``0}})`
+
+```csharp
+public static System.Threading.Tasks.Task<T> ExecuteWithErrorHandlingAsync<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.Func<System.Threading.Tasks.Task<T>> operation)
+```
+Executes the `ExecuteWithErrorHandlingAsync` operation.
+
+- Parameter `plc`: The `plc` value.
+- Parameter `operation`: The `operation` value.
+- Returns: A `System.Threading.Tasks.Task<T>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.ProductionExtensions.ExecuteWithErrorHandlingAsync``1(IoT.DriverCore.S7PlcRx.IRxS7,System.Func`1{System.Threading.Tasks.Task`1{``0}},IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig)`
+
+```csharp
+public static System.Threading.Tasks.Task<T> ExecuteWithErrorHandlingAsync<T>(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.Func<System.Threading.Tasks.Task<T>> operation, IoT.DriverCore.S7PlcRx.Production.ProductionErrorConfig config)
+```
+Executes the `ExecuteWithErrorHandlingAsync` operation.
+
+- Parameter `plc`: The `plc` value.
+- Parameter `operation`: The `operation` value.
+- Parameter `config`: The `config` value.
+- Returns: A `System.Threading.Tasks.Task<T>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.ProductionExtensions.ValidateProductionReadinessAsync(IoT.DriverCore.S7PlcRx.IRxS7)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.Production.SystemValidationResult> ValidateProductionReadinessAsync(IoT.DriverCore.S7PlcRx.IRxS7 plc)
+```
+Validates production readiness using the default validation configuration.
+
+- Parameter `plc`: The PLC instance.
+- Returns: A task that represents the asynchronous operation.
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.ProductionExtensions.ValidateProductionReadinessAsync(IoT.DriverCore.S7PlcRx.IRxS7,IoT.DriverCore.S7PlcRx.Production.ProductionValidationConfig)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.Production.SystemValidationResult> ValidateProductionReadinessAsync(IoT.DriverCore.S7PlcRx.IRxS7 plc, IoT.DriverCore.S7PlcRx.Production.ProductionValidationConfig validationConfig)
+```
+Validates whether the PLC is ready for production deployment.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `validationConfig`: The validation parameters and thresholds.
+- Returns: A task that represents the asynchronous operation.
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.ProductionExtensions.ValidateProductionReadinessAsync(IoT.DriverCore.S7PlcRx.IRxS7,IoT.DriverCore.S7PlcRx.Production.ProductionValidationConfig,System.TimeProvider)`
+
+```csharp
+public static System.Threading.Tasks.Task<IoT.DriverCore.S7PlcRx.Production.SystemValidationResult> ValidateProductionReadinessAsync(IoT.DriverCore.S7PlcRx.IRxS7 plc, IoT.DriverCore.S7PlcRx.Production.ProductionValidationConfig validationConfig, System.TimeProvider timeProvider)
+```
+Validates whether the PLC is ready for production deployment.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `validationConfig`: The validation parameters and thresholds.
+- Parameter `timeProvider`: The time provider.
+- Returns: A task that represents the asynchronous operation.
+
+#### `T:IoT.DriverCore.S7PlcRx.Production.ProductionMetrics`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Production.ProductionMetrics
+```
+Represents a set of metrics related to the monitoring and connectivity status of a PLC (Programmable Logic Controller) over a specified period.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.ProductionMetrics.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Production.ProductionMetrics()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Production.ProductionMetrics`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionMetrics.ActiveTagCount`
+
+```csharp
+public int ActiveTagCount { get; set; }
+```
+Gets or sets the number of active tags.
+
+- Value: The `ActiveTagCount` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionMetrics.ConnectedTime`
+
+```csharp
+public System.TimeSpan ConnectedTime { get; set; }
+```
+Gets or sets the total connected time.
+
+- Value: The `ConnectedTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionMetrics.DisconnectedTime`
+
+```csharp
+public System.TimeSpan DisconnectedTime { get; set; }
+```
+Gets or sets the total disconnected time.
+
+- Value: The `DisconnectedTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionMetrics.IsConnected`
+
+```csharp
+public bool IsConnected { get; set; }
+```
+Gets or sets a value indicating whether gets or sets whether the PLC is currently connected.
+
+- Value: The `IsConnected` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionMetrics.LastUpdateTime`
+
+```csharp
+public System.DateTimeOffset LastUpdateTime { get; set; }
+```
+Gets or sets the last update time.
+
+- Value: The `LastUpdateTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionMetrics.PLCIdentifier`
+
+```csharp
+public string PLCIdentifier { get; set; }
+```
+Gets or sets the PLC identifier.
+
+- Value: The `PLCIdentifier` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionMetrics.StartTime`
+
+```csharp
+public System.DateTimeOffset StartTime { get; set; }
+```
+Gets or sets when monitoring started.
+
+- Value: The `StartTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionMetrics.TotalTagCount`
+
+```csharp
+public int TotalTagCount { get; set; }
+```
+Gets or sets the total number of tags.
+
+- Value: The `TotalTagCount` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionMetrics.UptimePercentage`
+
+```csharp
+public double UptimePercentage { get; set; }
+```
+Gets or sets the uptime percentage.
+
+- Value: The `UptimePercentage` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Production.ProductionTagMetrics`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Production.ProductionTagMetrics
+```
+Represents aggregate production-tag metrics.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.ProductionTagMetrics.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Production.ProductionTagMetrics()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Production.ProductionTagMetrics`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionTagMetrics.ActiveTags`
+
+```csharp
+public int ActiveTags { get; set; }
+```
+Gets or sets the number of active tags.
+
+- Value: The `ActiveTags` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionTagMetrics.DataBlockDistribution`
+
+```csharp
+public System.Collections.Generic.Dictionary<string, int> DataBlockDistribution { get; }
+```
+Gets or sets the distribution of tags by data block.
+
+- Value: The `DataBlockDistribution` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionTagMetrics.InactiveTags`
+
+```csharp
+public int InactiveTags { get; set; }
+```
+Gets or sets the number of inactive tags.
+
+- Value: The `InactiveTags` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionTagMetrics.TotalTags`
+
+```csharp
+public int TotalTags { get; set; }
+```
+Gets or sets the total number of tags.
+
+- Value: The `TotalTags` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Production.ProductionValidationConfig`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Production.ProductionValidationConfig
+```
+Represents configuration settings for validating production system performance and reliability.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.ProductionValidationConfig.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Production.ProductionValidationConfig()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Production.ProductionValidationConfig`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionValidationConfig.MaxAcceptableResponseTime`
+
+```csharp
+public System.TimeSpan MaxAcceptableResponseTime { get; set; }
+```
+Gets or sets the maximum acceptable response time.
+
+- Value: The `MaxAcceptableResponseTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionValidationConfig.MinimumProductionScore`
+
+```csharp
+public double MinimumProductionScore { get; set; }
+```
+Gets or sets the minimum production score (0 to 100).
+
+- Value: The `MinimumProductionScore` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionValidationConfig.MinimumReliabilityRate`
+
+```csharp
+public double MinimumReliabilityRate { get; set; }
+```
+Gets or sets the minimum reliability rate (0.0 to 1.0).
+
+- Value: The `MinimumReliabilityRate` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ProductionValidationConfig.ReliabilityTestCount`
+
+```csharp
+public int ReliabilityTestCount { get; set; }
+```
+Gets or sets the number of operations to test for reliability.
+
+- Value: The `ReliabilityTestCount` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Production.SystemValidationResult`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Production.SystemValidationResult
+```
+Represents the result of system validation.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.SystemValidationResult.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Production.SystemValidationResult()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Production.SystemValidationResult`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.SystemValidationResult.CriticalErrors`
+
+```csharp
+public System.Collections.Generic.List<string> CriticalErrors { get; }
+```
+Gets critical errors that prevent production use.
+
+- Value: The `CriticalErrors` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.SystemValidationResult.IsProductionReady`
+
+```csharp
+public bool IsProductionReady { get; set; }
+```
+Gets or sets a value indicating whether the system is production ready.
+
+- Value: The `IsProductionReady` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.SystemValidationResult.OverallScore`
+
+```csharp
+public double OverallScore { get; set; }
+```
+Gets or sets the overall validation score (0-100).
+
+- Value: The `OverallScore` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.SystemValidationResult.PLCIdentifier`
+
+```csharp
+public string PLCIdentifier { get; set; }
+```
+Gets or sets the PLC identifier.
+
+- Value: The `PLCIdentifier` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.SystemValidationResult.TotalValidationTime`
+
+```csharp
+public System.TimeSpan TotalValidationTime { get; }
+```
+Gets the total validation time.
+
+- Value: The `TotalValidationTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.SystemValidationResult.ValidationEndTime`
+
+```csharp
+public System.DateTimeOffset ValidationEndTime { get; set; }
+```
+Gets or sets the validation end time.
+
+- Value: The `ValidationEndTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.SystemValidationResult.ValidationStartTime`
+
+```csharp
+public System.DateTimeOffset ValidationStartTime { get; set; }
+```
+Gets or sets the validation start time.
+
+- Value: The `ValidationStartTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.SystemValidationResult.ValidationTests`
+
+```csharp
+public System.Collections.Generic.List<IoT.DriverCore.S7PlcRx.Production.ValidationTest> ValidationTests { get; }
+```
+Gets the individual validation tests.
+
+- Value: The `ValidationTests` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Production.ValidationTest`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Production.ValidationTest
+```
+Represents the result and metadata of a validation test.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Production.ValidationTest.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Production.ValidationTest()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Production.ValidationTest`.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ValidationTest.Details`
+
+```csharp
+public System.Collections.Generic.List<string> Details { get; }
+```
+Gets additional test details.
+
+- Value: The `Details` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ValidationTest.Duration`
+
+```csharp
+public System.TimeSpan Duration { get; }
+```
+Gets the test duration.
+
+- Value: The `Duration` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ValidationTest.EndTime`
+
+```csharp
+public System.DateTimeOffset EndTime { get; set; }
+```
+Gets or sets the test end time.
+
+- Value: The `EndTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ValidationTest.ErrorMessage`
+
+```csharp
+public string ErrorMessage { get; set; }
+```
+Gets or sets any error message.
+
+- Value: The `ErrorMessage` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ValidationTest.StartTime`
+
+```csharp
+public System.DateTimeOffset StartTime { get; set; }
+```
+Gets or sets the test start time.
+
+- Value: The `StartTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ValidationTest.Success`
+
+```csharp
+public bool Success { get; set; }
+```
+Gets or sets a value indicating whether gets or sets whether the test was successful.
+
+- Value: The `Success` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Production.ValidationTest.TestName`
+
+```csharp
+public string TestName { get; set; }
+```
+Gets or sets the test name.
+
+- Value: The `TestName` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.RxS7`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.RxS7
+```
+Contains address parsing members for `T:IoT.DriverCore.S7PlcRx.RxS7` .
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.RxS7.#ctor(IoT.DriverCore.S7PlcRx.RxS7Options)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.RxS7(IoT.DriverCore.S7PlcRx.RxS7Options options)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.RxS7` class from composed connection settings.
+
+- Parameter `options`: The composed PLC connection settings.
+
+###### `M:IoT.DriverCore.S7PlcRx.RxS7.#ctor(IoT.DriverCore.S7PlcRx.RxS7Options,System.TimeProvider)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.RxS7(IoT.DriverCore.S7PlcRx.RxS7Options options, System.TimeProvider timeProvider)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.RxS7` class from composed connection settings.
+
+- Parameter `options`: The composed PLC connection settings.
+- Parameter `timeProvider`: The time provider.
+
+###### `M:IoT.DriverCore.S7PlcRx.RxS7.Dispose`
+
+```csharp
+public void Dispose()
+```
+Releases resources used by this instance.
+
+###### `M:IoT.DriverCore.S7PlcRx.RxS7.GetCpuInfo`
+
+```csharp
+public System.IObservable<string[]> GetCpuInfo()
+```
+Retrieves detailed information about the connected CPU as an observable sequence.
+
+- Returns: An observable sequence that emits CPU information fields, such as the AS name, module name, copyright, serial number, module type name, order code, and version numbers. The sequence completes after emitting the data.
+
+###### `M:IoT.DriverCore.S7PlcRx.RxS7.Observe``1(IoT.DriverCore.Core.LogicalTagKey`1{``0})`
+
+```csharp
+public System.IObservable<T> Observe<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag)
+```
+Executes the `Observe` operation.
+
+- Parameter `tag`: The `tag` value.
+- Returns: A `System.IObservable<T>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.RxS7.ReadAsync``1(IoT.DriverCore.Core.LogicalTagKey`1{``0})`
+
+```csharp
+public System.Threading.Tasks.Task<T> ReadAsync<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag)
+```
+Executes the `ReadAsync` operation.
+
+- Parameter `tag`: The `tag` value.
+- Returns: A `System.Threading.Tasks.Task<T>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.RxS7.ReadAsync``1(IoT.DriverCore.Core.LogicalTagKey`1{``0},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<T> ReadAsync<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `ReadAsync` operation.
+
+- Parameter `tag`: The `tag` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<T>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.RxS7.Value``1(System.String,``0)`
+
+```csharp
+public void Value<T>(string variable, T value)
+```
+Sets a variable value when it exists and the value is compatible with its type.
+
+- Parameter `variable`: The name of the variable whose value is to be set. Cannot be null.
+- Parameter `value`: The value to assign to the variable. Must be compatible with the variable's type.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.IP`
+
+```csharp
+public string IP { get; }
+```
+Gets the IP address associated with the current instance.
+
+- Value: The `IP` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.IsConnected`
+
+```csharp
+public System.IObservable<bool> IsConnected { get; }
+```
+Gets an observable sequence that indicates whether the connection is currently established.
+
+- Value: The `IsConnected` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.IsConnectedValue`
+
+```csharp
+public bool IsConnectedValue { get; }
+```
+Gets a value indicating whether the connection is currently established.
+
+- Value: The `IsConnectedValue` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.IsDisposed`
+
+```csharp
+public bool IsDisposed { get; }
+```
+Gets a value indicating whether gets a value that indicates whether the object is disposed.
+
+- Value: The `IsDisposed` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.IsPaused`
+
+```csharp
+public System.IObservable<bool> IsPaused { get; }
+```
+Gets an observable sequence that indicates whether the operation is currently paused.
+
+- Value: The `IsPaused` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.LastError`
+
+```csharp
+public System.IObservable<string> LastError { get; }
+```
+Gets an observable sequence of the component's most recent error messages.
+
+- Value: The `LastError` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.LastErrorCode`
+
+```csharp
+public System.IObservable<IoT.DriverCore.S7PlcRx.Enums.ErrorCode> LastErrorCode { get; }
+```
+Gets an observable sequence that emits the most recent error code reported by the system.
+
+- Value: The `LastErrorCode` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.ObserveAll`
+
+```csharp
+public System.IObservable<IoT.DriverCore.S7PlcRx.Tag> ObserveAll { get; }
+```
+Gets an observable sequence that emits all tag updates as they occur.
+
+- Value: The `ObserveAll` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.PLCType`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enums.CpuType PLCType { get; }
+```
+Gets the type of PLC (Programmable Logic Controller) associated with this instance.
+
+- Value: The `PLCType` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.Rack`
+
+```csharp
+public short Rack { get; }
+```
+Gets the rack number associated with the device or component.
+
+- Value: The `Rack` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.ReadTime`
+
+```csharp
+public System.IObservable<long> ReadTime { get; }
+```
+Gets an observable sequence that emits each read operation's duration in ticks.
+
+- Value: The `ReadTime` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.ShowWatchDogWriting`
+
+```csharp
+public bool ShowWatchDogWriting { get; set; }
+```
+Gets or sets a value indicating whether WatchDog writing output is displayed.
+
+- Value: The `ShowWatchDogWriting` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.Slot`
+
+```csharp
+public short Slot { get; }
+```
+Gets the slot number associated with this instance.
+
+- Value: The `Slot` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.Status`
+
+```csharp
+public System.IObservable<string> Status { get; }
+```
+Gets an observable sequence that provides status updates as strings.
+
+- Value: The `Status` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.TagList`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Tags TagList { get; }
+```
+Gets the collection of tags associated with the current instance.
+
+- Value: The `TagList` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.WatchDogAddress`
+
+```csharp
+public string WatchDogAddress { get; }
+```
+Gets the network address of the WatchDog service, if configured.
+
+- Value: The `WatchDogAddress` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.WatchDogValueToWrite`
+
+```csharp
+public ushort WatchDogValueToWrite { get; set; }
+```
+Gets or sets the value to be written to the watchdog timer.
+
+- Value: The `WatchDogValueToWrite` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7.WatchDogWritingTime`
+
+```csharp
+public int WatchDogWritingTime { get; }
+```
+Gets the interval, in seconds, that the watchdog uses when writing status updates.
+
+- Value: The `WatchDogWritingTime` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.RxS7Options`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.RxS7Options
+```
+Composes connection, polling, and optional watchdog settings for `T:IoT.DriverCore.S7PlcRx.RxS7` .
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.RxS7Options.#ctor(IoT.DriverCore.S7PlcRx.S7ConnectionOptions,IoT.DriverCore.S7PlcRx.S7PollingOptions,IoT.DriverCore.S7PlcRx.S7WatchdogOptions)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.RxS7Options(IoT.DriverCore.S7PlcRx.S7ConnectionOptions connection, IoT.DriverCore.S7PlcRx.S7PollingOptions polling, IoT.DriverCore.S7PlcRx.S7WatchdogOptions watchdog)
+```
+Composes connection, polling, and optional watchdog settings for `T:IoT.DriverCore.S7PlcRx.RxS7` .
+
+- Parameter `connection`: The PLC endpoint settings.
+- Parameter `polling`: The polling settings, or to use defaults.
+- Parameter `watchdog`: The optional watchdog settings.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7Options.Connection`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.S7ConnectionOptions Connection { get; }
+```
+Gets the PLC endpoint settings.
+
+- Value: The `Connection` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7Options.Polling`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.S7PollingOptions Polling { get; }
+```
+Gets the polling settings.
+
+- Value: The `Polling` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.RxS7Options.Watchdog`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.S7WatchdogOptions Watchdog { get; }
+```
+Gets the optional watchdog settings.
+
+- Value: The `Watchdog` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.S71200`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.S71200
+```
+Creates connections to Siemens S7-1200 PLC devices.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.S71200.Create(System.String)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.IRxS7 Create(string ip)
+```
+Creates an S7-1200 connection with standard settings.
+
+- Parameter `ip`: The PLC IP address.
+- Returns: The configured PLC connection.
+
+###### `M:IoT.DriverCore.S7PlcRx.S71200.Create(System.String,System.Int16)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.IRxS7 Create(string ip, short rack)
+```
+Creates an S7-1200 connection for a rack with standard settings.
+
+- Parameter `ip`: The PLC IP address.
+- Parameter `rack`: The PLC rack number.
+- Returns: The configured PLC connection.
+
+###### `M:IoT.DriverCore.S7PlcRx.S71200.Create(System.String,System.Int16,IoT.DriverCore.S7PlcRx.S7PollingOptions,IoT.DriverCore.S7PlcRx.S7WatchdogOptions)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.IRxS7 Create(string ip, short rack, IoT.DriverCore.S7PlcRx.S7PollingOptions polling, IoT.DriverCore.S7PlcRx.S7WatchdogOptions watchdog)
+```
+Creates an S7-1200 connection with explicit settings.
+
+- Parameter `ip`: The PLC IP address.
+- Parameter `rack`: The PLC rack number.
+- Parameter `polling`: The polling configuration.
+- Parameter `watchdog`: The optional watchdog configuration.
+- Returns: The configured PLC connection.
+
+#### `T:IoT.DriverCore.S7PlcRx.S71500`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.S71500
+```
+Creates connections to Siemens S7-1500 PLC devices.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.S71500.Create(System.String)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.IRxS7 Create(string ip)
+```
+Creates an S7-1500 connection with standard settings.
+
+- Parameter `ip`: The PLC IP address.
+- Returns: The configured PLC connection.
+
+###### `M:IoT.DriverCore.S7PlcRx.S71500.Create(System.String,System.Double)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.IRxS7 Create(string ip, double interval)
+```
+Creates an S7-1500 connection with an explicit polling interval.
+
+- Parameter `ip`: The PLC IP address.
+- Parameter `interval`: The polling interval in milliseconds.
+- Returns: The configured PLC connection.
+
+###### `M:IoT.DriverCore.S7PlcRx.S71500.Create(System.String,System.Int16,System.Int16)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.IRxS7 Create(string ip, short rack, short slot)
+```
+Creates an S7-1500 connection at a rack and slot with standard polling.
+
+- Parameter `ip`: The PLC IP address.
+- Parameter `rack`: The PLC rack number.
+- Parameter `slot`: The PLC CPU slot.
+- Returns: The configured PLC connection.
+
+###### `M:IoT.DriverCore.S7PlcRx.S71500.Create(System.String,System.Int16,System.Int16,IoT.DriverCore.S7PlcRx.S7PollingOptions,IoT.DriverCore.S7PlcRx.S7WatchdogOptions)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.IRxS7 Create(string ip, short rack, short slot, IoT.DriverCore.S7PlcRx.S7PollingOptions polling, IoT.DriverCore.S7PlcRx.S7WatchdogOptions watchdog)
+```
+Creates an S7-1500 connection with explicit settings.
+
+- Parameter `ip`: The PLC IP address.
+- Parameter `rack`: The PLC rack number.
+- Parameter `slot`: The PLC CPU slot.
+- Parameter `polling`: The polling configuration.
+- Parameter `watchdog`: The optional watchdog configuration.
+- Returns: The configured PLC connection.
+
+###### `M:IoT.DriverCore.S7PlcRx.S71500.Create(System.String,System.Int16,System.Int16,System.String,System.Double)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.IRxS7 Create(string ip, short rack, short slot, string watchDogAddress, double interval)
+```
+Creates an S7-1500 connection with legacy scalar settings.
+
+- Parameter `ip`: The PLC IP address.
+- Parameter `rack`: The PLC rack number.
+- Parameter `slot`: The PLC CPU slot.
+- Parameter `watchDogAddress`: The optional watchdog address.
+- Parameter `interval`: The polling interval in milliseconds.
+- Returns: The configured PLC connection.
+
+#### `T:IoT.DriverCore.S7PlcRx.S7200`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.S7200
+```
+Creates connections to Siemens S7-200 PLC devices.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.S7200.Create(System.String,System.Int16,System.Int16)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.IRxS7 Create(string ip, short rack, short slot)
+```
+Creates an S7-200 connection with standard polling.
+
+- Parameter `ip`: The PLC IP address.
+- Parameter `rack`: The PLC rack number.
+- Parameter `slot`: The PLC CPU slot.
+- Returns: The configured PLC connection.
+
+###### `M:IoT.DriverCore.S7PlcRx.S7200.Create(System.String,System.Int16,System.Int16,IoT.DriverCore.S7PlcRx.S7PollingOptions,IoT.DriverCore.S7PlcRx.S7WatchdogOptions)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.IRxS7 Create(string ip, short rack, short slot, IoT.DriverCore.S7PlcRx.S7PollingOptions polling, IoT.DriverCore.S7PlcRx.S7WatchdogOptions watchdog)
+```
+Creates an S7-200 connection with explicit settings.
+
+- Parameter `ip`: The PLC IP address.
+- Parameter `rack`: The PLC rack number.
+- Parameter `slot`: The PLC CPU slot.
+- Parameter `polling`: The polling configuration.
+- Parameter `watchdog`: The optional watchdog configuration.
+- Returns: The configured PLC connection.
+
+#### `T:IoT.DriverCore.S7PlcRx.S7300`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.S7300
+```
+Creates connections to Siemens S7-300 PLC devices.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.S7300.Create(System.String,System.Int16,System.Int16)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.IRxS7 Create(string ip, short rack, short slot)
+```
+Creates an S7-300 connection with standard polling.
+
+- Parameter `ip`: The PLC IP address.
+- Parameter `rack`: The PLC rack number.
+- Parameter `slot`: The PLC CPU slot.
+- Returns: The configured PLC connection.
+
+###### `M:IoT.DriverCore.S7PlcRx.S7300.Create(System.String,System.Int16,System.Int16,IoT.DriverCore.S7PlcRx.S7PollingOptions,IoT.DriverCore.S7PlcRx.S7WatchdogOptions)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.IRxS7 Create(string ip, short rack, short slot, IoT.DriverCore.S7PlcRx.S7PollingOptions polling, IoT.DriverCore.S7PlcRx.S7WatchdogOptions watchdog)
+```
+Creates an S7-300 connection with explicit settings.
+
+- Parameter `ip`: The PLC IP address.
+- Parameter `rack`: The PLC rack number.
+- Parameter `slot`: The PLC CPU slot.
+- Parameter `polling`: The polling configuration.
+- Parameter `watchdog`: The optional watchdog configuration.
+- Returns: The configured PLC connection.
+
+#### `T:IoT.DriverCore.S7PlcRx.S7400`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.S7400
+```
+Creates connections to Siemens S7-400 PLC devices.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.S7400.Create(System.String,System.Int16,System.Int16)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.IRxS7 Create(string ip, short rack, short slot)
+```
+Creates an S7-400 connection with standard polling.
+
+- Parameter `ip`: The PLC IP address.
+- Parameter `rack`: The PLC rack number.
+- Parameter `slot`: The PLC CPU slot.
+- Returns: The configured PLC connection.
+
+###### `M:IoT.DriverCore.S7PlcRx.S7400.Create(System.String,System.Int16,System.Int16,IoT.DriverCore.S7PlcRx.S7PollingOptions,IoT.DriverCore.S7PlcRx.S7WatchdogOptions)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.IRxS7 Create(string ip, short rack, short slot, IoT.DriverCore.S7PlcRx.S7PollingOptions polling, IoT.DriverCore.S7PlcRx.S7WatchdogOptions watchdog)
+```
+Creates an S7-400 connection with explicit settings.
+
+- Parameter `ip`: The PLC IP address.
+- Parameter `rack`: The PLC rack number.
+- Parameter `slot`: The PLC CPU slot.
+- Parameter `polling`: The polling configuration.
+- Parameter `watchdog`: The optional watchdog configuration.
+- Returns: The configured PLC connection.
+
+#### `T:IoT.DriverCore.S7PlcRx.S7ConnectionOptions`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.S7ConnectionOptions
+```
+Describes the PLC endpoint used by an `T:IoT.DriverCore.S7PlcRx.RxS7` connection.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.S7ConnectionOptions.#ctor(IoT.DriverCore.S7PlcRx.Enums.CpuType,System.String,System.Int16,System.Int16)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.S7ConnectionOptions(IoT.DriverCore.S7PlcRx.Enums.CpuType cpuType, string address, short rack, short slot)
+```
+Describes the PLC endpoint used by an `T:IoT.DriverCore.S7PlcRx.RxS7` connection.
+
+- Parameter `cpuType`: The PLC CPU family.
+- Parameter `address`: The PLC IP address.
+- Parameter `rack`: The PLC rack number.
+- Parameter `slot`: The PLC CPU slot number.
+
+###### `P:IoT.DriverCore.S7PlcRx.S7ConnectionOptions.CpuType`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Enums.CpuType CpuType { get; }
+```
+Gets the PLC CPU family.
+
+- Value: The `CpuType` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.S7ConnectionOptions.IpAddress`
+
+```csharp
+public string IpAddress { get; }
+```
+Gets the PLC IP address.
+
+- Value: The `IpAddress` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.S7ConnectionOptions.Rack`
+
+```csharp
+public short Rack { get; }
+```
+Gets the PLC rack number.
+
+- Value: The `Rack` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.S7ConnectionOptions.Slot`
+
+```csharp
+public short Slot { get; }
+```
+Gets the PLC CPU slot number.
+
+- Value: The `Slot` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.S7Exception`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.S7Exception
+```
+Represents errors that occur during S7 protocol operations.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.S7Exception.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.S7Exception()
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.S7Exception` class.
+
+###### `M:IoT.DriverCore.S7PlcRx.S7Exception.#ctor(System.String)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.S7Exception(string message)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.S7Exception` class.
+
+- Parameter `message`: The message that describes the error.
+
+###### `M:IoT.DriverCore.S7PlcRx.S7Exception.#ctor(System.String,System.Exception)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.S7Exception(string message, System.Exception innerException)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.S7Exception` class.
+
+- Parameter `message`: The error message that explains the reason for the exception.
+- Parameter `innerException`: The exception that caused the current exception.
+
+#### `T:IoT.DriverCore.S7PlcRx.S7PollingOptions`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.S7PollingOptions
+```
+Describes periodic PLC tag polling.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.S7PlcRx.S7PollingOptions.DefaultIntervalMilliseconds`
+
+```csharp
+public static double DefaultIntervalMilliseconds
+```
+The default polling interval in milliseconds.
+
+###### `M:IoT.DriverCore.S7PlcRx.S7PollingOptions.#ctor(System.Double)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.S7PollingOptions(double intervalMilliseconds)
+```
+Describes periodic PLC tag polling.
+
+- Parameter `intervalMilliseconds`: The polling interval in milliseconds.
+
+###### `P:IoT.DriverCore.S7PlcRx.S7PollingOptions.IntervalMilliseconds`
+
+```csharp
+public double IntervalMilliseconds { get; }
+```
+Gets the polling interval in milliseconds.
+
+- Value: The `IntervalMilliseconds` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.S7WatchdogOptions`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.S7WatchdogOptions
+```
+Describes optional PLC watchdog writes.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.S7PlcRx.S7WatchdogOptions.DefaultIntervalSeconds`
+
+```csharp
+public static int DefaultIntervalSeconds
+```
+The default watchdog interval in seconds.
+
+###### `F:IoT.DriverCore.S7PlcRx.S7WatchdogOptions.DefaultValueToWrite`
+
+```csharp
+public static ushort DefaultValueToWrite
+```
+The default value written during each watchdog cycle.
+
+###### `M:IoT.DriverCore.S7PlcRx.S7WatchdogOptions.#ctor(System.String,System.UInt16,System.Int32)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.S7WatchdogOptions(string address, ushort valueToWrite, int intervalSeconds)
+```
+Describes optional PLC watchdog writes.
+
+- Parameter `address`: The DBW watchdog address.
+- Parameter `valueToWrite`: The value written during each watchdog cycle.
+- Parameter `intervalSeconds`: The watchdog interval in seconds.
+
+###### `P:IoT.DriverCore.S7PlcRx.S7WatchdogOptions.Address`
+
+```csharp
+public string Address { get; }
+```
+Gets the DBW watchdog address.
+
+- Value: The `Address` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.S7WatchdogOptions.IntervalSeconds`
+
+```csharp
+public int IntervalSeconds { get; }
+```
+Gets the watchdog interval in seconds.
+
+- Value: The `IntervalSeconds` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.S7WatchdogOptions.ValueToWrite`
+
+```csharp
+public ushort ValueToWrite { get; }
+```
+Gets the value written during each watchdog cycle.
+
+- Value: The `ValueToWrite` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.SourceGeneration.S7PlcBindingAttribute`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.SourceGeneration.S7PlcBindingAttribute
+```
+Marks a class as an S7 PLC binding target.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.SourceGeneration.S7PlcBindingAttribute.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.SourceGeneration.S7PlcBindingAttribute()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.SourceGeneration.S7PlcBindingAttribute`.
+
+#### `T:IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagAttribute`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagAttribute
+```
+Marks a partial property as a PLC tag binding target.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagAttribute.#ctor(System.String)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagAttribute(string address)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagAttribute` class.
+
+- Parameter `address`: The PLC tag address.
+
+###### `P:IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagAttribute.Address`
+
+```csharp
+public string Address { get; }
+```
+Gets the PLC tag address.
+
+- Value: The `Address` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagAttribute.ArrayLength`
+
+```csharp
+public int ArrayLength { get; set; }
+```
+Gets or sets the PLC array length.
+
+- Value: The `ArrayLength` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagAttribute.Direction`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagDirection Direction { get; set; }
+```
+Gets or sets the binding direction.
+
+- Value: The `Direction` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagAttribute.PollIntervalMs`
+
+```csharp
+public int PollIntervalMs { get; set; }
+```
+Gets or sets the polling interval in milliseconds.
+
+- Value: The `PollIntervalMs` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagDirection`
+
+```csharp
+public enum IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagDirection
+```
+Defines PLC tag binding direction.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagDirection.ReadOnly`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagDirection ReadOnly
+```
+Reads the PLC tag only.
+
+###### `F:IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagDirection.ReadWrite`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagDirection ReadWrite
+```
+Reads and writes the PLC tag.
+
+###### `F:IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagDirection.WriteOnly`
+
+```csharp
+public static const IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagDirection WriteOnly
+```
+Writes the PLC tag only.
+
+#### `T:IoT.DriverCore.S7PlcRx.Tag`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Tag
+```
+Represents a data tag with a name, address, value, type, and optional array length, typically used for storing or transferring typed values identified by address or name.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Tag.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Tag()
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.Tag` class.
+
+###### `M:IoT.DriverCore.S7PlcRx.Tag.#ctor(System.String,System.String,System.Object,System.Type)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Tag(string name, string address, object value, System.Type type)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.Tag` class.
+
+- Parameter `name`: The name.
+- Parameter `address`: The address.
+- Parameter `value`: The value.
+- Parameter `type`: The type.
+
+###### `M:IoT.DriverCore.S7PlcRx.Tag.#ctor(System.String,System.String,System.Type)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Tag(string name, string address, System.Type type)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.Tag` class.
+
+- Parameter `name`: The name.
+- Parameter `address`: The address.
+- Parameter `type`: The type.
+
+###### `M:IoT.DriverCore.S7PlcRx.Tag.#ctor(System.String,System.String,System.Type,System.Int32)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Tag(string name, string address, System.Type type, int arrayLength)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.Tag` class.
+
+- Parameter `name`: The name.
+- Parameter `address`: The address.
+- Parameter `type`: The type.
+- Parameter `arrayLength`: Length of the array.
+
+###### `M:IoT.DriverCore.S7PlcRx.Tag.#ctor(System.String,System.Type)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Tag(string address, System.Type type)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.Tag` class.
+
+- Parameter `address`: The address.
+- Parameter `type`: The type.
+
+###### `M:IoT.DriverCore.S7PlcRx.Tag.#ctor(System.String,System.Type,System.Int32)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Tag(string address, System.Type type, int arrayLength)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.Tag` class.
+
+- Parameter `address`: The address.
+- Parameter `type`: The type.
+- Parameter `arrayLength`: Length of the array.
+
+###### `M:IoT.DriverCore.S7PlcRx.Tag.SetDoNotPoll(System.Boolean)`
+
+```csharp
+public void SetDoNotPoll(bool value)
+```
+Sets a value indicating whether polling operations should be disabled.
+
+- Parameter `value`: true to disable polling; otherwise, false.
+
+###### `P:IoT.DriverCore.S7PlcRx.Tag.Address`
+
+```csharp
+public string Address { get; set; }
+```
+Gets or sets the address associated with the entity.
+
+- Value: The `Address` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Tag.ArrayLength`
+
+```csharp
+public System.Nullable<int> ArrayLength { get; }
+```
+Gets the length of the array, if known.
+
+- Value: The `ArrayLength` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Tag.DoNotPoll`
+
+```csharp
+public bool DoNotPoll { get; }
+```
+Gets a value indicating whether polling operations should be suppressed for this instance.
+
+- Value: The `DoNotPoll` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Tag.Name`
+
+```csharp
+public string Name { get; set; }
+```
+Gets or sets the name associated with the object.
+
+- Value: The `Name` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Tag.NewValue`
+
+```csharp
+public object NewValue { get; }
+```
+Gets the new value associated with the change event.
+
+- Value: The `NewValue` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Tag.Type`
+
+```csharp
+public System.Type Type { get; }
+```
+Gets the runtime type information associated with the current instance.
+
+- Value: The `Type` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Tag.Value`
+
+```csharp
+public object Value { get; set; }
+```
+Gets or sets the value associated with this instance.
+
+- Value: The `Value` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException
+```
+Thrown when a tag address is outside the valid range.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException()
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException` class.
+
+###### `M:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException.#ctor(IoT.DriverCore.S7PlcRx.Tag)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException(IoT.DriverCore.S7PlcRx.Tag tag)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException` class.
+
+- Parameter `tag`: The Tag that caused the exception.
+
+###### `M:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException.#ctor(IoT.DriverCore.S7PlcRx.Tag,System.Exception)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException(IoT.DriverCore.S7PlcRx.Tag tag, System.Exception innerException)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException` class.
+
+- Parameter `tag`: The Tag that caused the exception.
+- Parameter `innerException`: The exception that caused the current exception, or if no inner exception is specified.
+
+###### `M:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException.#ctor(IoT.DriverCore.S7PlcRx.Tag,System.Object,System.String)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException(IoT.DriverCore.S7PlcRx.Tag tag, object actualValue, string message)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException` class.
+
+- Parameter `tag`: The Tag that caused the exception.
+- Parameter `actualValue`: The value of the argument that causes this exception.
+- Parameter `message`: The message that describes the error.
+
+###### `M:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException.#ctor(IoT.DriverCore.S7PlcRx.Tag,System.String)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException(IoT.DriverCore.S7PlcRx.Tag tag, string message)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException` class.
+
+- Parameter `tag`: The Tag that caused the exception.
+- Parameter `message`: The message that describes the error.
+
+###### `M:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException.#ctor(System.String)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException(string message)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException` class.
+
+- Parameter `message`: The message that describes the error.
+
+###### `M:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException.#ctor(System.String,System.Exception)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException(string message, System.Exception innerException)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException` class.
+
+- Parameter `message`: The message that describes the error.
+- Parameter `innerException`: The exception that caused the current exception.
+
+###### `M:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException.#ctor(System.String,System.Object,System.String)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException(string paramName, object actualValue, string message)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException` class.
+
+- Parameter `paramName`: The parameter name.
+- Parameter `actualValue`: The invalid value.
+- Parameter `message`: The error message.
+
+###### `M:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException.#ctor(System.String,System.String)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException(string paramName, string message)
+```
+Initializes a new instance of the `T:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException` class.
+
+- Parameter `paramName`: The parameter name.
+- Parameter `message`: The error message.
+
+###### `P:IoT.DriverCore.S7PlcRx.TagAddressOutOfRangeException.ParamName`
+
+```csharp
+public string ParamName { get; }
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Value: The `ParamName` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.TagOperations`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.TagOperations
+```
+Provides compositional operations for managing S7 tags.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.TagOperations.AddUpdateTagItem(IoT.DriverCore.S7PlcRx.IRxS7,System.Type,System.String,System.String)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.TagRegistration AddUpdateTagItem(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.Type type, string tagName, string address)
+```
+Adds or updates a scalar tag.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `type`: The tag value type.
+- Parameter `tagName`: The tag name.
+- Parameter `address`: The PLC address.
+- Returns: The registered tag and PLC.
+
+###### `M:IoT.DriverCore.S7PlcRx.TagOperations.AddUpdateTagItem(IoT.DriverCore.S7PlcRx.IRxS7,System.Type,System.String,System.String,System.Int32)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.TagRegistration AddUpdateTagItem(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.Type type, string tagName, string address, int arrayLength)
+```
+Adds or updates an array or fixed-length string tag.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `type`: The tag value type.
+- Parameter `tagName`: The tag name.
+- Parameter `address`: The PLC address.
+- Parameter `arrayLength`: The fixed array or string length.
+- Returns: The registered tag and PLC.
+
+###### `M:IoT.DriverCore.S7PlcRx.TagOperations.AddUpdateTagItem(IoT.DriverCore.S7PlcRx.IRxS7,System.Type,System.String,System.String,System.Nullable`1{System.Int32})`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.TagRegistration AddUpdateTagItem(IoT.DriverCore.S7PlcRx.IRxS7 plc, System.Type type, string tagName, string address, System.Nullable<int> arrayLength)
+```
+Executes the `AddUpdateTagItem` operation.
+
+- Parameter `plc`: The `plc` value.
+- Parameter `type`: The `type` value.
+- Parameter `tagName`: The `tagName` value.
+- Parameter `address`: The `address` value.
+- Parameter `arrayLength`: The `arrayLength` value.
+- Returns: A `IoT.DriverCore.S7PlcRx.TagRegistration` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.TagOperations.GetTag(IoT.DriverCore.S7PlcRx.IRxS7,System.String)`
+
+```csharp
+public static IoT.DriverCore.S7PlcRx.TagRegistration GetTag(IoT.DriverCore.S7PlcRx.IRxS7 plc, string tagName)
+```
+Gets a tag by name.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `tagName`: The tag name.
+- Returns: The tag registration.
+
+###### `M:IoT.DriverCore.S7PlcRx.TagOperations.RemoveTagItem(IoT.DriverCore.S7PlcRx.IRxS7,System.String)`
+
+```csharp
+public static void RemoveTagItem(IoT.DriverCore.S7PlcRx.IRxS7 plc, string tagName)
+```
+Removes a named tag.
+
+- Parameter `plc`: The PLC instance.
+- Parameter `tagName`: The tag name.
+
+###### `M:IoT.DriverCore.S7PlcRx.TagOperations.TagToDictionary(System.IObservable`1{IoT.DriverCore.S7PlcRx.Tag})`
+
+```csharp
+public static System.IObservable<System.Collections.Generic.IDictionary<string, object>> TagToDictionary(System.IObservable<IoT.DriverCore.S7PlcRx.Tag> source)
+```
+Executes the `TagToDictionary` operation.
+
+- Parameter `source`: The `source` value.
+- Returns: A `System.IObservable<System.Collections.Generic.IDictionary<string, object>>` result.
+
+###### `M:IoT.DriverCore.S7PlcRx.TagOperations.ToTagValue``1(System.IObservable`1{``0},System.String)`
+
+```csharp
+public static System.IObservable<System.ValueTuple<string, TValue>> ToTagValue<TValue>(System.IObservable<TValue> source, string tag)
+```
+Executes the `ToTagValue` operation.
+
+- Parameter `source`: The `source` value.
+- Parameter `tag`: The `tag` value.
+- Returns: A `System.IObservable<System.ValueTuple<string, TValue>>` result.
+
+#### `T:IoT.DriverCore.S7PlcRx.TagRegistration`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.TagRegistration
+```
+Represents a tag and the PLC to which it is registered.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.TagRegistration.Deconstruct(IoT.DriverCore.S7PlcRx.ITag@,IoT.DriverCore.S7PlcRx.IRxS7@)`
+
+```csharp
+public void Deconstruct(out IoT.DriverCore.S7PlcRx.ITag tag, out IoT.DriverCore.S7PlcRx.IRxS7 plc)
+```
+Deconstructs the registration.
+
+- Parameter `tag`: The registered tag.
+- Parameter `plc`: The PLC instance.
+
+###### `M:IoT.DriverCore.S7PlcRx.TagRegistration.SetPolling`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.TagRegistration SetPolling()
+```
+Enables polling for the tag.
+
+- Returns: This registration.
+
+###### `M:IoT.DriverCore.S7PlcRx.TagRegistration.SetPolling(System.Boolean)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.TagRegistration SetPolling(bool polling)
+```
+Enables or disables polling for the tag.
+
+- Parameter `polling`: Whether polling is enabled.
+- Returns: This registration.
+
+###### `P:IoT.DriverCore.S7PlcRx.TagRegistration.Plc`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.IRxS7 Plc { get; }
+```
+Gets the PLC instance.
+
+- Value: The `Plc` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.TagRegistration.Tag`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.ITag Tag { get; }
+```
+Gets the registered tag.
+
+- Value: The `Tag` value.
+
+#### `T:IoT.DriverCore.S7PlcRx.Tags`
+
+```csharp
+public class IoT.DriverCore.S7PlcRx.Tags
+```
+Represents a thread-safe collection of tag objects, providing methods for adding, retrieving, and managing tags by key, name, or tag instance.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.S7PlcRx.Tags.#ctor`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Tags()
+```
+Initializes a new instance of `IoT.DriverCore.S7PlcRx.Tags`.
+
+###### `M:IoT.DriverCore.S7PlcRx.Tags.Add(IoT.DriverCore.S7PlcRx.Tag)`
+
+```csharp
+public void Add(IoT.DriverCore.S7PlcRx.Tag tag)
+```
+Adds the specified tag to the collection.
+
+- Parameter `tag`: The tag to add to the collection. Cannot be null.
+
+###### `M:IoT.DriverCore.S7PlcRx.Tags.Add(System.Object,IoT.DriverCore.S7PlcRx.Tag)`
+
+```csharp
+public void Add(object key, IoT.DriverCore.S7PlcRx.Tag tag)
+```
+Adds the specified tag to the collection with the associated key.
+
+- Parameter `key`: The key with which the specified tag is to be associated. Cannot be null.
+- Parameter `tag`: The tag to add to the collection. Cannot be null.
+
+###### `M:IoT.DriverCore.S7PlcRx.Tags.Add(System.Object,IoT.DriverCore.S7PlcRx.Tags)`
+
+```csharp
+public void Add(object key, IoT.DriverCore.S7PlcRx.Tags tags)
+```
+Adds the specified key and associated tags to the collection.
+
+- Parameter `key`: The key with which the specified tags are to be associated. Cannot be null.
+- Parameter `tags`: The tags to associate with the specified key. Cannot be null.
+
+###### `M:IoT.DriverCore.S7PlcRx.Tags.Add(System.Object,System.Object)`
+
+```csharp
+public void Add(object key, object value)
+```
+Adds an element with the specified key and value to the collection in a thread-safe manner.
+
+- Parameter `key`: The key of the element to add. Cannot be null.
+- Parameter `value`: The value of the element to add. Can be null.
+
+###### `M:IoT.DriverCore.S7PlcRx.Tags.AddRange(System.Collections.Generic.IEnumerable`1{IoT.DriverCore.S7PlcRx.Tag})`
+
+```csharp
+public void AddRange(System.Collections.Generic.IEnumerable<IoT.DriverCore.S7PlcRx.Tag> tags)
+```
+Executes the `AddRange` operation.
+
+- Parameter `tags`: The `tags` value.
+
+###### `M:IoT.DriverCore.S7PlcRx.Tags.Get(IoT.DriverCore.S7PlcRx.Tag)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Tag Get(IoT.DriverCore.S7PlcRx.Tag tag)
+```
+Gets the tag from the collection that matches the specified tag's name, if present.
+
+- Parameter `tag`: The tag whose name identifies the collection entry.
+- Returns: The matching tag, or when no tag matches.
+
+###### `M:IoT.DriverCore.S7PlcRx.Tags.GetTags`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Tags GetTags()
+```
+Retrieves a collection of tags that have non-null values.
+
+- Returns: A collection containing every tag with a non-null value.
+
+###### `M:IoT.DriverCore.S7PlcRx.Tags.ToList`
+
+```csharp
+public System.Collections.Generic.List<IoT.DriverCore.S7PlcRx.Tag> ToList()
+```
+Returns a list containing all tags in the collection.
+
+- Returns: A snapshot of the tags, or an empty list when retrieval fails.
+
+###### `P:IoT.DriverCore.S7PlcRx.Tags.Item(System.Object)`
+
+```csharp
+public object Item[object key] { get; set; }
+```
+Gets or sets the value associated with the specified key.
+
+- Parameter `key`: The key whose value to get or set. Cannot be null.
+- Returns: The associated value, or when the key is absent.
+- Value: The `Item` value.
+
+###### `P:IoT.DriverCore.S7PlcRx.Tags.Item(System.String)`
+
+```csharp
+public IoT.DriverCore.S7PlcRx.Tag Item[string name] { get; }
+```
+Gets the tag with the specified name, if it exists.
+
+- Parameter `name`: The tag name.
+- Returns: The tag associated with the specified name, or null if no tag with that name exists.
+- Value: The `Item` value.
+
+<!-- END GENERATED PUBLIC API -->

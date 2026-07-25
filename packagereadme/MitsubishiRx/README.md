@@ -1,2968 +1,7590 @@
 # MitsubishiRx
 
-<div align="center">
-  <img src="Images/image-icon.png" style="width:25%;" />
-</div>
+## Overview
 
-Reactive Mitsubishi PLC client for **MC Protocol / SLMP** in C# with **ReactiveUI.Primitives**, **ReactiveUI.Primitives.Reactive**, **SerialPortRx**, and **SerialPortRx.Reactive** integration.
+`MitsubishiRx` is an async and observable Mitsubishi MC Protocol / SLMP client. It supports 1E, 3E and 4E Ethernet frames, 1C, 3C and 4C serial frames, TCP, UDP, and serial transports, direct device operations, tag databases, logical tags, polling, and test transports.
 
-This README is the **primary usage guide** for the library. It explains:
-- which PLC families, Ethernet frame types, and serial frame types are supported
-- how to configure TCP/UDP/serial transports, binary/ASCII encodings, serial message formats, and X/Y notation
-- how to use every public feature exposed by the client
-- how to build and import a **tag database** so application code can use **tag names instead of PLC addresses**
-- what CSV format is required to initialize the tag database
+## Safety
 
-## Documentation map
+PLC writes, remote run/stop/reset, password changes, and buffer-memory access can change a live process. Validate addresses and values against the PLC program, start with a simulator or isolated controller, restrict network access, and require an application-level interlock and audit trail before issuing control operations. A successful protocol response is not a safety guarantee.
 
-Use this README as the complete in-repository documentation source:
+## Package matrix
 
-| Need | Start here |
-|---|---|
-| Install and choose package basics | [Install](#install) |
-| Choose between `MitsubishiRx` and `MitsubishiRx.Reactive` | [Package variants](#package-variants) |
-| Select PLC family, frame, transport, data encoding, serial format, or X/Y notation | [Supported PLC families and how to choose settings](#supported-plc-families-and-how-to-choose-settings) |
-| Configure `MitsubishiClientOptions` and `MitsubishiSerialOptions` | [Core configuration](#core-configuration) |
-| Connect, disconnect, and monitor connection state | [Connection lifecycle](#connection-lifecycle) |
-| Use every high-level PLC operation with C# examples | [Feature guide: every public operation](#feature-guide-every-public-operation) |
-| Generate strongly typed tag and group clients | [Generated typed client surface](#generated-typed-client-surface) |
-| Configure symbolic tags, typed helpers, groups, schema files, validation, hot reload, diffs, and rollout policies | [Tag database: use tag names instead of PLC addresses](#tag-database-use-tag-names-instead-of-plc-addresses) |
-| Match APIs to PLC families and endpoint types | [PLC-family-specific usage guidance](#plc-family-specific-usage-guidance) |
-| Find concise feature-to-method mapping | [Feature-to-API quick map](#feature-to-api-quick-map) |
-| Look up signatures, return types, models, enums, constants, advanced extension points, and generated APIs | [Complete API reference](#complete-api-reference) |
-| Diagnose common setup and communication problems | [Troubleshooting notes](#troubleshooting-notes) |
+| Package | Namespace | Target frameworks | Use it when |
+| --- | --- | --- | --- |
+| `MitsubishiRx` | `IoT.DriverCore.MitsubishiRx` | net8.0, net9.0, net10.0, net11.0 | Using ReactiveUI.Primitives and SerialPortRx. |
+| `MitsubishiRx.Reactive` | `IoT.DriverCore.MitsubishiRx.Reactive` | net8.0, net9.0, net10.0, net11.0 | Using the ReactiveUI.Primitives reactive bridge and SerialPortRx.Reactive. |
+| `MitsubishiRx.Generators` | generated code targets `IoT.DriverCore.MitsubishiRx` | analyzer targets supplied by the compiler | Installing the analyzer alongside `MitsubishiRx`, or pinning its analyzer version deliberately. |
 
----
+The runtime packages compile shared source under different namespaces. Do not reference both in one application unless the distinction is intentional. Both runtime packages carry the analyzer, but the current generator emits clients for `IoT.DriverCore.MitsubishiRx` and requires the base `MitsubishiRx` runtime. Use the handwritten tag, polling, and write APIs in a `MitsubishiRx.Reactive`-only application.
 
 ## Install
 
 ```bash
 dotnet add package MitsubishiRx
-```
-
-Use the `MitsubishiRx.Reactive` package when the consuming application is already using the `ReactiveUI.Primitives.Reactive` package family and wants the same Mitsubishi PLC API surface compiled against the reactive bridge packages:
-
-```bash
+# or, for the reactive namespace
 dotnet add package MitsubishiRx.Reactive
+# Optional: the runtime packages already embed this analyzer.
+dotnet add package MitsubishiRx.Generators
 ```
 
-Do not reference both packages from the same project unless you intentionally want both namespaces. They expose the same client type names under different namespaces.
+## Quick start
 
----
-
-## Package variants
-
-`MitsubishiRx` and `MitsubishiRx.Reactive` are built from the same source code. The reactive package is a linked-source shim that defines `REACTIVE_SHIM`, changes the public namespace to `MitsubishiRx.Reactive`, and swaps the project-level using aliases to the `ReactiveUI.Primitives.Reactive` and `SerialPortRx.Reactive` package families.
-
-| Package | Namespace | Target frameworks | Reactive package family | Serial package | Best fit |
-|---|---|---|---|---|---|
-| `MitsubishiRx` | `MitsubishiRx` | `net8.0`, `net9.0`, `net10.0`, `net11.0` | `ReactiveUI.Primitives`, `ReactiveUI.Primitives.Async`, `ReactiveUI.Primitives.Extensions` | `SerialPortRx` | Default package for applications using the lean ReactiveUI.Primitives stack. |
-| `MitsubishiRx.Reactive` | `MitsubishiRx.Reactive` | `net8.0`, `net9.0`, `net10.0`, `net11.0` | `ReactiveUI.Primitives.Reactive`, `ReactiveUI.Primitives.Extensions.Reactive` | `SerialPortRx.Reactive` | Applications using the System.Reactive-backed ReactiveUI.Primitives reactive bridge packages. |
-
-The API concepts are intentionally the same across both packages:
-
-| Concept | `MitsubishiRx` type | `MitsubishiRx.Reactive` type |
-|---|---|---|
-| Client | `MitsubishiRx.MitsubishiRx` | `MitsubishiRx.Reactive.MitsubishiRx` |
-| Options | `MitsubishiRx.MitsubishiClientOptions` | `MitsubishiRx.Reactive.MitsubishiClientOptions` |
-| Tag database | `MitsubishiRx.MitsubishiTagDatabase` | `MitsubishiRx.Reactive.MitsubishiTagDatabase` |
-| Response envelope | `MitsubishiRx.Responce<T>` | `MitsubishiRx.Reactive.Responce<T>` |
-| Reactive value envelope | `MitsubishiRx.MitsubishiReactiveValue<T>` | `MitsubishiRx.Reactive.MitsubishiReactiveValue<T>` |
-| Write pipeline | `MitsubishiRx.MitsubishiReactiveWritePipeline<TPayload>` | `MitsubishiRx.Reactive.MitsubishiReactiveWritePipeline<TPayload>` |
-| Custom transport | `MitsubishiRx.IMitsubishiTransport` | `MitsubishiRx.Reactive.IMitsubishiTransport` |
-
-Every feature shown in this README works with both packages unless a section explicitly calls out the source generator. The generated typed client currently emits the base `MitsubishiRx` namespace, so use the runtime tag, group, polling, and write-pipeline APIs for `MitsubishiRx.Reactive` projects.
-
-### Same feature, different namespace
-
-Most code changes are limited to the namespace import and the fully qualified client name when you need one.
+The primary constructor takes options, an optional transport (useful for tests), and an optional scheduler. Calls return `Responce` / `Responce<T>`; check `IsSucceed` before using `Value`.
 
 ```csharp
-using MitsubishiRx;
+using IoT.DriverCore.MitsubishiRx;
 
 var options = new MitsubishiClientOptions(
-    Host: "192.168.0.10",
-    Port: 5000,
-    FrameType: MitsubishiFrameType.ThreeE,
-    DataCode: CommunicationDataCode.Binary,
-    TransportKind: MitsubishiTransportKind.Tcp);
-
-await using var client = new MitsubishiRx.MitsubishiRx(options);
-var words = await client.ReadWordsAsync("D100", 2);
-```
-
-Reactive package equivalent:
-
-```csharp
-using MitsubishiRx.Reactive;
-
-var options = new MitsubishiClientOptions(
-    Host: "192.168.0.10",
-    Port: 5000,
-    FrameType: MitsubishiFrameType.ThreeE,
-    DataCode: CommunicationDataCode.Binary,
-    TransportKind: MitsubishiTransportKind.Tcp);
-
-await using var client = new MitsubishiRx.Reactive.MitsubishiRx(options);
-var words = await client.ReadWordsAsync("D100", 2);
-```
-
-### Reactive package scheduler and trigger types
-
-Both packages expose `IObservable<T>` APIs. The project files use using aliases so the shared source stays the same, but the compiled scheduler and unit trigger types differ by package:
-
-| API concept | `MitsubishiRx` | `MitsubishiRx.Reactive` |
-|---|---|---|
-| Scheduler constructor parameter | `ReactiveUI.Primitives.Concurrency.ISequencer` | `System.Reactive.Concurrency.IScheduler` |
-| Default scheduler | `ReactiveUI.Primitives.Concurrency.Sequencer.Default` | `System.Reactive.Concurrency.Scheduler.Default` |
-| Trigger unit for `ObserveWordsLatest` / `ObserveTagGroupLatest` | `ReactiveUI.Primitives.RxVoid` | `System.Reactive.Unit` |
-| Observable factories used by implementation | `ReactiveUI.Primitives.Signals.Signal` | `System.Reactive.Linq.Observable` |
-| Disposable factory used by implementation | `ReactiveUI.Primitives.Disposables.Scope` | `System.Reactive.Disposables.Disposable` |
-
-Reactive package trigger example:
-
-```csharp
-using MitsubishiRx.Reactive;
-using System.Reactive.Linq;
-
-IObservable<System.Reactive.Unit> trigger =
-    Observable.Interval(TimeSpan.FromSeconds(5)).Select(_ => System.Reactive.Unit.Default);
-
-await using var client = new MitsubishiRx.Reactive.MitsubishiRx(options);
-
-using var latest = client.ObserveWordsLatest("D100", 2, trigger)
-    .Subscribe(result =>
-    {
-        if (result.IsSucceed)
-        {
-            Console.WriteLine(string.Join(", ", result.Value!));
-        }
-    });
-```
-
----
-
-## What this library provides
-
-MitsubishiRx was refactored from a low-level socket wrapper into a protocol-aware Mitsubishi PLC client that:
-
-- supports **1E**, **3E**, and **4E** Ethernet frame families
-- supports **1C**, **3C**, and **4C** serial frame families
-- supports **TCP**, **UDP**, and reactive **serial** transports
-- uses **SerialPortRx** or **SerialPortRx.Reactive** for reactive serial communications, depending on the selected package
-- supports **binary** and **ASCII** MC Protocol / SLMP packet encodings
-- supports direct device addressing and symbolic **tag-name-based** access
-- exposes high-level async APIs for reads, writes, remote control, monitor, block, random, loopback, memory, and diagnostics operations
-- exposes **ReactiveUI.Primitives**- or **ReactiveUI.Primitives.Reactive**-based polling and health streams for reactive applications
-- includes **TUnit** tests running on **Microsoft Testing Platform**
-
----
-
-## Supported PLC families and how to choose settings
-
-The library now covers Mitsubishi **Ethernet and serial MC protocol paths**. Ethernet support remains the broadest and deepest implementation.
-Serial support is now integrated through **SerialPortRx** and currently provides the first verified reactive serial path.
-
-### Supported family guidance
-
-| PLC family / endpoint type | Typical frame | Transport | Notes |
-|---|---|---|---|
-| **A / AnS** with legacy Ethernet interfaces | **1E** | TCP/UDP | Use when the target only exposes legacy A-compatible MC protocol behavior. |
-| **QnA-compatible Ethernet endpoints** | **3E** | TCP/UDP | Default modern choice for most Q/QnA-compatible MC protocol use. |
-| **Q / L / iQ-R / iQ-F / FX5** with modern SLMP/MC protocol endpoints | **3E** or **4E** | TCP/UDP | 3E is the normal first choice. 4E is used when serial correlation is required. |
-| **FX3 compatibility paths** | **1E** or **3E** depending on module/path | TCP/UDP | Use the path documented for the installed Ethernet interface or gateway. |
-| **FX3 / A-compatible serial computer-link style paths** | **1C** | Serial | Use for installed bases exposing serial MC / computer link compatible message structures. |
-| **QnA-compatible serial modules** | **3C** | Serial | ASCII serial MC protocol path. |
-| **QnA-compatible serial modules with extended access** | **4C** | Serial | ASCII or binary serial MC protocol path, depending on configured format. |
-
-### Transport selection
-
-| Transport | When to use |
-|---|---|
-| `MitsubishiTransportKind.Tcp` | Default choice for most PLC integrations. Use when you want connection-oriented request/response behavior. |
-| `MitsubishiTransportKind.Udp` | Use when the target is configured for UDP SLMP/MC protocol and you want datagram-style communication. |
-| `MitsubishiTransportKind.Serial` | Use for RS-232/RS-422/RS-485 MC protocol communication. The library uses **SerialPortRx** to provide the reactive serial transport implementation. |
-
-### Data encoding selection
-
-| Encoding | When to use |
-|---|---|
-| `CommunicationDataCode.Binary` | Default for most applications. Smaller frames and simpler payload handling. Required for `4C` serial format 5. |
-| `CommunicationDataCode.Ascii` | Use when the target requires ASCII MC protocol / SLMP or when matching existing ASCII integrations. Required for `1C` and `3C`. |
-
-### Serial message format selection
-
-Serial MC protocol communication also depends on the serial **message format** configured on the PLC/module side.
-
-| Serial message format | Meaning | Typical use |
-|---|---|---|
-| `MitsubishiSerialMessageFormat.Format1` | ASCII serial framing with ENQ/STX/ACK/NAK control characters | Legacy 1C/3C/4C serial ASCII integrations |
-| `MitsubishiSerialMessageFormat.Format4` | ASCII serial framing with CR/LF delimiters | Serial endpoints configured for CR/LF terminated MC protocol |
-| `MitsubishiSerialMessageFormat.Format5` | Binary serial framing using DLE/STX/ETX | `4C` binary serial communication |
-
-### X/Y addressing notation
-
-Mitsubishi `X` and `Y` device addressing is module/family dependent. The client makes that explicit.
-
-| Setting | Meaning |
-|---|---|
-| `XyAddressNotation.Octal` | Interpret `X10` as octal `8`. This is common for classic Mitsubishi behavior. |
-| `XyAddressNotation.Hexadecimal` | Interpret `X10` as hexadecimal `16`. Use when the Ethernet path/module is documented that way. |
-
----
-
-## Core configuration
-
-All communication starts from `MitsubishiClientOptions`.
-
-```csharp
-using MitsubishiRx;
-
-var options = new MitsubishiClientOptions(
-    Host: "192.168.0.10",
-    Port: 5000,
+    Host: "192.168.0.10", Port: 5000,
     FrameType: MitsubishiFrameType.ThreeE,
     DataCode: CommunicationDataCode.Binary,
     TransportKind: MitsubishiTransportKind.Tcp,
-    Route: MitsubishiRoute.Default,
-    MonitoringTimer: 0x0010,
-    Timeout: TimeSpan.FromSeconds(4),
-    CpuType: CpuType.None,
-    XyNotation: XyAddressNotation.Octal);
+    Timeout: TimeSpan.FromSeconds(3));
+
+await using var plc = new MitsubishiRx(options, transport: null, scheduler: null);
+var opened = await plc.OpenAsync(CancellationToken.None);
+if (!opened.IsSucceed) throw new InvalidOperationException(opened.Err);
+
+var read = await plc.ReadWordsAsync("D100", 2, CancellationToken.None);
+if (read.IsSucceed && read.Value is { } words)
+    Console.WriteLine($"D100={words[0]}");
+
+var written = await plc.WriteWordsAsync("D100", new ushort[] { 42 }, CancellationToken.None);
+if (!written.IsSucceed) Console.Error.WriteLine(written.Err);
 ```
 
-### Option reference
+## Configuration
 
-| Option | Meaning |
-|---|---|
-| `Host` | PLC IP address / DNS name for Ethernet, or serial port name such as `COM3` when using serial transport |
-| `Port` | Ethernet port exposed by the PLC/module. Use `0` for serial transport. |
-| `FrameType` | `OneE`, `ThreeE`, `FourE`, `OneC`, `ThreeC`, or `FourC` |
-| `DataCode` | `Binary` or `Ascii` |
-| `TransportKind` | `Tcp`, `Udp`, or `Serial` |
-| `Route` | SLMP route metadata for 3E/4E |
-| `MonitoringTimer` | PLC-side monitoring timer in 250 ms units |
-| `Timeout` | Client-side transport timeout |
-| `CpuType` | Optional family hint |
-| `XyNotation` | Octal or hexadecimal parsing for `X`/`Y` |
-| `LegacyPcNumber` | 1E PC number |
-| `SerialNumberProvider` | 4E serial number generator |
-| `Serial` | `MitsubishiSerialOptions` describing the serial port and serial MC protocol framing |
+`MitsubishiClientOptions` records the endpoint and framing. Use 3E/binary/TCP as the normal starting point; select the actual PLC/module configuration rather than inferring it from a CPU family.
 
-### Serial transport configuration
-
-When using serial MC protocol communication, populate the `Serial` option and set `TransportKind.Serial`.
+| Setting | Notes |
+| --- | --- |
+| `FrameType` | `OneE`, `ThreeE`, `FourE`, `OneC`, `ThreeC`, `FourC`. |
+| `DataCode` | `Binary` or `Ascii`; 1C/3C are ASCII serial paths and format 5 is binary 4C. |
+| `TransportKind` | `Tcp`, `Udp`, or `Serial`. |
+| `Route`, `MonitoringTimer`, `LegacyPcNumber`, `SerialNumberProvider` | Ethernet/SLMP route and frame metadata. `ResolvedRoute` defaults to `MitsubishiRoute.Default`. |
+| `Timeout`, `CpuType`, `XyNotation` | Client timeout, optional family hint, and X/Y octal/hexadecimal interpretation. |
+| `Serial` | Required when `TransportKind.Serial`; configure `MitsubishiSerialOptions` with port parameters, message format, routing, station and buffer settings. |
 
 ```csharp
-using MitsubishiRx;
 using System.IO.Ports;
+using IoT.DriverCore.MitsubishiRx;
 
-var serialOptions = new MitsubishiClientOptions(
-    Host: "COM3",
-    Port: 0,
-    FrameType: MitsubishiFrameType.FourC,
-    DataCode: CommunicationDataCode.Binary,
-    TransportKind: MitsubishiTransportKind.Serial,
-    Timeout: TimeSpan.FromSeconds(2),
-    CpuType: CpuType.Fx5,
+var serial = new MitsubishiClientOptions(
+    "COM3", 0, MitsubishiFrameType.FourC, CommunicationDataCode.Binary,
+    MitsubishiTransportKind.Serial,
     Serial: new MitsubishiSerialOptions(
-        PortName: "COM3",
-        BaudRate: 9600,
-        DataBits: 7,
-        Parity: Parity.Even,
-        StopBits: StopBits.One,
-        Handshake: Handshake.None,
-        MessageFormat: MitsubishiSerialMessageFormat.Format5,
-        StationNumber: 0x00,
-        NetworkNumber: 0x00,
-        PcNumber: 0xFF,
-        RequestDestinationModuleIoNumber: 0x03FF,
-        RequestDestinationModuleStationNumber: 0x00,
-        SelfStationNumber: 0x00,
-        MessageWait: 0x00));
-```
-
-### Serial option reference
-
-| Serial option | Meaning |
-|---|---|
-| `PortName` | Serial port name, such as `COM3` |
-| `BaudRate` | Configured baud rate |
-| `DataBits` | Configured data bits |
-| `Parity` | Configured serial parity |
-| `StopBits` | Configured stop bits |
-| `Handshake` | Configured hardware/software flow control |
-| `MessageFormat` | Serial MC message format: `Format1`, `Format4`, or `Format5` |
-| `StationNumber` | Target station number |
-| `NetworkNumber` | Target network number for `3C/4C` |
-| `PcNumber` | Target PC number |
-| `RequestDestinationModuleIoNumber` | Request destination module I/O number for `4C` routing |
-| `RequestDestinationModuleStationNumber` | Request destination module station number for `4C` routing |
-| `SelfStationNumber` | Self-station number for multidrop layouts |
-| `MessageWait` | Serial message wait in 10 ms units |
-| `ReadBufferSize` / `WriteBufferSize` | Serial driver buffer sizing |
-| `NewLine` | Newline sequence used by line-oriented serial modes |
-
-### Default route
-
-For direct own-station CPU access:
-
-```csharp
-var route = MitsubishiRoute.Default;
-```
-
-For routed access, supply explicit route values:
-
-```csharp
-var route = new MitsubishiRoute(
-    NetworkNumber: 0x00,
-    StationNumber: 0xFF,
-    ModuleIoNumber: 0x03FF,
-    MultidropStationNumber: 0x00);
-```
-
----
-
-## Creating the client
-
-```csharp
-using MitsubishiRx;
-
-await using var client = new MitsubishiRx.MitsubishiRx(options);
-```
-
-### Legacy constructor
-
-A compatibility constructor is also available:
-
-```csharp
-var client = new MitsubishiRx.MitsubishiRx(CpuType.QnA, "192.168.0.10", 5000, timeout: 1500);
-```
-
----
-
-## Connection lifecycle
-
-### Open / close
-
-```csharp
-var open = await client.OpenAsync();
-if (!open.IsSucceed)
-{
-    Console.WriteLine(open.Err);
-}
-
-var close = await client.CloseAsync();
-```
-
-Synchronous wrappers are also available:
-
-```csharp
-var openSync = client.Open();
-var closeSync = client.Close();
-```
-
-### Connection state stream
-
-```csharp
-using var states = client.ConnectionStates.Subscribe(state =>
-{
-    Console.WriteLine($"Connection state: {state}");
-});
-```
-
-Possible values:
-- `Disconnected`
-- `Connecting`
-- `Connected`
-- `Reconnecting`
-- `Faulted`
-
----
-
-## Feature guide: every public operation
-
-The sections below map directly to the client’s public API.
-
----
-
-## 1. Batch word reads and writes
-
-### Read words by PLC address
-
-```csharp
-var result = await client.ReadWordsAsync("D100", 2);
-if (result.IsSucceed)
-{
-    ushort d100 = result.Value![0];
-    ushort d101 = result.Value[1];
-}
-```
-
-### Read words over serial MC protocol
-
-```csharp
-using MitsubishiRx;
-using System.IO.Ports;
-
-var serialOptions = new MitsubishiClientOptions(
-    Host: "COM3",
-    Port: 0,
-    FrameType: MitsubishiFrameType.FourC,
-    DataCode: CommunicationDataCode.Binary,
-    TransportKind: MitsubishiTransportKind.Serial,
-    Timeout: TimeSpan.FromSeconds(2),
-    CpuType: CpuType.Fx5,
-    Serial: new MitsubishiSerialOptions(
-        PortName: "COM3",
-        BaudRate: 9600,
-        DataBits: 7,
-        Parity: Parity.Even,
-        StopBits: StopBits.One,
-        Handshake: Handshake.None,
+        PortName: "COM3", BaudRate: 9600, DataBits: 7,
+        Parity: Parity.Even, StopBits: StopBits.One, Handshake: Handshake.None,
         MessageFormat: MitsubishiSerialMessageFormat.Format5));
-
-await using var serialClient = new MitsubishiRx.MitsubishiRx(serialOptions);
-var serialRead = await serialClient.ReadWordsAsync("D100", 2);
 ```
 
-### Write words by PLC address
+## Detailed features
+
+### Response, errors, cancellation, and lifetime
+
+Every command has an asynchronous form and returns `Responce` (the established public spelling) or `Responce<T>`. A protocol rejection, transport exception, timeout, or conversion error is represented by `IsSucceed == false`, `Err`, `ErrList`, and, where applicable, `Exception`; it is not normally thrown from a command. Argument validation and use after disposal can still throw. Always pass a cancellation token, test the response before reading `Value`, and dispose the client after subscriptions have been disposed. `Open`/`Close` are synchronous convenience wrappers; prefer `OpenAsync`/`CloseAsync` on a server or UI thread.
 
 ```csharp
-var write = await client.WriteWordsAsync("D100", new ushort[] { 123, 456, 789 });
-```
-
-### When to use
-- data registers like `D`, `W`, `R`, `ZR`
-- word-based timer/counter values like `TN`, `CN`, `SD`
-- bulk register transfers
-
-### PLC family guidance
-- **1E**: use for legacy-compatible batch device operations over Ethernet
-- **3E/4E**: preferred path for modern Ethernet PLCs
-- **1C/3C/4C**: use when the installed connection is serial MC protocol rather than Ethernet
-
-### Serial support status
-
-Current serial implementation status:
-
-| Serial area | Status |
-|---|---|
-| Reactive serial transport via `SerialPortRx` | **Implemented** |
-| Serial frame modeling (`1C`, `3C`, `4C`) | **Implemented** |
-| Serial option/configuration surface | **Implemented** |
-| Batch word read over serial | **Implemented** |
-| Batch word write over serial | **Implemented** |
-| Batch bit read over serial | **Implemented** |
-| Batch bit write over serial | **Implemented** |
-| Random word read over serial | **Implemented for `1C`, `3C`, and `4C`** |
-| Random word write over serial | **Implemented for `1C`, `3C`, and `4C`** |
-| `1C` ASCII format 1/4 decode path | **Implemented** |
-| `3C` ASCII format 1/4 decode path | **Implemented** |
-| `4C` ASCII and binary format 5 decode path | **Implemented** |
-| Serial block read/write | **Implemented for `1C`, `3C`, and `4C`** |
-| Serial monitor registration/execution | **Implemented for `1C`, `3C`, and `4C`** |
-| Serial remote control commands | **Implemented for `1C`, `3C`, and `4C`** |
-| Serial type-name read | **Implemented for `1C`, tested `3C` ASCII, and `4C` format 5** |
-| Serial loopback | **Implemented for `1C`, tested `3C` ASCII, and `4C` format 5** |
-| Serial memory / extend-unit read-write | **Implemented for `1C`, tested `3C` ASCII, and `4C` format 5** |
-| Raw serial command execution | **Implemented for `1C`, tested `3C` ASCII, and `4C` format 5** |
-
----
-
-## 2. Batch bit reads and writes
-
-### Read bits by PLC address
-
-```csharp
-var bits = await client.ReadBitsAsync("M10", 8);
-if (bits.IsSucceed)
+static async Task<T> Require<T>(Task<Responce<T>> request)
 {
-    bool m10 = bits.Value![0];
-    bool m11 = bits.Value[1];
+    var result = await request.ConfigureAwait(false);
+    if (!result.IsSucceed)
+        throw new InvalidOperationException(result.Err, result.Exception);
+    return result.Value!;
 }
+
+using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+await using var plc = new MitsubishiRx(options, transport: null, scheduler: null);
+var opened = await plc.OpenAsync(stop.Token);
+if (!opened.IsSucceed) return;             // report opened.Err / opened.ErrList
+ushort[] words = await Require(plc.ReadWordsAsync("D100", 4, stop.Token));
+await plc.CloseAsync(CancellationToken.None);
 ```
 
-### Write bits by PLC address
+`ConnectionStates` publishes `Disconnected`, connecting/connected and fault states; `OperationLogs` contains the operation description, request/response bytes, success and exception. Subscribe before `OpenAsync` if startup telemetry matters, redact raw frames if they can contain sensitive payloads, and dispose the subscriptions before the client.
 
 ```csharp
-var writeBits = await client.WriteBitsAsync("M10", new[] { true, false, true, true });
-```
-
-### Common device examples
-- `M` internal relays
-- `X` inputs
-- `Y` outputs
-- `L`, `SM`, `TS`, `TC`, `CS`, `CC`
-
-### X/Y notation example
-
-```csharp
-var octalOptions = options with { XyNotation = XyAddressNotation.Octal };
-var hexOptions = options with { XyNotation = XyAddressNotation.Hexadecimal };
-```
-
----
-
-## 3. Random reads and writes
-
-Use random operations when you need non-contiguous word devices.
-
-### Random read words
-
-```csharp
-var randomRead = await client.RandomReadWordsAsync(new[]
+using var state = plc.ConnectionStates.Subscribe(s => Console.WriteLine($"PLC: {s}"));
+using var log = plc.OperationLogs.Subscribe(entry =>
 {
-    "D100",
-    "D250",
-    "W10",
-    "ZR200",
+    if (!entry.Success) Console.Error.WriteLine(entry.Description);
 });
 ```
 
-### Random write words
+### Addressing, device values, and batch operations
+
+`MitsubishiDeviceAddress.Parse(address, xyNotation)` is the parser used by the client. Device prefixes such as `D`, `M`, `X`, `Y`, `W`, `B`, `R`, `ZR`, and `TN` must match the PLC/program. `XyAddressNotation` chooses how X/Y suffixes are interpreted; retain the PLC's configured octal/hex convention. `ReadWordsAsync`/`WriteWordsAsync` read contiguous 16-bit device units, while `ReadBitsAsync`/`WriteBitsAsync` read contiguous bit units. The supplied count or list length is part of the protocol request, so never accidentally write a larger buffer than the designed tag region.
 
 ```csharp
-var randomWrite = await client.RandomWriteWordsAsync(new Dictionary<string, ushort>
+var address = MitsubishiDeviceAddress.Parse("D200", XyAddressNotation.Octal);
+var before = await plc.ReadWordsAsync("D200", points: 3, cancellationToken: CancellationToken.None);
+if (before.IsSucceed)
 {
-    ["D100"] = 100,
-    ["D250"] = 250,
-    ["W10"] = 0x1234,
-});
-```
-
-### Best fit
-- sparse register collection
-- HMI/status pages pulling scattered registers
-- writing a small set of independent values without multiple round-trips
-
----
-
-## 4. Monitor registration and monitor execution
-
-Monitoring is a two-stage operation.
-
-### Register monitor devices
-
-```csharp
-var register = await client.RegisterMonitorAsync(new[]
-{
-    "D100",
-    "D101",
-    "D102",
-});
-```
-
-### Execute monitor
-
-```csharp
-var monitor = await client.ExecuteMonitorAsync();
-if (monitor.IsSucceed)
-{
-    byte[] rawMonitorPayload = monitor.Value!;
-}
-```
-
-### Best fit
-- repeated observation of a fixed register list
-- lightweight monitoring loops coordinated by your application
-
----
-
-## 5. Multiple block read and write
-
-Use block operations when you want grouped contiguous word and/or bit blocks.
-
-### Read blocks
-
-```csharp
-var blockRequest = new MitsubishiBlockRequest(
-    WordBlocks:
-    [
-        new MitsubishiWordBlock(MitsubishiDeviceAddress.Parse("D100"), new ushort[10]),
-        new MitsubishiWordBlock(MitsubishiDeviceAddress.Parse("W20", XyAddressNotation.Octal), new ushort[4]),
-    ],
-    BitBlocks:
-    [
-        new MitsubishiBitBlock(MitsubishiDeviceAddress.Parse("M10"), new bool[16]),
-    ]);
-
-var blockRead = await client.ReadBlocksAsync(blockRequest);
-```
-
-### Write blocks
-
-```csharp
-var writeRequest = new MitsubishiBlockRequest(
-    WordBlocks:
-    [
-        new MitsubishiWordBlock(MitsubishiDeviceAddress.Parse("D100"), new ushort[] { 1, 2, 3, 4 }),
-    ],
-    BitBlocks:
-    [
-        new MitsubishiBitBlock(MitsubishiDeviceAddress.Parse("M10"), new[] { true, false, true, false }),
-    ]);
-
-var blockWrite = await client.WriteBlocksAsync(writeRequest);
-```
-
-### Best fit
-- grouped transfer plans
-- deterministic read/write structures
-- coalesced data exchange where address continuity matters
-
----
-
-## 6. PLC type-name read
-
-```csharp
-var typeName = await client.ReadTypeNameAsync();
-if (typeName.IsSucceed)
-{
-    Console.WriteLine(typeName.Value!.ModelName);
-    Console.WriteLine(typeName.Value.ModelCode);
-}
-```
-
-### Best fit
-- startup diagnostics
-- logging exact connected PLC/module type
-- validation that the integration is pointing at the expected target
-
----
-
-## 7. Remote control operations
-
-### Remote RUN
-
-```csharp
-await client.RemoteRunAsync(force: true, clearMode: false);
-```
-
-### Remote STOP / PAUSE / RESET / LATCH CLEAR
-
-```csharp
-await client.RemoteStopAsync();
-await client.RemotePauseAsync();
-await client.RemoteResetAsync();
-await client.RemoteLatchClearAsync();
-```
-
-### Notes
-- available behavior depends on PLC family, CPU mode, permissions, and Ethernet module configuration
-- use carefully in production systems
-
----
-
-## 8. Remote password unlock / lock
-
-```csharp
-await client.UnlockAsync("1234");
-await client.LockAsync("1234");
-```
-
-### Best fit
-- workflows where protected remote operations must be explicitly unlocked
-
----
-
-## 9. Clear error
-
-```csharp
-var clear = await client.ClearErrorAsync();
-```
-
-### Best fit
-- acknowledging module/PLC error conditions after diagnostic handling
-
----
-
-## 10. Loopback
-
-```csharp
-var loop = await client.LoopbackAsync(new byte[] { 0x12, 0x34, 0x56, 0x78 });
-if (loop.IsSucceed)
-{
-    var echoed = loop.Value!;
-}
-```
-
-### Best fit
-- link validation
-- protocol path smoke tests
-- troubleshooting Ethernet routes or gateway behavior
-
----
-
-## 11. Memory read / write and intelligent-module access
-
-These methods expose raw memory/buffer style commands.
-
-### Memory read
-
-```csharp
-var memory = await client.ReadMemoryAsync(MitsubishiCommands.MemoryRead, address: 0x2000, length: 4);
-```
-
-### Memory write
-
-```csharp
-var memoryWrite = await client.WriteMemoryAsync(MitsubishiCommands.MemoryWrite, address: 0x2000, values: new ushort[] { 1, 2, 3, 4 });
-```
-
-### Extend unit read/write
-
-```csharp
-var unitRead = await client.ReadMemoryAsync(MitsubishiCommands.ExtendUnitRead, address: 0x0100, length: 8);
-var unitWrite = await client.WriteMemoryAsync(MitsubishiCommands.ExtendUnitWrite, address: 0x0100, values: new ushort[] { 10, 20, 30 });
-```
-
-### Best fit
-- intelligent function module buffer memory access
-- lower-level system data exchange where documented by Mitsubishi manuals
-
----
-
-## 12. Raw command execution
-
-For advanced or unsupported workflows, execute a raw request.
-
-```csharp
-var raw = await client.ExecuteRawAsync(
-    new MitsubishiRawCommandRequest(
-        Command: MitsubishiCommands.DeviceRead,
-        Subcommand: 0x0000,
-        Body: Array.Empty<byte>(),
-        Description: "Custom raw op"));
-```
-
-### Best fit
-- experimental protocol work
-- custom command shapes
-- validating edge-case protocol scenarios
-
----
-
-## 13. Reactive polling and diagnostics
-
-Reactive features are built with **ReactiveUI.Primitives**.
-
-### Observe words
-
-```csharp
-using var subscription = client
-    .ObserveWords("D100", 2, TimeSpan.FromSeconds(1))
-    .Subscribe(result =>
-    {
-        if (result.IsSucceed)
-        {
-            Console.WriteLine(string.Join(", ", result.Value!));
-        }
-    });
-```
-
-### Observe bits
-
-```csharp
-using var bitSubscription = client
-    .ObserveBits("M10", 8, TimeSpan.FromMilliseconds(500))
-    .Subscribe(result =>
-    {
-        if (result.IsSucceed)
-        {
-            Console.WriteLine(string.Join(", ", result.Value!));
-        }
-    });
-```
-
-### Observe words with heartbeat
-
-```csharp
-using var heartbeatSub = client
-    .ObserveWordsHeartbeat(
-        "D100",
-        2,
-        pollInterval: TimeSpan.FromSeconds(1),
-        heartbeatAfter: TimeSpan.FromSeconds(2))
-    .Subscribe(sample =>
-    {
-        if (sample.IsHeartbeat)
-        {
-            Console.WriteLine("Heartbeat");
-            return;
-        }
-
-        Console.WriteLine(string.Join(", ", sample.Update.Value!));
-    });
-```
-
-### Observe words with stale detection
-
-```csharp
-using var staleSub = client
-    .ObserveWordsStale(
-        "D100",
-        2,
-        pollInterval: TimeSpan.FromSeconds(1),
-        staleAfter: TimeSpan.FromSeconds(5))
-    .Subscribe(state =>
-    {
-        Console.WriteLine($"Is stale: {state.IsStale}");
-    });
-```
-
-### Triggered latest-only reads
-
-```csharp
-using ReactiveUI.Primitives;
-using ReactiveUI.Primitives.Signals;
-
-var trigger = new Signal<RxVoid>();
-using var latestSub = client
-    .ObserveWordsLatest("D100", 2, trigger)
-    .Subscribe(result => Console.WriteLine(result.IsSucceed));
-
-trigger.OnNext(RxVoid.Default);
-```
-
-### Reactive tag-group polling
-
-Once tag groups are defined, you can observe grouped snapshots with the same reactive patterns used by the lower-level word/bit APIs.
-
-### Observe a tag group
-
-```csharp
-using var groupSub = client
-    .ObserveTagGroup("Line1Overview", TimeSpan.FromSeconds(1))
-    .Subscribe(result =>
-    {
-        if (!result.IsSucceed || result.Value is null)
-        {
-            return;
-        }
-
-        var snapshot = result.Value;
-        Console.WriteLine($"Temp={snapshot.GetRequired<short>("SignedTemp")}");
-        Console.WriteLine($"Count={snapshot.GetRequired<uint>("TotalCount")}");
-        Console.WriteLine($"Message={snapshot.GetRequired<string>("OperatorMessage")}");
-        Console.WriteLine($"Pump={snapshot.GetRequired<bool>("PumpRunning")}");
-    });
-```
-
-### Observe a tag group with heartbeat
-
-```csharp
-using var groupHeartbeat = client
-    .ObserveTagGroupHeartbeat(
-        "Line1Overview",
-        pollInterval: TimeSpan.FromSeconds(5),
-        heartbeatAfter: TimeSpan.FromSeconds(2))
-    .Subscribe(sample =>
-    {
-        if (sample.IsHeartbeat)
-        {
-            Console.WriteLine("Group heartbeat");
-            return;
-        }
-
-        var snapshot = sample.Update!.Value!;
-        Console.WriteLine(snapshot.GetRequired<uint>("TotalCount"));
-    });
-```
-
-### Observe a tag group with stale detection
-
-```csharp
-using var groupStale = client
-    .ObserveTagGroupStale(
-        "Line1Overview",
-        pollInterval: TimeSpan.FromSeconds(5),
-        staleAfter: TimeSpan.FromSeconds(2))
-    .Subscribe(state =>
-    {
-        Console.WriteLine($"Group stale={state.IsStale}");
-    });
-```
-
-### Triggered latest-only grouped reads
-
-```csharp
-using ReactiveUI.Primitives;
-using ReactiveUI.Primitives.Signals;
-
-var groupTrigger = new Signal<RxVoid>();
-using var latestGroup = client
-    .ObserveTagGroupLatest("Line1Overview", groupTrigger)
-    .Subscribe(result =>
-    {
-        if (result.IsSucceed && result.Value is not null)
-        {
-            Console.WriteLine(result.Value.GetRequired<uint>("TotalCount"));
-        }
-    });
-
-groupTrigger.OnNext(RxVoid.Default);
-```
-
-These grouped reactive APIs are useful for HMI/dashboard polling loops because they keep the application written against stable symbolic names instead of raw PLC addresses.
-
-### Reactive hot shared value streams
-
-```csharp
-using var reactiveWords = client
-    .ObserveReactiveWords("D100", 2, TimeSpan.FromSeconds(1))
-    .Subscribe(value =>
-    {
-        if (value.Quality == MitsubishiReactiveQuality.Good && value.Value is not null)
-        {
-            Console.WriteLine($"Words: {string.Join(", ", value.Value)} @ {value.TimestampUtc:u}");
-        }
-    });
-```
-
-```csharp
-using var reactiveTag = client
-    .ObserveReactiveTag<float>("MotorSpeed", TimeSpan.FromMilliseconds(250))
-    .Subscribe(value =>
-    {
-        if (value.Quality == MitsubishiReactiveQuality.Good)
-        {
-            Console.WriteLine($"MotorSpeed={value.Value}");
-        }
-    });
-```
-
-```csharp
-using var reactiveGroup = client
-    .ObserveReactiveTagGroup("Line1Overview", TimeSpan.FromSeconds(1))
-    .Subscribe(value =>
-    {
-        if (value.Quality == MitsubishiReactiveQuality.Good && value.Value is not null)
-        {
-            Console.WriteLine(value.Value.GetRequired<uint>("TotalCount"));
-        }
-    });
-```
-
-These planner-backed reactive APIs are shared/hot streams with replay of the latest value and teardown when the final subscriber unsubscribes.
-
-### Reactive write pipelines
-
-```csharp
-var setpointWrites = client.CreateReactiveTagWritePipeline<float>(
-    "Setpoint",
-    MitsubishiReactiveWriteMode.LatestWins,
-    coalescingWindow: TimeSpan.FromMilliseconds(100));
-
-using var writeResults = setpointWrites.Results.Subscribe(result =>
-    Console.WriteLine($"Write success={result.Success} target={result.Target} error={result.Error}"));
-
-setpointWrites.Post(12.5f);
-setpointWrites.Post(13.0f);
-```
-
-Supported modes:
-- `Queued`
-- `LatestWins`
-- `Coalescing`
-
-The same pipeline API is available from the reactive package by changing the namespace:
-
-```csharp
-using MitsubishiRx.Reactive;
-
-var setpointWrites = client.CreateReactiveTagWritePipeline<float>(
-    "Setpoint",
-    MitsubishiReactiveWriteMode.Coalescing,
-    coalescingWindow: TimeSpan.FromMilliseconds(250));
-
-using var writeResults = setpointWrites.Results.Subscribe(result =>
-    Console.WriteLine($"{result.Target}: {result.Success}"));
-
-setpointWrites.Post(42.0f);
-```
-
-### Generated typed client surface
-
-`MitsubishiRx.Generators` is the Roslyn incremental source generator bundled with the package. It turns a compile-time tag schema into a strongly typed facade over the normal runtime tag APIs.
-
-You do not normally reference `MitsubishiRx.Generators` directly. The `MitsubishiRx` package includes `MitsubishiRx.Generators.dll` under `analyzers/dotnet/cs`, so SDK-style consumer projects get the analyzer automatically:
-
-```bash
-dotnet add package MitsubishiRx
-```
-
-The `MitsubishiRx.Reactive` package also carries the analyzer asset, but the generator currently emits `namespace MitsubishiRx` and extends the base `global::MitsubishiRx.MitsubishiRx` client type. For `MitsubishiRx.Reactive` projects, use the runtime tag APIs (`ReadFloatByTagAsync`, `ReadTagGroupSnapshotAsync`, `ObserveReactiveTag<T>`, `CreateReactiveTagWritePipeline<T>`, and related members) until generator namespace support is added for the reactive shim.
-
-#### Generator feature summary
-
-| Feature | Generated API | Runtime API used |
-|---|---|---|
-| Schema marker | `MitsubishiTagClientSchemaAttribute` | Compile-time marker only |
-| Client entrypoint | `client.Generated()` | Wraps the existing `MitsubishiRx` instance |
-| Tag catalog | `client.Generated().Tags.<TagName>` | Per-tag generated client |
-| Group catalog | `client.Generated().Groups.<GroupName>` | Per-group generated client |
-| Typed tag reads | `ReadAsync(CancellationToken)` | Typed `Read...ByTagAsync` helpers |
-| Typed tag writes | `WriteAsync(value, CancellationToken)` | Typed `Write...ByTagAsync` helpers |
-| Typed tag observation | `Observe(pollInterval, minimumUpdateSpacing)` | `ObserveReactiveTag<T>` |
-| Typed group reads | `ReadAsync(CancellationToken)` | `ReadTagGroupSnapshotAsync` plus generated required mapping |
-| Optional group reads | `ReadOptionalAsync(CancellationToken)` | `ReadTagGroupSnapshotAsync` plus generated optional mapping |
-| Typed group writes | `WriteAsync(TSnapshot, CancellationToken)` | `WriteTagGroupSnapshotAsync` |
-| Typed group observation | `Observe(...)` / `ObserveOptional(...)` | `ObserveReactiveTagGroup` plus generated projection |
-| Snapshot helpers | `FromSnapshot`, `TryFromSnapshot`, `ToSnapshot`, `MapReactive`, `MapReactiveOptional` | Converts between runtime and generated snapshot shapes |
-| Compile-time validation | `MRTXGEN001` through `MRTXGEN011` | Reports invalid schemas as compiler errors |
-
-#### Schema attribute and JSON contract
-
-Add `[MitsubishiTagClientSchema(...)]` to a class or assembly. The constructor takes one compile-time string value. Class-level usage:
-
-```csharp
-using MitsubishiRx;
-
-[MitsubishiTagClientSchema(
-    """
-    {
-      "tags": [
-        { "name": "MotorSpeed", "address": "D100", "dataType": "Float" },
-        { "name": "Mode", "address": "D101", "dataType": "UInt16" }
-      ],
-      "groups": [
-        { "name": "Line1", "tagNames": ["MotorSpeed", "Mode"] }
-      ]
-    }
-    """)]
-internal sealed class PlcSchema;
-```
-
-Assembly-level usage:
-
-```csharp
-using MitsubishiRx;
-
-[assembly: MitsubishiTagClientSchema(
-    """
-    {
-      "tags": [
-        { "name": "MotorSpeed", "dataType": "Float" },
-        { "name": "Mode", "dataType": "UInt16" },
-        { "name": "PumpRunning", "dataType": "Bit" }
-      ],
-      "groups": [
-        { "name": "Line1", "tagNames": ["MotorSpeed", "Mode", "PumpRunning"] }
-      ]
-    }
-    """)]
-```
-
-Generator schema fields:
-
-| JSON field | Required | Meaning |
-|---|---:|---|
-| `tags` | No | Array of tag entries exposed under `client.Generated().Tags`. |
-| `tags[].name` | Yes | Runtime tag name and generated identifier source. It must match a tag in `client.TagDatabase` at runtime. |
-| `tags[].dataType` | No | Generated .NET type and runtime helper selection. Missing or `null` defaults to `UInt16` / `ushort`. |
-| `groups` | No | Array of group entries exposed under `client.Generated().Groups`. |
-| `groups[].name` | Yes | Runtime group name and generated identifier source. It must match a group in `client.TagDatabase` at runtime. |
-| `groups[].tagNames` | Yes | Ordered tag names used to build the generated snapshot record. |
-
-The generator ignores extra schema properties such as `address`, `description`, `scale`, `offset`, `units`, `length`, and `byteOrder`. Keep those in the runtime `MitsubishiTagDatabase`; generated clients call the normal tag APIs by name, and the runtime database supplies addresses, scaling, string length, byte order, and other PLC metadata.
-
-`MitsubishiTagClientSchemaAttribute` targets assemblies and classes, allows multiple attributes, and is not inherited. Current generation uses the first collected non-empty schema value, so prefer one authoritative schema attribute per consuming project.
-
-#### Supported generated data types
-
-Use the casing shown in this table. Schema validation is case-insensitive, but the current generated API mapping is matched with these canonical names.
-
-| Schema `dataType` | Generated .NET type | Read method | Write method |
-|---|---|---|---|
-| missing / `null` | `ushort` | `ReadUInt16ByTagAsync` | `WriteUInt16ByTagAsync` |
-| `Word` | `ushort` | `ReadUInt16ByTagAsync` | `WriteUInt16ByTagAsync` |
-| `UInt16` | `ushort` | `ReadUInt16ByTagAsync` | `WriteUInt16ByTagAsync` |
-| `Int16` | `short` | `ReadInt16ByTagAsync` | `WriteInt16ByTagAsync` |
-| `Int32` | `int` | `ReadInt32ByTagAsync` | `WriteInt32ByTagAsync` |
-| `DWord` | `uint` | `ReadDWordByTagAsync` | `WriteDWordByTagAsync` |
-| `UInt32` | `uint` | `ReadDWordByTagAsync` | `WriteDWordByTagAsync` |
-| `Float` | `float` | `ReadFloatByTagAsync` | `WriteFloatByTagAsync` |
-| `String` | `string` | `ReadStringByTagAsync` | `WriteStringByTagAsync` |
-| `Bit` | `bool` | `ReadGeneratedBitTagAsync` | `WriteGeneratedBitTagAsync` |
-
-#### Generated client entrypoint and catalogs
-
-```csharp
-GeneratedMitsubishiTagClient generated = client.Generated();
-
-var tags = generated.Tags;
-var groups = generated.Groups;
-```
-
-Generated property names are sanitized from schema names:
-
-| Schema name | Generated identifier |
-|---|---|
-| `MotorSpeed` | `MotorSpeed` |
-| `Motor Speed` | `MotorSpeed` |
-| `Line 1 Overview` | `Line1Overview` |
-| `9Mode` | `_9Mode` |
-
-If two names sanitize to the same identifier, the generator reports `MRTXGEN005`.
-
-#### Generated tag clients
-
-For each schema tag, the generator emits a property under `Tags` and a sealed tag client type:
-
-```csharp
-var motorSpeed = client.Generated().Tags.MotorSpeed;
-
-Responce<float> read = await motorSpeed.ReadAsync();
-if (read.IsSucceed)
-{
-    Console.WriteLine($"Motor speed: {read.Value} rpm");
+    ushort[] next = [before.Value![0], 250, before.Value[2]];
+    var write = await plc.WriteWordsAsync("D200", next, CancellationToken.None);
+    if (!write.IsSucceed) Console.Error.WriteLine(write.Err);
 }
 
-Responce write = await motorSpeed.WriteAsync(123.4f);
-Console.WriteLine(write.IsSucceed ? "Speed written" : write.Err);
+var inputs = await plc.ReadBitsAsync("X10", 8, CancellationToken.None);
+if (inputs.IsSucceed)
+    await plc.WriteBitsAsync("M100", inputs.Value!, CancellationToken.None);
 ```
 
-Generated tag client API:
-
-| API | Signature | Purpose |
-|---|---|---|
-| `ReadAsync` | `Task<Responce<T>> ReadAsync(CancellationToken cancellationToken = default)` | Reads the runtime tag by name using the generated .NET type. |
-| `WriteAsync` | `Task<Responce> WriteAsync(T value, CancellationToken cancellationToken = default)` | Writes the runtime tag by name using the generated .NET type. |
-| `Observe` | `IObservable<MitsubishiReactiveValue<T>> Observe(TimeSpan pollInterval, TimeSpan? minimumUpdateSpacing = null)` | Polls the runtime tag and emits quality envelopes. |
-
-Tag observation example:
+Use a contiguous batch read whenever addresses are nearby. Use random access only when grouping would read a large irrelevant gap:
 
 ```csharp
-using var generatedTagSub = client.Generated().Tags.MotorSpeed
-    .Observe(TimeSpan.FromMilliseconds(250))
-    .Subscribe(value =>
-    {
-        if (value.Quality == MitsubishiReactiveQuality.Good)
-        {
-            Console.WriteLine(value.Value);
-        }
-    });
+var sparse = await plc.RandomReadWordsAsync(["D100", "D220", "W10"], CancellationToken.None);
+var commit = await plc.RandomWriteWordsAsync(
+    new[] { new KeyValuePair<string, ushort>("D100", 12), new("W10", 9) },
+    CancellationToken.None);
 ```
 
-Generated tags still require `client.TagDatabase` to contain matching tag names at runtime:
+`RegisterMonitorAsync(addresses)` programs the PLC-side monitor list and `ExecuteMonitorAsync` obtains its raw response. Register once after connection/reconfiguration, then execute repeatedly; re-register after reconnect if the target controller does not preserve monitor state. `ReadBlocksAsync`/`WriteBlocksAsync` accept `MitsubishiBlockRequest`, which combines `MitsubishiWordBlock` and `MitsubishiBitBlock` for a single multi-block command. These APIs return raw bytes because the response layout follows the request blocks; decode only with the same block ordering used to construct the request.
 
 ```csharp
-client.TagDatabase = MitsubishiTagDatabase.FromJson("""
+var registered = await plc.RegisterMonitorAsync(["D100", "M20", "D300"], CancellationToken.None);
+if (registered.IsSucceed)
 {
-  "tags": [
-    { "name": "MotorSpeed", "address": "D100", "dataType": "Float" },
-    { "name": "Mode", "address": "D102", "dataType": "UInt16" },
-    { "name": "PumpRunning", "address": "M10", "dataType": "Bit" }
-  ],
-  "groups": [
-    { "name": "Line1", "tagNames": ["MotorSpeed", "Mode", "PumpRunning"] }
-  ]
-}
-""");
-```
-
-#### Generated group clients and snapshots
-
-For each schema group, the generator emits a group property under `Groups`, a sealed group client type, and a partial snapshot record named `<GroupName>Snapshot`. For the `Line1` schema above, the snapshot shape is:
-
-```csharp
-public sealed partial record Line1Snapshot(float MotorSpeed, ushort Mode, bool PumpRunning);
-```
-
-Read and write a generated group snapshot:
-
-```csharp
-var line1 = await client.Generated().Groups.Line1.ReadAsync();
-if (line1.Value is not null)
-{
-    Console.WriteLine($"Mode={line1.Value.Mode}");
-
-    var updated = line1.Value with { Mode = 2 };
-    await client.Generated().Groups.Line1.WriteAsync(updated);
-}
-```
-
-Generated group client API:
-
-| API | Signature | Purpose |
-|---|---|---|
-| `ReadAsync` | `Task<Responce<TSnapshot>> ReadAsync(CancellationToken cancellationToken = default)` | Reads the runtime group and maps all values through `TSnapshot.FromSnapshot`. |
-| `ReadOptionalAsync` | `Task<Responce<TSnapshot?>> ReadOptionalAsync(CancellationToken cancellationToken = default)` | Reads the runtime group and returns `null` when values are missing or wrong-typed. |
-| `WriteAsync` | `Task<Responce> WriteAsync(TSnapshot value, CancellationToken cancellationToken = default)` | Converts the generated snapshot to `MitsubishiTagGroupSnapshot` and writes it through `WriteTagGroupSnapshotAsync`. |
-| `Observe` | `IObservable<MitsubishiReactiveValue<TSnapshot>> Observe(TimeSpan pollInterval, TimeSpan? minimumUpdateSpacing = null)` | Observes the runtime group and maps each value to the generated snapshot type. |
-| `ObserveOptional` | `IObservable<MitsubishiReactiveValue<TSnapshot?>> ObserveOptional(TimeSpan pollInterval, TimeSpan? minimumUpdateSpacing = null)` | Observes the runtime group and emits nullable generated snapshots when values are incomplete or mismatched. |
-
-Optional read and group observation examples:
-
-```csharp
-var optionalLine1 = await client.Generated().Groups.Line1.ReadOptionalAsync();
-Console.WriteLine(optionalLine1.Value?.Mode);
-
-using var generatedGroupSub = client.Generated().Groups.Line1.Observe(TimeSpan.FromSeconds(1))
-    .Subscribe(value => Console.WriteLine(value.Value?.Mode));
-
-using var optionalGeneratedGroupSub = client.Generated().Groups.Line1.ObserveOptional(TimeSpan.FromSeconds(1))
-    .Subscribe(value => Console.WriteLine(value.Value?.Mode));
-```
-
-Generated snapshot helper API:
-
-| API | Signature | Purpose |
-|---|---|---|
-| `FromSnapshot` | `static TSnapshot FromSnapshot(MitsubishiTagGroupSnapshot snapshot)` | Required conversion using `snapshot.GetRequired<T>(tagName)`. Throws if a value is missing or has the wrong type. |
-| `TryFromSnapshot` | `static TSnapshot? TryFromSnapshot(MitsubishiTagGroupSnapshot? snapshot)` | Optional conversion. Returns `null` for missing snapshots, missing tag values, or invalid casts. |
-| `ToSnapshot` | `MitsubishiTagGroupSnapshot ToSnapshot()` | Converts the generated record back to a runtime group snapshot for writes. |
-| `MapReactive` | `static MitsubishiReactiveValue<TSnapshot> MapReactive(MitsubishiReactiveValue<MitsubishiTagGroupSnapshot> value)` | Converts a runtime reactive group envelope to a generated typed envelope. Mapping errors become `MitsubishiReactiveQuality.Error`. |
-| `MapReactiveOptional` | `static MitsubishiReactiveValue<TSnapshot?> MapReactiveOptional(MitsubishiReactiveValue<MitsubishiTagGroupSnapshot> value)` | Converts a runtime reactive group envelope to a nullable generated typed envelope. |
-
-```csharp
-MitsubishiTagGroupSnapshot runtimeSnapshot = line1.Value!.ToSnapshot();
-Line1Snapshot typed = Line1Snapshot.FromSnapshot(runtimeSnapshot);
-Line1Snapshot? optional = Line1Snapshot.TryFromSnapshot(runtimeSnapshot);
-```
-
-#### Compile-time diagnostics
-
-The generator validates schema authoring mistakes before generated API use reaches runtime. Diagnostics use category `MitsubishiRx.Generators` and severity `Error`.
-
-| ID | Title | Meaning | Fix |
-|---|---|---|---|
-| `MRTXGEN001` | Failed to generate Mitsubishi tag client | JSON parsing or generation failed unexpectedly. | Check that the schema string is valid JSON. |
-| `MRTXGEN002` | Duplicate generated tag name | Two tag entries have the same `name`, case-insensitively. | Keep each tag name unique. |
-| `MRTXGEN003` | Unknown generated group tag reference | A group `tagNames` entry does not match any schema tag. | Add the missing tag or remove/fix the group reference. |
-| `MRTXGEN004` | Unsupported generated tag data type | A tag uses a `dataType` outside the supported generator set. | Use `Bit`, `Word`, `DWord`, `Float`, `String`, `Int16`, `UInt16`, `Int32`, or `UInt32`. |
-| `MRTXGEN005` | Generated identifier collision | Different tag or group names sanitize to the same C# identifier. | Rename one schema item, for example avoid both `Motor Speed` and `Motor-Speed`. |
-| `MRTXGEN006` | Empty generated tag name | A tag name is missing, empty, or whitespace. | Supply a non-empty `tags[].name`. |
-| `MRTXGEN007` | Empty generated group name | A group name is missing, empty, or whitespace. | Supply a non-empty `groups[].name`. |
-| `MRTXGEN008` | Empty generated group membership | A group has no `tagNames`. | Add at least one tag reference or remove the group. |
-| `MRTXGEN009` | Duplicate generated group name | Two group entries have the same `name`, case-insensitively. | Keep each group name unique. |
-| `MRTXGEN010` | Empty generated group tag reference | A group contains an empty or whitespace tag reference. | Remove the empty entry or replace it with a valid tag name. |
-| `MRTXGEN011` | Duplicate generated group tag reference | A group references the same tag more than once, case-insensitively. | Keep each group membership list unique. |
-
-Invalid schema example:
-
-```csharp
-[MitsubishiTagClientSchema(
-    """
-    {
-      "tags": [
-        { "name": "Motor Speed", "dataType": "Float" },
-        { "name": "Motor-Speed", "dataType": "UInt16" }
-      ],
-      "groups": [
-        { "name": "Line1", "tagNames": ["MissingTag"] }
-      ]
-    }
-    """)]
-internal sealed class InvalidSchema;
-```
-
-This schema reports `MRTXGEN005` because both tag names sanitize to `MotorSpeed`, and `MRTXGEN003` because `Line1` references `MissingTag`.
-
-#### Generated-client startup checklist
-
-Use this pattern in production applications:
-
-```csharp
-client.TagDatabase = MitsubishiTagDatabase.Load("plc-tags.yaml");
-
-var validation = client.ValidateTagDatabase();
-if (!validation.IsSucceed)
-{
-    throw new InvalidOperationException(validation.Err);
+    Responce<byte[]> sample = await plc.ExecuteMonitorAsync(CancellationToken.None);
+    if (sample.IsSucceed) Console.WriteLine(Convert.ToHexString(sample.Value!));
 }
 
-await client.OpenAsync();
-
-var generated = client.Generated();
-var mode = await generated.Tags.Mode.ReadAsync();
-Console.WriteLine(mode.IsSucceed ? mode.Value : mode.Err);
-```
-
-The compile-time generator schema and runtime tag database should describe the same tag and group names. The generator gives strongly typed code; the runtime database still controls how those names map to PLC devices.
-
-### Operation logs and sampled diagnostics
-
-```csharp
-using var logs = client.OperationLogs.Subscribe(log =>
-{
-    Console.WriteLine($"{log.TimestampUtc:u} {log.Description} success={log.Success}");
-});
-```
-
-```csharp
-using ReactiveUI.Primitives;
-using ReactiveUI.Primitives.Signals;
-
-var diagnosticTrigger = Signal.Interval(TimeSpan.FromSeconds(2)).Select(_ => new object());
-using var diagnostics = client.SampleDiagnostics(diagnosticTrigger).Subscribe(log =>
-{
-    Console.WriteLine(log.Description);
-});
-```
-
-### Connection health
-
-```csharp
-using var health = client.ObserveConnectionHealth(TimeSpan.FromSeconds(10)).Subscribe(state =>
-{
-    Console.WriteLine($"Connection stale={state.IsStale}, state={state.Update}");
-});
-```
-
-### Reactive operators used internally
-
-The library meaningfully uses these `ReactiveUI.Primitives.Extensions` operators:
-- `RetryWithBackoff(...)`
-- `SelectAsyncSequential(...)`
-- `SelectLatestAsync(...)`
-- `Heartbeat(...)`
-- `DetectStale(...)`
-- `Conflate(...)`
-- `SampleLatest(...)`
-- `DoOnSubscribe(...)`
-- `DoOnDispose(...)`
-
----
-
-## Tag database: use tag names instead of PLC addresses
-
-For production applications, raw addresses like `D100` and `M10` usually belong in configuration, not code.
-
-The library now includes an in-memory **tag database** that maps symbolic names to PLC addresses.
-
-### What it gives you
-
-Instead of this:
-
-```csharp
-var speed = await client.ReadWordsAsync("D100", 2);
-var pump = await client.ReadBitsAsync("M10", 1);
-await client.WriteWordsAsync("D300", new ushort[] { 12 });
-await client.RandomWriteWordsAsync(new[]
-{
-    new KeyValuePair<string, ushort>("D500", 100),
-    new KeyValuePair<string, ushort>("D501", 200),
-});
-```
-
-you can do this:
-
-```csharp
-var speed = await client.ReadWordsByTagAsync("MotorSpeed", 2);
-var pump = await client.ReadBitsByTagAsync("PumpRunning", 1);
-await client.WriteWordsByTagAsync("RecipeNumber", new ushort[] { 12 });
-await client.RandomWriteWordsByTagAsync(new[]
-{
-    new KeyValuePair<string, ushort>("RecipeSetpointA", 100),
-    new KeyValuePair<string, ushort>("RecipeSetpointB", 200),
-});
-```
-
-### Tag database types
-
-- `MitsubishiTagDefinition`
-- `MitsubishiTagDatabase`
-- `MitsubishiTagGroupDefinition`
-- `MitsubishiTagGroupSnapshot`
-- `MitsubishiRx.TagDatabase`
-- `ReadWordsByTagAsync(...)`
-- `ReadBitsByTagAsync(...)`
-- `WriteWordsByTagAsync(...)`
-- `WriteBitsByTagAsync(...)`
-- `RandomReadWordsByTagAsync(...)`
-- `RandomWriteWordsByTagAsync(...)`
-- `ReadInt16ByTagAsync(...)`
-- `WriteInt16ByTagAsync(...)`
-- `ReadUInt16ByTagAsync(...)`
-- `WriteUInt16ByTagAsync(...)`
-- `ReadInt32ByTagAsync(...)`
-- `WriteInt32ByTagAsync(...)`
-- `ReadDWordByTagAsync(...)`
-- `WriteDWordByTagAsync(...)`
-- `ReadFloatByTagAsync(...)`
-- `WriteFloatByTagAsync(...)`
-- `ReadScaledDoubleByTagAsync(...)`
-- `WriteScaledDoubleByTagAsync(...)`
-- `ReadStringByTagAsync(...)`
-- `WriteStringByTagAsync(...)`
-- `ValidateTagDatabase()`
-- `ReadTagGroupSnapshotAsync(...)`
-
-### Build a tag database in code
-
-```csharp
-using MitsubishiRx;
-
-var tags = new MitsubishiTagDatabase(new[]
-{
-    new MitsubishiTagDefinition(
-        Name: "MotorSpeed",
-        Address: "D100",
-        DataType: "Word",
-        Description: "Main spindle RPM",
-        Scale: 0.1,
-        Offset: 0.0,
-        Notes: "Engineering scaling 0.1 RPM per count"),
-
-    new MitsubishiTagDefinition(
-        Name: "PumpRunning",
-        Address: "M10",
-        DataType: "Bit",
-        Description: "Coolant pump running"),
-
-    new MitsubishiTagDefinition(
-        Name: "RecipeNumber",
-        Address: "D300",
-        DataType: "Word",
-        Description: "Selected recipe number"),
-
-    new MitsubishiTagDefinition(
-        Name: "RecipeSetpointA",
-        Address: "D500",
-        DataType: "Word"),
-
-    new MitsubishiTagDefinition(
-        Name: "RecipeSetpointB",
-        Address: "D501",
-        DataType: "Word"),
-});
-
-client.TagDatabase = tags;
-```
-
-### Read and write using tag names
-
-```csharp
-var speed = await client.ReadWordsByTagAsync("MotorSpeed", 2);
-var running = await client.ReadBitsByTagAsync("PumpRunning", 1);
-
-await client.WriteWordsByTagAsync("RecipeNumber", new ushort[] { 12 });
-await client.WriteBitsByTagAsync("PumpRunning", new[] { true });
-```
-
-### Random operations using tag names
-
-```csharp
-var recipeValues = await client.RandomReadWordsByTagAsync(new[]
-{
-    "RecipeSetpointA",
-    "RecipeSetpointB",
-    "RecipeNumber",
-});
-
-await client.RandomWriteWordsByTagAsync(new[]
-{
-    new KeyValuePair<string, ushort>("RecipeSetpointA", 100),
-    new KeyValuePair<string, ushort>("RecipeSetpointB", 200),
-    new KeyValuePair<string, ushort>("RecipeNumber", 12),
-});
-```
-
-### Typed tag helpers
-
-Use `DataType` to make tag intent explicit and then call the typed helpers directly.
-
-```csharp
-var signedTemp = await client.ReadInt16ByTagAsync("SignedTemp");
-await client.WriteInt16ByTagAsync("SignedTemp", -100);
-
-var wordValue = await client.ReadUInt16ByTagAsync("RecipeNumber");
-await client.WriteUInt16ByTagAsync("RecipeNumber", 12);
-
-var signedTotal = await client.ReadInt32ByTagAsync("SignedTotal");
-await client.WriteInt32ByTagAsync("SignedTotal", 123456);
-
-var totalCount = await client.ReadDWordByTagAsync("TotalCount");
-await client.WriteDWordByTagAsync("TotalCount", 123456u);
-
-var processValue = await client.ReadFloatByTagAsync("ProcessValue");
-await client.WriteFloatByTagAsync("ProcessValue", 12.5f);
-```
-
-Integer helpers supported in the current API surface:
-- `ReadInt16ByTagAsync(...)`
-- `WriteInt16ByTagAsync(...)`
-- `ReadUInt16ByTagAsync(...)`
-- `WriteUInt16ByTagAsync(...)`
-- `ReadInt32ByTagAsync(...)`
-- `WriteInt32ByTagAsync(...)`
-- `ReadDWordByTagAsync(...)`
-- `WriteDWordByTagAsync(...)`
-- `ReadFloatByTagAsync(...)`
-- `WriteFloatByTagAsync(...)`
-
-`Int32`, `UInt32`/`DWord`, and `Float` values are encoded across two Mitsubishi words. `ByteOrder` controls whether those two words are interpreted as `LittleEndian` or `BigEndian`.
-
-### Scaled engineering values
-
-If a tag carries engineering metadata in `Scale` and `Offset`, use the scaled helpers so application code can work with engineering units instead of raw PLC counts.
-
-```csharp
-var headTemp = await client.ReadScaledDoubleByTagAsync("HeadTemp");
-await client.WriteScaledDoubleByTagAsync("HeadTemp", 15.0d);
-```
-
-With this CSV row:
-
-```csv
-Name,Address,DataType,Scale,Offset
-HeadTemp,D200,Word,0.1,-10
-```
-
-the PLC raw value `250` becomes `(250 * 0.1) + (-10) = 15.0`.
-
-Scaled read/write currently supports:
-- `Word`
-- `DWord`
-- `Float`
-
-### PLC strings using tag names
-
-For PLC text stored in word registers, use the string helpers with an explicit word length or let the tag schema provide it.
-
-```csharp
-var message = await client.ReadStringByTagAsync("OperatorMessage", wordLength: 8);
-await client.WriteStringByTagAsync("OperatorMessage", "READY", wordLength: 8);
-
-var schemaDrivenMessage = await client.ReadStringByTagAsync("Utf8Message");
-await client.WriteStringByTagAsync("Utf8Message", "Aé");
-```
-
-String values are packed into successive words using the configured `Encoding`. Each Mitsubishi word stores two bytes, and `ByteOrder` controls how those two bytes are packed inside each word.
-
-### How tag resolution works
-
-- tag names are resolved case-insensitively
-- the resolved tag supplies the PLC `Address`
-- `DataType` is validated when tags are added or imported from CSV
-- supported `DataType` values are:
-  - `Bit`
-  - `Word`
-  - `DWord`
-  - `Float`
-  - `String`
-- `DataType` matching is case-insensitive and normalized to the canonical values above
-- the current tag-based convenience API supports:
-  - `ReadWordsByTagAsync(...)`
-  - `ReadBitsByTagAsync(...)`
-  - `WriteWordsByTagAsync(...)`
-  - `WriteBitsByTagAsync(...)`
-  - `RandomReadWordsByTagAsync(...)`
-  - `RandomWriteWordsByTagAsync(...)`
-  - `ReadDWordByTagAsync(...)`
-  - `WriteDWordByTagAsync(...)`
-  - `ReadFloatByTagAsync(...)`
-  - `WriteFloatByTagAsync(...)`
-  - `ReadScaledDoubleByTagAsync(...)`
-  - `WriteScaledDoubleByTagAsync(...)`
-  - `ReadStringByTagAsync(...)`
-  - `WriteStringByTagAsync(...)`
-- tag APIs are transport/frame agnostic: they work with `1E`, `3E`, `4E`, `TCP`, `UDP`, `Binary`, and `Ascii` wherever the underlying operation is supported by the target PLC family/module
-- all tag APIs eventually resolve to the same raw address-based methods, so protocol behavior stays identical after resolution
-- other operations can still use the same database manually:
-
-```csharp
-var tag = client.TagDatabase!.GetRequired("RecipeSetpointA");
-await client.WriteWordsAsync(tag.Address, new ushort[] { 2500 });
-```
-
-### Recommended usage model
-
-- store PLC addressing in CSV/configuration
-- load it at application startup
-- assign it to `client.TagDatabase`
-- keep application logic written against stable tag names
-- let maintenance teams change addresses in CSV without changing application code
-- define `MitsubishiTagGroupDefinition` scan classes for common screens, loops, and reporting views
-- call `ValidateTagDatabase()` during startup so bad addresses, missing string lengths, and broken group references fail fast
-
-### Tag groups and grouped snapshots
-
-For higher-level workflows, define named groups of tags and read them as a single heterogeneous snapshot.
-
-```csharp
-var tags = MitsubishiTagDatabase.FromCsv(File.ReadAllText("plc-tags.csv"));
-
-tags.AddGroup(new MitsubishiTagGroupDefinition(
-    Name: "Line1Overview",
-    TagNames: new[]
-    {
-        "SignedTemp",
-        "TotalCount",
-        "OperatorMessage",
-        "PumpRunning",
-    }));
-
-tags.AddGroup(new MitsubishiTagGroupDefinition(
-    Name: "RecipeWrite",
-    TagNames: new[]
-    {
-        "RecipeNumber",
-        "OperatorMessage",
-    }));
-
-client.TagDatabase = tags;
-
-var validation = client.ValidateTagDatabase();
-if (!validation.IsSucceed)
-{
-    throw new InvalidOperationException(validation.Err);
-}
-
-var snapshot = await client.ReadTagGroupSnapshotAsync("Line1Overview");
-
-var signedTemp = snapshot.Value!.GetRequired<short>("SignedTemp");
-var totalCount = snapshot.Value.GetRequired<uint>("TotalCount");
-var operatorMessage = snapshot.Value.GetRequired<string>("OperatorMessage");
-var pumpRunning = snapshot.Value.GetRequired<bool>("PumpRunning");
-```
-
-Use tag groups when you want:
-- startup validation of known screen/report/scan-class dependencies
-- a single named collection for related tags
-- typed access to heterogeneous values without scattering tag names across the application
-
-### Grouped writes and setpoint commits
-
-For HMI/setpoint workflows, validate and write only the values you want to commit.
-
-```csharp
-var pendingValues = new Dictionary<string, object?>
-{
-    ["RecipeNumber"] = (ushort)7,
-    ["OperatorMessage"] = "OK!",
-};
-
-var writeValidation = client.ValidateTagGroupWrite("RecipeWrite", pendingValues);
-if (!writeValidation.IsSucceed)
-{
-    throw new InvalidOperationException(writeValidation.Err);
-}
-
-await client.WriteTagGroupValuesAsync("RecipeWrite", pendingValues);
-```
-
-You can also write a full grouped snapshot directly:
-
-```csharp
-var writeSnapshot = new MitsubishiTagGroupSnapshot(
-    "Line1Overview",
-    new Dictionary<string, object?>
-    {
-        ["SignedTemp"] = (short)-100,
-        ["TotalCount"] = 0x12345678u,
-        ["OperatorMessage"] = "OK!",
-    });
-
-await client.WriteTagGroupSnapshotAsync(writeSnapshot);
-```
-
-`ValidateTagGroupWrite(...)` reports:
-- values whose CLR types do not match the target tag schema
-- values for tags that are not part of the named group
-- the same underlying tag/schema issues already enforced by the individual tag helpers
-
----
-
-## CSV import: initialize the tag database from a file
-
-You can initialize the tag database directly from CSV.
-
-### Supported required/optional columns
-
-| Column | Required | Meaning |
-|---|---|---|
-| `Name` | **Yes** | Unique symbolic tag name used by application code |
-| `Address` | **Yes** | Mitsubishi PLC address such as `D100`, `M10`, `X20`, `ZR200` |
-| `DataType` | No | Type hint such as `Bit`, `Word`, `DWord`, `Float`, `String`, `Int16`, `UInt16`, `Int32`, `UInt32` |
-| `Description` | No | Human-readable description |
-| `Scale` | No | Engineering scale factor, default `1.0` |
-| `Offset` | No | Engineering offset, default `0.0` |
-| `Length` | No | Logical tag length in PLC words, mainly used by string tags and fixed-width layouts |
-| `Encoding` | No | Text encoding hint such as `Ascii`, `Utf8`, or `Utf16` |
-| `Units` | No | Engineering units label such as `rpm`, `°C`, or `items` |
-| `Signed` | No | Boolean signedness hint for integer word/double-word tags, default `false` |
-| `ByteOrder` | No | Multi-word and string packing order: `LittleEndian` or `BigEndian` |
-| `Notes` | No | Free-form notes |
-
-### Required CSV formatting
-
-- first row **must** be a header row
-- at minimum the header must include:
-  - `Name`
-  - `Address`
-- column names are matched case-insensitively
-- blank lines are ignored
-- quoted CSV fields are supported
-- embedded double quotes inside quoted fields should be escaped as `""`
-- numeric `Scale`, `Offset`, and `Length` values should use invariant-culture formatting
-- `Signed` should be `true` or `false`
-- do **not** include engineering units inside `Scale` or `Offset`
-- `Address` must contain a valid Mitsubishi device address string usable by the client
-- if `DataType` is supplied it must be one of:
-  - `Bit`
-  - `Word`
-  - `DWord`
-  - `Float`
-  - `String`
-  - `Int16`
-  - `UInt16`
-  - `Int32`
-  - `UInt32`
-- if `Encoding` is supplied it must be one of:
-  - `Ascii`
-  - `Utf8`
-  - `Utf16`
-- if `ByteOrder` is supplied it must be one of:
-  - `LittleEndian`
-  - `BigEndian`
-- `DataType`, `Encoding`, and `ByteOrder` matching is case-insensitive when imported, but stored in canonical form
-- use one logical PLC item per CSV row
-- keep `Name` unique across the file so it can be used safely as the application lookup key
-
-### Example CSV file
-
-```csv
-Name,Address,DataType,Description,Scale,Offset,Length,Encoding,Units,Signed,ByteOrder,Notes
-MotorSpeed,D100,Word,Main spindle RPM,0.1,0,,,rpm,false,,From commissioning sheet
-PumpRunning,M10,Bit,Coolant pump running,1,0,,,,false,,
-HeadTemp,D200,Word,Head temperature,0.1,-10,,,°C,true,,Signed engineering temperature tag
-RecipeNumber,D300,UInt16,Selected recipe,1,0,,,recipe,false,,
-TotalCount,D400,UInt32,Accumulated production count,1,0,,,items,false,LittleEndian,32-bit unsigned counter
-ProcessValue,D500,Float,Engineering process value,1,0,,,bar,false,LittleEndian,IEEE754 single precision across two words
-OperatorMessage,D600,String,Operator status message,1,0,8,Ascii,,false,LittleEndian,Packed text in word registers
-SignedTemp,D700,Int16,Signed temperature raw count,1,0,,,counts,true,,Two's complement 16-bit value
-SignedTotal,D710,Int32,Signed accumulated count,1,0,,,items,true,BigEndian,Big-endian multiword example
-Utf8Message,D720,String,UTF-8 operator text,1,0,2,Utf8,,false,LittleEndian,Schema-driven string length
-ServoReady,M100,Bit,Servo ready,1,0,,,,false,,
-XAxisLimit,X20,Bit,X-axis forward limit,1,0,,,,false,,X uses configured XyNotation
-ZoneRegister,ZR200,Word,Zone parameter register,1,0,,,,false,,
-```
-
-### Load from a CSV string
-
-```csharp
-var csv = File.ReadAllText("plc-tags.csv");
-var tagDatabase = MitsubishiTagDatabase.FromCsv(csv);
-client.TagDatabase = tagDatabase;
-```
-
-Or load the same CSV directly by file extension:
-
-```csharp
-client.TagDatabase = MitsubishiTagDatabase.Load("plc-tags.csv");
-```
-
-### Full startup example
-
-```csharp
-using MitsubishiRx;
-
-var options = new MitsubishiClientOptions(
-    Host: "192.168.0.10",
-    Port: 5000,
-    FrameType: MitsubishiFrameType.ThreeE,
-    DataCode: CommunicationDataCode.Binary,
-    TransportKind: MitsubishiTransportKind.Tcp,
-    Route: MitsubishiRoute.Default,
-    MonitoringTimer: 0x0010,
-    XyNotation: XyAddressNotation.Octal);
-
-var csv = File.ReadAllText("plc-tags.csv");
-var tags = MitsubishiTagDatabase.FromCsv(csv);
-
-await using var client = new MitsubishiRx.MitsubishiRx(options)
-{
-    TagDatabase = tags,
-};
-
-var speed = await client.ReadWordsByTagAsync("MotorSpeed", 2);
-var pump = await client.ReadBitsByTagAsync("PumpRunning", 1);
-await client.WriteUInt16ByTagAsync("RecipeNumber", 7);
-await client.RandomWriteWordsByTagAsync(new[]
-{
-    new KeyValuePair<string, ushort>("RecipeSetpointA", 100),
-    new KeyValuePair<string, ushort>("RecipeSetpointB", 200),
-});
-
-var signedTemp = await client.ReadInt16ByTagAsync("SignedTemp");
-var signedTotal = await client.ReadInt32ByTagAsync("SignedTotal");
-var totalCount = await client.ReadDWordByTagAsync("TotalCount");
-var processValue = await client.ReadFloatByTagAsync("ProcessValue");
-var engineeringTemp = await client.ReadScaledDoubleByTagAsync("HeadTemp");
-var operatorMessage = await client.ReadStringByTagAsync("OperatorMessage");
-var utf8Message = await client.ReadStringByTagAsync("Utf8Message");
-```
-
-### JSON and YAML schema workflows
-
-CSV is useful for spreadsheets and maintenance exports, but JSON/YAML are better when you want full schema persistence, groups, and richer version-controlled configuration.
-
-### Export the full schema to JSON
-
-```csharp
-client.TagDatabase!.Save("plc-tags.json");
-```
-
-Equivalent explicit form:
-
-```csharp
-var json = client.TagDatabase!.ToJson();
-File.WriteAllText("plc-tags.json", json);
-```
-
-### Load the full schema from JSON
-
-```csharp
-client.TagDatabase = MitsubishiTagDatabase.Load("plc-tags.json");
-```
-
-Equivalent explicit form:
-
-```csharp
-var json = File.ReadAllText("plc-tags.json");
-var tags = MitsubishiTagDatabase.FromJson(json);
-client.TagDatabase = tags;
-```
-
-### Export the full schema to YAML
-
-```csharp
-client.TagDatabase!.Save("plc-tags.yaml");
-client.TagDatabase!.Save("plc-tags.yml");
-```
-
-Equivalent explicit form:
-
-```csharp
-var yaml = client.TagDatabase!.ToYaml();
-File.WriteAllText("plc-tags.yaml", yaml);
-```
-
-### Load the full schema from YAML
-
-```csharp
-client.TagDatabase = MitsubishiTagDatabase.Load("plc-tags.yaml");
-client.TagDatabase = MitsubishiTagDatabase.Load("plc-tags.yml");
-```
-
-Equivalent explicit form:
-
-```csharp
-var yaml = File.ReadAllText("plc-tags.yaml");
-var tags = MitsubishiTagDatabase.FromYaml(yaml);
-client.TagDatabase = tags;
-```
-
-### Example YAML schema with groups
-
-```yaml
-tags:
-  - name: SignedTemp
-    address: D700
-    dataType: Int16
-    signed: true
-    units: °C
-  - name: OperatorMessage
-    address: D600
-    dataType: String
-    length: 2
-    encoding: Utf8
-    byteOrder: BigEndian
-groups:
-  - name: Overview
-    tagNames:
-      - SignedTemp
-      - OperatorMessage
-```
-
-Use JSON/YAML when you want:
-- full schema persistence including groups
-- easier code review of tag model changes in version control
-- richer metadata than a compact CSV worksheet usually carries
-
-Use `MitsubishiTagDatabase.Load(path)` / `Save(path)` when you want one-line startup configuration or persistence with automatic detection for `.csv`, `.json`, `.yaml`, and `.yml`.
-
-For commissioning workflows, `client.LoadAndValidateTagDatabase(path)` loads, validates, and applies the schema in one step, `client.PreviewTagDatabaseDiff(path)` shows what would change before you commit it, and `client.ObserveTagDatabaseReload(path, pollInterval)` / `client.ObserveTagDatabaseDiff(path, pollInterval)` provide reactive reload and audit streams. Use rollout policies when you want to allow metadata/group edits automatically while blocking address or datatype changes.
-
-### Load, validate, and apply a schema in one step
-
-```csharp
-var loadResult = client.LoadAndValidateTagDatabase("plc-tags.yaml");
-if (!loadResult.IsSucceed)
-{
-    throw new InvalidOperationException(loadResult.Err);
-}
-```
-
-### Reactively hot-reload a schema during commissioning
-
-```csharp
-using var schemaReload = client
-    .ObserveTagDatabaseReload("plc-tags.yaml", TimeSpan.FromSeconds(2))
-    .Subscribe(result =>
-    {
-        if (!result.IsSucceed)
-        {
-            Console.WriteLine($"Schema reload failed: {result.Err}");
-            return;
-        }
-
-        Console.WriteLine($"Reloaded {result.Value!.Count} tags and {result.Value.GroupCount} groups");
-    });
-```
-
-`ObserveTagDatabaseReload(...)` only applies a newly loaded database when validation succeeds. Invalid reloads are emitted as failed results and the last valid `client.TagDatabase` remains active.
-
-### Preview schema changes before applying them
-
-```csharp
-var preview = client.PreviewTagDatabaseDiff("plc-tags.yaml");
-if (!preview.IsSucceed)
-{
-    throw new InvalidOperationException(preview.Err);
-}
-
-Console.WriteLine($"Added tags: {preview.Value!.AddedTags.Count}");
-Console.WriteLine($"Removed tags: {preview.Value.RemovedTags.Count}");
-Console.WriteLine($"Changed tags: {preview.Value.ChangedTags.Count}");
-```
-
-### Reactively audit schema changes during hot reload
-
-```csharp
-using var schemaAudit = client
-    .ObserveTagDatabaseDiff("plc-tags.yaml", TimeSpan.FromSeconds(2), emitInitial: false)
-    .Subscribe(result =>
-    {
-        if (!result.IsSucceed)
-        {
-            Console.WriteLine($"Schema diff failed: {result.Err}");
-            return;
-        }
-
-        var diff = result.Value!;
-        Console.WriteLine($"Schema changed: {diff.ChangeCount} semantic changes");
-    });
-```
-
-`ObserveTagDatabaseDiff(...)` emits semantic tag/group changes for each successful reload and keeps the last valid `client.TagDatabase` when an update is invalid.
-
-### Apply rollout policy gates during commissioning
-
-```csharp
-var gatedLoad = client.LoadAndValidateTagDatabase(
-    "plc-tags.yaml",
-    MitsubishiTagRolloutPolicy.SafeMetadataAndGroups);
-
-if (!gatedLoad.IsSucceed)
-{
-    throw new InvalidOperationException(gatedLoad.Err);
-}
-```
-
-`MitsubishiTagRolloutPolicy.SafeMetadataAndGroups` allows:
-- metadata-only tag changes
-- tag-group membership/order changes
-
-It rejects:
-- address changes
-- datatype/encoding/length/signedness/byte-order changes
-- added/removed tags or groups
-
-### Preview classified changes before applying them
-
-```csharp
-var preview = client.PreviewTagDatabaseDiff(
-    "plc-tags.yaml",
-    MitsubishiTagRolloutPolicy.SafeMetadataAndGroups);
-
-if (preview.Value is not null)
-{
-    Console.WriteLine($"Kinds: {preview.Value.ChangeKinds}");
-    Console.WriteLine($"Total changes: {preview.Value.ChangeCount}");
-}
-```
-
-### Reactively enforce rollout policy during hot reload
-
-```csharp
-using var gatedReload = client
-    .ObserveTagDatabaseReload(
-        "plc-tags.yaml",
-        TimeSpan.FromSeconds(2),
-        emitInitial: false,
-        policy: MitsubishiTagRolloutPolicy.SafeMetadataAndGroups)
-    .Subscribe(result =>
-    {
-        if (!result.IsSucceed)
-        {
-            Console.WriteLine($"Reload blocked: {result.Err}");
-        }
-    });
-```
-
-### Practical CSV rules for maintenance teams
-
-Recommended conventions:
-- `Name`: PascalCase or a consistent SCADA/HMI-friendly convention
-- `Address`: exact Mitsubishi address string with no extra spaces
-- `DataType`: one of `Bit`, `Word`, `DWord`, `Float`, `String`, `Int16`, `UInt16`, `Int32`, `UInt32`
-- `Length`: set this for string tags so code can call `ReadStringByTagAsync(tagName)` without supplying a length each time
-- `Encoding`: use `Ascii` unless the PLC text really requires `Utf8` or `Utf16`
-- `Signed`: set to `true` for signed integer word/double-word values or signed scaled engineering values
-- `ByteOrder`: use `LittleEndian` for the normal two-word Mitsubishi layout and `BigEndian` only when the external data contract requires it
-- `Units`: use for UI/reporting metadata such as `rpm`, `°C`, or `items`
-- `Description`: operator-facing sentence
-- `Notes`: use for commissioning notes, source document, or unit conversion notes
-
-### Example with quoted fields
-
-```csv
-Name,Address,DataType,Description,Scale,Offset,Notes
-LineSpeed,D110,Word,"Main conveyor speed, calculated",0.01,0,"Imported from ""Line-1 IO List"""
-```
-
-### Validation behavior
-
-`MitsubishiTagDatabase.FromCsv(...)` will fail when:
-- there is no header row
-- `Name` is missing from the header
-- `Address` is missing from the header
-- a row has an empty required value for `Name` or `Address`
-- `Scale`, `Offset`, or `Length` contain invalid numeric values
-- `Signed` contains an invalid boolean value
-- `DataType` contains an unsupported value
-- `Encoding` contains an unsupported value
-- `ByteOrder` contains an unsupported value
-
-`client.ValidateTagDatabase()` additionally reports:
-- tag addresses that cannot be parsed for the configured `XyNotation`
-- string tags that do not define a positive `Length`
-- tag groups that reference missing tags
-
-The accepted `DataType` values are exactly:
-- `Bit`
-- `Word`
-- `DWord`
-- `Float`
-- `String`
-- `Int16`
-- `UInt16`
-- `Int32`
-- `UInt32`
-
-The accepted `Encoding` values are exactly:
-- `Ascii`
-- `Utf8`
-- `Utf16`
-
-The accepted `ByteOrder` values are exactly:
-- `LittleEndian`
-- `BigEndian`
-
----
-
-## PLC-family-specific usage guidance
-
-This section shows how to think about feature usage by PLC family.
-
-### A / AnS legacy paths
-
-Use **1E** when the installed Ethernet interface/module exposes A-compatible MC protocol only.
-
-Typical operations:
-- `ReadWordsAsync`
-- `WriteWordsAsync`
-- `ReadBitsAsync`
-- `WriteBitsAsync`
-- `ReadTypeNameAsync`
-- `LoopbackAsync`
-- core remote operations where supported by the target path
-
-Example:
-
-```csharp
-var options = new MitsubishiClientOptions(
-    Host: "192.168.0.20",
-    Port: 5000,
-    FrameType: MitsubishiFrameType.OneE,
-    DataCode: CommunicationDataCode.Binary,
-    TransportKind: MitsubishiTransportKind.Tcp,
-    MonitoringTimer: 0x0010,
-    CpuType: CpuType.ASeries,
-    LegacyPcNumber: 0xFF);
-```
-
-### Q / QnA / L / iQ-R / iQ-F / FX5 modern Ethernet
-
-Use **3E** as the default unless the integration explicitly needs **4E** serial correlation.
-
-Typical operations:
-- all batch operations
-- random read/write
-- block read/write
-- monitor registration/execute
-- type-name read
-- remote control
-- password unlock/lock
-- memory and extend-unit access
-- TCP or UDP depending on endpoint configuration
-
-3E example:
-
-```csharp
-var options = new MitsubishiClientOptions(
-    Host: "192.168.0.30",
-    Port: 5000,
-    FrameType: MitsubishiFrameType.ThreeE,
-    DataCode: CommunicationDataCode.Binary,
-    TransportKind: MitsubishiTransportKind.Tcp,
-    Route: MitsubishiRoute.Default,
-    MonitoringTimer: 0x0010);
-```
-
-4E example:
-
-```csharp
-var options = new MitsubishiClientOptions(
-    Host: "192.168.0.31",
-    Port: 5000,
-    FrameType: MitsubishiFrameType.FourE,
-    DataCode: CommunicationDataCode.Binary,
-    TransportKind: MitsubishiTransportKind.Tcp,
-    Route: MitsubishiRoute.Default,
-    MonitoringTimer: 0x0010,
-    SerialNumberProvider: () => (ushort)Environment.TickCount);
-```
-
-### ASCII endpoint example
-
-```csharp
-var asciiOptions = new MitsubishiClientOptions(
-    Host: "192.168.0.40",
-    Port: 5000,
-    FrameType: MitsubishiFrameType.ThreeE,
-    DataCode: CommunicationDataCode.Ascii,
-    TransportKind: MitsubishiTransportKind.Tcp,
-    Route: MitsubishiRoute.Default,
-    MonitoringTimer: 0x0010);
-```
-
-### UDP endpoint example
-
-```csharp
-var udpOptions = new MitsubishiClientOptions(
-    Host: "192.168.0.50",
-    Port: 5000,
-    FrameType: MitsubishiFrameType.ThreeE,
-    DataCode: CommunicationDataCode.Binary,
-    TransportKind: MitsubishiTransportKind.Udp,
-    Route: MitsubishiRoute.Default,
-    MonitoringTimer: 0x0010);
-```
-
-### Serial endpoint example
-
-```csharp
-using System.IO.Ports;
-
-var serialEndpoint = new MitsubishiClientOptions(
-    Host: "COM3",
-    Port: 0,
-    FrameType: MitsubishiFrameType.OneC,
-    DataCode: CommunicationDataCode.Ascii,
-    TransportKind: MitsubishiTransportKind.Serial,
-    Timeout: TimeSpan.FromSeconds(2),
-    CpuType: CpuType.Fx3,
-    Serial: new MitsubishiSerialOptions(
-        PortName: "COM3",
-        BaudRate: 9600,
-        DataBits: 7,
-        Parity: Parity.Even,
-        StopBits: StopBits.One,
-        Handshake: Handshake.None,
-        MessageFormat: MitsubishiSerialMessageFormat.Format1,
-        StationNumber: 0x00,
-        PcNumber: 0xFF,
-        MessageWait: 0x0));
-```
-
----
-
-## Feature-to-API quick map
-
-| Feature | API |
-|---|---|
-| Default package | `MitsubishiRx` namespace, `ReactiveUI.Primitives`, `SerialPortRx` |
-| Reactive bridge package | `MitsubishiRx.Reactive` namespace, `ReactiveUI.Primitives.Reactive`, `SerialPortRx.Reactive` |
-| Open transport | `OpenAsync()` / `Open()` |
-| Close transport | `CloseAsync()` / `Close()` |
-| Batch word read | `ReadWordsAsync(address, points)` |
-| Batch word write | `WriteWordsAsync(address, values)` |
-| Batch bit read | `ReadBitsAsync(address, points)` |
-| Batch bit write | `WriteBitsAsync(address, values)` |
-| Random word read | `RandomReadWordsAsync(addresses)` |
-| Random word write | `RandomWriteWordsAsync(values)` |
-| Register monitor devices | `RegisterMonitorAsync(addresses)` |
-| Execute monitor | `ExecuteMonitorAsync()` |
-| Block read | `ReadBlocksAsync(request)` |
-| Block write | `WriteBlocksAsync(request)` |
-| Read PLC type | `ReadTypeNameAsync()` |
-| Remote RUN | `RemoteRunAsync(force, clearMode)` |
-| Remote STOP | `RemoteStopAsync()` |
-| Remote PAUSE | `RemotePauseAsync()` |
-| Remote LATCH CLEAR | `RemoteLatchClearAsync()` |
-| Remote RESET | `RemoteResetAsync()` |
-| Unlock | `UnlockAsync(password)` |
-| Lock | `LockAsync(password)` |
-| Clear error | `ClearErrorAsync()` |
-| Loopback | `LoopbackAsync(data)` |
-| Memory read | `ReadMemoryAsync(command, address, length)` |
-| Memory write | `WriteMemoryAsync(command, address, values)` |
-| Raw command execution | `ExecuteRawAsync(request)` |
-| Observe words | `ObserveWords(...)` |
-| Observe bits | `ObserveBits(...)` |
-| Observe heartbeat | `ObserveWordsHeartbeat(...)` |
-| Observe staleness | `ObserveWordsStale(...)` |
-| Triggered latest read | `ObserveWordsLatest(...)` |
-| Observe tag group | `ObserveTagGroup(...)` |
-| Observe tag group heartbeat | `ObserveTagGroupHeartbeat(...)` |
-| Observe tag group staleness | `ObserveTagGroupStale(...)` |
-| Triggered latest tag-group read | `ObserveTagGroupLatest(...)` |
-| Operation logs | `OperationLogs` |
-| Connection states | `ConnectionStates` |
-| Connection stale detection | `ObserveConnectionHealth(...)` |
-| Symbolic word read | `ReadWordsByTagAsync(tagName, points)` |
-| Symbolic bit read | `ReadBitsByTagAsync(tagName, points)` |
-| Symbolic word write | `WriteWordsByTagAsync(tagName, values)` |
-| Symbolic bit write | `WriteBitsByTagAsync(tagName, values)` |
-| Symbolic random word read | `RandomReadWordsByTagAsync(tagNames)` |
-| Symbolic random word write | `RandomWriteWordsByTagAsync(values)` |
-| Symbolic Int16 read | `ReadInt16ByTagAsync(tagName)` |
-| Symbolic Int16 write | `WriteInt16ByTagAsync(tagName, value)` |
-| Symbolic UInt16 read | `ReadUInt16ByTagAsync(tagName)` |
-| Symbolic UInt16 write | `WriteUInt16ByTagAsync(tagName, value)` |
-| Symbolic Int32 read | `ReadInt32ByTagAsync(tagName)` |
-| Symbolic Int32 write | `WriteInt32ByTagAsync(tagName, value)` |
-| Symbolic DWord read | `ReadDWordByTagAsync(tagName)` |
-| Symbolic DWord write | `WriteDWordByTagAsync(tagName, value)` |
-| Symbolic float read | `ReadFloatByTagAsync(tagName)` |
-| Symbolic float write | `WriteFloatByTagAsync(tagName, value)` |
-| Symbolic scaled read | `ReadScaledDoubleByTagAsync(tagName)` |
-| Symbolic scaled write | `WriteScaledDoubleByTagAsync(tagName, value)` |
-| Symbolic string read | `ReadStringByTagAsync(tagName, wordLength)` / `ReadStringByTagAsync(tagName)` |
-| Symbolic string write | `WriteStringByTagAsync(tagName, value, wordLength)` / `WriteStringByTagAsync(tagName, value)` |
-| Tag group definition | `MitsubishiTagGroupDefinition(name, tagNames)` |
-| Tag group registration | `TagDatabase.AddGroup(group)` |
-| Tag database validation | `ValidateTagDatabase()` |
-| Tag database load + validate | `LoadAndValidateTagDatabase(path)` / `LoadAndValidateTagDatabase(path, policy)` |
-| Tag database diff preview | `PreviewTagDatabaseDiff(path)` / `PreviewTagDatabaseDiff(path, policy)` |
-| Tag database reload stream | `ObserveTagDatabaseReload(path, pollInterval)` / `ObserveTagDatabaseReload(path, pollInterval, emitInitial, policy)` |
-| Tag database diff stream | `ObserveTagDatabaseDiff(path, pollInterval)` / `ObserveTagDatabaseDiff(path, pollInterval, emitInitial, policy)` |
-| Tag group snapshot read | `ReadTagGroupSnapshotAsync(groupName)` |
-| Snapshot typed accessor | `snapshot.GetRequired<T>(tagName)` |
-| Tag group write validation | `ValidateTagGroupWrite(groupName, values)` |
-| Partial tag-group write | `WriteTagGroupValuesAsync(groupName, values)` |
-| Full tag-group snapshot write | `WriteTagGroupSnapshotAsync(snapshot)` |
-| Tag database assignment | `client.TagDatabase = ...` |
-| CSV tag import | `MitsubishiTagDatabase.FromCsv(csvContent)` |
-| Schema file load | `MitsubishiTagDatabase.Load(path)` |
-| Schema file save | `TagDatabase.Save(path)` |
-| JSON schema import | `MitsubishiTagDatabase.FromJson(json)` |
-| JSON schema export | `TagDatabase.ToJson()` |
-| YAML schema import | `MitsubishiTagDatabase.FromYaml(yaml)` |
-| YAML schema export | `TagDatabase.ToYaml()` |
-| Generator schema marker | `[MitsubishiTagClientSchema("""{ ... }""")]` |
-| Generated typed client root | `client.Generated()` |
-| Generated typed tag read/write/observe | `client.Generated().Tags.<Tag>.ReadAsync()` / `WriteAsync(...)` / `Observe(...)` |
-| Generated typed group read/write/observe | `client.Generated().Groups.<Group>.ReadAsync()` / `ReadOptionalAsync()` / `WriteAsync(...)` / `Observe(...)` / `ObserveOptional(...)` |
-| Generated snapshot conversion | `<Group>Snapshot.FromSnapshot(...)` / `TryFromSnapshot(...)` / `ToSnapshot()` |
-| Generator diagnostics | `MRTXGEN001` through `MRTXGEN011` |
-
-### Serial coverage note
-
-The quick map lists the full public API surface. Serial support covers `1C`, `3C`, and `4C` paths through `MitsubishiTransportKind.Serial`. Verified serial operations include **batch word read** via `ReadWordsAsync(address, points)`, **batch word write** via `WriteWordsAsync(address, values)`, **batch bit read** via `ReadBitsAsync(address, points)`, **batch bit write** via `WriteBitsAsync(address, values)`, **random word read/write** via `RandomReadWordsAsync(addresses)` / `RandomWriteWordsAsync(values)`, **block read/write** via `ReadBlocksAsync(request)` / `WriteBlocksAsync(request)`, **monitor registration/execution** via `RegisterMonitorAsync(addresses)` / `ExecuteMonitorAsync()`, **remote control** via `RemoteRunAsync(force, clearMode)`, `RemoteStopAsync()`, `RemotePauseAsync()`, `RemoteLatchClearAsync()`, and `RemoteResetAsync()`, **type-name read**, **loopback**, **memory / extend-unit access**, and **raw command execution**. For `1C`, random, block, and monitor operations are implemented as deterministic client-side compositions over the verified 1C batch read/write path.
-
-## Complete API reference
-
-This section is the authoritative quick reference for the public API exposed by `MitsubishiRx` and `MitsubishiRx.Reactive`. Earlier sections explain the recommended workflow and provide larger examples; this section gives signatures, return types, and when to use each member.
-
-### API conventions
-
-- All async PLC operations return `Task<Responce>` or `Task<Responce<T>>`.
-- Check `IsSucceed` before using `Value`.
-- Failure details are available through `Err`, `ErrCode`, `ErrList`, and `Exception`.
-- Optional `CancellationToken` parameters cancel the client-side request wait; PLC command support and PLC-side execution semantics remain target dependent.
-- Address-based methods accept Mitsubishi device strings such as `D100`, `M10`, `X20`, `W10`, or `ZR200`.
-- Tag-based methods require `client.TagDatabase` to be assigned first.
-- Ethernet `1E` paths have a smaller command set than `3E` / `4E`. Serial `1C`, `3C`, and `4C` paths cover the public serial API surface; see the serial coverage notes above for the 1C composition behavior.
-
-### Package-specific API surface
-
-The runtime PLC, tag, reactive polling, hot stream, write pipeline, protocol, transport, and model APIs are compiled into both packages. Replace the namespace prefix when moving examples between packages.
-
-| Area | `MitsubishiRx` | `MitsubishiRx.Reactive` |
-|---|---|---|
-| Package id | `MitsubishiRx` | `MitsubishiRx.Reactive` |
-| Root namespace | `MitsubishiRx` | `MitsubishiRx.Reactive` |
-| Target frameworks | `net8.0`, `net9.0`, `net10.0`, `net11.0` | `net8.0`, `net9.0`, `net10.0`, `net11.0` |
-| Reactive dependencies | `ReactiveUI.Primitives`, `ReactiveUI.Primitives.Async`, `ReactiveUI.Primitives.Extensions` | `ReactiveUI.Primitives.Reactive`, `ReactiveUI.Primitives.Extensions.Reactive` |
-| Serial dependency | `SerialPortRx` | `SerialPortRx.Reactive` |
-| Scheduler constructor type | `ReactiveUI.Primitives.Concurrency.ISequencer?` | `System.Reactive.Concurrency.IScheduler?` |
-| Latest trigger unit type | `ReactiveUI.Primitives.RxVoid` | `System.Reactive.Unit` |
-| Source generator | Included as analyzer and emits `MitsubishiRx` generated clients | Included as analyzer, but generated typed clients currently target the base `MitsubishiRx` namespace |
-
-Package-specific construction examples:
-
-```csharp
-using MitsubishiRx;
-
-await using var client = new MitsubishiRx.MitsubishiRx(options);
-```
-
-```csharp
-using MitsubishiRx.Reactive;
-
-await using var client = new MitsubishiRx.Reactive.MitsubishiRx(options);
-```
-
-For `MitsubishiRx.Reactive`, prefer the runtime APIs in the tables below for tag reads, group reads, polling, hot observables, and write pipelines. Generated typed clients are documented separately because they currently target the base package namespace.
-
-```csharp
-var result = await client.ReadWordsAsync("D100", 2);
-if (!result.IsSucceed)
-{
-    Console.WriteLine($"PLC read failed: {result.Err} code={result.ErrCode}");
-    return;
-}
-
-ushort firstWord = result.Value![0];
-```
-
-### Client construction and state
-
-| API | Signature | Purpose |
-|---|---|---|
-| Modern constructor | `MitsubishiRx(MitsubishiClientOptions options, IMitsubishiTransport? transport = null, IScheduler? scheduler = null)` | Preferred constructor. Pass options and optionally inject a custom transport or scheduler for tests/advanced integrations. |
-| Legacy constructor | `MitsubishiRx(CpuType cpuType, string ip, int port, int timeout = 1500)` | Compatibility shortcut for older socket-style code. Prefer `MitsubishiClientOptions` for new code. |
-| `Options` | `MitsubishiClientOptions Options { get; }` | Effective immutable client options. |
-| `TagDatabase` | `MitsubishiTagDatabase? TagDatabase { get; set; }` | Optional symbolic tag schema used by tag/group/generated APIs. |
-| `Connected` | `bool Connected { get; }` | Current transport connection flag. |
-| `ConnectionStates` | `IObservable<MitsubishiConnectionState> ConnectionStates { get; }` | Reactive connection-state stream. |
-| `OperationLogs` | `IObservable<MitsubishiOperationLog> OperationLogs { get; }` | Request/response log stream for diagnostics and audit. |
-
-```csharp
-await using var client = new MitsubishiRx.MitsubishiRx(options);
-client.TagDatabase = MitsubishiTagDatabase.Load("plc-tags.yaml");
-
-using var stateSubscription = client.ConnectionStates.Subscribe(state => Console.WriteLine(state));
-```
-
-### Connection lifecycle
-
-| API | Signature | Purpose |
-|---|---|---|
-| `Open` | `Responce Open()` | Synchronous open wrapper. |
-| `OpenAsync` | `Task<Responce> OpenAsync(CancellationToken cancellationToken = default)` | Opens TCP/UDP/serial transport. |
-| `Close` | `Responce Close()` | Synchronous close wrapper. |
-| `CloseAsync` | `Task<Responce> CloseAsync(CancellationToken cancellationToken = default)` | Closes the transport. |
-| `Dispose` | `void Dispose()` | Disposes transport, subscriptions, and reactive caches. |
-| `DisposeAsync` | `ValueTask DisposeAsync()` | Async disposal path; preferred with `await using`. |
-
-```csharp
-var open = await client.OpenAsync();
-if (!open.IsSucceed)
-{
-    throw new InvalidOperationException(open.Err);
-}
-
-await client.CloseAsync();
-```
-
-### Core address-based PLC operations
-
-| API | Signature | Returns | Purpose |
-|---|---|---|---|
-| `ReadWordsAsync` | `Task<Responce<ushort[]>> ReadWordsAsync(string address, int points, CancellationToken cancellationToken = default)` | Word values | Batch word read from consecutive devices. |
-| `WriteWordsAsync` | `Task<Responce> WriteWordsAsync(string address, IReadOnlyList<ushort> values, CancellationToken cancellationToken = default)` | Completion | Batch word write. |
-| `ReadBitsAsync` | `Task<Responce<bool[]>> ReadBitsAsync(string address, int points, CancellationToken cancellationToken = default)` | Bit values | Batch bit read. |
-| `WriteBitsAsync` | `Task<Responce> WriteBitsAsync(string address, IReadOnlyList<bool> values, CancellationToken cancellationToken = default)` | Completion | Batch bit write. |
-| `RandomReadWordsAsync` | `Task<Responce<ushort[]>> RandomReadWordsAsync(IEnumerable<string> addresses, CancellationToken cancellationToken = default)` | Word values in request order | Sparse word read. |
-| `RandomWriteWordsAsync` | `Task<Responce> RandomWriteWordsAsync(IEnumerable<KeyValuePair<string, ushort>> values, CancellationToken cancellationToken = default)` | Completion | Sparse word write. |
-| `RegisterMonitorAsync` | `Task<Responce> RegisterMonitorAsync(IEnumerable<string> addresses, CancellationToken cancellationToken = default)` | Completion | Registers devices for later monitor execution. |
-| `ExecuteMonitorAsync` | `Task<Responce<byte[]>> ExecuteMonitorAsync(CancellationToken cancellationToken = default)` | Raw monitor payload | Executes the registered monitor. |
-| `ReadBlocksAsync` | `Task<Responce<byte[]>> ReadBlocksAsync(MitsubishiBlockRequest request, CancellationToken cancellationToken = default)` | Raw block payload | Reads multiple word/bit blocks. |
-| `WriteBlocksAsync` | `Task<Responce> WriteBlocksAsync(MitsubishiBlockRequest request, CancellationToken cancellationToken = default)` | Completion | Writes multiple word/bit blocks. |
-| `ReadTypeNameAsync` | `Task<Responce<MitsubishiTypeName>> ReadTypeNameAsync(CancellationToken cancellationToken = default)` | PLC model information | Reads CPU/module type name and code. |
-| `RemoteRunAsync` | `Task<Responce> RemoteRunAsync(bool force = true, bool clearMode = false, CancellationToken cancellationToken = default)` | Completion | Issues remote RUN. |
-| `RemoteStopAsync` | `Task<Responce> RemoteStopAsync(CancellationToken cancellationToken = default)` | Completion | Issues remote STOP. |
-| `RemotePauseAsync` | `Task<Responce> RemotePauseAsync(CancellationToken cancellationToken = default)` | Completion | Issues remote PAUSE. |
-| `RemoteLatchClearAsync` | `Task<Responce> RemoteLatchClearAsync(CancellationToken cancellationToken = default)` | Completion | Clears latched device state where supported. |
-| `RemoteResetAsync` | `Task<Responce> RemoteResetAsync(CancellationToken cancellationToken = default)` | Completion | Issues remote RESET. |
-| `UnlockAsync` | `Task<Responce> UnlockAsync(string password, CancellationToken cancellationToken = default)` | Completion | Remote password unlock. |
-| `LockAsync` | `Task<Responce> LockAsync(string password, CancellationToken cancellationToken = default)` | Completion | Remote password lock. |
-| `ClearErrorAsync` | `Task<Responce> ClearErrorAsync(CancellationToken cancellationToken = default)` | Completion | Clears error/LED indication where supported. |
-| `LoopbackAsync` | `Task<Responce<byte[]>> LoopbackAsync(byte[] data, CancellationToken cancellationToken = default)` | Echoed payload | Link/protocol loopback test. |
-| `ReadMemoryAsync` | `Task<Responce<ushort[]>> ReadMemoryAsync(ushort command, ushort address, int length, CancellationToken cancellationToken = default)` | Word values | Memory or intelligent-module buffer read. |
-| `WriteMemoryAsync` | `Task<Responce> WriteMemoryAsync(ushort command, ushort address, IReadOnlyList<ushort> values, CancellationToken cancellationToken = default)` | Completion | Memory or intelligent-module buffer write. |
-| `ExecuteRawAsync` | `Task<Responce<byte[]>> ExecuteRawAsync(MitsubishiRawCommandRequest request, CancellationToken cancellationToken = default)` | Raw decoded payload | Advanced raw MC/SLMP command execution. |
-
-```csharp
 var blocks = new MitsubishiBlockRequest(
-    WordBlocks: [new MitsubishiWordBlock(MitsubishiDeviceAddress.Parse("D100"), new ushort[4])],
-    BitBlocks: [new MitsubishiBitBlock(MitsubishiDeviceAddress.Parse("M10"), new bool[8])]);
-
-var blockPayload = await client.ReadBlocksAsync(blocks);
+    [new MitsubishiWordBlock(MitsubishiDeviceAddress.Parse("D100", options.XyNotation), new ushort[] { 1, 2, 3, 4 })],
+    [new MitsubishiBitBlock(MitsubishiDeviceAddress.Parse("M100", options.XyNotation), new bool[] { true, false })]);
+var blockRead = await plc.ReadBlocksAsync(blocks, CancellationToken.None);
+var blockWrite = await plc.WriteBlocksAsync(blocks, CancellationToken.None);
+if (!blockWrite.IsSucceed) Console.Error.WriteLine(blockWrite.Err);
 ```
 
-### Low-level compatibility methods
+### Controller diagnostics, control, and raw protocol access
 
-These methods exist for compatibility with older socket-style consumers. Prefer the typed high-level APIs for new code because they apply frame-specific encoding/decoding and diagnostics consistently.
-
-| API | Signature | Purpose |
-|---|---|---|
-| `SendPackage` | `Responce<byte[]> SendPackage(byte[] command, int receiveCount)` | Send a raw command and expect a fixed receive count. |
-| `SendPackageSingle` | `Responce<byte[]> SendPackageSingle(byte[] command)` | Send one raw command using default receive handling. |
-| `SendPackageReliable` | `Responce<byte[]> SendPackageReliable(byte[] command)` | Send one raw command using the reliable exchange path. |
-
-### Tag-based APIs
-
-Tag APIs resolve `tagName` through `client.TagDatabase`, then delegate to address-based operations or typed conversion helpers.
-
-| API | Signature | Purpose |
-|---|---|---|
-| `ReadWordsByTagAsync` | `Task<Responce<ushort[]>> ReadWordsByTagAsync(string tagName, int points, CancellationToken cancellationToken = default)` | Read raw words from a configured tag address. |
-| `ReadBitsByTagAsync` | `Task<Responce<bool[]>> ReadBitsByTagAsync(string tagName, int points, CancellationToken cancellationToken = default)` | Read bits from a configured tag address. |
-| `WriteWordsByTagAsync` | `Task<Responce> WriteWordsByTagAsync(string tagName, IReadOnlyList<ushort> values, CancellationToken cancellationToken = default)` | Write raw words to a configured tag address. |
-| `WriteBitsByTagAsync` | `Task<Responce> WriteBitsByTagAsync(string tagName, IReadOnlyList<bool> values, CancellationToken cancellationToken = default)` | Write bits to a configured tag address. |
-| `RandomReadWordsByTagAsync` | `Task<Responce<ushort[]>> RandomReadWordsByTagAsync(IEnumerable<string> tagNames, CancellationToken cancellationToken = default)` | Sparse word read by tag names. |
-| `RandomWriteWordsByTagAsync` | `Task<Responce> RandomWriteWordsByTagAsync(IEnumerable<KeyValuePair<string, ushort>> values, CancellationToken cancellationToken = default)` | Sparse word write by tag names. |
-| `ReadGeneratedBitTagAsync` | `Task<Responce<bool>> ReadGeneratedBitTagAsync(string tagName, CancellationToken cancellationToken = default)` | Helper used by generated bit-tag accessors. Usually called through `client.Generated().Tags.X.ReadAsync()`. |
-| `WriteGeneratedBitTagAsync` | `Task<Responce> WriteGeneratedBitTagAsync(string tagName, bool value, CancellationToken cancellationToken = default)` | Helper used by generated bit-tag accessors. |
+`ReadTypeNameAsync` returns `MitsubishiTypeName` (model name and model code). `ClearErrorAsync`, `LoopbackAsync`, and `ReadMemoryAsync`/`WriteMemoryAsync` support commissioning and diagnosis. Their result follows the same `Responce` model; `LoopbackAsync` returns the echoed bytes and memory reads return `ushort[]`. Memory calls require the documented MC-memory command as well as address and length/value payload.
 
 ```csharp
-client.TagDatabase = MitsubishiTagDatabase.FromCsv(File.ReadAllText("plc-tags.csv"));
-
-await client.WriteWordsByTagAsync("RecipeNumber", [7]);
-var running = await client.ReadBitsByTagAsync("PumpRunning", 1);
+var identity = await plc.ReadTypeNameAsync(CancellationToken.None);
+var echoed = await plc.LoopbackAsync([0x01, 0x02], CancellationToken.None);
+var buffer = await plc.ReadMemoryAsync(command: 0x0613, address: 0x1000, length: 16,
+    cancellationToken: CancellationToken.None);
+if (buffer.IsSucceed)
+    await plc.WriteMemoryAsync(command: 0x1613, address: 0x1000, values: buffer.Value!,
+        cancellationToken: CancellationToken.None);
 ```
 
-### Typed tag conversion APIs
-
-| API | Signature | PLC words used | Purpose |
-|---|---|---:|---|
-| `ReadInt16ByTagAsync` | `Task<Responce<short>> ReadInt16ByTagAsync(string tagName, CancellationToken cancellationToken = default)` | 1 | Signed 16-bit read. |
-| `WriteInt16ByTagAsync` | `Task<Responce> WriteInt16ByTagAsync(string tagName, short value, CancellationToken cancellationToken = default)` | 1 | Signed 16-bit write. |
-| `ReadUInt16ByTagAsync` | `Task<Responce<ushort>> ReadUInt16ByTagAsync(string tagName, CancellationToken cancellationToken = default)` | 1 | Unsigned 16-bit read. |
-| `WriteUInt16ByTagAsync` | `Task<Responce> WriteUInt16ByTagAsync(string tagName, ushort value, CancellationToken cancellationToken = default)` | 1 | Unsigned 16-bit write. |
-| `ReadInt32ByTagAsync` | `Task<Responce<int>> ReadInt32ByTagAsync(string tagName, CancellationToken cancellationToken = default)` | 2 | Signed 32-bit read. Honors `ByteOrder`. |
-| `WriteInt32ByTagAsync` | `Task<Responce> WriteInt32ByTagAsync(string tagName, int value, CancellationToken cancellationToken = default)` | 2 | Signed 32-bit write. Honors `ByteOrder`. |
-| `ReadDWordByTagAsync` | `Task<Responce<uint>> ReadDWordByTagAsync(string tagName, CancellationToken cancellationToken = default)` | 2 | Unsigned 32-bit / DWord read. |
-| `WriteDWordByTagAsync` | `Task<Responce> WriteDWordByTagAsync(string tagName, uint value, CancellationToken cancellationToken = default)` | 2 | Unsigned 32-bit / DWord write. |
-| `ReadFloatByTagAsync` | `Task<Responce<float>> ReadFloatByTagAsync(string tagName, CancellationToken cancellationToken = default)` | 2 | IEEE754 single-precision read. |
-| `WriteFloatByTagAsync` | `Task<Responce> WriteFloatByTagAsync(string tagName, float value, CancellationToken cancellationToken = default)` | 2 | IEEE754 single-precision write. |
-| `ReadScaledDoubleByTagAsync` | `Task<Responce<double>> ReadScaledDoubleByTagAsync(string tagName, CancellationToken cancellationToken = default)` | Depends on `DataType` | Engineering value read using `(raw * Scale) + Offset`. |
-| `WriteScaledDoubleByTagAsync` | `Task<Responce> WriteScaledDoubleByTagAsync(string tagName, double value, CancellationToken cancellationToken = default)` | Depends on `DataType` | Engineering value write using `(value - Offset) / Scale`. |
-| `ReadStringByTagAsync` | `Task<Responce<string>> ReadStringByTagAsync(string tagName, CancellationToken cancellationToken = default)` | `Length` metadata | Schema-driven string read. |
-| `ReadStringByTagAsync` | `Task<Responce<string>> ReadStringByTagAsync(string tagName, int wordLength, CancellationToken cancellationToken = default)` | `wordLength` | Explicit-length string read. |
-| `WriteStringByTagAsync` | `Task<Responce> WriteStringByTagAsync(string tagName, string value, CancellationToken cancellationToken = default)` | `Length` metadata | Schema-driven string write. |
-| `WriteStringByTagAsync` | `Task<Responce> WriteStringByTagAsync(string tagName, string value, int wordLength, CancellationToken cancellationToken = default)` | `wordLength` | Explicit-length string write. |
+`RemoteRunAsync`, `RemoteStopAsync`, `RemotePauseAsync`, `RemoteLatchClearAsync`, `RemoteResetAsync`, `UnlockAsync`, and `LockAsync` change controller state or protection. Put an application-level authorization, interlock, confirmation record, and a read-back check around them. Do not expose these calls directly to an untrusted UI. `ExecuteRawAsync(MitsubishiRawCommandRequest, token)` is for a documented command not yet wrapped by the higher-level methods; it returns its wire reply and should be isolated behind a versioned, tested adapter. Legacy `SendPackage`, `SendPackageSingle`, and `SendPackageReliable` are synchronous byte-package compatibility APIs; new code should prefer `ExecuteRawAsync`.
 
 ```csharp
-var total = await client.ReadDWordByTagAsync("TotalCount");
-var pressure = await client.ReadFloatByTagAsync("ProcessValue");
-var operatorMessage = await client.ReadStringByTagAsync("OperatorMessage");
+if (operatorApproved && await IsPlantSafeAsync())
+{
+    var stopped = await plc.RemoteStopAsync(CancellationToken.None);
+    if (!stopped.IsSucceed) throw new InvalidOperationException(stopped.Err);
+    var clear = await plc.ClearErrorAsync(CancellationToken.None);
+}
 
-await client.WriteScaledDoubleByTagAsync("HeadTemp", 22.5d);
+var request = new MitsubishiRawCommandRequest(Command: 0x0619, Subcommand: 0,
+    Body: Array.Empty<byte>(), Description: "Site-approved diagnostic");
+Responce<byte[]> raw = await plc.ExecuteRawAsync(request, CancellationToken.None);
 ```
 
-### Tag database and schema APIs
+### Polling, freshness, triggers, and write queues
 
-| API | Signature | Purpose |
-|---|---|---|
-| `MitsubishiTagDatabase` | `MitsubishiTagDatabase(IEnumerable<MitsubishiTagDefinition> tags)` | Creates an in-memory tag database. |
-| Serialization document helpers | `MitsubishiTagDefinitionDocument.ToModel()`, `MitsubishiTagDefinitionDocument.FromModel(...)`, `MitsubishiTagGroupDefinitionDocument.ToModel()`, `MitsubishiTagGroupDefinitionDocument.FromModel(...)` | DTO mapping helpers used by JSON/YAML persistence; application code normally uses `FromJson`, `FromYaml`, `ToJson`, `ToYaml`, `Load`, and `Save`. |
-| `Count` | `int Count { get; }` | Number of tags. |
-| `GroupCount` | `int GroupCount { get; }` | Number of groups. |
-| `Tags` | `IReadOnlyCollection<MitsubishiTagDefinition> Tags { get; }` | Tag definitions. |
-| `Groups` | `IReadOnlyCollection<MitsubishiTagGroupDefinition> Groups { get; }` | Group definitions. |
-| `Add` | `void Add(MitsubishiTagDefinition tag)` | Adds or replaces a tag after validating metadata. |
-| `TryGet` | `bool TryGet(string name, out MitsubishiTagDefinition tag)` | Case-insensitive optional tag lookup. |
-| `GetRequired` | `MitsubishiTagDefinition GetRequired(string name)` | Case-insensitive required tag lookup. |
-| `AddGroup` | `void AddGroup(MitsubishiTagGroupDefinition group)` | Adds or replaces a group. |
-| `TryGetGroup` | `bool TryGetGroup(string name, out MitsubishiTagGroupDefinition group)` | Optional group lookup. |
-| `GetRequiredGroup` | `MitsubishiTagGroupDefinition GetRequiredGroup(string name)` | Required group lookup. |
-| `FromCsv` | `static MitsubishiTagDatabase FromCsv(string csvContent)` | Loads tag definitions from CSV. |
-| `FromJson` | `static MitsubishiTagDatabase FromJson(string json)` | Loads full schema from JSON. |
-| `FromYaml` | `static MitsubishiTagDatabase FromYaml(string yaml)` | Loads full schema from YAML. |
-| `Load` | `static MitsubishiTagDatabase Load(string path)` | Loads by extension: `.csv`, `.json`, `.yaml`, `.yml`. |
-| `ToJson` | `string ToJson()` | Serializes full schema to JSON. |
-| `ToYaml` | `string ToYaml()` | Serializes full schema to YAML. |
-| `Save` | `void Save(string path)` | Saves by extension. CSV is tag-only; JSON/YAML preserve groups. |
-| `CompareWith` | `MitsubishiTagDatabaseDiff CompareWith(MitsubishiTagDatabase other)` | Computes semantic schema diff. |
+`ObserveWords` and `ObserveBits` repeatedly invoke their direct counterparts at an interval. `ObserveWordsHeartbeat` wraps each poll in a `Heartbeat<T>`; `ObserveWordsStale` emits `Stale<T>` when no new value arrives within the configured age. `ObserveWordsLatest` accepts an observable trigger and keeps only the newest in-flight result, which is appropriate for bursty UI refresh events. Dispose each subscription to stop scheduling and retain no subscription after the client is disposed.
 
 ```csharp
-var tags = new MitsubishiTagDatabase([
-    new MitsubishiTagDefinition("MotorSpeed", "D100", DataType: "Float", Units: "rpm"),
-    new MitsubishiTagDefinition("PumpRunning", "M10", DataType: "Bit")
+using var cts = new CancellationTokenSource();
+using var telemetry = plc.ObserveWordsHeartbeat("D100", 2, TimeSpan.FromMilliseconds(250),
+    heartbeatAfter: TimeSpan.FromSeconds(1), minimumUpdateSpacing: null, pollTimeout: null)
+    .Subscribe(beat => Console.WriteLine($"{beat.Value.Value?[0]} @ {beat.Timestamp:O}"));
+using var health = plc.ObserveWordsStale("D100", 2, TimeSpan.FromMilliseconds(250),
+    TimeSpan.FromSeconds(2), minimumUpdateSpacing: null)
+    .Subscribe(stale => Console.WriteLine(stale.IsStale));
+```
+
+`ObserveReactiveWords`, `ObserveReactiveTag<T>`, and `ObserveReactiveTagGroup` add a `MitsubishiReactiveValue<T>` with `MitsubishiReactiveQuality` (`Good`, error/stale/heartbeat states) and timestamp/error context. Use it for view models and downstream decisions that must distinguish a valid zero from a failed or stale read. `CreateReactiveWordWritePipeline` and `CreateReactiveTagWritePipeline<T>` accept a source of desired values, serialize writes, and report `MitsubishiReactiveWriteResult`; choose `MitsubishiReactiveWriteMode` deliberately (for example, latest-only for a slider and every value for an auditable setpoint sequence).
+
+```csharp
+using var values = plc.ObserveReactiveWords("D100", 1, TimeSpan.FromSeconds(1))
+    .Where(v => v.Quality == MitsubishiReactiveQuality.Good)
+    .Subscribe(v => Render(v.Value![0]));
+
+using var writer = plc.CreateReactiveWordWritePipeline("D200",
+    MitsubishiReactiveWriteMode.LatestWins, TimeSpan.FromMilliseconds(100));
+using var writeResults = writer.Results.Subscribe(r => Console.WriteLine(r.Success));
+writer.Post(new ushort[] { 42 });
+```
+
+### Tag database, typed values, groups, and schema rollout
+
+`MitsubishiTagDatabase` maps stable names to `MitsubishiTagDefinition` records. A tag can declare address, data type, point count, string length/encoding and engineering scale metadata; `MitsubishiTagValueConverter` performs the conversion. Build it with the constructor/Add methods, `FromCsv`, `FromJson`, `FromYaml`, or `Load`; persist using `ToCsv`, `ToJson`, `ToYaml`, and `Save`. Assign the database to `TagDatabase`, call `ValidateTagDatabase`, and only then use the by-tag APIs. Failure to assign or validate a database is an application configuration error, not a retryable PLC fault.
+
+```csharp
+var database = new MitsubishiTagDatabase([
+    new MitsubishiTagDefinition("Temperature", "D100", "Float"),
+    new MitsubishiTagDefinition("Enable", "M100", "Bit"),
+    new MitsubishiTagDefinition("Recipe", "D200", "String", Length: 20),
+    new MitsubishiTagDefinition("Flow", "D120", "UInt16", Scale: 0.1, Units: "L/min")
 ]);
+database.AddGroup(new MitsubishiTagGroupDefinition("RecipeCommit", ["Temperature", "Enable", "Recipe"]));
+plc.TagDatabase = database;
+var valid = plc.ValidateTagDatabase();
+if (!valid.IsSucceed) throw new InvalidOperationException(valid.Err);
 
-tags.AddGroup(new MitsubishiTagGroupDefinition("Overview", ["MotorSpeed", "PumpRunning"]));
-tags.Save("plc-tags.yaml");
+var temperature = await plc.ReadFloatByTagAsync("Temperature", CancellationToken.None);
+var enabled = await plc.ReadBitsByTagAsync("Enable", 1, CancellationToken.None);
+var recipe = await plc.ReadStringByTagAsync("Recipe", CancellationToken.None);
 ```
 
-### Schema validation, reload, diff, and rollout APIs
-
-| API | Signature | Purpose |
-|---|---|---|
-| `ValidateTagDatabase` | `Responce ValidateTagDatabase()` | Validates configured tag addresses, string lengths, and group membership. |
-| `LoadAndValidateTagDatabase` | `Responce<MitsubishiTagDatabase> LoadAndValidateTagDatabase(string path)` | Loads, validates, applies on success using `AllowAll`. |
-| `LoadAndValidateTagDatabase` | `Responce<MitsubishiTagDatabase> LoadAndValidateTagDatabase(string path, MitsubishiTagRolloutPolicy policy)` | Loads, validates, diff-checks against policy, applies on success. |
-| `PreviewTagDatabaseDiff` | `Responce<MitsubishiTagDatabaseDiff> PreviewTagDatabaseDiff(string path)` | Loads and validates incoming schema, returns semantic diff without applying. |
-| `PreviewTagDatabaseDiff` | `Responce<MitsubishiTagDatabaseDiff> PreviewTagDatabaseDiff(string path, MitsubishiTagRolloutPolicy policy)` | Preview plus rollout policy enforcement. |
-| `ObserveTagDatabaseReload` | `IObservable<Responce<MitsubishiTagDatabase>> ObserveTagDatabaseReload(string path, TimeSpan pollInterval, bool emitInitial = true)` | Polls schema file and emits valid/invalid reload results. |
-| `ObserveTagDatabaseReload` | `IObservable<Responce<MitsubishiTagDatabase>> ObserveTagDatabaseReload(string path, TimeSpan pollInterval, bool emitInitial, MitsubishiTagRolloutPolicy policy)` | Reload stream gated by rollout policy. |
-| `ObserveTagDatabaseDiff` | `IObservable<Responce<MitsubishiTagDatabaseDiff>> ObserveTagDatabaseDiff(string path, TimeSpan pollInterval, bool emitInitial = true)` | Polls schema file and emits semantic diffs. |
-| `ObserveTagDatabaseDiff` | `IObservable<Responce<MitsubishiTagDatabaseDiff>> ObserveTagDatabaseDiff(string path, TimeSpan pollInterval, bool emitInitial, MitsubishiTagRolloutPolicy policy)` | Diff stream gated by rollout policy. |
-
-Invalid reload/diff emissions do not replace the active `client.TagDatabase`.
-
-### Tag group APIs
-
-| API | Signature | Purpose |
-|---|---|---|
-| `ReadTagGroupSnapshotAsync` | `Task<Responce<MitsubishiTagGroupSnapshot>> ReadTagGroupSnapshotAsync(string groupName, CancellationToken cancellationToken = default)` | Reads every tag in a group and returns a heterogeneous snapshot. |
-| `ValidateTagGroupWrite` | `Responce ValidateTagGroupWrite(string groupName, IReadOnlyDictionary<string, object?> values)` | Validates provided write values against group membership and tag data types. |
-| `WriteTagGroupValuesAsync` | `Task<Responce> WriteTagGroupValuesAsync(string groupName, IReadOnlyDictionary<string, object?> values, CancellationToken cancellationToken = default)` | Writes only supplied group values in configured group order. |
-| `WriteTagGroupSnapshotAsync` | `Task<Responce> WriteTagGroupSnapshotAsync(MitsubishiTagGroupSnapshot snapshot, CancellationToken cancellationToken = default)` | Writes a complete snapshot back to its group. |
-| Snapshot accessor | `snapshot.GetRequired<T>(tagName)` | Gets a typed value or throws when missing/wrong type. |
-| Snapshot optional accessor | `snapshot.GetOptional<T>(tagName)` | Gets a typed value or default when missing/wrong type. |
+The typed families are `Read`/`WriteWordsByTagAsync`, `Bits`, `Int16`, `UInt16`, `Int32`, `DWord`/`UInt32`, `Float`, `ScaledDouble`, and `String`; `ReadTagAsync`/`WriteTagAsync` dispatch by metadata. Use a typed method when the schema is known at compile time, and the generic method only for an editor/importer. String calls have overloads for explicit length where required. `RandomReadWordsByTagAsync`/`RandomWriteWordsByTagAsync` resolve names before the sparse protocol operation.
 
 ```csharp
-var snapshot = await client.ReadTagGroupSnapshotAsync("Overview");
+var setTemperature = await plc.WriteFloatByTagAsync("Temperature", 21.5f, CancellationToken.None);
+var setRecipe = await plc.WriteStringByTagAsync("Recipe", "Batch-07", CancellationToken.None);
+var engineering = await plc.ReadScaledDoubleByTagAsync("Flow", CancellationToken.None);
+var arbitrary = await plc.ReadTagAsync("Temperature", CancellationToken.None);
+```
+
+Groups provide an explicit, validated write boundary. `ReadTagGroupSnapshotAsync` returns `MitsubishiTagGroupSnapshot`; `ValidateTagGroupWrite` checks names/types before any remote write; `WriteTagGroupValuesAsync` writes the supplied members; and `WriteTagGroupSnapshotAsync` replays a snapshot. A group operation is sequential rather than a transactional PLC instruction, so use the PLC program's commit/handshake bit if atomic process visibility is required.
+
+```csharp
+var staged = new Dictionary<string, object?> { ["Temperature"] = 22.0f, ["Enable"] = true };
+var check = plc.ValidateTagGroupWrite("RecipeCommit", staged);
+if (check.IsSucceed)
+    await plc.WriteTagGroupValuesAsync("RecipeCommit", staged, CancellationToken.None);
+
+var snapshot = await plc.ReadTagGroupSnapshotAsync("RecipeCommit", CancellationToken.None);
 if (snapshot.IsSucceed)
+    await plc.WriteTagGroupSnapshotAsync(snapshot.Value!, CancellationToken.None);
+```
+
+For controlled configuration change, use `LoadAndValidateTagDatabase`, `PreviewTagDatabaseDiff`, `ObserveTagDatabaseDiff`, and `ObserveTagDatabaseReload`. `MitsubishiTagDatabaseDiff`, `MitsubishiTagChange`, `MitsubishiTagGroupChange`, and `MitsubishiSchemaChangeKind` tell which entries change. Apply a `MitsubishiTagRolloutPolicy` only after a preview has been reviewed; do not hot-reload a safety-critical mapping without an operations change process.
+
+```csharp
+var preview = plc.PreviewTagDatabaseDiff("tags.yaml", MitsubishiTagRolloutPolicy.AllowAll);
+if (preview.IsSucceed && preview.Value!.IsEmpty)
+    Console.WriteLine("No mapping change");
+using var reload = plc.ObserveTagDatabaseReload("tags.yaml", TimeSpan.FromSeconds(5), emitInitial: true)
+    .Subscribe(result => Console.WriteLine(result.IsSucceed ? "Reloaded" : result.Err));
+```
+
+### Logical tags, bulk operations, and source generation
+
+`CreateLogicalTagClient` composes the common `ILogicalTagCatalog` with the Mitsubishi transport and optional `LogicalTagSqliteStore`. `MitsubishiLogicalTagClient` supports registration, read/write one or many tags, observable and async-enumerable observation, persistence and operation metrics. It is the appropriate boundary when several protocols share a logical-tag catalog. Dispose it before disposing the native Mitsubishi client.
+
+```csharp
+using IoT.DriverCore.Core;
+
+using var catalog = new LogicalTagCatalog();
+var store = new LogicalTagSqliteStore("Data Source=logical-tags.db");
+using var logical = plc.CreateLogicalTagClient(catalog, TimeSpan.FromSeconds(1), store);
+var result = await logical.ReadAsync("Line1.Temperature", CancellationToken.None);
+await foreach (var update in logical.ObserveAsync("Line1.Temperature", CancellationToken.None))
+    Console.WriteLine(update.Value);
+```
+
+The `MitsubishiTagClientGenerator` recognizes `MitsubishiTagClientAttribute`, `MitsubishiTagAttribute`, and `MitsubishiTagClientSchemaAttribute`. It generates a typed client, `GeneratedMitsubishiTagClient` entrypoint, extension/`GroupsClient` surfaces and per-group `TagsClient` accessors. The runtime packages embed this analyzer; `MitsubishiRx.Generators` is a standalone optional analyzer package for a project that intentionally supplies/pins it separately. Do not install duplicate versions in one project. The generator validates supported scalar/tag metadata at compile time, so use attributes for a stable, source-controlled schema and the runtime database for imported/operational schemas.
+
+```csharp
+using IoT.DriverCore.MitsubishiRx;
+
+[MitsubishiTagClient(nameof(LogicalTags))]
+public sealed partial class FurnaceTags
 {
-    float speed = snapshot.Value!.GetRequired<float>("MotorSpeed");
-    bool pump = snapshot.Value.GetRequired<bool>("PumpRunning");
+    public MitsubishiLogicalTagClient LogicalTags { get; init; } = null!;
+
+    [MitsubishiTag("Furnace.Temperature")]
+    public float Temperature { get; set; }
+
+    [MitsubishiTag("Furnace.Enabled")]
+    public bool Enabled { get; set; }
+}
+// The generated client binds the declared members to MitsubishiRx; inspect obj/Generated
+// or the generator diagnostics when an attribute is malformed.
+```
+
+### Test transports and two combined workflows
+
+The client selects its built-in TCP/UDP or serial transport from `MitsubishiClientOptions`; those transport implementations are intentionally internal. `IMitsubishiTransport` is the public contract for a custom transport. `MitsubishiSimulatorMemory` offers direct word/bit state, while `MitsubishiSimulatorTransport` records requests, queues responses/connect/exchange faults, or uses stateful memory. Use the simulator in unit tests rather than a production PLC.
+
+```csharp
+var memory = new MitsubishiSimulatorMemory();
+memory.WriteWords("D100", [10, 20]);
+await using var simulated = new MitsubishiRx(
+    options, new MitsubishiSimulatorTransport(memory), scheduler: null);
+await simulated.OpenAsync(CancellationToken.None);
+var result = await simulated.ReadWordsAsync("D100", 2, CancellationToken.None);
+```
+
+**Workflow 1 - production telemetry with freshness and safe setpoints.** Validate/load the tag database, open the client, observe a tag group with `ObserveReactiveTagGroup` or `ObserveTagGroupStale`, inhibit UI changes when quality is stale/error, validate a group write, write the staged values through a latest-only pipeline, and record `OperationLogs`. This combines configuration validation, polling, quality, grouped writes and audit telemetry without assuming a successful network response is a process-safe outcome.
+
+```csharp
+await using var production = new MitsubishiRx(options, transport: null, scheduler: null);
+production.TagDatabase = MitsubishiTagDatabase.Load("line-a-tags.yaml");
+var schema = production.ValidateTagDatabase();
+if (!schema.IsSucceed) throw new InvalidOperationException(schema.Err);
+
+using var logs = production.OperationLogs.Subscribe(log => Audit(log.Description, log.Success));
+using var fresh = production.ObserveTagGroupStale("Setpoints", TimeSpan.FromMilliseconds(250),
+    TimeSpan.FromSeconds(2), minimumUpdateSpacing: null)
+    .Subscribe(sample => SetControlsEnabled(!sample.IsStale && sample.Value.IsSucceed));
+
+var open = await production.OpenAsync(CancellationToken.None);
+if (!open.IsSucceed) throw new InvalidOperationException(open.Err);
+var staged = new Dictionary<string, object?> { ["TargetTemperature"] = 70.0f, ["Enabled"] = true };
+var accepted = production.ValidateTagGroupWrite("Setpoints", staged);
+if (accepted.IsSucceed && await OperatorInterlockAllowsAsync())
+{
+    var written = await production.WriteTagGroupValuesAsync("Setpoints", staged, CancellationToken.None);
+    if (!written.IsSucceed) ReportWriteFailure(written.Err);
+}
+await production.CloseAsync(CancellationToken.None);
+```
+
+**Workflow 2 - commissioning with sparse diagnostics.** Open a simulator first, use `ReadTypeNameAsync`, batch-read contiguous regions, random-read sparse registers, register/execute a monitor for repeated inspection, then move the same options to a live isolated PLC. Keep remote-control and raw commands behind an explicit operator authorization, capture operation logs, and close/dispose when the session ends.
+
+```csharp
+var memory = new MitsubishiSimulatorMemory();
+memory.WriteWords("D100", new ushort[] { 100, 101, 102, 103 });
+memory.WriteWords("D200", new ushort[] { 200 });
+await using var bench = new MitsubishiRx(
+    options, new MitsubishiSimulatorTransport(memory), scheduler: null);
+using var diagnostics = bench.OperationLogs.Subscribe(log => Console.WriteLine(log.Description));
+if (!(await bench.OpenAsync(CancellationToken.None)).IsSucceed) return;
+
+var identity = await bench.ReadTypeNameAsync(CancellationToken.None);
+var contiguous = await bench.ReadWordsAsync("D100", 4, CancellationToken.None);
+var sparse = await bench.RandomReadWordsAsync(new[] { "D100", "D200" }, CancellationToken.None);
+var registered = await bench.RegisterMonitorAsync(new[] { "D100", "D200" }, CancellationToken.None);
+Responce<byte[]> monitor = registered.IsSucceed
+    ? await bench.ExecuteMonitorAsync(CancellationToken.None)
+    : new Responce<byte[]>(registered);
+if (!identity.IsSucceed || !contiguous.IsSucceed || !sparse.IsSucceed || !monitor.IsSucceed)
+    throw new InvalidOperationException("Commissioning diagnostic did not succeed.");
+await bench.CloseAsync(CancellationToken.None);
+```
+
+### Device operations and monitoring
+
+`ReadWordsAsync`, `WriteWordsAsync`, `ReadBitsAsync`, and `WriteBitsAsync` operate on direct addresses. `RandomReadWordsAsync` / `RandomWriteWordsAsync` issue random-device requests; `RegisterMonitorAsync` then `ExecuteMonitorAsync` use PLC monitor registration; `ReadBlocksAsync` / `WriteBlocksAsync` use `MitsubishiWordBlock` and `MitsubishiBitBlock` requests. Use a cancellation token on every asynchronous call.
+
+```csharp
+var bits = await plc.ReadBitsAsync("M100", 8, CancellationToken.None);
+var random = await plc.RandomReadWordsAsync(new[] { "D100", "D200" }, CancellationToken.None);
+var monitor = await plc.RegisterMonitorAsync(new[] { "D100", "D101" }, CancellationToken.None);
+var data = monitor.IsSucceed
+    ? await plc.ExecuteMonitorAsync(CancellationToken.None)
+    : new Responce<byte[]>(monitor);
+```
+
+The protocol/control surface is `ReadTypeNameAsync`, `RemoteRunAsync`, `RemoteStopAsync`, `RemotePauseAsync`, `RemoteLatchClearAsync`, `RemoteResetAsync`, `UnlockAsync`, `LockAsync`, `ClearErrorAsync`, `LoopbackAsync`, `ReadMemoryAsync`, `WriteMemoryAsync`, and `ExecuteRawAsync(MitsubishiRawCommandRequest, ...)`. Guard the control methods more strictly than normal reads.
+
+```csharp
+// This belongs behind a site authorization and an independently verified safe state.
+if (operatorApproved && await IsPlantSafeAsync())
+{
+    var unlocked = await plc.UnlockAsync(passwordFromSecureStore, CancellationToken.None);
+    if (!unlocked.IsSucceed) throw new InvalidOperationException(unlocked.Err);
+    var running = await plc.RemoteRunAsync(force: false, clearMode: false,
+        cancellationToken: CancellationToken.None);
+    if (!running.IsSucceed) ReportWriteFailure(running.Err);
+    var locked = await plc.LockAsync(passwordFromSecureStore, CancellationToken.None);
 }
 ```
 
-### Reactive polling APIs
+### Polling, health, and queued writes
 
-| API | Signature | Purpose |
-|---|---|---|
-| `ObserveWords` | `IObservable<Responce<ushort[]>> ObserveWords(string address, int points, TimeSpan pollInterval, TimeSpan? minimumUpdateSpacing = null, TimeSpan? pollTimeout = null)` | Polls words. |
-| `ObserveBits` | `IObservable<Responce<bool[]>> ObserveBits(string address, int points, TimeSpan pollInterval, TimeSpan? minimumUpdateSpacing = null)` | Polls bits. |
-| `ObserveWordsHeartbeat` | `IObservable<Heartbeat<Responce<ushort[]>>> ObserveWordsHeartbeat(string address, int points, TimeSpan pollInterval, TimeSpan heartbeatAfter, TimeSpan? minimumUpdateSpacing = null, TimeSpan? pollTimeout = null)` | Word polling with heartbeat envelopes. |
-| `ObserveWordsStale` | `IObservable<Stale<Responce<ushort[]>>> ObserveWordsStale(string address, int points, TimeSpan pollInterval, TimeSpan staleAfter, TimeSpan? minimumUpdateSpacing = null)` | Word polling with stale markers. |
-| `ObserveWordsLatest` | `IObservable<Responce<ushort[]>> ObserveWordsLatest(string address, int points, IObservable<Unit> trigger)` | Latest-only triggered read. |
-| `ObserveTagGroup` | `IObservable<Responce<MitsubishiTagGroupSnapshot>> ObserveTagGroup(string groupName, TimeSpan pollInterval, TimeSpan? minimumUpdateSpacing = null)` | Polls a tag group. |
-| `ObserveTagGroupHeartbeat` | `IObservable<Heartbeat<Responce<MitsubishiTagGroupSnapshot>>> ObserveTagGroupHeartbeat(string groupName, TimeSpan pollInterval, TimeSpan heartbeatAfter, TimeSpan? minimumUpdateSpacing = null)` | Group polling with heartbeat envelopes. |
-| `ObserveTagGroupStale` | `IObservable<Stale<Responce<MitsubishiTagGroupSnapshot>>> ObserveTagGroupStale(string groupName, TimeSpan pollInterval, TimeSpan staleAfter, TimeSpan? minimumUpdateSpacing = null)` | Group polling with stale markers. |
-| `ObserveTagGroupLatest` | `IObservable<Responce<MitsubishiTagGroupSnapshot>> ObserveTagGroupLatest(string groupName, IObservable<Unit> trigger)` | Latest-only triggered group read. |
-| `SampleDiagnostics` | `IObservable<MitsubishiOperationLog> SampleDiagnostics(IObservable<object> trigger)` | Samples latest operation diagnostics on trigger. |
-| `ObserveConnectionHealth` | `IObservable<Stale<MitsubishiConnectionState>> ObserveConnectionHealth(TimeSpan staleAfter)` | Detects stale connection-state updates. |
+`ObserveWords`, `ObserveBits`, `ObserveWordsHeartbeat`, `ObserveWordsStale`, and `ObserveWordsLatest` turn a scan interval or trigger into streams. Tag groups have equivalent `ObserveTagGroup*` methods. `ConnectionStates`, `OperationLogs`, `SampleDiagnostics`, and `ObserveConnectionHealth` expose lifecycle and operational observations. `ObserveReactiveWords` / `ObserveReactiveTagGroup` add `MitsubishiReactiveValue<T>` quality metadata. `CreateReactiveWordWritePipeline` serializes/coalesces word writes and returns `MitsubishiReactiveWritePipeline<IReadOnlyList<ushort>>`.
 
 ```csharp
-using var sub = client.ObserveWords("D100", 2, TimeSpan.FromSeconds(1))
-    .Subscribe(result => Console.WriteLine(result.IsSucceed ? string.Join(",", result.Value!) : result.Err));
-```
-
-### Hot reactive value APIs
-
-Hot reactive APIs share scan work between equivalent subscribers and emit `MitsubishiReactiveValue<T>` quality envelopes.
-
-| API | Signature | Purpose |
-|---|---|---|
-| `ObserveReactiveWords` | `IObservable<MitsubishiReactiveValue<ushort[]>> ObserveReactiveWords(string address, int points, TimeSpan pollInterval, TimeSpan? minimumUpdateSpacing = null)` | Shared hot word scan. |
-| `ObserveReactiveTag<T>` | `IObservable<MitsubishiReactiveValue<T>> ObserveReactiveTag<T>(string tagName, TimeSpan pollInterval, TimeSpan? minimumUpdateSpacing = null)` | Shared typed tag projection. |
-| `ObserveReactiveTagGroup` | `IObservable<MitsubishiReactiveValue<MitsubishiTagGroupSnapshot>> ObserveReactiveTagGroup(string groupName, TimeSpan pollInterval, TimeSpan? minimumUpdateSpacing = null)` | Shared grouped snapshot scan. |
-| `SharedReactiveStream<T>` | `SharedReactiveStream(Func<bool, IObservable<MitsubishiReactiveValue<T>>> streamFactory)` with `Stream` and `Dispose()` | Internal shared-stream primitive exposed by the assembly; application code normally uses the three `ObserveReactive...` methods instead. |
-
-`MitsubishiReactiveValue<T>` fields: `Value`, `TimestampUtc`, `Quality`, `IsHeartbeat`, `IsStale`, `Source`, `Error`, `ErrorCode`, `Exception`.
-
-`MitsubishiReactiveQuality` values: `Good`, `Bad`, `Stale`, `Heartbeat`, `Error`.
-
-Factory helpers:
-
-| API | Signature | Purpose |
-|---|---|---|
-| `MitsubishiReactiveValue.FromResponse` | `static MitsubishiReactiveValue<T> FromResponse<T>(Responce<T> response, DateTimeOffset timestampUtc, string source)` | Wraps a normal response. |
-| `MitsubishiReactiveValue.Heartbeat` | `static MitsubishiReactiveValue<T> Heartbeat<T>(MitsubishiReactiveValue<T> value, DateTimeOffset timestampUtc)` | Creates a heartbeat envelope. |
-| `MitsubishiReactiveValue.Stale` | `static MitsubishiReactiveValue<T> Stale<T>(MitsubishiReactiveValue<T> value, DateTimeOffset timestampUtc)` | Creates a stale envelope. |
-
-Base package example:
-
-```csharp
-using MitsubishiRx;
-
-using var speed = client.ObserveReactiveTag<float>("MotorSpeed", TimeSpan.FromMilliseconds(500))
-    .Subscribe(value =>
+using var subscription = plc.ObserveWords("D100", 2, TimeSpan.FromMilliseconds(250),
+    minimumUpdateSpacing: null, pollTimeout: null)
+    .Subscribe(reply =>
     {
-        if (value.Quality == MitsubishiReactiveQuality.Good)
-        {
-            Console.WriteLine($"MotorSpeed={value.Value}");
-        }
+        if (reply.IsSucceed) Console.WriteLine(reply.Value![0]);
     });
 ```
 
-Reactive package example:
+For externally triggered refreshes, use a caller-owned `Signal<Unit>` and the latest-only overload. The same scope can observe bit changes; dispose all three subscriptions/signals before disposing the client.
 
 ```csharp
-using MitsubishiRx.Reactive;
+using ReactiveUI.Primitives;
+using ReactiveUI.Primitives.Signals;
 
-using var overview = client.ObserveReactiveTagGroup("Line1Overview", TimeSpan.FromSeconds(1))
-    .Subscribe(value =>
+using var refresh = new Signal<Unit>();
+using var bits = plc.ObserveBits("M100", 8, TimeSpan.FromMilliseconds(250), minimumUpdateSpacing: null)
+    .Subscribe(reply =>
     {
-        if (value.Quality == MitsubishiReactiveQuality.Good && value.Value is not null)
-        {
-            Console.WriteLine(value.Value.GetRequired<float>("MotorSpeed"));
-        }
+        if (reply.IsSucceed) Console.WriteLine(string.Join(',', reply.Value!));
     });
-```
-
-### Reactive write pipeline APIs
-
-| API | Signature | Purpose |
-|---|---|---|
-| `CreateReactiveWordWritePipeline` | `MitsubishiReactiveWritePipeline<IReadOnlyList<ushort>> CreateReactiveWordWritePipeline(string address, MitsubishiReactiveWriteMode mode, TimeSpan? coalescingWindow = null)` | Creates a word write pipeline for raw address writes. |
-| `CreateReactiveTagWritePipeline<T>` | `MitsubishiReactiveWritePipeline<T> CreateReactiveTagWritePipeline<T>(string tagName, MitsubishiReactiveWriteMode mode, TimeSpan? coalescingWindow = null)` | Creates a typed tag write pipeline. |
-| `MitsubishiReactiveWritePipeline<TPayload>.Post` | `void Post(TPayload payload)` | Queues/posts a payload according to the configured mode. |
-| `MitsubishiReactiveWritePipeline<TPayload>.Results` | `IObservable<MitsubishiReactiveWriteResult> Results { get; }` | Completion result stream. |
-| `MitsubishiReactiveWritePipeline<TPayload>.Mode` | `MitsubishiReactiveWriteMode Mode { get; }` | Configured behavior. |
-| `Dispose` | `void Dispose()` | Stops the pipeline and releases subscriptions. |
-
-`MitsubishiReactiveWriteMode` values:
-
-| Value | Behavior |
-|---|---|
-| `Queued` | Preserve every posted write in order. |
-| `LatestWins` | Collapse bursts to the latest posted value. |
-| `Coalescing` | Delay within `coalescingWindow` and write the latest value when the window closes. |
-
-`MitsubishiReactiveWriteResult` fields: `Target`, `TimestampUtc`, `Mode`, `Success`, `Error`, `ErrorCode`, `Exception`.
-
-```csharp
-using MitsubishiRx.Reactive;
-
-var writes = client.CreateReactiveWordWritePipeline(
-    "D100",
-    MitsubishiReactiveWriteMode.Queued);
-
-using var results = writes.Results.Subscribe(result =>
-    Console.WriteLine($"{result.Target} success={result.Success} error={result.Error}"));
-
-writes.Post([100, 200, 300]);
-```
-
-### Generated typed client APIs
-
-`MitsubishiRx.Generators` is bundled into the `MitsubishiRx` NuGet package as an analyzer asset at `analyzers/dotnet/cs/MitsubishiRx.Generators.dll`. Consumer projects reference `MitsubishiRx`; they normally do not reference `MitsubishiRx.Generators` directly.
-
-The generator currently emits code under `namespace MitsubishiRx` and references `global::MitsubishiRx.MitsubishiRx`, so generated typed clients are base-package APIs. `MitsubishiRx.Reactive` projects should use the runtime tag and group APIs directly.
-
-Attribute API:
-
-| API | Shape | Purpose |
-|---|---|---|
-| `MitsubishiTagClientSchemaAttribute` | `[AttributeUsage(AttributeTargets.Assembly \| AttributeTargets.Class, AllowMultiple = true, Inherited = false)]` | Marks a compilation with generator schema JSON. |
-| Constructor | `MitsubishiTagClientSchemaAttribute(string schemaJson)` | Accepts compile-time schema JSON. |
-| `SchemaJson` | `string SchemaJson { get; }` | Exposes the supplied schema JSON to the generator. |
-
-Generated root API:
-
-```csharp
-var generated = client.Generated();
-var speed = await generated.Tags.MotorSpeed.ReadAsync();
-await generated.Tags.MotorSpeed.WriteAsync(123.4f);
-
-var line = await generated.Groups.Line1.ReadAsync();
-await generated.Groups.Line1.WriteAsync(line.Value!);
-```
-
-| Generated API | Shape | Purpose |
-|---|---|---|
-| `GeneratedMitsubishiTagClientExtensions.Generated` | `GeneratedMitsubishiTagClient Generated(this global::MitsubishiRx.MitsubishiRx owner)` | Creates the generated facade over an existing client. |
-| `GeneratedMitsubishiTagClient` | `sealed partial class` with `Tags` and `Groups` | Root generated facade. |
-| `TagsClient` | `generated.Tags.<SanitizedTagName>` | Accesses generated per-tag clients. |
-| `GroupsClient` | `generated.Groups.<SanitizedGroupName>` | Accesses generated per-group clients. |
-
-Generated tag clients expose:
-
-| Generated API | Shape | Purpose |
-|---|---|---|
-| `ReadAsync` | `Task<Responce<T>> ReadAsync(CancellationToken cancellationToken = default)` | Reads a typed tag value. |
-| `WriteAsync` | `Task<Responce> WriteAsync(T value, CancellationToken cancellationToken = default)` | Writes a typed tag value. |
-| `Observe` | `IObservable<MitsubishiReactiveValue<T>> Observe(TimeSpan pollInterval, TimeSpan? minimumUpdateSpacing = null)` | Observes a typed tag. |
-
-Generated group clients expose:
-
-| Generated API | Shape | Purpose |
-|---|---|---|
-| `ReadAsync` | `Task<Responce<TSnapshot>> ReadAsync(CancellationToken cancellationToken = default)` | Reads and maps a runtime group snapshot to a generated typed snapshot. |
-| `ReadOptionalAsync` | `Task<Responce<TSnapshot?>> ReadOptionalAsync(CancellationToken cancellationToken = default)` | Returns `null` when the runtime snapshot is incomplete or type-mismatched. |
-| `WriteAsync` | `Task<Responce> WriteAsync(TSnapshot value, CancellationToken cancellationToken = default)` | Writes a generated typed snapshot back through `WriteTagGroupSnapshotAsync`. |
-| `Observe` | `IObservable<MitsubishiReactiveValue<TSnapshot>> Observe(TimeSpan pollInterval, TimeSpan? minimumUpdateSpacing = null)` | Observes a generated typed group snapshot. |
-| `ObserveOptional` | `IObservable<MitsubishiReactiveValue<TSnapshot?>> ObserveOptional(TimeSpan pollInterval, TimeSpan? minimumUpdateSpacing = null)` | Observes an optional generated group snapshot. |
-
-Generated group snapshot helpers expose:
-
-| Generated API | Shape | Purpose |
-|---|---|---|
-| `FromSnapshot` | `static TSnapshot FromSnapshot(MitsubishiTagGroupSnapshot snapshot)` | Required conversion from runtime snapshot to generated record. |
-| `TryFromSnapshot` | `static TSnapshot? TryFromSnapshot(MitsubishiTagGroupSnapshot? snapshot)` | Optional conversion from runtime snapshot to generated record. |
-| `ToSnapshot` | `MitsubishiTagGroupSnapshot ToSnapshot()` | Converts generated record to runtime snapshot for writes. |
-| `MapReactive` | `static MitsubishiReactiveValue<TSnapshot> MapReactive(MitsubishiReactiveValue<MitsubishiTagGroupSnapshot> value)` | Maps reactive runtime snapshots to generated typed envelopes. |
-| `MapReactiveOptional` | `static MitsubishiReactiveValue<TSnapshot?> MapReactiveOptional(MitsubishiReactiveValue<MitsubishiTagGroupSnapshot> value)` | Maps reactive runtime snapshots to optional generated typed envelopes. |
-
-Generated `dataType` mapping:
-
-| `dataType` | Generated type | Read/write helpers |
-|---|---|---|
-| missing / `Word` / `UInt16` | `ushort` | `ReadUInt16ByTagAsync` / `WriteUInt16ByTagAsync` |
-| `Int16` | `short` | `ReadInt16ByTagAsync` / `WriteInt16ByTagAsync` |
-| `Int32` | `int` | `ReadInt32ByTagAsync` / `WriteInt32ByTagAsync` |
-| `DWord` / `UInt32` | `uint` | `ReadDWordByTagAsync` / `WriteDWordByTagAsync` |
-| `Float` | `float` | `ReadFloatByTagAsync` / `WriteFloatByTagAsync` |
-| `String` | `string` | `ReadStringByTagAsync` / `WriteStringByTagAsync` |
-| `Bit` | `bool` | `ReadGeneratedBitTagAsync` / `WriteGeneratedBitTagAsync` |
-
-The implementation types behind this feature are `MitsubishiTagClientGenerator` and `MitsubishiTagClientEmitter`. The source-generator attribute exposes `SchemaJson` from `MitsubishiTagClientSchemaAttribute`; `Initialize(...)` wires the incremental generator. `SchemaModel`, `TagModel`, and `GroupModel` are generator-side schema parse models. Consumers normally only write the attribute and call generated extension methods, not the generator classes directly.
-
-| ID | Meaning |
-|---|---|
-| `MRTXGEN001` | Failed to parse or generate schema client source. |
-| `MRTXGEN002` | Duplicate tag name. |
-| `MRTXGEN003` | Group references unknown tag name. |
-| `MRTXGEN004` | Unsupported generated `dataType`. |
-| `MRTXGEN005` | Sanitized generated identifier collision. |
-| `MRTXGEN006` | Empty tag name. |
-| `MRTXGEN007` | Empty group name. |
-| `MRTXGEN008` | Group has no member tags. |
-| `MRTXGEN009` | Duplicate group name. |
-| `MRTXGEN010` | Empty tag reference inside a group. |
-| `MRTXGEN011` | Duplicate tag reference inside a group. |
-
-### Models, records, enums, and constants
-
-| Type | Members / values | Usage |
-|---|---|---|
-| `MitsubishiClientOptions` | `Host`, `Port`, `FrameType`, `DataCode`, `TransportKind`, `Route`, `MonitoringTimer`, `Timeout`, `CpuType`, `XyNotation`, `LegacyPcNumber`, `SerialNumberProvider`, `Serial`; helper properties `ResolvedTimeout`, `ResolvedRoute`, `ResolvedSerial`; method `GetNextSerialNumber()` | Complete client configuration. |
-| `MitsubishiRoute` | `NetworkNumber`, `StationNumber`, `ModuleIoNumber`, `MultidropStationNumber`, `ExtensionStationNumber`; static `Default` | Ethernet route metadata for 3E/4E. |
-| `MitsubishiSerialOptions` | `PortName`, `BaudRate`, `DataBits`, `Parity`, `StopBits`, `Handshake`, `MessageFormat`, `StationNumber`, `NetworkNumber`, `PcNumber`, `RequestDestinationModuleIoNumber`, `RequestDestinationModuleStationNumber`, `SelfStationNumber`, `MessageWait`, `ReadBufferSize`, `WriteBufferSize`, `NewLine`; property `Route` | Serial port and serial MC protocol settings. |
-| `MitsubishiSerialRoute` | `StationNumber`, `NetworkNumber`, `PcNumber`, `RequestDestinationModuleIoNumber`, `RequestDestinationModuleStationNumber`, `SelfStationNumber` | Derived serial route metadata. |
-| `MitsubishiRawCommandRequest` | `Command`, `Subcommand`, `Body`, `Description`; property `ResolvedBody` | Raw command request for `ExecuteRawAsync`. |
-| `MitsubishiTransportRequest` | `Payload`, `ExpectedResponseLength`, `Description` | Transport-level request passed to custom transports. |
-| `MitsubishiOperationLog` | `TimestampUtc`, `State`, `Description`, `Success`, `RequestPayload`, `ResponsePayload`, `Exception` | Operation diagnostics. |
-| `MitsubishiTypeName` | `ModelName`, `ModelCode` | Return model for `ReadTypeNameAsync`. |
-| `MitsubishiDeviceValue` | `Address`, `Value` | Random-write word pair. |
-| `MitsubishiWordBlock` | `Address`, `Values` | Word block descriptor. |
-| `MitsubishiBitBlock` | `Address`, `Values` | Bit block descriptor. |
-| `MitsubishiBlockRequest` | `WordBlocks`, `BitBlocks`; properties `ResolvedWordBlocks`, `ResolvedBitBlocks` | Multi-block read/write descriptor. |
-| `MitsubishiTagDefinition` | `Name`, `Address`, `DataType`, `Description`, `Scale`, `Offset`, `Length`, `Encoding`, `Units`, `Signed`, `ByteOrder`, `Notes` | Symbolic tag schema row. |
-| `MitsubishiTagGroupDefinition` | `Name`, `TagNames`, `ResolvedTagNames` | Named group/scan class. `ResolvedTagNames` gives a non-null ordered member list. |
-| `MitsubishiTagGroupSnapshot` | `GroupName`, `Values`, `TagNames`; `GetRequired<T>`, `GetOptional<T>` | Typed group result and write payload. |
-| `MitsubishiTagChange` | `Name`, `Previous`, `Current`, `ChangeKinds` | Tag diff item. |
-| `MitsubishiTagGroupChange` | `Name`, `Previous`, `Current`, `ChangeKinds` | Group diff item. |
-| `MitsubishiTagDatabaseDiff` | `AddedTags`, `RemovedTags`, `ChangedTags`, `AddedGroups`, `RemovedGroups`, `ChangedGroups`, `ChangeKinds`, `HasChanges`, `ChangeCount`, static `Empty` | Schema diff result. |
-| `MitsubishiReactiveValue<T>` | `Value`, `TimestampUtc`, `Quality`, `IsHeartbeat`, `IsStale`, `Source`, `Error`, `ErrorCode`, `Exception`; static `FromResponse`, `Heartbeat`, `Stale` | Quality envelope emitted by hot reactive APIs and generated observers. |
-| `MitsubishiReactiveWritePipeline<TPayload>` | `Mode`, `Results`, `Post(TPayload payload)`, `Dispose()` | Reactive write coordinator for raw word and typed tag writes. |
-| `MitsubishiReactiveWriteResult` | `Target`, `TimestampUtc`, `Mode`, `Success`, `Error`, `ErrorCode`, `Exception` | Result emitted after a reactive write pipeline attempts a write. |
-| `Responce` | `IsSucceed`, `Err`, `ErrCode`, `Exception`, `ErrList`, `Request`, `Response`, `Request2`, `Response2`, `TimeConsuming`, `InitialTime`, `SetErrInfo`, `AddErr2List` | Base response envelope. |
-| `Responce<T>` | `Value`; constructors from value/base response; `SetErrInfo` | Typed response envelope. |
-
-Enums:
-
-| Enum | Values |
-|---|---|
-| `CpuType` | `None`, `ASeries`, `QnaSeries`, `QSeries`, `LSeries`, `Fx3`, `Fx5`, `IQR` |
-| `MitsubishiFrameType` | `OneE`, `ThreeE`, `FourE`, `OneC`, `ThreeC`, `FourC` |
-| `CommunicationDataCode` | `Binary`, `Ascii` |
-| `MitsubishiTransportKind` | `Tcp`, `Udp`, `Serial` |
-| `XyAddressNotation` | `Octal`, `Hexadecimal` |
-| `MitsubishiConnectionState` | `Disconnected`, `Connecting`, `Connected`, `Reconnecting`, `Faulted` |
-| `MitsubishiSerialMessageFormat` | `Format1`, `Format4`, `Format5` |
-| `DeviceValueKind` | `Bit`, `Word` |
-| `DeviceNumberFormat` | `Decimal`, `Hexadecimal`, `Octal`, `XyVariable` |
-| `MitsubishiReactiveQuality` | `Good`, `Bad`, `Stale`, `Heartbeat`, `Error` |
-| `MitsubishiReactiveWriteMode` | `Queued`, `LatestWins`, `Coalescing` |
-| `MitsubishiSchemaChangeKind` | `None`, `MetadataOnly`, `AddressChange`, `DataTypeChange`, `GroupMembershipChange`, `StructureChange` |
-| `MitsubishiTagRolloutPolicy` | `AllowAll`, `SafeMetadataAndGroups` |
-
-`MitsubishiCommands` constants:
-
-| Constant | Value | Command |
-|---|---:|---|
-| `DeviceRead` | `0x0401` | Batch read |
-| `DeviceWrite` | `0x1401` | Batch write |
-| `RandomRead` | `0x0403` | Random read |
-| `RandomWrite` | `0x1402` | Random write |
-| `BlockRead` | `0x0406` | Block read |
-| `BlockWrite` | `0x1406` | Block write |
-| `EntryMonitorDevice` | `0x0801` | Monitor registration |
-| `ExecuteMonitor` | `0x0802` | Execute monitor |
-| `ExtendUnitRead` | `0x0601` | Intelligent-module buffer read |
-| `ExtendUnitWrite` | `0x1601` | Intelligent-module buffer write |
-| `MemoryRead` | `0x0613` | Memory read |
-| `MemoryWrite` | `0x1613` | Memory write |
-| `ReadTypeName` | `0x0101` | PLC type-name read |
-| `RemoteRun` | `0x1001` | Remote RUN |
-| `RemoteStop` | `0x1002` | Remote STOP |
-| `RemotePause` | `0x1003` | Remote PAUSE |
-| `RemoteLatchClear` | `0x1005` | Remote latch clear |
-| `RemoteReset` | `0x1006` | Remote RESET |
-| `Unlock` | `0x1630` | Remote password unlock |
-| `Lock` | `0x1631` | Remote password lock |
-| `LoopbackTest` | `0x0619` | Loopback |
-| `ClearError` | `0x1617` | Clear error |
-
-### Device addressing reference
-
-`MitsubishiDeviceAddress.Parse(value, xyNotation)` validates and normalizes device addresses. `MitsubishiDeviceAddress.Metadata` exposes supported device families. A parsed address exposes `Descriptor`, whose `MitsubishiDeviceMetadata` contains `Symbol`, `BinaryCode`, `AsciiCode`, `Kind`, and `NumberFormat`; call `GetRadix(xyNotation)` when building custom tooling that needs the effective address base.
-
-| Device | Kind | Number format |
-|---|---|---|
-| `X` | Bit | Octal or hexadecimal via `XyAddressNotation` |
-| `Y` | Bit | Octal or hexadecimal via `XyAddressNotation` |
-| `M` | Bit | Decimal |
-| `L` | Bit | Decimal |
-| `B` | Bit | Hexadecimal |
-| `D` | Word | Decimal |
-| `W` | Word | Hexadecimal |
-| `R` | Word | Decimal |
-| `ZR` | Word | Hexadecimal |
-| `TN` | Word | Decimal |
-| `TS` | Bit | Decimal |
-| `TC` | Bit | Decimal |
-| `CN` | Word | Decimal |
-| `CS` | Bit | Decimal |
-| `CC` | Bit | Decimal |
-| `SM` | Bit | Decimal |
-| `SD` | Word | Decimal |
-
-```csharp
-var xOctal = MitsubishiDeviceAddress.Parse("X20", XyAddressNotation.Octal);
-var xHex = MitsubishiDeviceAddress.Parse("X20", XyAddressNotation.Hexadecimal);
-Console.WriteLine($"octal={xOctal.Number}, hex={xHex.Number}");
-```
-
-### Advanced protocol and transport extension points
-
-Most applications should use `MitsubishiRx` high-level APIs. The following public helpers are available for advanced testing, custom tooling, protocol inspection, and custom transports.
-
-| API | Purpose |
-|---|---|
-| `IMitsubishiTransport` | Implement `ConnectAsync`, `DisconnectAsync`, `ExchangeAsync`, `IsConnected`, `Dispose`, and `DisposeAsync` for custom transport backends. |
-| `SocketMitsubishiTransport` | Built-in TCP/UDP transport. |
-| `ReactiveSerialMitsubishiTransport` | Built-in SerialPortRx-backed serial transport. |
-| `ReactiveSerialPortAdapter` | Adapter around `SerialPortRx`; exposes `IsOpen`, `ReceivedBytes`, `WrittenBytes`, `Open`, `Close`, `Write`, `DiscardInBuffer`, `DiscardOutBuffer`, and `Dispose`. |
-| `MitsubishiProtocolEncoding.Encode(...)` / `Decode(...)` | Ethernet raw request encoding and response decoding. |
-| `MitsubishiProtocolEncoding.GetFixedResponseLength(...)` | Calculates fixed receive sizes where the frame supports it. |
-| `MitsubishiProtocolEncoding.EncodeDeviceBatchRead(...)` / `EncodeDeviceBatchWrite(...)` | Ethernet batch device operation builders. |
-| `MitsubishiProtocolEncoding.EncodeRandomRead(...)` / `EncodeRandomWrite(...)` | Ethernet random operation builders. |
-| `MitsubishiProtocolEncoding.EncodeMonitorRegistration(...)` / `EncodeExecuteMonitor(...)` | Ethernet monitor builders. |
-| `MitsubishiProtocolEncoding.EncodeBlockRead(...)` / `EncodeBlockWrite(...)` | Ethernet block operation builders. |
-| `MitsubishiProtocolEncoding.EncodeReadTypeName(...)`, `EncodeRemoteOperation(...)`, `EncodeLoopback(...)`, `EncodeRemotePassword(...)`, `EncodeMemoryAccess(...)` | Ethernet specialized command builders. |
-| `MitsubishiSerialProtocolEncoding.EncodeWordReadRequest(...)`, `EncodeWordWriteRequest(...)`, `EncodeBitReadRequest(...)`, `EncodeBitWriteRequest(...)` | Serial batch operation builders. |
-| `MitsubishiSerialProtocolEncoding.EncodeRandomReadRequest(...)`, `EncodeRandomWriteRequest(...)`, `EncodeBlockReadRequest(...)`, `EncodeBlockWriteRequest(...)` | Serial random/block builders. |
-| `MitsubishiSerialProtocolEncoding.EncodeMonitorRegistrationRequest(...)`, `EncodeExecuteMonitorRequest(...)`, `EncodeRemoteOperationRequest(...)`, `EncodeReadTypeNameRequest(...)`, `EncodeLoopbackRequest(...)`, `EncodeMemoryAccessRequest(...)`, `EncodeRawRequest(...)` | Serial specialized command builders. |
-| `MitsubishiSerialProtocolEncoding.Decode(...)` | Serial response decoding. |
-| `MitsubishiSerialProtocolEncoding.IsExpectedFrameComplete(...)` | Serial frame-completion predicate used by the serial transport. |
-| `ResponceExtensions.Fail(...)` | Converts a response to failed state with error metadata. |
-| `ResponceExtensions.ToBaseResponse(...)` | Converts a typed response into a base `Responce`. |
-| `Mixins.SafeClose(...)` | Compatibility socket close helper. |
-
-Custom transport example:
-
-```csharp
-public sealed class AuditedTransport : IMitsubishiTransport
-{
-    private readonly IMitsubishiTransport _inner;
-
-    public AuditedTransport(IMitsubishiTransport inner) => _inner = inner;
-    public bool IsConnected => _inner.IsConnected;
-    public ValueTask ConnectAsync(MitsubishiClientOptions options, CancellationToken cancellationToken = default)
-        => _inner.ConnectAsync(options, cancellationToken);
-    public ValueTask DisconnectAsync(CancellationToken cancellationToken = default)
-        => _inner.DisconnectAsync(cancellationToken);
-    public async ValueTask<byte[]> ExchangeAsync(MitsubishiTransportRequest request, CancellationToken cancellationToken = default)
+using var latest = plc.ObserveWordsLatest("D100", 2, refresh)
+    .Subscribe(reply =>
     {
-        Console.WriteLine(request.Description);
-        return await _inner.ExchangeAsync(request, cancellationToken);
-    }
-    public void Dispose() => _inner.Dispose();
-    public ValueTask DisposeAsync() => _inner.DisposeAsync();
-}
-
-await using var client = new MitsubishiRx.MitsubishiRx(options, new AuditedTransport(new SocketMitsubishiTransport()));
+        if (reply.IsSucceed) Console.WriteLine(string.Join(',', reply.Value!));
+    });
+refresh.OnNext(Unit.Default); // a UI refresh or a configuration-change trigger
 ```
 
----
+`ObserveReactiveTag<T>` and `CreateReactiveTagWritePipeline<T>` use the validated `TagDatabase` metadata. A typed key prevents an accidental value-shape mismatch, while the write pipeline serializes/coalesces desired values.
 
-## Troubleshooting notes
+```csharp
+using IoT.DriverCore.Core;
 
-### Tag name not found
+var temperatureKey = new LogicalTagKey<float>("Temperature");
+using var quality = plc.ObserveReactiveTag(temperatureKey, TimeSpan.FromMilliseconds(250), null)
+    .Subscribe(sample =>
+    {
+        if (sample.Quality == MitsubishiReactiveQuality.Good && sample.Value is float value)
+            Console.WriteLine($"Temperature = {value}");
+    });
+using var setpointWriter = plc.CreateReactiveTagWritePipeline(
+    temperatureKey, MitsubishiReactiveWriteMode.LatestWins, TimeSpan.FromMilliseconds(100));
+using var writes = setpointWriter.Results.Subscribe(result => Console.WriteLine($"{result.Target}: {result.Success}"));
+setpointWriter.Post(22.5f);
+```
 
-If tag-based reads fail, verify:
-- `client.TagDatabase` has been assigned
-- `Name` matches the CSV/configured value
-- the tag’s `Address` is a valid Mitsubishi address string
+Group streams provide the equivalent heartbeat and latest-only forms. A group must exist in the assigned tag database before subscribing.
 
-### Wrong X / Y values
+```csharp
+using ReactiveUI.Primitives;
+using ReactiveUI.Primitives.Signals;
 
-If `X` or `Y` values do not match the PLC documentation:
-- switch `XyNotation` between `Octal` and `Hexadecimal`
-- confirm the expected addressing rule for the installed Ethernet module/path
+using var groupHeartbeats = plc.ObserveTagGroupHeartbeat(
+    "RecipeCommit", TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3), minimumUpdateSpacing: null)
+    .Subscribe(sample => Console.WriteLine($"Heartbeat={sample.IsHeartbeat}, success={sample.Value.IsSucceed}"));
+using var groupRefresh = new Signal<Unit>();
+using var latestGroup = plc.ObserveTagGroupLatest("RecipeCommit", groupRefresh)
+    .Subscribe(reply =>
+    {
+        if (reply.IsSucceed) Console.WriteLine($"Recipe values: {reply.Value!.Values.Count}");
+    });
+groupRefresh.OnNext(Unit.Default);
+```
 
-### ASCII vs binary mismatch
+### Tags and logical tags
 
-If communication succeeds on one endpoint but not another:
-- verify whether the PLC/module is configured for `Binary` or `Ascii`
-- verify frame family (`OneE`, `ThreeE`, `FourE`, `OneC`, `ThreeC`, `FourC`)
-- verify TCP vs UDP vs serial configuration on the PLC/module side
-- for serial, also verify `MitsubishiSerialMessageFormat` (`Format1`, `Format4`, `Format5`) and serial-port settings such as baud rate, parity, stop bits, and handshake
+`MitsubishiTagDatabase.Load`, `FromCsv`, `FromJson`, and `FromYaml` create a database. Assign it to `TagDatabase`, then use `ReadWordsByTagAsync`, `ReadBitsByTagAsync`, `WriteWordsByTagAsync`, `WriteBitsByTagAsync`, random tag methods, and typed tag methods for `Int16`, `UInt16`, `Int32`, `DWord`, `Float`, scaled `Double`, and strings. `ValidateTagDatabase`, `LoadAndValidateTagDatabase`, `PreviewTagDatabaseDiff`, and `ObserveTagDatabaseDiff` / `ObserveTagDatabaseReload` support controlled schema rollout. `ReadTagGroupSnapshotAsync`, `ValidateTagGroupWrite`, and `WriteTagGroupValuesAsync` / `WriteTagGroupSnapshotAsync` operate on defined groups.
 
-### Serial support coverage
+```csharp
+var tags = MitsubishiTagDatabase.FromCsv("Name,Address,DataType\nTemperature,D100,UInt16");
+plc.TagDatabase = tags;
+var temperature = await plc.ReadUInt16ByTagAsync("Temperature", CancellationToken.None);
+if (temperature.IsSucceed) Console.WriteLine(temperature.Value);
+```
 
-Current serial implementation is verified for:
-- reactive SerialPortRx-based transport
-- serial batch word reads through `ReadWordsAsync(address, points)`
-- serial batch word writes through `WriteWordsAsync(address, values)`
-- serial batch bit reads through `ReadBitsAsync(address, points)`
-- serial batch bit writes through `WriteBitsAsync(address, values)`
-- serial random word reads through `RandomReadWordsAsync(addresses)` for `1C`, `3C`, and `4C`
-- serial random word writes through `RandomWriteWordsAsync(values)` for `1C`, `3C`, and `4C`
-- serial block reads through `ReadBlocksAsync(request)` for `1C`, `3C`, and `4C`
-- serial block writes through `WriteBlocksAsync(request)` for `1C`, `3C`, and `4C`
-- serial monitor registration through `RegisterMonitorAsync(addresses)` for `1C`, `3C`, and `4C`
-- serial monitor execution through `ExecuteMonitorAsync()` for `1C`, `3C`, and `4C`
-- serial remote RUN/STOP/PAUSE/LATCH CLEAR/RESET through `RemoteRunAsync(...)`, `RemoteStopAsync()`, `RemotePauseAsync()`, `RemoteLatchClearAsync()`, and `RemoteResetAsync()` for `1C`, `3C`, and `4C`
-- serial type-name read through `ReadTypeNameAsync()` for `1C`, tested `3C` ASCII, and `4C` format 5
-- serial loopback through `LoopbackAsync(data)` for `1C`, tested `3C` ASCII, and `4C` format 5
-- serial memory and extend-unit access through `ReadMemoryAsync(...)` / `WriteMemoryAsync(...)` for `1C`, tested `3C` ASCII, and `4C` format 5
-- raw serial command execution through `ExecuteRawAsync(request)` for `1C`, tested `3C` ASCII, and `4C` format 5
-- `1C`, `3C`, and `4C` frame selection
-- serial ASCII format 1/4 and 4C binary format 5 decode paths
+`CreateLogicalTagClient` composes the shared `ILogicalTagCatalog` and optional SQLite store with the Mitsubishi transport. Use it where tag definitions, persistence, batch reads/writes, and `IObservable` / `IAsyncEnumerable` observation are required.
 
-`1C` random, block, and monitor operations are implemented by composing the verified 1C batch read/write requests. This keeps legacy computer-link paths usable even when the target does not provide native multi-device command forms.
+### Transports and test doubles
 
-### Remote operations do not execute
+Implement `IMitsubishiTransport` only for a custom endpoint. The normal built-in TCP/UDP and serial transports are selected automatically from the configured `TransportKind`. `MitsubishiSimulatorMemory` and `MitsubishiSimulatorTransport` provide deterministic in-process test behavior, including queued responses/faults and stateful memory.
 
-Remote operations are target-dependent. Check:
-- CPU mode and permissions
-- Ethernet module settings
-- remote password/lock state
-- target family support and documented operational constraints
+## Complete public API inventory
 
----
+This is the public type inventory from `src/MitsubishiRx`; the reactive package publishes the same types in its `.Reactive` namespace.
 
-## License
+| Area | Public types / members |
+| --- | --- |
+| Client construction and state | `MitsubishiRx(CpuType, ip, port, timeout)`, `MitsubishiRx(MitsubishiClientOptions, IMitsubishiTransport?, scheduler?)`, `Options`, `TagDatabase`, `Connected`, `ConnectionStates`, `OperationLogs`, `Open`/`OpenAsync`, `Close`/`CloseAsync`, `Dispose`/`DisposeAsync`. `Open*` creates the configured transport session; `Close*` disconnects it without discarding the options. |
+| Raw and direct protocol | Legacy `SendPackage`, `SendPackageSingle`, `SendPackageReliable`; `ExecuteRawAsync(MitsubishiRawCommandRequest, token)`; `ReadWordsAsync`, `WriteWordsAsync`, `ReadBitsAsync`, `WriteBitsAsync`; all direct operation overloads take a device address plus point count/value list and cancellation token. `Read*` returns `Responce<T>`; writes return `Responce`. |
+| Sparse, monitor, and block protocol | `RandomReadWordsAsync(IEnumerable<string>, token)`, `RandomWriteWordsAsync(IEnumerable<KeyValuePair<string, ushort>>, token)`, `RegisterMonitorAsync`, `ExecuteMonitorAsync`, `ReadBlocksAsync(MitsubishiBlockRequest, token)`, `WriteBlocksAsync(MitsubishiBlockRequest, token)`. Random and monitor requests return raw/word results in address order; block responses are raw and must be interpreted in request order. |
+| Diagnostics and controller state | `ReadTypeNameAsync`, `RemoteRunAsync(force, clearMode, token)`, `RemoteStopAsync`, `RemotePauseAsync`, `RemoteLatchClearAsync`, `RemoteResetAsync`, `UnlockAsync(password, token)`, `LockAsync(password, token)`, `ClearErrorAsync`, `LoopbackAsync`, `ReadMemoryAsync(command,address,length,token)`, `WriteMemoryAsync(command,address,values,token)`. The remote and protection family must be protected by an application interlock. |
+| Polling and health | `ObserveWords`, `ObserveBits`, `ObserveWordsHeartbeat`, `ObserveWordsStale`, `ObserveWordsLatest`, `ObserveTagGroup`, `ObserveTagGroupHeartbeat`, `ObserveTagGroupStale`, `ObserveTagGroupLatest`, `SampleDiagnostics`, `ObserveConnectionHealth`. Interval overloads schedule reads; trigger/latest overloads coalesce trigger bursts. Dispose the returned subscription. |
+| Reactive quality and writes | `ObserveReactiveWords`, `ObserveReactiveTag<T>`, `ObserveReactiveTagGroup`, `CreateReactiveWordWritePipeline`, `CreateReactiveTagWritePipeline<T>`. `MitsubishiReactiveValue<T>` carries `Value`, `Quality`, timestamp and response/error context; `MitsubishiReactiveWritePipeline<TPayload>` exposes the write-result stream and is disposable. |
+| Tag read/write methods | `ReadWordsByTagAsync`/`WriteWordsByTagAsync`, `ReadBitsByTagAsync`/`WriteBitsByTagAsync`, random by-tag methods, `Read`/`WriteInt16ByTagAsync`, `UInt16`, `Int32`, `DWord`, `Float`, `ScaledDouble`, `String`, plus metadata-dispatched `ReadTagAsync`/`WriteTagAsync`. Every member resolves the name through `TagDatabase`; typed pairs convert wire words using definition metadata. |
+| Tag database and group methods | `ValidateTagDatabase`, `LoadAndValidateTagDatabase`, `PreviewTagDatabaseDiff`, `ObserveTagDatabaseDiff`, `ObserveTagDatabaseReload`, `ReadTagGroupSnapshotAsync`, `ValidateTagGroupWrite`, `WriteTagGroupValuesAsync`, `WriteTagGroupSnapshotAsync`, `CreateLogicalTagClient`. The validation/preview methods are synchronous configuration checks; observation methods return disposables. |
+| Options, routes, and protocol values | `MitsubishiClientOptions`, `MitsubishiSerialOptions`, `MitsubishiRoute`, `MitsubishiSerialRoute`, `MitsubishiTransportRequest`, `MitsubishiRawCommandRequest`, `MitsubishiBlockRequest`, `MitsubishiCommands`; enums `CpuType`, `MitsubishiFrameType`, `CommunicationDataCode`, `MitsubishiTransportKind`, `MitsubishiSerialMessageFormat`, `XyAddressNotation`, `DeviceNumberFormat`, `DeviceValueKind`, `MitsubishiConnectionState`. They are value/configuration types; set a route/format explicitly rather than relying on a CPU guess. |
+| Address, response, blocks, and logging | `Responce`, `Responce<T>`, `MitsubishiDeviceAddress`, `MitsubishiDeviceMetadata`, `MitsubishiDeviceValue`, `MitsubishiTypeName`, `MitsubishiWordBlock`, `MitsubishiBitBlock`, `MitsubishiOperationLog`. `Responce` owns success/error/timing data; the block/device records describe request payloads and parsed addresses. |
+| Tag schema values | `MitsubishiTagDatabase`, `MitsubishiTagDefinition`, `MitsubishiTagGroupDefinition`, `MitsubishiTagDatabaseDiff`, `MitsubishiTagChange`, `MitsubishiTagGroupChange`, `MitsubishiTagGroupSnapshot`, `MitsubishiTagRolloutPolicy`, `MitsubishiSchemaChangeKind`, `MitsubishiTagValueConverter`. `Load`/`From*`/`To*`/`Save`, `Add`, `TryGet`, `GetRequired`, group equivalents, and `CompareWith` are the database member families. Serialization documents and schema-format selectors are internal implementation details. |
+| Logical-tag and bulk metrics | `MitsubishiLogicalTagRegistration`, `MitsubishiLogicalTagClient`, `MitsubishiLogicalTagBulkReadRequest`, `MitsubishiLogicalTagBulkWriteRequest`, `MitsubishiLogicalTagBulkDirectionMetrics`, `MitsubishiLogicalTagBulkOperationMetrics`. The client follows the shared logical-tag contracts for catalog/store CRUD, single/bulk operations and observation. |
+| Transport and simulation | `IMitsubishiTransport` (`ConnectAsync`, `DisconnectAsync`, `ExchangeAsync`, disposal), `MitsubishiSimulatorTransport`, `MitsubishiSimulatorMemory`, `MitsubishiSimulatorDeviceValue`. The built-in TCP/UDP and serial transports are selected automatically from `MitsubishiClientOptions`; simulator members include request/connect counts, response/fault queues, `Snapshot`, word/bit read/write and `Clear`; use them for deterministic tests. |
+| Generation | `MitsubishiTagAttribute`, `MitsubishiTagClientAttribute`, `MitsubishiTagClientSchemaAttribute`, and the embedded `MitsubishiTagClientGenerator` analyzer define generated typed tag-client surfaces. The generated model exposes `GeneratedMitsubishiTagClient`, `GeneratedMitsubishiTagClientExtensions`, `GroupsClient`, and per-group `TagsClient` accessors; attributes are compile-time schema, not runtime PLC discovery. |
 
-MIT
+## Operational guidance
 
----
+Keep one client per endpoint and dispose it at shutdown. Prefer bounded, contiguous reads; select a scan interval that the PLC, network, and downstream consumer can sustain. Serialize application-level writes and make retries idempotent. Log `OperationLogs` with endpoint, command, result, and correlation information, but never log passwords. Treat tag database changes as versioned configuration: validate and preview the diff before applying it.
 
-**MitsubishiRx** - Empowering Industrial Automation with Reactive Technology ⚡🏭
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| Open or request timeout | Host/port, firewall, selected TCP/UDP path, `Timeout`, and whether the PLC is configured for the selected frame. |
+| Protocol error | 1E/3E/4E or 1C/3C/4C, binary/ASCII, route, monitoring timer, and `XyNotation`. |
+| Serial failures | Port ownership, baud/data/parity/stop/handshake, station/routing values, and serial message format. |
+| Tag lookup/type failure | Validate the database, address, point count, declared type, and string/scaling metadata before reading. |
+| Polling overload | Increase scan interval, group contiguous values, unsubscribe unused streams, and avoid overlapping writes. |
+
+## AI skill
+
+For source-grounded implementation assistance, use [skills/mitsubishi-rx/SKILL.md](../../skills/mitsubishi-rx/SKILL.md). It directs an agent to inspect this README and the current source before proposing protocol, tag, or safety-sensitive code.
+
+<!-- BEGIN GENERATED PUBLIC API -->
+
+## Exhaustive public API reference
+
+This catalogue is generated from the packaged runtime assemblies and their XML documentation. It includes exported public types and their declared public members; inherited members and non-public implementation details are intentionally omitted.
+
+### `MitsubishiRx`
+
+Exported public types: 54; declared public members: 670.
+
+#### `T:IoT.DriverCore.MitsubishiRx.CommunicationDataCode`
+
+```csharp
+public enum IoT.DriverCore.MitsubishiRx.CommunicationDataCode
+```
+Defines the CommunicationDataCode values.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.MitsubishiRx.CommunicationDataCode.Ascii`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.CommunicationDataCode Ascii
+```
+Represents the Ascii option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.CommunicationDataCode.Binary`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.CommunicationDataCode Binary
+```
+Represents the Binary option.
+
+#### `T:IoT.DriverCore.MitsubishiRx.CpuType`
+
+```csharp
+public enum IoT.DriverCore.MitsubishiRx.CpuType
+```
+Defines the CpuType values.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.MitsubishiRx.CpuType.ASeries`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.CpuType ASeries
+```
+Represents the ASeries option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.CpuType.Fx3`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.CpuType Fx3
+```
+Represents the Fx3 option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.CpuType.Fx5`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.CpuType Fx5
+```
+Represents the Fx5 option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.CpuType.IQR`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.CpuType IQR
+```
+Represents the IQR option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.CpuType.LSeries`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.CpuType LSeries
+```
+Represents the LSeries option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.CpuType.None`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.CpuType None
+```
+Represents the None option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.CpuType.QSeries`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.CpuType QSeries
+```
+Represents the QSeries option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.CpuType.QnaSeries`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.CpuType QnaSeries
+```
+Represents the QnaSeries option.
+
+#### `T:IoT.DriverCore.MitsubishiRx.DeviceNumberFormat`
+
+```csharp
+public enum IoT.DriverCore.MitsubishiRx.DeviceNumberFormat
+```
+Defines the DeviceNumberFormat values.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.MitsubishiRx.DeviceNumberFormat.Decimal`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.DeviceNumberFormat Decimal
+```
+Represents the Decimal option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.DeviceNumberFormat.Hexadecimal`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.DeviceNumberFormat Hexadecimal
+```
+Represents the Hexadecimal option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.DeviceNumberFormat.Octal`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.DeviceNumberFormat Octal
+```
+Represents the Octal option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.DeviceNumberFormat.XyVariable`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.DeviceNumberFormat XyVariable
+```
+Represents the XyVariable option.
+
+#### `T:IoT.DriverCore.MitsubishiRx.DeviceValueKind`
+
+```csharp
+public enum IoT.DriverCore.MitsubishiRx.DeviceValueKind
+```
+Defines the DeviceValueKind values.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.MitsubishiRx.DeviceValueKind.Bit`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.DeviceValueKind Bit
+```
+Represents the Bit option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.DeviceValueKind.Word`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.DeviceValueKind Word
+```
+Represents the Word option.
+
+#### `T:IoT.DriverCore.MitsubishiRx.IMitsubishiTransport`
+
+```csharp
+public interface IoT.DriverCore.MitsubishiRx.IMitsubishiTransport
+```
+Provides the IMitsubishiTransport contract.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.IMitsubishiTransport.ConnectAsync(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.ValueTask ConnectAsync(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions options, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ConnectAsync operation.
+
+- Parameter `options`: The options parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ConnectAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.IMitsubishiTransport.DisconnectAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.ValueTask DisconnectAsync(System.Threading.CancellationToken cancellationToken)
+```
+Executes the DisconnectAsync operation.
+
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The DisconnectAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.IMitsubishiTransport.ExchangeAsync(IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.ValueTask<byte[]> ExchangeAsync(IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest request, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ExchangeAsync operation.
+
+- Parameter `request`: The request parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ExchangeAsync operation result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.IMitsubishiTransport.IsConnected`
+
+```csharp
+public bool IsConnected { get; }
+```
+Gets or sets the IsConnected property.
+
+- Value: The `IsConnected` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock
+```
+Provides the MitsubishiBitBlock record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock.#ctor(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress,System.ReadOnlyMemory`1{System.Boolean})`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress Address, System.ReadOnlyMemory<bool> Values)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock`.
+
+- Parameter `Address`: The `Address` value.
+- Parameter `Values`: The `Values` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock.Deconstruct(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress@,System.ReadOnlyMemory`1{System.Boolean}@)`
+
+```csharp
+public void Deconstruct(out IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress Address, out System.ReadOnlyMemory<bool> Values)
+```
+Deconstructs the value into its component values.
+
+- Parameter `Address`: The `Address` value.
+- Parameter `Values`: The `Values` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock,IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock left, IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock,IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock left, IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock.Address`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress Address { get; set; }
+```
+The Address parameter.
+
+- Value: The `Address` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock.Values`
+
+```csharp
+public System.ReadOnlyMemory<bool> Values { get; set; }
+```
+The Values parameter.
+
+- Value: The `Values` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest
+```
+Provides the MitsubishiBlockRequest record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest.#ctor(System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock},System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock})`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest(System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock> WordBlocks, System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock> BitBlocks)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest`.
+
+- Parameter `WordBlocks`: The `WordBlocks` value.
+- Parameter `BitBlocks`: The `BitBlocks` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest.Deconstruct(System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock}@,System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock}@)`
+
+```csharp
+public void Deconstruct(out System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock> WordBlocks, out System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock> BitBlocks)
+```
+Deconstructs the value into its component values.
+
+- Parameter `WordBlocks`: The `WordBlocks` value.
+- Parameter `BitBlocks`: The `BitBlocks` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest,IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest left, IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest,IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest left, IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest.BitBlocks`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock> BitBlocks { get; set; }
+```
+The BitBlocks parameter.
+
+- Value: The `BitBlocks` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest.ResolvedBitBlocks`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiBitBlock> ResolvedBitBlocks { get; }
+```
+Gets or sets the ResolvedBitBlocks property.
+
+- Value: The `ResolvedBitBlocks` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest.ResolvedWordBlocks`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock> ResolvedWordBlocks { get; }
+```
+Gets or sets the ResolvedWordBlocks property.
+
+- Value: The `ResolvedWordBlocks` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest.WordBlocks`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock> WordBlocks { get; set; }
+```
+The WordBlocks parameter.
+
+- Value: The `WordBlocks` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions
+```
+Provides the MitsubishiClientOptions record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.#ctor(System.String,System.Int32,IoT.DriverCore.MitsubishiRx.MitsubishiFrameType,IoT.DriverCore.MitsubishiRx.CommunicationDataCode,IoT.DriverCore.MitsubishiRx.MitsubishiTransportKind,IoT.DriverCore.MitsubishiRx.MitsubishiRoute,System.UInt16,System.Nullable`1{System.TimeSpan},IoT.DriverCore.MitsubishiRx.CpuType,IoT.DriverCore.MitsubishiRx.XyAddressNotation,System.Byte,System.Func`1{System.UInt16},IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions(string Host, int Port, IoT.DriverCore.MitsubishiRx.MitsubishiFrameType FrameType, IoT.DriverCore.MitsubishiRx.CommunicationDataCode DataCode, IoT.DriverCore.MitsubishiRx.MitsubishiTransportKind TransportKind, IoT.DriverCore.MitsubishiRx.MitsubishiRoute Route, ushort MonitoringTimer, System.Nullable<System.TimeSpan> Timeout, IoT.DriverCore.MitsubishiRx.CpuType CpuType, IoT.DriverCore.MitsubishiRx.XyAddressNotation XyNotation, byte LegacyPcNumber, System.Func<ushort> SerialNumberProvider, IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions Serial)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions`.
+
+- Parameter `Host`: The `Host` value.
+- Parameter `Port`: The `Port` value.
+- Parameter `FrameType`: The `FrameType` value.
+- Parameter `DataCode`: The `DataCode` value.
+- Parameter `TransportKind`: The `TransportKind` value.
+- Parameter `Route`: The `Route` value.
+- Parameter `MonitoringTimer`: The `MonitoringTimer` value.
+- Parameter `Timeout`: The `Timeout` value.
+- Parameter `CpuType`: The `CpuType` value.
+- Parameter `XyNotation`: The `XyNotation` value.
+- Parameter `LegacyPcNumber`: The `LegacyPcNumber` value.
+- Parameter `SerialNumberProvider`: The `SerialNumberProvider` value.
+- Parameter `Serial`: The `Serial` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.Deconstruct(System.String@,System.Int32@,IoT.DriverCore.MitsubishiRx.MitsubishiFrameType@,IoT.DriverCore.MitsubishiRx.CommunicationDataCode@,IoT.DriverCore.MitsubishiRx.MitsubishiTransportKind@,IoT.DriverCore.MitsubishiRx.MitsubishiRoute@,System.UInt16@,System.Nullable`1{System.TimeSpan}@,IoT.DriverCore.MitsubishiRx.CpuType@,IoT.DriverCore.MitsubishiRx.XyAddressNotation@,System.Byte@,System.Func`1{System.UInt16}@,IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions@)`
+
+```csharp
+public void Deconstruct(out string Host, out int Port, out IoT.DriverCore.MitsubishiRx.MitsubishiFrameType FrameType, out IoT.DriverCore.MitsubishiRx.CommunicationDataCode DataCode, out IoT.DriverCore.MitsubishiRx.MitsubishiTransportKind TransportKind, out IoT.DriverCore.MitsubishiRx.MitsubishiRoute Route, out ushort MonitoringTimer, out System.Nullable<System.TimeSpan> Timeout, out IoT.DriverCore.MitsubishiRx.CpuType CpuType, out IoT.DriverCore.MitsubishiRx.XyAddressNotation XyNotation, out byte LegacyPcNumber, out System.Func<ushort> SerialNumberProvider, out IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions Serial)
+```
+Deconstructs the value into its component values.
+
+- Parameter `Host`: The `Host` value.
+- Parameter `Port`: The `Port` value.
+- Parameter `FrameType`: The `FrameType` value.
+- Parameter `DataCode`: The `DataCode` value.
+- Parameter `TransportKind`: The `TransportKind` value.
+- Parameter `Route`: The `Route` value.
+- Parameter `MonitoringTimer`: The `MonitoringTimer` value.
+- Parameter `Timeout`: The `Timeout` value.
+- Parameter `CpuType`: The `CpuType` value.
+- Parameter `XyNotation`: The `XyNotation` value.
+- Parameter `LegacyPcNumber`: The `LegacyPcNumber` value.
+- Parameter `SerialNumberProvider`: The `SerialNumberProvider` value.
+- Parameter `Serial`: The `Serial` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.GetNextSerialNumber`
+
+```csharp
+public ushort GetNextSerialNumber()
+```
+Executes the GetNextSerialNumber operation.
+
+- Returns: The GetNextSerialNumber operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions,IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions left, IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions,IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions left, IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.CpuType`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.CpuType CpuType { get; set; }
+```
+The CpuType parameter.
+
+- Value: The `CpuType` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.DataCode`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.CommunicationDataCode DataCode { get; set; }
+```
+The DataCode parameter.
+
+- Value: The `DataCode` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.FrameType`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiFrameType FrameType { get; set; }
+```
+The FrameType parameter.
+
+- Value: The `FrameType` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.Host`
+
+```csharp
+public string Host { get; set; }
+```
+The Host parameter.
+
+- Value: The `Host` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.LegacyPcNumber`
+
+```csharp
+public byte LegacyPcNumber { get; set; }
+```
+The LegacyPcNumber parameter.
+
+- Value: The `LegacyPcNumber` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.MonitoringTimer`
+
+```csharp
+public ushort MonitoringTimer { get; set; }
+```
+The MonitoringTimer parameter.
+
+- Value: The `MonitoringTimer` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.Port`
+
+```csharp
+public int Port { get; set; }
+```
+The Port parameter.
+
+- Value: The `Port` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.ResolvedRoute`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiRoute ResolvedRoute { get; }
+```
+Gets or sets the ResolvedRoute property.
+
+- Value: The `ResolvedRoute` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.ResolvedSerial`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions ResolvedSerial { get; }
+```
+Gets or sets the ResolvedSerial property.
+
+- Value: The `ResolvedSerial` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.ResolvedTimeout`
+
+```csharp
+public System.TimeSpan ResolvedTimeout { get; }
+```
+Gets or sets the ResolvedTimeout property.
+
+- Value: The `ResolvedTimeout` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.Route`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiRoute Route { get; set; }
+```
+The Route parameter.
+
+- Value: The `Route` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.Serial`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions Serial { get; set; }
+```
+The Serial parameter.
+
+- Value: The `Serial` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.SerialNumberProvider`
+
+```csharp
+public System.Func<ushort> SerialNumberProvider { get; set; }
+```
+The SerialNumberProvider parameter.
+
+- Value: The `SerialNumberProvider` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.Timeout`
+
+```csharp
+public System.Nullable<System.TimeSpan> Timeout { get; set; }
+```
+The Timeout parameter.
+
+- Value: The `Timeout` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.TransportKind`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTransportKind TransportKind { get; set; }
+```
+The TransportKind parameter.
+
+- Value: The `TransportKind` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions.XyNotation`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.XyAddressNotation XyNotation { get; set; }
+```
+The XYNotation parameter.
+
+- Value: The `XyNotation` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiCommands`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiCommands
+```
+Provides the MitsubishiCommands type.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.BlockRead`
+
+```csharp
+public static ushort BlockRead
+```
+Stores the BlockRead field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.BlockWrite`
+
+```csharp
+public static ushort BlockWrite
+```
+Stores the BlockWrite field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.ClearError`
+
+```csharp
+public static ushort ClearError
+```
+Stores the ClearError field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.DeviceRead`
+
+```csharp
+public static ushort DeviceRead
+```
+Stores the DeviceRead field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.DeviceWrite`
+
+```csharp
+public static ushort DeviceWrite
+```
+Stores the DeviceWrite field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.EntryMonitorDevice`
+
+```csharp
+public static ushort EntryMonitorDevice
+```
+Stores the EntryMonitorDevice field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.ExecuteMonitor`
+
+```csharp
+public static ushort ExecuteMonitor
+```
+Stores the ExecuteMonitor field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.ExtendUnitRead`
+
+```csharp
+public static ushort ExtendUnitRead
+```
+Stores the ExtendUnitRead field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.ExtendUnitWrite`
+
+```csharp
+public static ushort ExtendUnitWrite
+```
+Stores the ExtendUnitWrite field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.Lock`
+
+```csharp
+public static ushort Lock
+```
+Stores the Lock field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.LoopbackTest`
+
+```csharp
+public static ushort LoopbackTest
+```
+Stores the LoopbackTest field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.MemoryRead`
+
+```csharp
+public static ushort MemoryRead
+```
+Stores the MemoryRead field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.MemoryWrite`
+
+```csharp
+public static ushort MemoryWrite
+```
+Stores the MemoryWrite field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.RandomRead`
+
+```csharp
+public static ushort RandomRead
+```
+Stores the RandomRead field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.RandomWrite`
+
+```csharp
+public static ushort RandomWrite
+```
+Stores the RandomWrite field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.ReadTypeName`
+
+```csharp
+public static ushort ReadTypeName
+```
+Stores the ReadTypeName field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.RemoteLatchClear`
+
+```csharp
+public static ushort RemoteLatchClear
+```
+Stores the RemoteLatchClear field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.RemotePause`
+
+```csharp
+public static ushort RemotePause
+```
+Stores the RemotePause field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.RemoteReset`
+
+```csharp
+public static ushort RemoteReset
+```
+Stores the RemoteReset field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.RemoteRun`
+
+```csharp
+public static ushort RemoteRun
+```
+Stores the RemoteRun field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.RemoteStop`
+
+```csharp
+public static ushort RemoteStop
+```
+Stores the RemoteStop field.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiCommands.Unlock`
+
+```csharp
+public static ushort Unlock
+```
+Stores the Unlock field.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState`
+
+```csharp
+public enum IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState
+```
+Defines the MitsubishiConnectionState values.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState.Connected`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState Connected
+```
+Represents the Connected option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState.Connecting`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState Connecting
+```
+Represents the Connecting option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState.Disconnected`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState Disconnected
+```
+Represents the Disconnected option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState.Faulted`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState Faulted
+```
+Represents the Faulted option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState.Reconnecting`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState Reconnecting
+```
+Represents the Reconnecting option.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress
+```
+Provides the MitsubishiDeviceAddress record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress.#ctor(System.String,System.Int32,IoT.DriverCore.MitsubishiRx.XyAddressNotation,System.String)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress(string Symbol, int Number, IoT.DriverCore.MitsubishiRx.XyAddressNotation Notation, string Original)
+```
+Provides the MitsubishiDeviceAddress record.
+
+- Parameter `Symbol`: The Symbol parameter.
+- Parameter `Number`: The Number parameter.
+- Parameter `Notation`: The Notation parameter.
+- Parameter `Original`: The Original parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress.Deconstruct(System.String@,System.Int32@,IoT.DriverCore.MitsubishiRx.XyAddressNotation@,System.String@)`
+
+```csharp
+public void Deconstruct(out string Symbol, out int Number, out IoT.DriverCore.MitsubishiRx.XyAddressNotation Notation, out string Original)
+```
+Deconstructs the value into its component values.
+
+- Parameter `Symbol`: The `Symbol` value.
+- Parameter `Number`: The `Number` value.
+- Parameter `Notation`: The `Notation` value.
+- Parameter `Original`: The `Original` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress.Parse(System.String,IoT.DriverCore.MitsubishiRx.XyAddressNotation)`
+
+```csharp
+public static IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress Parse(string value, IoT.DriverCore.MitsubishiRx.XyAddressNotation addressNotation)
+```
+Executes the Parse operation.
+
+- Parameter `value`: The value parameter.
+- Parameter `addressNotation`: The addressNotation parameter.
+- Returns: The Parse operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress,IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress left, IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress,IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress left, IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress.Descriptor`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata Descriptor { get; }
+```
+Gets or sets the Descriptor property.
+
+- Value: The `Descriptor` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress.Metadata`
+
+```csharp
+public System.Collections.Generic.IReadOnlyDictionary<string, IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata> Metadata { get; }
+```
+Gets or sets the Metadata property.
+
+- Value: The `Metadata` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress.Notation`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.XyAddressNotation Notation { get; set; }
+```
+The Notation parameter.
+
+- Value: The `Notation` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress.Number`
+
+```csharp
+public int Number { get; set; }
+```
+The Number parameter.
+
+- Value: The `Number` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress.Original`
+
+```csharp
+public string Original { get; set; }
+```
+The Original parameter.
+
+- Value: The `Original` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress.Symbol`
+
+```csharp
+public string Symbol { get; set; }
+```
+The Symbol parameter.
+
+- Value: The `Symbol` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata
+```
+Provides the MitsubishiDeviceMetadata record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata.#ctor(System.String,System.UInt16,System.UInt16,IoT.DriverCore.MitsubishiRx.DeviceValueKind,IoT.DriverCore.MitsubishiRx.DeviceNumberFormat)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata(string Symbol, ushort BinaryCode, ushort AsciiCode, IoT.DriverCore.MitsubishiRx.DeviceValueKind Kind, IoT.DriverCore.MitsubishiRx.DeviceNumberFormat NumberFormat)
+```
+Provides the MitsubishiDeviceMetadata record.
+
+- Parameter `Symbol`: The Symbol parameter.
+- Parameter `BinaryCode`: The BinaryCode parameter.
+- Parameter `AsciiCode`: The AsciiCode parameter.
+- Parameter `Kind`: The Kind parameter.
+- Parameter `NumberFormat`: The NumberFormat parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata.Deconstruct(System.String@,System.UInt16@,System.UInt16@,IoT.DriverCore.MitsubishiRx.DeviceValueKind@,IoT.DriverCore.MitsubishiRx.DeviceNumberFormat@)`
+
+```csharp
+public void Deconstruct(out string Symbol, out ushort BinaryCode, out ushort AsciiCode, out IoT.DriverCore.MitsubishiRx.DeviceValueKind Kind, out IoT.DriverCore.MitsubishiRx.DeviceNumberFormat NumberFormat)
+```
+Deconstructs the value into its component values.
+
+- Parameter `Symbol`: The `Symbol` value.
+- Parameter `BinaryCode`: The `BinaryCode` value.
+- Parameter `AsciiCode`: The `AsciiCode` value.
+- Parameter `Kind`: The `Kind` value.
+- Parameter `NumberFormat`: The `NumberFormat` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata.GetRadix(IoT.DriverCore.MitsubishiRx.XyAddressNotation)`
+
+```csharp
+public int GetRadix(IoT.DriverCore.MitsubishiRx.XyAddressNotation addressNotation)
+```
+Executes the GetRadix operation.
+
+- Parameter `addressNotation`: The addressNotation parameter.
+- Returns: The GetRadix operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata,IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata left, IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata,IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata left, IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata.AsciiCode`
+
+```csharp
+public ushort AsciiCode { get; set; }
+```
+The AsciiCode parameter.
+
+- Value: The `AsciiCode` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata.BinaryCode`
+
+```csharp
+public ushort BinaryCode { get; set; }
+```
+The BinaryCode parameter.
+
+- Value: The `BinaryCode` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata.Kind`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.DeviceValueKind Kind { get; set; }
+```
+The Kind parameter.
+
+- Value: The `Kind` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata.NumberFormat`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.DeviceNumberFormat NumberFormat { get; set; }
+```
+The NumberFormat parameter.
+
+- Value: The `NumberFormat` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceMetadata.Symbol`
+
+```csharp
+public string Symbol { get; set; }
+```
+The Symbol parameter.
+
+- Value: The `Symbol` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue
+```
+Provides the MitsubishiDeviceValue record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue.#ctor(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress,System.UInt16)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress Address, ushort Value)
+```
+Provides the MitsubishiDeviceValue record.
+
+- Parameter `Address`: The Address parameter.
+- Parameter `Value`: The Value parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue.Deconstruct(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress@,System.UInt16@)`
+
+```csharp
+public void Deconstruct(out IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress Address, out ushort Value)
+```
+Deconstructs the value into its component values.
+
+- Parameter `Address`: The `Address` value.
+- Parameter `Value`: The `Value` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue,IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue left, IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue,IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue left, IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue.Address`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress Address { get; set; }
+```
+The Address parameter.
+
+- Value: The `Address` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiDeviceValue.Value`
+
+```csharp
+public ushort Value { get; set; }
+```
+The Value parameter.
+
+- Value: The `Value` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiFrameType`
+
+```csharp
+public enum IoT.DriverCore.MitsubishiRx.MitsubishiFrameType
+```
+Defines the MitsubishiFrameType values.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiFrameType.FourC`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiFrameType FourC
+```
+Represents the FourC option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiFrameType.FourE`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiFrameType FourE
+```
+Represents the FourE option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiFrameType.OneC`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiFrameType OneC
+```
+Represents the OneC option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiFrameType.OneE`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiFrameType OneE
+```
+Represents the OneE option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiFrameType.ThreeC`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiFrameType ThreeC
+```
+Represents the ThreeC option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiFrameType.ThreeE`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiFrameType ThreeE
+```
+Represents the ThreeE option.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkDirectionMetrics`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkDirectionMetrics
+```
+Provides an immutable deterministic snapshot for one bulk transfer direction.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkDirectionMetrics.#ctor(System.Int64,System.Int64,System.Int64,System.Int64)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkDirectionMetrics(long planCount, long itemCount, long rangeCount, long protocolCallCount)
+```
+Initializes a new instance of the `T:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkDirectionMetrics` class.
+
+- Parameter `planCount`: The number of eligible plans created.
+- Parameter `itemCount`: The number of eligible word operations planned.
+- Parameter `rangeCount`: The number of contiguous ranges produced by the planner.
+- Parameter `protocolCallCount`: The number of grouped protocol calls issued.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkDirectionMetrics.ItemCount`
+
+```csharp
+public long ItemCount { get; }
+```
+Gets the number of eligible word operations planned.
+
+- Value: The `ItemCount` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkDirectionMetrics.PlanCount`
+
+```csharp
+public long PlanCount { get; }
+```
+Gets the number of eligible plans created.
+
+- Value: The `PlanCount` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkDirectionMetrics.ProtocolCallCount`
+
+```csharp
+public long ProtocolCallCount { get; }
+```
+Gets the number of grouped protocol calls issued.
+
+- Value: The `ProtocolCallCount` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkDirectionMetrics.RangeCount`
+
+```csharp
+public long RangeCount { get; }
+```
+Gets the number of contiguous ranges produced by the planner.
+
+- Value: The `RangeCount` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkOperationMetrics`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkOperationMetrics
+```
+Provides immutable deterministic snapshots of logical-tag bulk planning and protocol dispatch activity.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkOperationMetrics.#ctor(IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkDirectionMetrics,IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkDirectionMetrics)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkOperationMetrics(IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkDirectionMetrics read, IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkDirectionMetrics write)
+```
+Initializes a new instance of the `T:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkOperationMetrics` class.
+
+- Parameter `read`: The read planning and dispatch snapshot.
+- Parameter `write`: The write planning and dispatch snapshot.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkOperationMetrics.Read`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkDirectionMetrics Read { get; }
+```
+Gets the read planning and dispatch snapshot.
+
+- Value: The `Read` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkOperationMetrics.Write`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkDirectionMetrics Write { get; }
+```
+Gets the write planning and dispatch snapshot.
+
+- Value: The `Write` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient
+```
+Composes common logical-tag operations with Mitsubishi protocol transports.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.#ctor(IoT.DriverCore.MitsubishiRx.MitsubishiRx,IoT.DriverCore.Core.ILogicalTagCatalog,System.Nullable`1{System.TimeSpan},IoT.DriverCore.Core.LogicalTagSqliteStore)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient(IoT.DriverCore.MitsubishiRx.MitsubishiRx owner, IoT.DriverCore.Core.ILogicalTagCatalog catalog, System.Nullable<System.TimeSpan> defaultScanInterval, IoT.DriverCore.Core.LogicalTagSqliteStore store)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient`.
+
+- Parameter `owner`: The `owner` value.
+- Parameter `catalog`: The `catalog` value.
+- Parameter `defaultScanInterval`: The `defaultScanInterval` value.
+- Parameter `store`: The `store` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.#ctor(IoT.DriverCore.MitsubishiRx.MitsubishiRx,IoT.DriverCore.Core.ILogicalTagCatalog,System.Nullable`1{System.TimeSpan},IoT.DriverCore.Core.LogicalTagSqliteStore,System.TimeProvider)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient(IoT.DriverCore.MitsubishiRx.MitsubishiRx owner, IoT.DriverCore.Core.ILogicalTagCatalog catalog, System.Nullable<System.TimeSpan> defaultScanInterval, IoT.DriverCore.Core.LogicalTagSqliteStore store, System.TimeProvider timeProvider)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient`.
+
+- Parameter `owner`: The `owner` value.
+- Parameter `catalog`: The `catalog` value.
+- Parameter `defaultScanInterval`: The `defaultScanInterval` value.
+- Parameter `store`: The `store` value.
+- Parameter `timeProvider`: The `timeProvider` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.CreateTag(IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration)`
+
+```csharp
+public IoT.DriverCore.Core.LogicalTag CreateTag(IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration registration)
+```
+Creates and registers a logical Mitsubishi tag.
+
+- Parameter `registration`: The logical tag registration.
+- Returns: The registered immutable tag.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.DeleteGroupAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<bool> DeleteGroupAsync(string name, System.Threading.CancellationToken cancellationToken)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `name`: The `name` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<bool>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.DeleteTagAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<bool> DeleteTagAsync(string name, System.Threading.CancellationToken cancellationToken)
+```
+Deletes a persisted tag from the configured SQLite store and catalog.
+
+- Parameter `name`: The logical name.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: when the persisted tag existed.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.Dispose`
+
+```csharp
+public void Dispose()
+```
+Inherits XML documentation from its implemented or overridden member.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.EditTagAsync(IoT.DriverCore.Core.LogicalTag,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<bool> EditTagAsync(IoT.DriverCore.Core.LogicalTag tag, System.Threading.CancellationToken cancellationToken)
+```
+Edits a persisted tag in the configured SQLite store.
+
+- Parameter `tag`: The replacement tag.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: when the persisted tag existed.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.ExportCsvAsync(System.IO.TextWriter,System.Char,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task ExportCsvAsync(System.IO.TextWriter writer, char delimiter, System.Threading.CancellationToken cancellationToken)
+```
+Exports the current catalog using the shared RFC 4180 CSV format.
+
+- Parameter `writer`: The CSV writer.
+- Parameter `delimiter`: The field delimiter.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: A task that completes when the catalog is written.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.GetGroupAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.Core.LogicalTagGroup> GetGroupAsync(string name, System.Threading.CancellationToken cancellationToken)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `name`: The `name` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.Core.LogicalTagGroup>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.GetTagAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.Core.LogicalTag> GetTagAsync(string name, System.Threading.CancellationToken cancellationToken)
+```
+Gets a persisted tag from the configured SQLite store.
+
+- Parameter `name`: The logical name.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: The persisted tag, if found.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.ImportCsvAsync(System.IO.TextReader,System.Char,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> ImportCsvAsync(System.IO.TextReader reader, char delimiter, System.Threading.CancellationToken cancellationToken)
+```
+Imports the shared RFC 4180 CSV format and registers every tag.
+
+- Parameter `reader`: The CSV reader.
+- Parameter `delimiter`: The field delimiter.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: The imported tags.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.InitializeStoreAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task InitializeStoreAsync(System.Threading.CancellationToken cancellationToken)
+```
+Initializes the configured common SQLite store.
+
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: A task that completes when the schema exists.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.ListGroupsAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTagGroup>> ListGroupsAsync(System.Threading.CancellationToken cancellationToken)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTagGroup>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.ListTagsAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> ListTagsAsync(System.Threading.CancellationToken cancellationToken)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.LoadFromSqliteAsync(IoT.DriverCore.Core.LogicalTagSqliteStore,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> LoadFromSqliteAsync(IoT.DriverCore.Core.LogicalTagSqliteStore store, System.Threading.CancellationToken cancellationToken)
+```
+Loads and registers all tags from the common SQLite store.
+
+- Parameter `store`: The initialized or uninitialized store.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: The loaded tags.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.LoadTagsAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> LoadTagsAsync(System.Threading.CancellationToken cancellationToken)
+```
+Loads the configured common SQLite store into this client.
+
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: The loaded tags.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.Observe(System.String)`
+
+```csharp
+public System.IObservable<IoT.DriverCore.Core.LogicalTagValue> Observe(string tagName)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `tagName`: The `tagName` value.
+- Returns: A `System.IObservable<IoT.DriverCore.Core.LogicalTagValue>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.ObserveAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Collections.Generic.IAsyncEnumerable<IoT.DriverCore.Core.LogicalTagValue> ObserveAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `tagName`: The `tagName` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Collections.Generic.IAsyncEnumerable<IoT.DriverCore.Core.LogicalTagValue>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.ObserveAsync``1(IoT.DriverCore.Core.LogicalTagKey`1{``0},System.Threading.CancellationToken)`
+
+```csharp
+public System.Collections.Generic.IAsyncEnumerable<T> ObserveAsync<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `ObserveAsync` operation.
+
+- Parameter `tag`: The `tag` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Collections.Generic.IAsyncEnumerable<T>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.ObserveMany(System.Collections.Generic.IReadOnlyCollection`1{System.String})`
+
+```csharp
+public System.IObservable<IoT.DriverCore.Core.LogicalTagValue> ObserveMany(System.Collections.Generic.IReadOnlyCollection<string> tagNames)
+```
+Executes the `ObserveMany` operation.
+
+- Parameter `tagNames`: The `tagNames` value.
+- Returns: A `System.IObservable<IoT.DriverCore.Core.LogicalTagValue>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.ObserveManyAsync(System.Collections.Generic.IReadOnlyCollection`1{System.String},System.Threading.CancellationToken)`
+
+```csharp
+public System.Collections.Generic.IAsyncEnumerable<IoT.DriverCore.Core.LogicalTagValue> ObserveManyAsync(System.Collections.Generic.IReadOnlyCollection<string> tagNames, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `ObserveManyAsync` operation.
+
+- Parameter `tagNames`: The `tagNames` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Collections.Generic.IAsyncEnumerable<IoT.DriverCore.Core.LogicalTagValue>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.Observe``1(IoT.DriverCore.Core.LogicalTagKey`1{``0})`
+
+```csharp
+public System.IObservable<T> Observe<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag)
+```
+Executes the `Observe` operation.
+
+- Parameter `tag`: The `tag` value.
+- Returns: A `System.IObservable<T>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.ReadAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>> ReadAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `tagName`: The `tagName` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.ReadAsync``1(IoT.DriverCore.Core.LogicalTagKey`1{``0},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<T>> ReadAsync<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `ReadAsync` operation.
+
+- Parameter `tag`: The `tag` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<T>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.ReadManyAsync(System.Collections.Generic.IReadOnlyCollection`1{System.String},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>> ReadManyAsync(System.Collections.Generic.IReadOnlyCollection<string> tagNames, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `ReadManyAsync` operation.
+
+- Parameter `tagNames`: The `tagNames` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.Register(IoT.DriverCore.Core.LogicalTag)`
+
+```csharp
+public void Register(IoT.DriverCore.Core.LogicalTag tag)
+```
+Compatibility alias for `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.RegisterTag(IoT.DriverCore.Core.LogicalTag)` .
+
+- Parameter `tag`: The tag to register.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.RegisterRange(System.Collections.Generic.IEnumerable`1{IoT.DriverCore.Core.LogicalTag})`
+
+```csharp
+public void RegisterRange(System.Collections.Generic.IEnumerable<IoT.DriverCore.Core.LogicalTag> tags)
+```
+Executes the `RegisterRange` operation.
+
+- Parameter `tags`: The `tags` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.RegisterTag(IoT.DriverCore.Core.LogicalTag)`
+
+```csharp
+public void RegisterTag(IoT.DriverCore.Core.LogicalTag tag)
+```
+Adds or replaces a logical tag and makes it available to Mitsubishi typed APIs.
+
+- Parameter `tag`: The tag to register.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.RemoveTag(System.String)`
+
+```csharp
+public bool RemoveTag(string name)
+```
+Removes a tag from the common catalog.
+
+- Parameter `name`: The logical name.
+- Returns: when the tag existed.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.UpsertGroupAsync(IoT.DriverCore.Core.LogicalTagGroup,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task UpsertGroupAsync(IoT.DriverCore.Core.LogicalTagGroup group, System.Threading.CancellationToken cancellationToken)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `group`: The `group` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.UpsertTagAsync(IoT.DriverCore.Core.LogicalTag,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task UpsertTagAsync(IoT.DriverCore.Core.LogicalTag tag, System.Threading.CancellationToken cancellationToken)
+```
+Inserts or replaces a persisted tag in the configured SQLite store.
+
+- Parameter `tag`: The tag to persist.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: A task that completes when the tag is persisted.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.WriteAsync(IoT.DriverCore.Core.LogicalTagValue,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>> WriteAsync(IoT.DriverCore.Core.LogicalTagValue value, System.Threading.CancellationToken cancellationToken)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `value`: The `value` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.WriteAsync``1(System.String,``0,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<T>> WriteAsync<T>(string tagName, T value, System.Threading.CancellationToken cancellationToken)
+```
+Writes one typed logical tag.
+
+- Parameter `tagName`: The logical name.
+- Parameter `value`: The value to write.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: The typed operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.WriteManyAsync(System.Collections.Generic.IReadOnlyCollection`1{IoT.DriverCore.Core.LogicalTagValue},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>> WriteManyAsync(System.Collections.Generic.IReadOnlyCollection<IoT.DriverCore.Core.LogicalTagValue> values, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `WriteManyAsync` operation.
+
+- Parameter `values`: The `values` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>>` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.BulkOperationMetrics`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagBulkOperationMetrics BulkOperationMetrics { get; }
+```
+Gets an immutable snapshot of deterministic grouped bulk operation counts.
+
+- Value: The `BulkOperationMetrics` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient.Catalog`
+
+```csharp
+public IoT.DriverCore.Core.ILogicalTagCatalog Catalog { get; }
+```
+Gets the shared catalog used for registrations and persistence.
+
+- Value: The `Catalog` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration
+```
+Describes a logical Mitsubishi tag to create and register.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.#ctor(System.String,System.String,System.String,System.String,System.String,System.Collections.Generic.IReadOnlyDictionary`2{System.String,System.String},IoT.DriverCore.Core.LogicalTagAccessMode,System.Nullable`1{System.TimeSpan})`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration(string Name, string Address, string DataType, string GroupName, string Description, System.Collections.Generic.IReadOnlyDictionary<string, string> Metadata, IoT.DriverCore.Core.LogicalTagAccessMode AccessMode, System.Nullable<System.TimeSpan> ScanInterval)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration`.
+
+- Parameter `Name`: The `Name` value.
+- Parameter `Address`: The `Address` value.
+- Parameter `DataType`: The `DataType` value.
+- Parameter `GroupName`: The `GroupName` value.
+- Parameter `Description`: The `Description` value.
+- Parameter `Metadata`: The `Metadata` value.
+- Parameter `AccessMode`: The `AccessMode` value.
+- Parameter `ScanInterval`: The `ScanInterval` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.Deconstruct(System.String@,System.String@,System.String@,System.String@,System.String@,System.Collections.Generic.IReadOnlyDictionary`2{System.String,System.String}@,IoT.DriverCore.Core.LogicalTagAccessMode@,System.Nullable`1{System.TimeSpan}@)`
+
+```csharp
+public void Deconstruct(out string Name, out string Address, out string DataType, out string GroupName, out string Description, out System.Collections.Generic.IReadOnlyDictionary<string, string> Metadata, out IoT.DriverCore.Core.LogicalTagAccessMode AccessMode, out System.Nullable<System.TimeSpan> ScanInterval)
+```
+Deconstructs the value into its component values.
+
+- Parameter `Name`: The `Name` value.
+- Parameter `Address`: The `Address` value.
+- Parameter `DataType`: The `DataType` value.
+- Parameter `GroupName`: The `GroupName` value.
+- Parameter `Description`: The `Description` value.
+- Parameter `Metadata`: The `Metadata` value.
+- Parameter `AccessMode`: The `AccessMode` value.
+- Parameter `ScanInterval`: The `ScanInterval` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.ToLogicalTag`
+
+```csharp
+public IoT.DriverCore.Core.LogicalTag ToLogicalTag()
+```
+Creates the common immutable tag model.
+
+- Returns: The common logical tag.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration,IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration left, IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration,IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration left, IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.AccessMode`
+
+```csharp
+public IoT.DriverCore.Core.LogicalTagAccessMode AccessMode { get; set; }
+```
+The tag access mode.
+
+- Value: The `AccessMode` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.Address`
+
+```csharp
+public string Address { get; set; }
+```
+The Mitsubishi device address.
+
+- Value: The `Address` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.DataType`
+
+```csharp
+public string DataType { get; set; }
+```
+The declared data type.
+
+- Value: The `DataType` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.Description`
+
+```csharp
+public string Description { get; set; }
+```
+The optional description.
+
+- Value: The `Description` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.GroupName`
+
+```csharp
+public string GroupName { get; set; }
+```
+The optional primary group.
+
+- Value: The `GroupName` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.Metadata`
+
+```csharp
+public System.Collections.Generic.IReadOnlyDictionary<string, string> Metadata { get; set; }
+```
+The driver-specific metadata.
+
+- Value: The `Metadata` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.Name`
+
+```csharp
+public string Name { get; set; }
+```
+The logical tag name.
+
+- Value: The `Name` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagRegistration.ScanInterval`
+
+```csharp
+public System.Nullable<System.TimeSpan> ScanInterval { get; set; }
+```
+The optional scan interval.
+
+- Value: The `ScanInterval` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog
+```
+Provides the MitsubishiOperationLog record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog.#ctor(System.DateTimeOffset,IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState,System.String,System.Boolean,System.ReadOnlyMemory`1{System.Byte},System.ReadOnlyMemory`1{System.Byte},System.Exception)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog(System.DateTimeOffset TimestampUtc, IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState State, string Description, bool Success, System.ReadOnlyMemory<byte> RequestPayload, System.ReadOnlyMemory<byte> ResponsePayload, System.Exception Exception)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog`.
+
+- Parameter `TimestampUtc`: The `TimestampUtc` value.
+- Parameter `State`: The `State` value.
+- Parameter `Description`: The `Description` value.
+- Parameter `Success`: The `Success` value.
+- Parameter `RequestPayload`: The `RequestPayload` value.
+- Parameter `ResponsePayload`: The `ResponsePayload` value.
+- Parameter `Exception`: The `Exception` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog.Deconstruct(System.DateTimeOffset@,IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState@,System.String@,System.Boolean@,System.ReadOnlyMemory`1{System.Byte}@,System.ReadOnlyMemory`1{System.Byte}@,System.Exception@)`
+
+```csharp
+public void Deconstruct(out System.DateTimeOffset TimestampUtc, out IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState State, out string Description, out bool Success, out System.ReadOnlyMemory<byte> RequestPayload, out System.ReadOnlyMemory<byte> ResponsePayload, out System.Exception Exception)
+```
+Deconstructs the value into its component values.
+
+- Parameter `TimestampUtc`: The `TimestampUtc` value.
+- Parameter `State`: The `State` value.
+- Parameter `Description`: The `Description` value.
+- Parameter `Success`: The `Success` value.
+- Parameter `RequestPayload`: The `RequestPayload` value.
+- Parameter `ResponsePayload`: The `ResponsePayload` value.
+- Parameter `Exception`: The `Exception` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog,IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog left, IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog,IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog left, IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog.Description`
+
+```csharp
+public string Description { get; set; }
+```
+The Description parameter.
+
+- Value: The `Description` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog.Exception`
+
+```csharp
+public System.Exception Exception { get; set; }
+```
+The Exception parameter.
+
+- Value: The `Exception` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog.RequestPayload`
+
+```csharp
+public System.ReadOnlyMemory<byte> RequestPayload { get; set; }
+```
+The RequestPayload parameter.
+
+- Value: The `RequestPayload` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog.ResponsePayload`
+
+```csharp
+public System.ReadOnlyMemory<byte> ResponsePayload { get; set; }
+```
+The ResponsePayload parameter.
+
+- Value: The `ResponsePayload` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog.State`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState State { get; set; }
+```
+The State parameter.
+
+- Value: The `State` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog.Success`
+
+```csharp
+public bool Success { get; set; }
+```
+The Success parameter.
+
+- Value: The `Success` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog.TimestampUtc`
+
+```csharp
+public System.DateTimeOffset TimestampUtc { get; set; }
+```
+The TimestampUtc parameter.
+
+- Value: The `TimestampUtc` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest
+```
+Provides the MitsubishiRawCommandRequest record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest.#ctor(System.UInt16,System.UInt16,System.Collections.Generic.IReadOnlyList`1{System.Byte},System.String)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest(ushort Command, ushort Subcommand, System.Collections.Generic.IReadOnlyList<byte> Body, string Description)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest`.
+
+- Parameter `Command`: The `Command` value.
+- Parameter `Subcommand`: The `Subcommand` value.
+- Parameter `Body`: The `Body` value.
+- Parameter `Description`: The `Description` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest.Deconstruct(System.UInt16@,System.UInt16@,System.Collections.Generic.IReadOnlyList`1{System.Byte}@,System.String@)`
+
+```csharp
+public void Deconstruct(out ushort Command, out ushort Subcommand, out System.Collections.Generic.IReadOnlyList<byte> Body, out string Description)
+```
+Deconstructs the value into its component values.
+
+- Parameter `Command`: The `Command` value.
+- Parameter `Subcommand`: The `Subcommand` value.
+- Parameter `Body`: The `Body` value.
+- Parameter `Description`: The `Description` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest,IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest left, IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest,IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest left, IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest.Body`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<byte> Body { get; set; }
+```
+The Body parameter.
+
+- Value: The `Body` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest.Command`
+
+```csharp
+public ushort Command { get; set; }
+```
+The Command parameter.
+
+- Value: The `Command` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest.Description`
+
+```csharp
+public string Description { get; set; }
+```
+The Description parameter.
+
+- Value: The `Description` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest.ResolvedBody`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<byte> ResolvedBody { get; }
+```
+Gets or sets the ResolvedBody property.
+
+- Value: The `ResolvedBody` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest.Subcommand`
+
+```csharp
+public ushort Subcommand { get; set; }
+```
+The Subcommand parameter.
+
+- Value: The `Subcommand` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality`
+
+```csharp
+public enum IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality
+```
+Defines the MitsubishiReactiveQuality values.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality.Bad`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality Bad
+```
+Represents the Bad option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality.Error`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality Error
+```
+Represents the Error option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality.Good`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality Good
+```
+Represents the Good option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality.Heartbeat`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality Heartbeat
+```
+Represents the Heartbeat option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality.Stale`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality Stale
+```
+Represents the Stale option.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue
+```
+Provides the MitsubishiReactiveValue type.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue.FromResponse``1(IoT.DriverCore.MitsubishiRx.Responce`1{``0},System.DateTimeOffset,System.String)`
+
+```csharp
+public static IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<T> FromResponse<T>(IoT.DriverCore.MitsubishiRx.Responce<T> response, System.DateTimeOffset timestampUtc, string source)
+```
+Executes the `FromResponse` operation.
+
+- Parameter `response`: The `response` value.
+- Parameter `timestampUtc`: The `timestampUtc` value.
+- Parameter `source`: The `source` value.
+- Returns: A `IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<T>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue.Heartbeat``1(IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1{``0},System.DateTimeOffset)`
+
+```csharp
+public static IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<T> Heartbeat<T>(IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<T> value, System.DateTimeOffset timestampUtc)
+```
+Executes the `Heartbeat` operation.
+
+- Parameter `value`: The `value` value.
+- Parameter `timestampUtc`: The `timestampUtc` value.
+- Returns: A `IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<T>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue.Stale``1(IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1{``0},System.DateTimeOffset)`
+
+```csharp
+public static IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<T> Stale<T>(IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<T> value, System.DateTimeOffset timestampUtc)
+```
+Executes the `Stale` operation.
+
+- Parameter `value`: The `value` value.
+- Parameter `timestampUtc`: The `timestampUtc` value.
+- Returns: A `IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<T>` result.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1
+```
+Provides the MitsubishiReactiveValue record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.#ctor(`0,System.DateTimeOffset,IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality,System.Boolean,System.Boolean,System.String,System.String,System.Int32,System.Exception)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<T>(T Value, System.DateTimeOffset TimestampUtc, IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality Quality, bool IsHeartbeat, bool IsStale, string Source, string Error, int ErrorCode, System.Exception Exception)
+```
+Provides the MitsubishiReactiveValue record.
+
+- Parameter `Value`: The Value parameter.
+- Parameter `TimestampUtc`: The TimestampUtc parameter.
+- Parameter `Quality`: The Quality parameter.
+- Parameter `IsHeartbeat`: The IsHeartbeat parameter.
+- Parameter `IsStale`: The IsStale parameter.
+- Parameter `Source`: The Source parameter.
+- Parameter `Error`: The Error parameter.
+- Parameter `ErrorCode`: The ErrorCode parameter.
+- Parameter `Exception`: The Exception parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.Deconstruct(`0@,System.DateTimeOffset@,IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality@,System.Boolean@,System.Boolean@,System.String@,System.String@,System.Int32@,System.Exception@)`
+
+```csharp
+public void Deconstruct(out T Value, out System.DateTimeOffset TimestampUtc, out IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality Quality, out bool IsHeartbeat, out bool IsStale, out string Source, out string Error, out int ErrorCode, out System.Exception Exception)
+```
+Deconstructs the value into its component values.
+
+- Parameter `Value`: The `Value` value.
+- Parameter `TimestampUtc`: The `TimestampUtc` value.
+- Parameter `Quality`: The `Quality` value.
+- Parameter `IsHeartbeat`: The `IsHeartbeat` value.
+- Parameter `IsStale`: The `IsStale` value.
+- Parameter `Source`: The `Source` value.
+- Parameter `Error`: The `Error` value.
+- Parameter `ErrorCode`: The `ErrorCode` value.
+- Parameter `Exception`: The `Exception` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1{`0})`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<T> other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1{`0},IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1{`0})`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<T> left, IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<T> right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1{`0},IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1{`0})`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<T> left, IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<T> right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.Error`
+
+```csharp
+public string Error { get; set; }
+```
+The Error parameter.
+
+- Value: The `Error` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.ErrorCode`
+
+```csharp
+public int ErrorCode { get; set; }
+```
+The ErrorCode parameter.
+
+- Value: The `ErrorCode` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.Exception`
+
+```csharp
+public System.Exception Exception { get; set; }
+```
+The Exception parameter.
+
+- Value: The `Exception` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.IsHeartbeat`
+
+```csharp
+public bool IsHeartbeat { get; set; }
+```
+The IsHeartbeat parameter.
+
+- Value: The `IsHeartbeat` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.IsStale`
+
+```csharp
+public bool IsStale { get; set; }
+```
+The IsStale parameter.
+
+- Value: The `IsStale` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.Quality`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiReactiveQuality Quality { get; set; }
+```
+The Quality parameter.
+
+- Value: The `Quality` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.Source`
+
+```csharp
+public string Source { get; set; }
+```
+The Source parameter.
+
+- Value: The `Source` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.TimestampUtc`
+
+```csharp
+public System.DateTimeOffset TimestampUtc { get; set; }
+```
+The TimestampUtc parameter.
+
+- Value: The `TimestampUtc` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue`1.Value`
+
+```csharp
+public T Value { get; set; }
+```
+The Value parameter.
+
+- Value: The `Value` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode`
+
+```csharp
+public enum IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode
+```
+Defines the MitsubishiReactiveWriteMode values.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode.Coalescing`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode Coalescing
+```
+Represents the Coalescing option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode.LatestWins`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode LatestWins
+```
+Represents the LatestWins option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode.Queued`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode Queued
+```
+Represents the Queued option.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWritePipeline`1`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWritePipeline`1
+```
+Provides the MitsubishiReactiveWritePipeline type.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWritePipeline`1.Dispose`
+
+```csharp
+public void Dispose()
+```
+Executes the Dispose operation.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWritePipeline`1.Post(`0)`
+
+```csharp
+public void Post(TPayload payload)
+```
+Executes the Post operation.
+
+- Parameter `payload`: The payload parameter.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWritePipeline`1.Mode`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode Mode { get; }
+```
+Gets or sets the Mode property.
+
+- Value: The `Mode` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWritePipeline`1.Results`
+
+```csharp
+public System.IObservable<IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult> Results { get; }
+```
+Gets or sets the Results property.
+
+- Value: The `Results` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult
+```
+Provides the MitsubishiReactiveWriteResult record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult.#ctor(System.String,System.DateTimeOffset,IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode,System.Boolean,System.String,System.Int32,System.Exception)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult(string Target, System.DateTimeOffset TimestampUtc, IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode Mode, bool Success, string Error, int ErrorCode, System.Exception Exception)
+```
+Provides the MitsubishiReactiveWriteResult record.
+
+- Parameter `Target`: The Target parameter.
+- Parameter `TimestampUtc`: The TimestampUtc parameter.
+- Parameter `Mode`: The Mode parameter.
+- Parameter `Success`: The Success parameter.
+- Parameter `Error`: The Error parameter.
+- Parameter `ErrorCode`: The ErrorCode parameter.
+- Parameter `Exception`: The Exception parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult.Deconstruct(System.String@,System.DateTimeOffset@,IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode@,System.Boolean@,System.String@,System.Int32@,System.Exception@)`
+
+```csharp
+public void Deconstruct(out string Target, out System.DateTimeOffset TimestampUtc, out IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode Mode, out bool Success, out string Error, out int ErrorCode, out System.Exception Exception)
+```
+Deconstructs the value into its component values.
+
+- Parameter `Target`: The `Target` value.
+- Parameter `TimestampUtc`: The `TimestampUtc` value.
+- Parameter `Mode`: The `Mode` value.
+- Parameter `Success`: The `Success` value.
+- Parameter `Error`: The `Error` value.
+- Parameter `ErrorCode`: The `ErrorCode` value.
+- Parameter `Exception`: The `Exception` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult,IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult left, IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult,IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult left, IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult.Error`
+
+```csharp
+public string Error { get; set; }
+```
+The Error parameter.
+
+- Value: The `Error` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult.ErrorCode`
+
+```csharp
+public int ErrorCode { get; set; }
+```
+The ErrorCode parameter.
+
+- Value: The `ErrorCode` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult.Exception`
+
+```csharp
+public System.Exception Exception { get; set; }
+```
+The Exception parameter.
+
+- Value: The `Exception` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult.Mode`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode Mode { get; set; }
+```
+The Mode parameter.
+
+- Value: The `Mode` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult.Success`
+
+```csharp
+public bool Success { get; set; }
+```
+The Success parameter.
+
+- Value: The `Success` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult.Target`
+
+```csharp
+public string Target { get; set; }
+```
+The Target parameter.
+
+- Value: The `Target` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteResult.TimestampUtc`
+
+```csharp
+public System.DateTimeOffset TimestampUtc { get; set; }
+```
+The TimestampUtc parameter.
+
+- Value: The `TimestampUtc` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiRoute`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiRoute
+```
+Provides the MitsubishiRoute record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRoute.#ctor(System.Byte,System.Byte,System.UInt16,System.Byte,System.Nullable`1{System.UInt16})`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiRoute(byte NetworkNumber, byte StationNumber, ushort ModuleIoNumber, byte MultidropStationNumber, System.Nullable<ushort> ExtensionStationNumber)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiRoute`.
+
+- Parameter `NetworkNumber`: The `NetworkNumber` value.
+- Parameter `StationNumber`: The `StationNumber` value.
+- Parameter `ModuleIoNumber`: The `ModuleIoNumber` value.
+- Parameter `MultidropStationNumber`: The `MultidropStationNumber` value.
+- Parameter `ExtensionStationNumber`: The `ExtensionStationNumber` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRoute.Deconstruct(System.Byte@,System.Byte@,System.UInt16@,System.Byte@,System.Nullable`1{System.UInt16}@)`
+
+```csharp
+public void Deconstruct(out byte NetworkNumber, out byte StationNumber, out ushort ModuleIoNumber, out byte MultidropStationNumber, out System.Nullable<ushort> ExtensionStationNumber)
+```
+Deconstructs the value into its component values.
+
+- Parameter `NetworkNumber`: The `NetworkNumber` value.
+- Parameter `StationNumber`: The `StationNumber` value.
+- Parameter `ModuleIoNumber`: The `ModuleIoNumber` value.
+- Parameter `MultidropStationNumber`: The `MultidropStationNumber` value.
+- Parameter `ExtensionStationNumber`: The `ExtensionStationNumber` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRoute.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiRoute)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiRoute other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRoute.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRoute.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRoute.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRoute.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiRoute,IoT.DriverCore.MitsubishiRx.MitsubishiRoute)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiRoute left, IoT.DriverCore.MitsubishiRx.MitsubishiRoute right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRoute.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiRoute,IoT.DriverCore.MitsubishiRx.MitsubishiRoute)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiRoute left, IoT.DriverCore.MitsubishiRx.MitsubishiRoute right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiRoute.Default`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiRoute Default { get; }
+```
+Gets or sets the Default property.
+
+- Value: The `Default` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiRoute.ExtensionStationNumber`
+
+```csharp
+public System.Nullable<ushort> ExtensionStationNumber { get; set; }
+```
+The ExtensionStationNumber parameter.
+
+- Value: The `ExtensionStationNumber` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiRoute.ModuleIoNumber`
+
+```csharp
+public ushort ModuleIoNumber { get; set; }
+```
+The ModuleIoNumber parameter.
+
+- Value: The `ModuleIoNumber` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiRoute.MultidropStationNumber`
+
+```csharp
+public byte MultidropStationNumber { get; set; }
+```
+The MultidropStationNumber parameter.
+
+- Value: The `MultidropStationNumber` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiRoute.NetworkNumber`
+
+```csharp
+public byte NetworkNumber { get; set; }
+```
+The NetworkNumber parameter.
+
+- Value: The `NetworkNumber` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiRoute.StationNumber`
+
+```csharp
+public byte StationNumber { get; set; }
+```
+The StationNumber parameter.
+
+- Value: The `StationNumber` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiRx`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiRx
+```
+Provides the MitsubishiRx type.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.#ctor(IoT.DriverCore.MitsubishiRx.CpuType,System.String,System.Int32,System.Int32)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiRx(IoT.DriverCore.MitsubishiRx.CpuType cpuType, string ip, int port, int timeout)
+```
+Initializes a new instance of the MitsubishiRx class.
+
+- Parameter `cpuType`: The cpuType parameter.
+- Parameter `ip`: The ip parameter.
+- Parameter `port`: The port parameter.
+- Parameter `timeout`: The timeout parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.#ctor(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions,IoT.DriverCore.MitsubishiRx.IMitsubishiTransport,ReactiveUI.Primitives.Concurrency.ISequencer)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiRx(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions options, IoT.DriverCore.MitsubishiRx.IMitsubishiTransport transport, ReactiveUI.Primitives.Concurrency.ISequencer scheduler)
+```
+Initializes a new instance of the MitsubishiRx class.
+
+- Parameter `options`: The options parameter.
+- Parameter `transport`: The transport parameter.
+- Parameter `scheduler`: The scheduler parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.#ctor(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions,IoT.DriverCore.MitsubishiRx.IMitsubishiTransport,ReactiveUI.Primitives.Concurrency.ISequencer,System.TimeProvider)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiRx(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions options, IoT.DriverCore.MitsubishiRx.IMitsubishiTransport transport, ReactiveUI.Primitives.Concurrency.ISequencer scheduler, System.TimeProvider timeProvider)
+```
+Initializes a new instance of the MitsubishiRx class.
+
+- Parameter `options`: The options parameter.
+- Parameter `transport`: The transport parameter.
+- Parameter `scheduler`: The scheduler parameter.
+- Parameter `timeProvider`: The time provider.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ClearErrorAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> ClearErrorAsync(System.Threading.CancellationToken cancellationToken)
+```
+Executes the ClearErrorAsync operation.
+
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ClearErrorAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.Close`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce Close()
+```
+Executes the Close operation.
+
+- Returns: The Close operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.CloseAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> CloseAsync(System.Threading.CancellationToken cancellationToken)
+```
+Executes the CloseAsync operation.
+
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The CloseAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.CreateLogicalTagClient(IoT.DriverCore.Core.ILogicalTagCatalog,System.Nullable`1{System.TimeSpan},IoT.DriverCore.Core.LogicalTagSqliteStore)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient CreateLogicalTagClient(IoT.DriverCore.Core.ILogicalTagCatalog catalog, System.Nullable<System.TimeSpan> defaultScanInterval, IoT.DriverCore.Core.LogicalTagSqliteStore store)
+```
+Executes the `CreateLogicalTagClient` operation.
+
+- Parameter `catalog`: The `catalog` value.
+- Parameter `defaultScanInterval`: The `defaultScanInterval` value.
+- Parameter `store`: The `store` value.
+- Returns: A `IoT.DriverCore.MitsubishiRx.MitsubishiLogicalTagClient` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.CreateReactiveTagWritePipeline``1(IoT.DriverCore.Core.LogicalTagKey`1{``0},IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode,System.Nullable`1{System.TimeSpan})`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWritePipeline<T> CreateReactiveTagWritePipeline<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag, IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode mode, System.Nullable<System.TimeSpan> coalescingWindow)
+```
+Executes the `CreateReactiveTagWritePipeline` operation.
+
+- Parameter `tag`: The `tag` value.
+- Parameter `mode`: The `mode` value.
+- Parameter `coalescingWindow`: The `coalescingWindow` value.
+- Returns: A `IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWritePipeline<T>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.CreateReactiveWordWritePipeline(System.String,IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode,System.Nullable`1{System.TimeSpan})`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWritePipeline<System.Collections.Generic.IReadOnlyList<ushort>> CreateReactiveWordWritePipeline(string address, IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWriteMode mode, System.Nullable<System.TimeSpan> coalescingWindow)
+```
+Executes the `CreateReactiveWordWritePipeline` operation.
+
+- Parameter `address`: The `address` value.
+- Parameter `mode`: The `mode` value.
+- Parameter `coalescingWindow`: The `coalescingWindow` value.
+- Returns: A `IoT.DriverCore.MitsubishiRx.MitsubishiReactiveWritePipeline<System.Collections.Generic.IReadOnlyList<ushort>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.Dispose`
+
+```csharp
+public void Dispose()
+```
+Executes the Dispose operation.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.DisposeAsync`
+
+```csharp
+public System.Threading.Tasks.ValueTask DisposeAsync()
+```
+Executes the DisposeAsync operation.
+
+- Returns: The DisposeAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ExecuteMonitorAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<byte[]>> ExecuteMonitorAsync(System.Threading.CancellationToken cancellationToken)
+```
+Executes the ExecuteMonitorAsync operation.
+
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ExecuteMonitorAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ExecuteRawAsync(IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<byte[]>> ExecuteRawAsync(IoT.DriverCore.MitsubishiRx.MitsubishiRawCommandRequest request, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ExecuteRawAsync operation.
+
+- Parameter `request`: The request parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ExecuteRawAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.LoadAndValidateTagDatabase(System.String)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase> LoadAndValidateTagDatabase(string path)
+```
+Executes the LoadAndValidateTagDatabase operation.
+
+- Parameter `path`: The path parameter.
+- Returns: The LoadAndValidateTagDatabase operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.LoadAndValidateTagDatabase(System.String,IoT.DriverCore.MitsubishiRx.MitsubishiTagRolloutPolicy)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase> LoadAndValidateTagDatabase(string path, IoT.DriverCore.MitsubishiRx.MitsubishiTagRolloutPolicy policy)
+```
+Executes the LoadAndValidateTagDatabase operation.
+
+- Parameter `path`: The path parameter.
+- Parameter `policy`: The policy parameter.
+- Returns: The LoadAndValidateTagDatabase operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.LockAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> LockAsync(string password, System.Threading.CancellationToken cancellationToken)
+```
+Executes the LockAsync operation.
+
+- Parameter `password`: The password parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The LockAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.LoopbackAsync(System.Byte[],System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<byte[]>> LoopbackAsync(byte[] data, System.Threading.CancellationToken cancellationToken)
+```
+Executes the LoopbackAsync operation.
+
+- Parameter `data`: The data parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The LoopbackAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveBits(System.String,System.Int32,System.TimeSpan,System.Nullable`1{System.TimeSpan})`
+
+```csharp
+public System.IObservable<IoT.DriverCore.MitsubishiRx.Responce<bool[]>> ObserveBits(string address, int points, System.TimeSpan pollInterval, System.Nullable<System.TimeSpan> minimumUpdateSpacing)
+```
+Executes the `ObserveBits` operation.
+
+- Parameter `address`: The `address` value.
+- Parameter `points`: The `points` value.
+- Parameter `pollInterval`: The `pollInterval` value.
+- Parameter `minimumUpdateSpacing`: The `minimumUpdateSpacing` value.
+- Returns: A `System.IObservable<IoT.DriverCore.MitsubishiRx.Responce<bool[]>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveConnectionHealth(System.TimeSpan)`
+
+```csharp
+public System.IObservable<ReactiveUI.Primitives.Extensions.Stale<IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState>> ObserveConnectionHealth(System.TimeSpan staleAfter)
+```
+Executes the ObserveConnectionHealth operation.
+
+- Parameter `staleAfter`: The staleAfter parameter.
+- Returns: The ObserveConnectionHealth operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveReactiveTagGroup(System.String,System.TimeSpan,System.Nullable`1{System.TimeSpan})`
+
+```csharp
+public System.IObservable<IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot>> ObserveReactiveTagGroup(string groupName, System.TimeSpan pollInterval, System.Nullable<System.TimeSpan> minimumUpdateSpacing)
+```
+Executes the `ObserveReactiveTagGroup` operation.
+
+- Parameter `groupName`: The `groupName` value.
+- Parameter `pollInterval`: The `pollInterval` value.
+- Parameter `minimumUpdateSpacing`: The `minimumUpdateSpacing` value.
+- Returns: A `System.IObservable<IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveReactiveTag``1(IoT.DriverCore.Core.LogicalTagKey`1{``0},System.TimeSpan,System.Nullable`1{System.TimeSpan})`
+
+```csharp
+public System.IObservable<IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<T>> ObserveReactiveTag<T>(IoT.DriverCore.Core.LogicalTagKey<T> tagKey, System.TimeSpan pollInterval, System.Nullable<System.TimeSpan> minimumUpdateSpacing)
+```
+Executes the `ObserveReactiveTag` operation.
+
+- Parameter `tagKey`: The `tagKey` value.
+- Parameter `pollInterval`: The `pollInterval` value.
+- Parameter `minimumUpdateSpacing`: The `minimumUpdateSpacing` value.
+- Returns: A `System.IObservable<IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<T>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveReactiveWords(System.String,System.Int32,System.TimeSpan,System.Nullable`1{System.TimeSpan})`
+
+```csharp
+public System.IObservable<IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<ushort[]>> ObserveReactiveWords(string address, int points, System.TimeSpan pollInterval, System.Nullable<System.TimeSpan> minimumUpdateSpacing)
+```
+Executes the `ObserveReactiveWords` operation.
+
+- Parameter `address`: The `address` value.
+- Parameter `points`: The `points` value.
+- Parameter `pollInterval`: The `pollInterval` value.
+- Parameter `minimumUpdateSpacing`: The `minimumUpdateSpacing` value.
+- Returns: A `System.IObservable<IoT.DriverCore.MitsubishiRx.MitsubishiReactiveValue<ushort[]>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveTagDatabaseDiff(System.String,System.TimeSpan,System.Boolean)`
+
+```csharp
+public System.IObservable<IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff>> ObserveTagDatabaseDiff(string path, System.TimeSpan pollInterval, bool emitInitial)
+```
+Executes the ObserveTagDatabaseDiff operation.
+
+- Parameter `path`: The path parameter.
+- Parameter `pollInterval`: The pollInterval parameter.
+- Parameter `emitInitial`: The emitInitial parameter.
+- Returns: The ObserveTagDatabaseDiff operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveTagDatabaseDiff(System.String,System.TimeSpan,System.Boolean,IoT.DriverCore.MitsubishiRx.MitsubishiTagRolloutPolicy)`
+
+```csharp
+public System.IObservable<IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff>> ObserveTagDatabaseDiff(string path, System.TimeSpan pollInterval, bool emitInitial, IoT.DriverCore.MitsubishiRx.MitsubishiTagRolloutPolicy policy)
+```
+Executes the ObserveTagDatabaseDiff operation.
+
+- Parameter `path`: The path parameter.
+- Parameter `pollInterval`: The pollInterval parameter.
+- Parameter `emitInitial`: The emitInitial parameter.
+- Parameter `policy`: The policy parameter.
+- Returns: The ObserveTagDatabaseDiff operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveTagDatabaseReload(System.String,System.TimeSpan,System.Boolean)`
+
+```csharp
+public System.IObservable<IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase>> ObserveTagDatabaseReload(string path, System.TimeSpan pollInterval, bool emitInitial)
+```
+Executes the ObserveTagDatabaseReload operation.
+
+- Parameter `path`: The path parameter.
+- Parameter `pollInterval`: The pollInterval parameter.
+- Parameter `emitInitial`: The emitInitial parameter.
+- Returns: The ObserveTagDatabaseReload operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveTagDatabaseReload(System.String,System.TimeSpan,System.Boolean,IoT.DriverCore.MitsubishiRx.MitsubishiTagRolloutPolicy)`
+
+```csharp
+public System.IObservable<IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase>> ObserveTagDatabaseReload(string path, System.TimeSpan pollInterval, bool emitInitial, IoT.DriverCore.MitsubishiRx.MitsubishiTagRolloutPolicy policy)
+```
+Executes the ObserveTagDatabaseReload operation.
+
+- Parameter `path`: The path parameter.
+- Parameter `pollInterval`: The pollInterval parameter.
+- Parameter `emitInitial`: The emitInitial parameter.
+- Parameter `policy`: The policy parameter.
+- Returns: The ObserveTagDatabaseReload operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveTagGroup(System.String,System.TimeSpan,System.Nullable`1{System.TimeSpan})`
+
+```csharp
+public System.IObservable<IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot>> ObserveTagGroup(string groupName, System.TimeSpan pollInterval, System.Nullable<System.TimeSpan> minimumUpdateSpacing)
+```
+Executes the `ObserveTagGroup` operation.
+
+- Parameter `groupName`: The `groupName` value.
+- Parameter `pollInterval`: The `pollInterval` value.
+- Parameter `minimumUpdateSpacing`: The `minimumUpdateSpacing` value.
+- Returns: A `System.IObservable<IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveTagGroupHeartbeat(System.String,System.TimeSpan,System.TimeSpan,System.Nullable`1{System.TimeSpan})`
+
+```csharp
+public System.IObservable<ReactiveUI.Primitives.Extensions.Heartbeat<IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot>>> ObserveTagGroupHeartbeat(string groupName, System.TimeSpan pollInterval, System.TimeSpan heartbeatAfter, System.Nullable<System.TimeSpan> minimumUpdateSpacing)
+```
+Executes the `ObserveTagGroupHeartbeat` operation.
+
+- Parameter `groupName`: The `groupName` value.
+- Parameter `pollInterval`: The `pollInterval` value.
+- Parameter `heartbeatAfter`: The `heartbeatAfter` value.
+- Parameter `minimumUpdateSpacing`: The `minimumUpdateSpacing` value.
+- Returns: A `System.IObservable<ReactiveUI.Primitives.Extensions.Heartbeat<IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot>>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveTagGroupLatest(System.String,System.IObservable`1{ReactiveUI.Primitives.RxVoid})`
+
+```csharp
+public System.IObservable<IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot>> ObserveTagGroupLatest(string groupName, System.IObservable<ReactiveUI.Primitives.RxVoid> trigger)
+```
+Executes the `ObserveTagGroupLatest` operation.
+
+- Parameter `groupName`: The `groupName` value.
+- Parameter `trigger`: The `trigger` value.
+- Returns: A `System.IObservable<IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveTagGroupStale(System.String,System.TimeSpan,System.TimeSpan,System.Nullable`1{System.TimeSpan})`
+
+```csharp
+public System.IObservable<ReactiveUI.Primitives.Extensions.Stale<IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot>>> ObserveTagGroupStale(string groupName, System.TimeSpan pollInterval, System.TimeSpan staleAfter, System.Nullable<System.TimeSpan> minimumUpdateSpacing)
+```
+Executes the `ObserveTagGroupStale` operation.
+
+- Parameter `groupName`: The `groupName` value.
+- Parameter `pollInterval`: The `pollInterval` value.
+- Parameter `staleAfter`: The `staleAfter` value.
+- Parameter `minimumUpdateSpacing`: The `minimumUpdateSpacing` value.
+- Returns: A `System.IObservable<ReactiveUI.Primitives.Extensions.Stale<IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot>>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveWords(System.String,System.Int32,System.TimeSpan,System.Nullable`1{System.TimeSpan},System.Nullable`1{System.TimeSpan})`
+
+```csharp
+public System.IObservable<IoT.DriverCore.MitsubishiRx.Responce<ushort[]>> ObserveWords(string address, int points, System.TimeSpan pollInterval, System.Nullable<System.TimeSpan> minimumUpdateSpacing, System.Nullable<System.TimeSpan> pollTimeout)
+```
+Executes the `ObserveWords` operation.
+
+- Parameter `address`: The `address` value.
+- Parameter `points`: The `points` value.
+- Parameter `pollInterval`: The `pollInterval` value.
+- Parameter `minimumUpdateSpacing`: The `minimumUpdateSpacing` value.
+- Parameter `pollTimeout`: The `pollTimeout` value.
+- Returns: A `System.IObservable<IoT.DriverCore.MitsubishiRx.Responce<ushort[]>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveWordsHeartbeat(System.String,System.Int32,System.TimeSpan,System.TimeSpan,System.Nullable`1{System.TimeSpan},System.Nullable`1{System.TimeSpan})`
+
+```csharp
+public System.IObservable<ReactiveUI.Primitives.Extensions.Heartbeat<IoT.DriverCore.MitsubishiRx.Responce<ushort[]>>> ObserveWordsHeartbeat(string address, int points, System.TimeSpan pollInterval, System.TimeSpan heartbeatAfter, System.Nullable<System.TimeSpan> minimumUpdateSpacing, System.Nullable<System.TimeSpan> pollTimeout)
+```
+Executes the `ObserveWordsHeartbeat` operation.
+
+- Parameter `address`: The `address` value.
+- Parameter `points`: The `points` value.
+- Parameter `pollInterval`: The `pollInterval` value.
+- Parameter `heartbeatAfter`: The `heartbeatAfter` value.
+- Parameter `minimumUpdateSpacing`: The `minimumUpdateSpacing` value.
+- Parameter `pollTimeout`: The `pollTimeout` value.
+- Returns: A `System.IObservable<ReactiveUI.Primitives.Extensions.Heartbeat<IoT.DriverCore.MitsubishiRx.Responce<ushort[]>>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveWordsLatest(System.String,System.Int32,System.IObservable`1{ReactiveUI.Primitives.RxVoid})`
+
+```csharp
+public System.IObservable<IoT.DriverCore.MitsubishiRx.Responce<ushort[]>> ObserveWordsLatest(string address, int points, System.IObservable<ReactiveUI.Primitives.RxVoid> trigger)
+```
+Executes the `ObserveWordsLatest` operation.
+
+- Parameter `address`: The `address` value.
+- Parameter `points`: The `points` value.
+- Parameter `trigger`: The `trigger` value.
+- Returns: A `System.IObservable<IoT.DriverCore.MitsubishiRx.Responce<ushort[]>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ObserveWordsStale(System.String,System.Int32,System.TimeSpan,System.TimeSpan,System.Nullable`1{System.TimeSpan})`
+
+```csharp
+public System.IObservable<ReactiveUI.Primitives.Extensions.Stale<IoT.DriverCore.MitsubishiRx.Responce<ushort[]>>> ObserveWordsStale(string address, int points, System.TimeSpan pollInterval, System.TimeSpan staleAfter, System.Nullable<System.TimeSpan> minimumUpdateSpacing)
+```
+Executes the `ObserveWordsStale` operation.
+
+- Parameter `address`: The `address` value.
+- Parameter `points`: The `points` value.
+- Parameter `pollInterval`: The `pollInterval` value.
+- Parameter `staleAfter`: The `staleAfter` value.
+- Parameter `minimumUpdateSpacing`: The `minimumUpdateSpacing` value.
+- Returns: A `System.IObservable<ReactiveUI.Primitives.Extensions.Stale<IoT.DriverCore.MitsubishiRx.Responce<ushort[]>>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.Open`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce Open()
+```
+Executes the Open operation.
+
+- Returns: The Open operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.OpenAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> OpenAsync(System.Threading.CancellationToken cancellationToken)
+```
+Executes the OpenAsync operation.
+
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The OpenAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.PreviewTagDatabaseDiff(System.String)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff> PreviewTagDatabaseDiff(string path)
+```
+Executes the PreviewTagDatabaseDiff operation.
+
+- Parameter `path`: The path parameter.
+- Returns: The PreviewTagDatabaseDiff operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.PreviewTagDatabaseDiff(System.String,IoT.DriverCore.MitsubishiRx.MitsubishiTagRolloutPolicy)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff> PreviewTagDatabaseDiff(string path, IoT.DriverCore.MitsubishiRx.MitsubishiTagRolloutPolicy policy)
+```
+Executes the PreviewTagDatabaseDiff operation.
+
+- Parameter `path`: The path parameter.
+- Parameter `policy`: The policy parameter.
+- Returns: The PreviewTagDatabaseDiff operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.RandomReadWordsAsync(System.Collections.Generic.IEnumerable`1{System.String},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<ushort[]>> RandomReadWordsAsync(System.Collections.Generic.IEnumerable<string> addresses, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `RandomReadWordsAsync` operation.
+
+- Parameter `addresses`: The `addresses` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<ushort[]>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.RandomReadWordsByTagAsync(System.Collections.Generic.IEnumerable`1{System.String},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<ushort[]>> RandomReadWordsByTagAsync(System.Collections.Generic.IEnumerable<string> tagNames, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `RandomReadWordsByTagAsync` operation.
+
+- Parameter `tagNames`: The `tagNames` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<ushort[]>>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.RandomWriteWordsAsync(System.Collections.Generic.IEnumerable`1{System.Collections.Generic.KeyValuePair`2{System.String,System.UInt16}},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> RandomWriteWordsAsync(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, ushort>> values, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `RandomWriteWordsAsync` operation.
+
+- Parameter `values`: The `values` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.RandomWriteWordsByTagAsync(System.Collections.Generic.IEnumerable`1{System.Collections.Generic.KeyValuePair`2{System.String,System.UInt16}},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> RandomWriteWordsByTagAsync(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, ushort>> values, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `RandomWriteWordsByTagAsync` operation.
+
+- Parameter `values`: The `values` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadBitsAsync(System.String,System.Int32,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<bool[]>> ReadBitsAsync(string address, int points, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadBitsAsync operation.
+
+- Parameter `address`: The address parameter.
+- Parameter `points`: The points parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadBitsAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadBitsByTagAsync(System.String,System.Int32,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<bool[]>> ReadBitsByTagAsync(string tagName, int points, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadBitsByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `points`: The points parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadBitsByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadBlocksAsync(IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<byte[]>> ReadBlocksAsync(IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest request, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadBlocksAsync operation.
+
+- Parameter `request`: The request parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadBlocksAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadDWordByTagAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<uint>> ReadDWordByTagAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadDWordByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadDWordByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadFloatByTagAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<float>> ReadFloatByTagAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadFloatByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadFloatByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadGeneratedBitTagAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<bool>> ReadGeneratedBitTagAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadGeneratedBitTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadGeneratedBitTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadInt16ByTagAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<short>> ReadInt16ByTagAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadInt16ByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadInt16ByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadInt32ByTagAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<int>> ReadInt32ByTagAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadInt32ByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadInt32ByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadMemoryAsync(System.UInt16,System.UInt16,System.Int32,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<ushort[]>> ReadMemoryAsync(ushort command, ushort address, int length, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadMemoryAsync operation.
+
+- Parameter `command`: The command parameter.
+- Parameter `address`: The address parameter.
+- Parameter `length`: The length parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadMemoryAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadScaledDoubleByTagAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<double>> ReadScaledDoubleByTagAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadScaledDoubleByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadScaledDoubleByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadStringByTagAsync(System.String,System.Int32,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<string>> ReadStringByTagAsync(string tagName, int wordLength, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadStringByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `wordLength`: The wordLength parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadStringByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadStringByTagAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<string>> ReadStringByTagAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadStringByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadStringByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadTagAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<object>> ReadTagAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+```
+Reads a tag using the data type declared in `P:IoT.DriverCore.MitsubishiRx.MitsubishiRx.TagDatabase` .
+
+- Parameter `tagName`: The logical tag name.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: The untyped tag value response.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadTagGroupSnapshotAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot>> ReadTagGroupSnapshotAsync(string groupName, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadTagGroupSnapshotAsync operation.
+
+- Parameter `groupName`: The groupName parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadTagGroupSnapshotAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadTypeNameAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<IoT.DriverCore.MitsubishiRx.MitsubishiTypeName>> ReadTypeNameAsync(System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadTypeNameAsync operation.
+
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadTypeNameAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadUInt16ByTagAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<ushort>> ReadUInt16ByTagAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadUInt16ByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadUInt16ByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadWordsAsync(System.String,System.Int32,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<ushort[]>> ReadWordsAsync(string address, int points, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadWordsAsync operation.
+
+- Parameter `address`: The address parameter.
+- Parameter `points`: The points parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadWordsAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ReadWordsByTagAsync(System.String,System.Int32,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce<ushort[]>> ReadWordsByTagAsync(string tagName, int points, System.Threading.CancellationToken cancellationToken)
+```
+Executes the ReadWordsByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `points`: The points parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The ReadWordsByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.RegisterMonitorAsync(System.Collections.Generic.IEnumerable`1{System.String},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> RegisterMonitorAsync(System.Collections.Generic.IEnumerable<string> addresses, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `RegisterMonitorAsync` operation.
+
+- Parameter `addresses`: The `addresses` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.RemoteLatchClearAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> RemoteLatchClearAsync(System.Threading.CancellationToken cancellationToken)
+```
+Executes the RemoteLatchClearAsync operation.
+
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The RemoteLatchClearAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.RemotePauseAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> RemotePauseAsync(System.Threading.CancellationToken cancellationToken)
+```
+Executes the RemotePauseAsync operation.
+
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The RemotePauseAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.RemoteResetAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> RemoteResetAsync(System.Threading.CancellationToken cancellationToken)
+```
+Executes the RemoteResetAsync operation.
+
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The RemoteResetAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.RemoteRunAsync(System.Boolean,System.Boolean,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> RemoteRunAsync(bool force, bool clearMode, System.Threading.CancellationToken cancellationToken)
+```
+Executes the RemoteRunAsync operation.
+
+- Parameter `force`: The force parameter.
+- Parameter `clearMode`: The clearMode parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The RemoteRunAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.RemoteStopAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> RemoteStopAsync(System.Threading.CancellationToken cancellationToken)
+```
+Executes the RemoteStopAsync operation.
+
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The RemoteStopAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.SampleDiagnostics(System.IObservable`1{System.Object})`
+
+```csharp
+public System.IObservable<IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog> SampleDiagnostics(System.IObservable<object> trigger)
+```
+Executes the `SampleDiagnostics` operation.
+
+- Parameter `trigger`: The `trigger` value.
+- Returns: A `System.IObservable<IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.SendPackage(System.Byte[],System.Int32)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce<byte[]> SendPackage(byte[] command, int receiveCount)
+```
+Executes the SendPackage operation.
+
+- Parameter `command`: The command parameter.
+- Parameter `receiveCount`: The receiveCount parameter.
+- Returns: The SendPackage operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.SendPackageReliable(System.Byte[])`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce<byte[]> SendPackageReliable(byte[] command)
+```
+Executes the SendPackageReliable operation.
+
+- Parameter `command`: The command parameter.
+- Returns: The SendPackageReliable operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.SendPackageSingle(System.Byte[])`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce<byte[]> SendPackageSingle(byte[] command)
+```
+Executes the SendPackageSingle operation.
+
+- Parameter `command`: The command parameter.
+- Returns: The SendPackageSingle operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.UnlockAsync(System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> UnlockAsync(string password, System.Threading.CancellationToken cancellationToken)
+```
+Executes the UnlockAsync operation.
+
+- Parameter `password`: The password parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The UnlockAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ValidateTagDatabase`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce ValidateTagDatabase()
+```
+Executes the ValidateTagDatabase operation.
+
+- Returns: The ValidateTagDatabase operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ValidateTagGroupWrite(System.String,System.Collections.Generic.IReadOnlyDictionary`2{System.String,System.Object})`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce ValidateTagGroupWrite(string groupName, System.Collections.Generic.IReadOnlyDictionary<string, object> values)
+```
+Executes the `ValidateTagGroupWrite` operation.
+
+- Parameter `groupName`: The `groupName` value.
+- Parameter `values`: The `values` value.
+- Returns: A `IoT.DriverCore.MitsubishiRx.Responce` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteBitsAsync(System.String,System.Collections.Generic.IReadOnlyList`1{System.Boolean},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteBitsAsync(string address, System.Collections.Generic.IReadOnlyList<bool> values, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `WriteBitsAsync` operation.
+
+- Parameter `address`: The `address` value.
+- Parameter `values`: The `values` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteBitsByTagAsync(System.String,System.Collections.Generic.IReadOnlyList`1{System.Boolean},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteBitsByTagAsync(string tagName, System.Collections.Generic.IReadOnlyList<bool> values, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `WriteBitsByTagAsync` operation.
+
+- Parameter `tagName`: The `tagName` value.
+- Parameter `values`: The `values` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteBlocksAsync(IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteBlocksAsync(IoT.DriverCore.MitsubishiRx.MitsubishiBlockRequest request, System.Threading.CancellationToken cancellationToken)
+```
+Executes the WriteBlocksAsync operation.
+
+- Parameter `request`: The request parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The WriteBlocksAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteDWordByTagAsync(System.String,System.UInt32,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteDWordByTagAsync(string tagName, uint value, System.Threading.CancellationToken cancellationToken)
+```
+Executes the WriteDWordByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `value`: The value parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The WriteDWordByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteFloatByTagAsync(System.String,System.Single,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteFloatByTagAsync(string tagName, float value, System.Threading.CancellationToken cancellationToken)
+```
+Executes the WriteFloatByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `value`: The value parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The WriteFloatByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteGeneratedBitTagAsync(System.String,System.Boolean,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteGeneratedBitTagAsync(string tagName, bool value, System.Threading.CancellationToken cancellationToken)
+```
+Executes the WriteGeneratedBitTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `value`: The value parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The WriteGeneratedBitTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteInt16ByTagAsync(System.String,System.Int16,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteInt16ByTagAsync(string tagName, short value, System.Threading.CancellationToken cancellationToken)
+```
+Executes the WriteInt16ByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `value`: The value parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The WriteInt16ByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteInt32ByTagAsync(System.String,System.Int32,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteInt32ByTagAsync(string tagName, int value, System.Threading.CancellationToken cancellationToken)
+```
+Executes the WriteInt32ByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `value`: The value parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The WriteInt32ByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteMemoryAsync(System.UInt16,System.UInt16,System.Collections.Generic.IReadOnlyList`1{System.UInt16},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteMemoryAsync(ushort command, ushort address, System.Collections.Generic.IReadOnlyList<ushort> values, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `WriteMemoryAsync` operation.
+
+- Parameter `command`: The `command` value.
+- Parameter `address`: The `address` value.
+- Parameter `values`: The `values` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteScaledDoubleByTagAsync(System.String,System.Double,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteScaledDoubleByTagAsync(string tagName, double value, System.Threading.CancellationToken cancellationToken)
+```
+Executes the WriteScaledDoubleByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `value`: The value parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The WriteScaledDoubleByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteStringByTagAsync(System.String,System.String,System.Int32,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteStringByTagAsync(string tagName, string value, int wordLength, System.Threading.CancellationToken cancellationToken)
+```
+Executes the WriteStringByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `value`: The value parameter.
+- Parameter `wordLength`: The wordLength parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The WriteStringByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteStringByTagAsync(System.String,System.String,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteStringByTagAsync(string tagName, string value, System.Threading.CancellationToken cancellationToken)
+```
+Executes the WriteStringByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `value`: The value parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The WriteStringByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteTagAsync(System.String,System.Object,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteTagAsync(string tagName, object value, System.Threading.CancellationToken cancellationToken)
+```
+Writes a tag using the data type declared in `P:IoT.DriverCore.MitsubishiRx.MitsubishiRx.TagDatabase` .
+
+- Parameter `tagName`: The logical tag name.
+- Parameter `value`: The value to write.
+- Parameter `cancellationToken`: The cancellation token.
+- Returns: The write response.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteTagGroupSnapshotAsync(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteTagGroupSnapshotAsync(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot snapshot, System.Threading.CancellationToken cancellationToken)
+```
+Executes the WriteTagGroupSnapshotAsync operation.
+
+- Parameter `snapshot`: The snapshot parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The WriteTagGroupSnapshotAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteTagGroupValuesAsync(System.String,System.Collections.Generic.IReadOnlyDictionary`2{System.String,System.Object},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteTagGroupValuesAsync(string groupName, System.Collections.Generic.IReadOnlyDictionary<string, object> values, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `WriteTagGroupValuesAsync` operation.
+
+- Parameter `groupName`: The `groupName` value.
+- Parameter `values`: The `values` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteUInt16ByTagAsync(System.String,System.UInt16,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteUInt16ByTagAsync(string tagName, ushort value, System.Threading.CancellationToken cancellationToken)
+```
+Executes the WriteUInt16ByTagAsync operation.
+
+- Parameter `tagName`: The tagName parameter.
+- Parameter `value`: The value parameter.
+- Parameter `cancellationToken`: The cancellationToken parameter.
+- Returns: The WriteUInt16ByTagAsync operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteWordsAsync(System.String,System.Collections.Generic.IReadOnlyList`1{System.UInt16},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteWordsAsync(string address, System.Collections.Generic.IReadOnlyList<ushort> values, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `WriteWordsAsync` operation.
+
+- Parameter `address`: The `address` value.
+- Parameter `values`: The `values` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiRx.WriteWordsByTagAsync(System.String,System.Collections.Generic.IReadOnlyList`1{System.UInt16},System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce> WriteWordsByTagAsync(string tagName, System.Collections.Generic.IReadOnlyList<ushort> values, System.Threading.CancellationToken cancellationToken)
+```
+Executes the `WriteWordsByTagAsync` operation.
+
+- Parameter `tagName`: The `tagName` value.
+- Parameter `values`: The `values` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.MitsubishiRx.Responce>` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiRx.Connected`
+
+```csharp
+public bool Connected { get; }
+```
+Gets or sets the Connected property.
+
+- Value: The `Connected` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiRx.ConnectionStates`
+
+```csharp
+public System.IObservable<IoT.DriverCore.MitsubishiRx.MitsubishiConnectionState> ConnectionStates { get; }
+```
+Gets or sets the ConnectionStates property.
+
+- Value: The `ConnectionStates` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiRx.OperationLogs`
+
+```csharp
+public System.IObservable<IoT.DriverCore.MitsubishiRx.MitsubishiOperationLog> OperationLogs { get; }
+```
+Gets or sets the OperationLogs property.
+
+- Value: The `OperationLogs` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiRx.Options`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions Options { get; }
+```
+Gets or sets the Options property.
+
+- Value: The `Options` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiRx.TagDatabase`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase TagDatabase { get; set; }
+```
+Gets or sets the TagDatabase property.
+
+- Value: The `TagDatabase` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind`
+
+```csharp
+public enum IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind
+```
+Defines the MitsubishiSchemaChangeKind values.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind.AddressChange`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind AddressChange
+```
+Represents the AddressChange option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind.DataTypeChange`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind DataTypeChange
+```
+Represents the DataTypeChange option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind.GroupMembershipChange`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind GroupMembershipChange
+```
+Represents the GroupMembershipChange option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind.MetadataOnly`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind MetadataOnly
+```
+Represents the MetadataOnly option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind.None`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind None
+```
+Represents the None option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind.StructureChange`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind StructureChange
+```
+Represents the StructureChange option.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiSerialMessageFormat`
+
+```csharp
+public enum IoT.DriverCore.MitsubishiRx.MitsubishiSerialMessageFormat
+```
+Defines the MitsubishiSerialMessageFormat values.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiSerialMessageFormat.Format1`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiSerialMessageFormat Format1
+```
+Represents the Format1 option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiSerialMessageFormat.Format4`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiSerialMessageFormat Format4
+```
+Represents the Format4 option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiSerialMessageFormat.Format5`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiSerialMessageFormat Format5
+```
+Represents the Format5 option.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions
+```
+Provides the MitsubishiSerialOptions record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.#ctor(System.String,System.Int32,System.Int32,System.IO.Ports.Parity,System.IO.Ports.StopBits,System.IO.Ports.Handshake,IoT.DriverCore.MitsubishiRx.MitsubishiSerialMessageFormat,System.Byte,System.Byte,System.Byte,System.UInt16,System.Byte,System.Byte,System.Byte,System.Int32,System.Int32,System.String)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions(string PortName, int BaudRate, int DataBits, System.IO.Ports.Parity Parity, System.IO.Ports.StopBits StopBits, System.IO.Ports.Handshake Handshake, IoT.DriverCore.MitsubishiRx.MitsubishiSerialMessageFormat MessageFormat, byte StationNumber, byte NetworkNumber, byte PcNumber, ushort RequestDestinationModuleIoNumber, byte RequestDestinationModuleStationNumber, byte SelfStationNumber, byte MessageWait, int ReadBufferSize, int WriteBufferSize, string NewLine)
+```
+Provides the MitsubishiSerialOptions record.
+
+- Parameter `PortName`: The PortName parameter.
+- Parameter `BaudRate`: The BaudRate parameter.
+- Parameter `DataBits`: The DataBits parameter.
+- Parameter `Parity`: The Parity parameter.
+- Parameter `StopBits`: The StopBits parameter.
+- Parameter `Handshake`: The Handshake parameter.
+- Parameter `MessageFormat`: The MessageFormat parameter.
+- Parameter `StationNumber`: The StationNumber parameter.
+- Parameter `NetworkNumber`: The NetworkNumber parameter.
+- Parameter `PcNumber`: The PcNumber parameter.
+- Parameter `RequestDestinationModuleIoNumber`: The RequestDestinationModuleIoNumber parameter.
+- Parameter `RequestDestinationModuleStationNumber`: The RequestDestinationModuleStationNumber parameter.
+- Parameter `SelfStationNumber`: The SelfStationNumber parameter.
+- Parameter `MessageWait`: The MessageWait parameter.
+- Parameter `ReadBufferSize`: The ReadBufferSize parameter.
+- Parameter `WriteBufferSize`: The WriteBufferSize parameter.
+- Parameter `NewLine`: The NewLine parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.Deconstruct(System.String@,System.Int32@,System.Int32@,System.IO.Ports.Parity@,System.IO.Ports.StopBits@,System.IO.Ports.Handshake@,IoT.DriverCore.MitsubishiRx.MitsubishiSerialMessageFormat@,System.Byte@,System.Byte@,System.Byte@,System.UInt16@,System.Byte@,System.Byte@,System.Byte@,System.Int32@,System.Int32@,System.String@)`
+
+```csharp
+public void Deconstruct(out string PortName, out int BaudRate, out int DataBits, out System.IO.Ports.Parity Parity, out System.IO.Ports.StopBits StopBits, out System.IO.Ports.Handshake Handshake, out IoT.DriverCore.MitsubishiRx.MitsubishiSerialMessageFormat MessageFormat, out byte StationNumber, out byte NetworkNumber, out byte PcNumber, out ushort RequestDestinationModuleIoNumber, out byte RequestDestinationModuleStationNumber, out byte SelfStationNumber, out byte MessageWait, out int ReadBufferSize, out int WriteBufferSize, out string NewLine)
+```
+Deconstructs the value into its component values.
+
+- Parameter `PortName`: The `PortName` value.
+- Parameter `BaudRate`: The `BaudRate` value.
+- Parameter `DataBits`: The `DataBits` value.
+- Parameter `Parity`: The `Parity` value.
+- Parameter `StopBits`: The `StopBits` value.
+- Parameter `Handshake`: The `Handshake` value.
+- Parameter `MessageFormat`: The `MessageFormat` value.
+- Parameter `StationNumber`: The `StationNumber` value.
+- Parameter `NetworkNumber`: The `NetworkNumber` value.
+- Parameter `PcNumber`: The `PcNumber` value.
+- Parameter `RequestDestinationModuleIoNumber`: The `RequestDestinationModuleIoNumber` value.
+- Parameter `RequestDestinationModuleStationNumber`: The `RequestDestinationModuleStationNumber` value.
+- Parameter `SelfStationNumber`: The `SelfStationNumber` value.
+- Parameter `MessageWait`: The `MessageWait` value.
+- Parameter `ReadBufferSize`: The `ReadBufferSize` value.
+- Parameter `WriteBufferSize`: The `WriteBufferSize` value.
+- Parameter `NewLine`: The `NewLine` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions,IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions left, IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions,IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions left, IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.BaudRate`
+
+```csharp
+public int BaudRate { get; set; }
+```
+The BaudRate parameter.
+
+- Value: The `BaudRate` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.DataBits`
+
+```csharp
+public int DataBits { get; set; }
+```
+The DataBits parameter.
+
+- Value: The `DataBits` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.Handshake`
+
+```csharp
+public System.IO.Ports.Handshake Handshake { get; set; }
+```
+The Handshake parameter.
+
+- Value: The `Handshake` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.MessageFormat`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiSerialMessageFormat MessageFormat { get; set; }
+```
+The MessageFormat parameter.
+
+- Value: The `MessageFormat` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.MessageWait`
+
+```csharp
+public byte MessageWait { get; set; }
+```
+The MessageWait parameter.
+
+- Value: The `MessageWait` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.NetworkNumber`
+
+```csharp
+public byte NetworkNumber { get; set; }
+```
+The NetworkNumber parameter.
+
+- Value: The `NetworkNumber` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.NewLine`
+
+```csharp
+public string NewLine { get; set; }
+```
+The NewLine parameter.
+
+- Value: The `NewLine` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.Parity`
+
+```csharp
+public System.IO.Ports.Parity Parity { get; set; }
+```
+The Parity parameter.
+
+- Value: The `Parity` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.PcNumber`
+
+```csharp
+public byte PcNumber { get; set; }
+```
+The PcNumber parameter.
+
+- Value: The `PcNumber` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.PortName`
+
+```csharp
+public string PortName { get; set; }
+```
+The PortName parameter.
+
+- Value: The `PortName` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.ReadBufferSize`
+
+```csharp
+public int ReadBufferSize { get; set; }
+```
+The ReadBufferSize parameter.
+
+- Value: The `ReadBufferSize` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.RequestDestinationModuleIoNumber`
+
+```csharp
+public ushort RequestDestinationModuleIoNumber { get; set; }
+```
+The RequestDestinationModuleIoNumber parameter.
+
+- Value: The `RequestDestinationModuleIoNumber` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.RequestDestinationModuleStationNumber`
+
+```csharp
+public byte RequestDestinationModuleStationNumber { get; set; }
+```
+The RequestDestinationModuleStationNumber parameter.
+
+- Value: The `RequestDestinationModuleStationNumber` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.Route`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute Route { get; }
+```
+Gets or sets the Route property.
+
+- Value: The `Route` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.SelfStationNumber`
+
+```csharp
+public byte SelfStationNumber { get; set; }
+```
+The SelfStationNumber parameter.
+
+- Value: The `SelfStationNumber` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.StationNumber`
+
+```csharp
+public byte StationNumber { get; set; }
+```
+The StationNumber parameter.
+
+- Value: The `StationNumber` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.StopBits`
+
+```csharp
+public System.IO.Ports.StopBits StopBits { get; set; }
+```
+The StopBits parameter.
+
+- Value: The `StopBits` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialOptions.WriteBufferSize`
+
+```csharp
+public int WriteBufferSize { get; set; }
+```
+The WriteBufferSize parameter.
+
+- Value: The `WriteBufferSize` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute
+```
+Provides the MitsubishiSerialRoute record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute.#ctor(System.Byte,System.Byte,System.Byte,System.UInt16,System.Byte,System.Byte)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute(byte StationNumber, byte NetworkNumber, byte PcNumber, ushort RequestDestinationModuleIoNumber, byte RequestDestinationModuleStationNumber, byte SelfStationNumber)
+```
+Provides the MitsubishiSerialRoute record.
+
+- Parameter `StationNumber`: The StationNumber parameter.
+- Parameter `NetworkNumber`: The NetworkNumber parameter.
+- Parameter `PcNumber`: The PcNumber parameter.
+- Parameter `RequestDestinationModuleIoNumber`: The RequestDestinationModuleIoNumber parameter.
+- Parameter `RequestDestinationModuleStationNumber`: The RequestDestinationModuleStationNumber parameter.
+- Parameter `SelfStationNumber`: The SelfStationNumber parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute.Deconstruct(System.Byte@,System.Byte@,System.Byte@,System.UInt16@,System.Byte@,System.Byte@)`
+
+```csharp
+public void Deconstruct(out byte StationNumber, out byte NetworkNumber, out byte PcNumber, out ushort RequestDestinationModuleIoNumber, out byte RequestDestinationModuleStationNumber, out byte SelfStationNumber)
+```
+Deconstructs the value into its component values.
+
+- Parameter `StationNumber`: The `StationNumber` value.
+- Parameter `NetworkNumber`: The `NetworkNumber` value.
+- Parameter `PcNumber`: The `PcNumber` value.
+- Parameter `RequestDestinationModuleIoNumber`: The `RequestDestinationModuleIoNumber` value.
+- Parameter `RequestDestinationModuleStationNumber`: The `RequestDestinationModuleStationNumber` value.
+- Parameter `SelfStationNumber`: The `SelfStationNumber` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute,IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute left, IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute,IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute left, IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute.NetworkNumber`
+
+```csharp
+public byte NetworkNumber { get; set; }
+```
+The NetworkNumber parameter.
+
+- Value: The `NetworkNumber` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute.PcNumber`
+
+```csharp
+public byte PcNumber { get; set; }
+```
+The PcNumber parameter.
+
+- Value: The `PcNumber` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute.RequestDestinationModuleIoNumber`
+
+```csharp
+public ushort RequestDestinationModuleIoNumber { get; set; }
+```
+The RequestDestinationModuleIoNumber parameter.
+
+- Value: The `RequestDestinationModuleIoNumber` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute.RequestDestinationModuleStationNumber`
+
+```csharp
+public byte RequestDestinationModuleStationNumber { get; set; }
+```
+The RequestDestinationModuleStationNumber parameter.
+
+- Value: The `RequestDestinationModuleStationNumber` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute.SelfStationNumber`
+
+```csharp
+public byte SelfStationNumber { get; set; }
+```
+The SelfStationNumber parameter.
+
+- Value: The `SelfStationNumber` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSerialRoute.StationNumber`
+
+```csharp
+public byte StationNumber { get; set; }
+```
+The StationNumber parameter.
+
+- Value: The `StationNumber` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue
+```
+Represents one populated value in a Mitsubishi simulator memory snapshot.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue.#ctor(System.String,System.Int32,IoT.DriverCore.MitsubishiRx.DeviceValueKind,System.UInt16)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue(string Symbol, int Number, IoT.DriverCore.MitsubishiRx.DeviceValueKind Kind, ushort Value)
+```
+Represents one populated value in a Mitsubishi simulator memory snapshot.
+
+- Parameter `Symbol`: The device symbol.
+- Parameter `Number`: The numeric device address.
+- Parameter `Kind`: The device value kind.
+- Parameter `Value`: The stored raw value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue.Deconstruct(System.String@,System.Int32@,IoT.DriverCore.MitsubishiRx.DeviceValueKind@,System.UInt16@)`
+
+```csharp
+public void Deconstruct(out string Symbol, out int Number, out IoT.DriverCore.MitsubishiRx.DeviceValueKind Kind, out ushort Value)
+```
+Deconstructs the value into its component values.
+
+- Parameter `Symbol`: The `Symbol` value.
+- Parameter `Number`: The `Number` value.
+- Parameter `Kind`: The `Kind` value.
+- Parameter `Value`: The `Value` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue,IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue left, IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue,IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue left, IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue.Kind`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.DeviceValueKind Kind { get; set; }
+```
+The device value kind.
+
+- Value: The `Kind` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue.Number`
+
+```csharp
+public int Number { get; set; }
+```
+The numeric device address.
+
+- Value: The `Number` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue.Symbol`
+
+```csharp
+public string Symbol { get; set; }
+```
+The device symbol.
+
+- Value: The `Symbol` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue.Value`
+
+```csharp
+public ushort Value { get; set; }
+```
+The stored raw value.
+
+- Value: The `Value` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory
+```
+Provides a thread-safe, deterministic Mitsubishi device-memory image.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.#ctor`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory()
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory`.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.Clear`
+
+```csharp
+public void Clear()
+```
+Clears all populated devices.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.ReadBit(System.String)`
+
+```csharp
+public bool ReadBit(string address)
+```
+Reads one bit device.
+
+- Parameter `address`: The bit-device address.
+- Returns: The current value, or when the device has not been written.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.ReadBit(System.String,IoT.DriverCore.MitsubishiRx.XyAddressNotation)`
+
+```csharp
+public bool ReadBit(string address, IoT.DriverCore.MitsubishiRx.XyAddressNotation addressNotation)
+```
+Reads one bit device.
+
+- Parameter `address`: The bit-device address.
+- Parameter `addressNotation`: The X/Y address notation.
+- Returns: The current value, or when the device has not been written.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.ReadBits(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress,System.Int32)`
+
+```csharp
+public bool[] ReadBits(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress address, int points)
+```
+Reads consecutive bit devices.
+
+- Parameter `address`: The first bit-device address.
+- Parameter `points`: The number of bits to read.
+- Returns: A detached value snapshot.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.ReadBits(System.String,System.Int32)`
+
+```csharp
+public bool[] ReadBits(string address, int points)
+```
+Reads consecutive bit devices.
+
+- Parameter `address`: The first bit-device address.
+- Parameter `points`: The number of bits to read.
+- Returns: A detached value snapshot.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.ReadBits(System.String,System.Int32,IoT.DriverCore.MitsubishiRx.XyAddressNotation)`
+
+```csharp
+public bool[] ReadBits(string address, int points, IoT.DriverCore.MitsubishiRx.XyAddressNotation addressNotation)
+```
+Reads consecutive bit devices.
+
+- Parameter `address`: The first bit-device address.
+- Parameter `points`: The number of bits to read.
+- Parameter `addressNotation`: The X/Y address notation.
+- Returns: A detached value snapshot.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.ReadWord(System.String)`
+
+```csharp
+public ushort ReadWord(string address)
+```
+Reads one word device.
+
+- Parameter `address`: The word-device address.
+- Returns: The current value, or zero when the device has not been written.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.ReadWord(System.String,IoT.DriverCore.MitsubishiRx.XyAddressNotation)`
+
+```csharp
+public ushort ReadWord(string address, IoT.DriverCore.MitsubishiRx.XyAddressNotation addressNotation)
+```
+Reads one word device.
+
+- Parameter `address`: The word-device address.
+- Parameter `addressNotation`: The X/Y address notation.
+- Returns: The current value, or zero when the device has not been written.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.ReadWords(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress,System.Int32)`
+
+```csharp
+public ushort[] ReadWords(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress address, int points)
+```
+Reads consecutive word devices.
+
+- Parameter `address`: The first word-device address.
+- Parameter `points`: The number of words to read.
+- Returns: A detached value snapshot.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.ReadWords(System.String,System.Int32)`
+
+```csharp
+public ushort[] ReadWords(string address, int points)
+```
+Reads consecutive word devices.
+
+- Parameter `address`: The first word-device address.
+- Parameter `points`: The number of words to read.
+- Returns: A detached value snapshot.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.ReadWords(System.String,System.Int32,IoT.DriverCore.MitsubishiRx.XyAddressNotation)`
+
+```csharp
+public ushort[] ReadWords(string address, int points, IoT.DriverCore.MitsubishiRx.XyAddressNotation addressNotation)
+```
+Reads consecutive word devices.
+
+- Parameter `address`: The first word-device address.
+- Parameter `points`: The number of words to read.
+- Parameter `addressNotation`: The X/Y address notation.
+- Returns: A detached value snapshot.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.Snapshot`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorDeviceValue> Snapshot()
+```
+Gets a deterministic detached snapshot of the populated memory image.
+
+- Returns: Values ordered by device symbol and numeric address.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.WriteBit(System.String,System.Boolean)`
+
+```csharp
+public void WriteBit(string address, bool value)
+```
+Writes one bit device.
+
+- Parameter `address`: The bit-device address.
+- Parameter `value`: The value to write.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.WriteBit(System.String,System.Boolean,IoT.DriverCore.MitsubishiRx.XyAddressNotation)`
+
+```csharp
+public void WriteBit(string address, bool value, IoT.DriverCore.MitsubishiRx.XyAddressNotation addressNotation)
+```
+Writes one bit device.
+
+- Parameter `address`: The bit-device address.
+- Parameter `value`: The value to write.
+- Parameter `addressNotation`: The X/Y address notation.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.WriteBits(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress,System.Collections.Generic.IReadOnlyList`1{System.Boolean})`
+
+```csharp
+public void WriteBits(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress address, System.Collections.Generic.IReadOnlyList<bool> values)
+```
+Executes the `WriteBits` operation.
+
+- Parameter `address`: The `address` value.
+- Parameter `values`: The `values` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.WriteBits(System.String,System.Collections.Generic.IReadOnlyList`1{System.Boolean})`
+
+```csharp
+public void WriteBits(string address, System.Collections.Generic.IReadOnlyList<bool> values)
+```
+Executes the `WriteBits` operation.
+
+- Parameter `address`: The `address` value.
+- Parameter `values`: The `values` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.WriteBits(System.String,System.Collections.Generic.IReadOnlyList`1{System.Boolean},IoT.DriverCore.MitsubishiRx.XyAddressNotation)`
+
+```csharp
+public void WriteBits(string address, System.Collections.Generic.IReadOnlyList<bool> values, IoT.DriverCore.MitsubishiRx.XyAddressNotation addressNotation)
+```
+Executes the `WriteBits` operation.
+
+- Parameter `address`: The `address` value.
+- Parameter `values`: The `values` value.
+- Parameter `addressNotation`: The `addressNotation` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.WriteWord(System.String,System.UInt16)`
+
+```csharp
+public void WriteWord(string address, ushort value)
+```
+Writes one word device.
+
+- Parameter `address`: The word-device address.
+- Parameter `value`: The value to write.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.WriteWord(System.String,System.UInt16,IoT.DriverCore.MitsubishiRx.XyAddressNotation)`
+
+```csharp
+public void WriteWord(string address, ushort value, IoT.DriverCore.MitsubishiRx.XyAddressNotation addressNotation)
+```
+Writes one word device.
+
+- Parameter `address`: The word-device address.
+- Parameter `value`: The value to write.
+- Parameter `addressNotation`: The X/Y address notation.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.WriteWords(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress,System.Collections.Generic.IReadOnlyList`1{System.UInt16})`
+
+```csharp
+public void WriteWords(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress address, System.Collections.Generic.IReadOnlyList<ushort> values)
+```
+Executes the `WriteWords` operation.
+
+- Parameter `address`: The `address` value.
+- Parameter `values`: The `values` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.WriteWords(System.String,System.Collections.Generic.IReadOnlyList`1{System.UInt16})`
+
+```csharp
+public void WriteWords(string address, System.Collections.Generic.IReadOnlyList<ushort> values)
+```
+Executes the `WriteWords` operation.
+
+- Parameter `address`: The `address` value.
+- Parameter `values`: The `values` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.WriteWords(System.String,System.Collections.Generic.IReadOnlyList`1{System.UInt16},IoT.DriverCore.MitsubishiRx.XyAddressNotation)`
+
+```csharp
+public void WriteWords(string address, System.Collections.Generic.IReadOnlyList<ushort> values, IoT.DriverCore.MitsubishiRx.XyAddressNotation addressNotation)
+```
+Executes the `WriteWords` operation.
+
+- Parameter `address`: The `address` value.
+- Parameter `values`: The `values` value.
+- Parameter `addressNotation`: The `addressNotation` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory.Version`
+
+```csharp
+public long Version { get; }
+```
+Gets the monotonically increasing memory version.
+
+- Value: The `Version` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport
+```
+Provides a deterministic, in-memory Mitsubishi transport for simulations, examples, integration tests, and applications that do not have a physical PLC.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.#ctor`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport()
+```
+Initializes a new instance of the `T:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport` class.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.#ctor(IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport(IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory memory)
+```
+Initializes a new instance of the `T:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport` class.
+
+- Parameter `memory`: The stateful device-memory image.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.#ctor(System.Collections.Generic.IEnumerable`1{System.Byte[]})`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport(System.Collections.Generic.IEnumerable<byte[]> responses)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport`.
+
+- Parameter `responses`: The `responses` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.#ctor(System.Func`2{IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest,System.Byte[]})`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport(System.Func<IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest, byte[]> responseFactory)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport`.
+
+- Parameter `responseFactory`: The `responseFactory` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.ClearRequests`
+
+```csharp
+public void ClearRequests()
+```
+Clears the captured request history.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.ConnectAsync(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.ValueTask ConnectAsync(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions options, System.Threading.CancellationToken cancellationToken)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `options`: The `options` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.ValueTask` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.CreateErrorResponse(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions,System.UInt16)`
+
+```csharp
+public static byte[] CreateErrorResponse(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions options, ushort endCode)
+```
+Creates a complete protocol response containing a PLC end code.
+
+- Parameter `options`: The client options defining the response framing.
+- Parameter `endCode`: The PLC end code.
+- Returns: The complete wire response.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.CreateSuccessResponse(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions,System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public static byte[] CreateSuccessResponse(IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions options, System.ReadOnlySpan<byte> payload)
+```
+Executes the `CreateSuccessResponse` operation.
+
+- Parameter `options`: The `options` value.
+- Parameter `payload`: The `payload` value.
+- Returns: A `byte[]` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.DisconnectAsync(System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.ValueTask DisconnectAsync(System.Threading.CancellationToken cancellationToken)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.ValueTask` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.Dispose`
+
+```csharp
+public void Dispose()
+```
+Inherits XML documentation from its implemented or overridden member.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.DisposeAsync`
+
+```csharp
+public System.Threading.Tasks.ValueTask DisposeAsync()
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Returns: A `System.Threading.Tasks.ValueTask` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.EnqueueConnectFault(System.Exception)`
+
+```csharp
+public void EnqueueConnectFault(System.Exception exception)
+```
+Queues a fault to be thrown by the next connection attempt.
+
+- Parameter `exception`: The fault to throw.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.EnqueueFault(System.Exception)`
+
+```csharp
+public void EnqueueFault(System.Exception exception)
+```
+Queues a fault to be thrown by the next exchange.
+
+- Parameter `exception`: The fault to throw.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.EnqueueResponse(System.ReadOnlySpan`1{System.Byte})`
+
+```csharp
+public void EnqueueResponse(System.ReadOnlySpan<byte> response)
+```
+Executes the `EnqueueResponse` operation.
+
+- Parameter `response`: The `response` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.ExchangeAsync(IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest,System.Threading.CancellationToken)`
+
+```csharp
+public System.Threading.Tasks.ValueTask<byte[]> ExchangeAsync(IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest request, System.Threading.CancellationToken cancellationToken)
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Parameter `request`: The `request` value.
+- Parameter `cancellationToken`: The `cancellationToken` value.
+- Returns: A `System.Threading.Tasks.ValueTask<byte[]>` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.ReadBufferMemory(System.UInt16,System.Int32)`
+
+```csharp
+public ushort[] ReadBufferMemory(ushort address, int length)
+```
+Reads consecutive simulated buffer-memory words.
+
+- Parameter `address`: The first buffer-memory address.
+- Parameter `length`: The number of words to read.
+- Returns: A detached word snapshot.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.SetControllerError(System.UInt16)`
+
+```csharp
+public void SetControllerError(ushort errorCode)
+```
+Sets the current simulated controller error code.
+
+- Parameter `errorCode`: The deterministic controller error code.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.WriteBufferMemory(System.UInt16,System.Collections.Generic.IReadOnlyList`1{System.UInt16})`
+
+```csharp
+public void WriteBufferMemory(ushort address, System.Collections.Generic.IReadOnlyList<ushort> values)
+```
+Executes the `WriteBufferMemory` operation.
+
+- Parameter `address`: The `address` value.
+- Parameter `values`: The `values` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.ConnectCount`
+
+```csharp
+public int ConnectCount { get; }
+```
+Gets the number of successful connection attempts.
+
+- Value: The `ConnectCount` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.ConnectedOptions`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiClientOptions ConnectedOptions { get; }
+```
+Gets the options supplied by the most recent successful connection.
+
+- Value: The `ConnectedOptions` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.ControllerError`
+
+```csharp
+public ushort ControllerError { get; }
+```
+Gets the current simulated controller error code.
+
+- Value: The `ControllerError` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.DisconnectCount`
+
+```csharp
+public int DisconnectCount { get; }
+```
+Gets the number of disconnect operations.
+
+- Value: The `DisconnectCount` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.IsConnected`
+
+```csharp
+public bool IsConnected { get; }
+```
+Inherits XML documentation from its implemented or overridden member.
+
+- Value: The `IsConnected` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.IsCpuRunning`
+
+```csharp
+public bool IsCpuRunning { get; }
+```
+Gets whether the simulated controller is in the run state.
+
+- Value: The `IsCpuRunning` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.Memory`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorMemory Memory { get; }
+```
+Gets the stateful device-memory image used by automatic responses.
+
+- Value: The `Memory` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.ModelCode`
+
+```csharp
+public ushort ModelCode { get; set; }
+```
+Gets or sets the simulated controller model code.
+
+- Value: The `ModelCode` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.ModelName`
+
+```csharp
+public string ModelName { get; set; }
+```
+Gets or sets the simulated controller model name.
+
+- Value: The `ModelName` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiSimulatorTransport.Requests`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest> Requests { get; }
+```
+Gets immutable snapshots of requests in their exchange order.
+
+- Value: The `Requests` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiTagAttribute`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiTagAttribute
+```
+Binds a generated property to a logical Mitsubishi tag name.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagAttribute.#ctor(System.String)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagAttribute(string tagName)
+```
+Initializes a tag binding attribute.
+
+- Parameter `tagName`: The logical tag name.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagAttribute.TagName`
+
+```csharp
+public string TagName { get; }
+```
+Gets the logical tag name.
+
+- Value: The `TagName` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiTagChange`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiTagChange
+```
+Provides the MitsubishiTagChange record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagChange.#ctor(System.String,IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition,IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagChange(string Name, IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition Previous, IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition Current)
+```
+Provides the MitsubishiTagChange record.
+
+- Parameter `Name`: The Name parameter.
+- Parameter `Previous`: The Previous parameter.
+- Parameter `Current`: The Current parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagChange.Deconstruct(System.String@,IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition@,IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition@)`
+
+```csharp
+public void Deconstruct(out string Name, out IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition Previous, out IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition Current)
+```
+Deconstructs the value into its component values.
+
+- Parameter `Name`: The `Name` value.
+- Parameter `Previous`: The `Previous` value.
+- Parameter `Current`: The `Current` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagChange.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiTagChange)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiTagChange other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagChange.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagChange.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagChange.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagChange.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiTagChange,IoT.DriverCore.MitsubishiRx.MitsubishiTagChange)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiTagChange left, IoT.DriverCore.MitsubishiRx.MitsubishiTagChange right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagChange.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiTagChange,IoT.DriverCore.MitsubishiRx.MitsubishiTagChange)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiTagChange left, IoT.DriverCore.MitsubishiRx.MitsubishiTagChange right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagChange.ChangeKinds`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind ChangeKinds { get; }
+```
+Gets or sets the ChangeKinds property.
+
+- Value: The `ChangeKinds` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagChange.Current`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition Current { get; set; }
+```
+The Current parameter.
+
+- Value: The `Current` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagChange.Name`
+
+```csharp
+public string Name { get; set; }
+```
+The Name parameter.
+
+- Value: The `Name` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagChange.Previous`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition Previous { get; set; }
+```
+The Previous parameter.
+
+- Value: The `Previous` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiTagClientAttribute`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiTagClientAttribute
+```
+Binds generated tag members to a Mitsubishi client member.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagClientAttribute.#ctor(System.String)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagClientAttribute(string clientMemberName)
+```
+Initializes a client binding attribute.
+
+- Parameter `clientMemberName`: The client field or property name.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagClientAttribute.ClientMemberName`
+
+```csharp
+public string ClientMemberName { get; }
+```
+Gets the client field or property name.
+
+- Value: The `ClientMemberName` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiTagClientSchemaAttribute`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiTagClientSchemaAttribute
+```
+Declares an inline Mitsubishi tag schema.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagClientSchemaAttribute.#ctor(System.String)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagClientSchemaAttribute(string schemaJson)
+```
+Initializes a schema attribute.
+
+- Parameter `schemaJson`: The JSON tag schema.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagClientSchemaAttribute.SchemaJson`
+
+```csharp
+public string SchemaJson { get; }
+```
+Gets the JSON tag schema.
+
+- Value: The `SchemaJson` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase
+```
+Provides the MitsubishiTagDatabase type.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.#ctor(System.Collections.Generic.IEnumerable`1{IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition})`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase(System.Collections.Generic.IEnumerable<IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition> tags)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase`.
+
+- Parameter `tags`: The `tags` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.Add(IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition)`
+
+```csharp
+public void Add(IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition tag)
+```
+Executes the Add operation.
+
+- Parameter `tag`: The tag parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.AddGroup(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition)`
+
+```csharp
+public void AddGroup(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition group)
+```
+Executes the AddGroup operation.
+
+- Parameter `group`: The group parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.CompareWith(IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff CompareWith(IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase other)
+```
+Executes the CompareWith operation.
+
+- Parameter `other`: The other parameter.
+- Returns: The CompareWith operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.FromCsv(System.String)`
+
+```csharp
+public static IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase FromCsv(string csvContent)
+```
+Executes the FromCsv operation.
+
+- Parameter `csvContent`: The csvContent parameter.
+- Returns: The FromCsv operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.FromJson(System.String)`
+
+```csharp
+public static IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase FromJson(string json)
+```
+Executes the FromJson operation.
+
+- Parameter `json`: The json parameter.
+- Returns: The FromJson operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.FromYaml(System.String)`
+
+```csharp
+public static IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase FromYaml(string yaml)
+```
+Executes the FromYaml operation.
+
+- Parameter `yaml`: The yaml parameter.
+- Returns: The FromYaml operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.GetRequired(System.String)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition GetRequired(string name)
+```
+Executes the GetRequired operation.
+
+- Parameter `name`: The name parameter.
+- Returns: The GetRequired operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.GetRequiredGroup(System.String)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition GetRequiredGroup(string name)
+```
+Executes the GetRequiredGroup operation.
+
+- Parameter `name`: The name parameter.
+- Returns: The GetRequiredGroup operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.Load(System.String)`
+
+```csharp
+public static IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase Load(string path)
+```
+Executes the Load operation.
+
+- Parameter `path`: The path parameter.
+- Returns: The Load operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.Save(System.String)`
+
+```csharp
+public void Save(string path)
+```
+Executes the Save operation.
+
+- Parameter `path`: The path parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.ToCsv`
+
+```csharp
+public string ToCsv()
+```
+Serializes tags and group membership to CSV.
+
+- Returns: The CSV document.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.ToJson`
+
+```csharp
+public string ToJson()
+```
+Executes the ToJson operation.
+
+- Returns: The ToJson operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.ToYaml`
+
+```csharp
+public string ToYaml()
+```
+Executes the ToYaml operation.
+
+- Returns: The ToYaml operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.TryGet(System.String,IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition@)`
+
+```csharp
+public bool TryGet(string name, out IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition tag)
+```
+Executes the TryGet operation.
+
+- Parameter `name`: The name parameter.
+- Parameter `tag`: The tag parameter.
+- Returns: The TryGet operation result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.TryGetGroup(System.String,IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition@)`
+
+```csharp
+public bool TryGetGroup(string name, out IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition group)
+```
+Executes the TryGetGroup operation.
+
+- Parameter `name`: The name parameter.
+- Parameter `group`: The group parameter.
+- Returns: The TryGetGroup operation result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.Count`
+
+```csharp
+public int Count { get; }
+```
+Gets or sets the Count property.
+
+- Value: The `Count` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.GroupCount`
+
+```csharp
+public int GroupCount { get; }
+```
+Gets or sets the GroupCount property.
+
+- Value: The `GroupCount` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.Groups`
+
+```csharp
+public System.Collections.Generic.IReadOnlyCollection<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition> Groups { get; }
+```
+Gets or sets the Groups property.
+
+- Value: The `Groups` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabase.Tags`
+
+```csharp
+public System.Collections.Generic.IReadOnlyCollection<IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition> Tags { get; }
+```
+Gets or sets the Tags property.
+
+- Value: The `Tags` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff
+```
+Provides the MitsubishiTagDatabaseDiff record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.#ctor(System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition},System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition},System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.MitsubishiRx.MitsubishiTagChange},System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition},System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition},System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange})`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff(System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition> AddedTags, System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition> RemovedTags, System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagChange> ChangedTags, System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition> AddedGroups, System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition> RemovedGroups, System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange> ChangedGroups)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff`.
+
+- Parameter `AddedTags`: The `AddedTags` value.
+- Parameter `RemovedTags`: The `RemovedTags` value.
+- Parameter `ChangedTags`: The `ChangedTags` value.
+- Parameter `AddedGroups`: The `AddedGroups` value.
+- Parameter `RemovedGroups`: The `RemovedGroups` value.
+- Parameter `ChangedGroups`: The `ChangedGroups` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.Deconstruct(System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition}@,System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition}@,System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.MitsubishiRx.MitsubishiTagChange}@,System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition}@,System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition}@,System.Collections.Generic.IReadOnlyList`1{IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange}@)`
+
+```csharp
+public void Deconstruct(out System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition> AddedTags, out System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition> RemovedTags, out System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagChange> ChangedTags, out System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition> AddedGroups, out System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition> RemovedGroups, out System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange> ChangedGroups)
+```
+Deconstructs the value into its component values.
+
+- Parameter `AddedTags`: The `AddedTags` value.
+- Parameter `RemovedTags`: The `RemovedTags` value.
+- Parameter `ChangedTags`: The `ChangedTags` value.
+- Parameter `AddedGroups`: The `AddedGroups` value.
+- Parameter `RemovedGroups`: The `RemovedGroups` value.
+- Parameter `ChangedGroups`: The `ChangedGroups` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff,IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff left, IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff,IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff left, IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.AddedGroups`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition> AddedGroups { get; set; }
+```
+The AddedGroups parameter.
+
+- Value: The `AddedGroups` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.AddedTags`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition> AddedTags { get; set; }
+```
+The AddedTags parameter.
+
+- Value: The `AddedTags` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.ChangeCount`
+
+```csharp
+public int ChangeCount { get; }
+```
+Gets or sets the ChangeCount property.
+
+- Value: The `ChangeCount` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.ChangeKinds`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind ChangeKinds { get; }
+```
+Gets or sets the ChangeKinds property.
+
+- Value: The `ChangeKinds` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.ChangedGroups`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange> ChangedGroups { get; set; }
+```
+The ChangedGroups parameter.
+
+- Value: The `ChangedGroups` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.ChangedTags`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagChange> ChangedTags { get; set; }
+```
+The ChangedTags parameter.
+
+- Value: The `ChangedTags` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.Empty`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff Empty { get; }
+```
+Gets or sets the Empty property.
+
+- Value: The `Empty` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.HasChanges`
+
+```csharp
+public bool HasChanges { get; }
+```
+Gets or sets the HasChanges property.
+
+- Value: The `HasChanges` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.RemovedGroups`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition> RemovedGroups { get; set; }
+```
+The RemovedGroups parameter.
+
+- Value: The `RemovedGroups` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDatabaseDiff.RemovedTags`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition> RemovedTags { get; set; }
+```
+The RemovedTags parameter.
+
+- Value: The `RemovedTags` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition
+```
+Provides the MitsubishiTagDefinition record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.#ctor(System.String,System.String,System.String,System.String,System.Double,System.Double,System.Nullable`1{System.Int32},System.String,System.String,System.Boolean,System.String,System.String)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition(string Name, string Address, string DataType, string Description, double Scale, double Offset, System.Nullable<int> Length, string Encoding, string Units, bool Signed, string ByteOrder, string Notes)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition`.
+
+- Parameter `Name`: The `Name` value.
+- Parameter `Address`: The `Address` value.
+- Parameter `DataType`: The `DataType` value.
+- Parameter `Description`: The `Description` value.
+- Parameter `Scale`: The `Scale` value.
+- Parameter `Offset`: The `Offset` value.
+- Parameter `Length`: The `Length` value.
+- Parameter `Encoding`: The `Encoding` value.
+- Parameter `Units`: The `Units` value.
+- Parameter `Signed`: The `Signed` value.
+- Parameter `ByteOrder`: The `ByteOrder` value.
+- Parameter `Notes`: The `Notes` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.Deconstruct(System.String@,System.String@,System.String@,System.String@,System.Double@,System.Double@,System.Nullable`1{System.Int32}@,System.String@,System.String@,System.Boolean@,System.String@,System.String@)`
+
+```csharp
+public void Deconstruct(out string Name, out string Address, out string DataType, out string Description, out double Scale, out double Offset, out System.Nullable<int> Length, out string Encoding, out string Units, out bool Signed, out string ByteOrder, out string Notes)
+```
+Deconstructs the value into its component values.
+
+- Parameter `Name`: The `Name` value.
+- Parameter `Address`: The `Address` value.
+- Parameter `DataType`: The `DataType` value.
+- Parameter `Description`: The `Description` value.
+- Parameter `Scale`: The `Scale` value.
+- Parameter `Offset`: The `Offset` value.
+- Parameter `Length`: The `Length` value.
+- Parameter `Encoding`: The `Encoding` value.
+- Parameter `Units`: The `Units` value.
+- Parameter `Signed`: The `Signed` value.
+- Parameter `ByteOrder`: The `ByteOrder` value.
+- Parameter `Notes`: The `Notes` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition,IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition left, IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition,IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition left, IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.Address`
+
+```csharp
+public string Address { get; set; }
+```
+The Address parameter.
+
+- Value: The `Address` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.ByteOrder`
+
+```csharp
+public string ByteOrder { get; set; }
+```
+The ByteOrder parameter.
+
+- Value: The `ByteOrder` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.DataType`
+
+```csharp
+public string DataType { get; set; }
+```
+The DataType parameter.
+
+- Value: The `DataType` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.Description`
+
+```csharp
+public string Description { get; set; }
+```
+The Description parameter.
+
+- Value: The `Description` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.Encoding`
+
+```csharp
+public string Encoding { get; set; }
+```
+The Encoding parameter.
+
+- Value: The `Encoding` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.Length`
+
+```csharp
+public System.Nullable<int> Length { get; set; }
+```
+The Length parameter.
+
+- Value: The `Length` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.Name`
+
+```csharp
+public string Name { get; set; }
+```
+The Name parameter.
+
+- Value: The `Name` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.Notes`
+
+```csharp
+public string Notes { get; set; }
+```
+The Notes parameter.
+
+- Value: The `Notes` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.Offset`
+
+```csharp
+public double Offset { get; set; }
+```
+The Offset parameter.
+
+- Value: The `Offset` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.Scale`
+
+```csharp
+public double Scale { get; set; }
+```
+The Scale parameter.
+
+- Value: The `Scale` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.Signed`
+
+```csharp
+public bool Signed { get; set; }
+```
+The Signed parameter.
+
+- Value: The `Signed` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagDefinition.Units`
+
+```csharp
+public string Units { get; set; }
+```
+The Units parameter.
+
+- Value: The `Units` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange
+```
+Provides the MitsubishiTagGroupChange record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange.#ctor(System.String,IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition,IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange(string Name, IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition Previous, IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition Current)
+```
+Provides the MitsubishiTagGroupChange record.
+
+- Parameter `Name`: The Name parameter.
+- Parameter `Previous`: The Previous parameter.
+- Parameter `Current`: The Current parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange.Deconstruct(System.String@,IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition@,IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition@)`
+
+```csharp
+public void Deconstruct(out string Name, out IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition Previous, out IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition Current)
+```
+Deconstructs the value into its component values.
+
+- Parameter `Name`: The `Name` value.
+- Parameter `Previous`: The `Previous` value.
+- Parameter `Current`: The `Current` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange,IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange left, IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange,IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange left, IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange.ChangeKinds`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiSchemaChangeKind ChangeKinds { get; }
+```
+Gets or sets the ChangeKinds property.
+
+- Value: The `ChangeKinds` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange.Current`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition Current { get; set; }
+```
+The Current parameter.
+
+- Value: The `Current` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange.Name`
+
+```csharp
+public string Name { get; set; }
+```
+The Name parameter.
+
+- Value: The `Name` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupChange.Previous`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition Previous { get; set; }
+```
+The Previous parameter.
+
+- Value: The `Previous` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition
+```
+Provides the MitsubishiTagGroupDefinition record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition.#ctor(System.String,System.Collections.Generic.IReadOnlyList`1{System.String})`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition(string Name, System.Collections.Generic.IReadOnlyList<string> TagNames)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition`.
+
+- Parameter `Name`: The `Name` value.
+- Parameter `TagNames`: The `TagNames` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition.Deconstruct(System.String@,System.Collections.Generic.IReadOnlyList`1{System.String}@)`
+
+```csharp
+public void Deconstruct(out string Name, out System.Collections.Generic.IReadOnlyList<string> TagNames)
+```
+Deconstructs the value into its component values.
+
+- Parameter `Name`: The `Name` value.
+- Parameter `TagNames`: The `TagNames` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition,IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition left, IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition,IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition left, IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition.Name`
+
+```csharp
+public string Name { get; set; }
+```
+The Name parameter.
+
+- Value: The `Name` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition.ResolvedTagNames`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<string> ResolvedTagNames { get; }
+```
+Gets or sets the ResolvedTagNames property.
+
+- Value: The `ResolvedTagNames` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupDefinition.TagNames`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<string> TagNames { get; set; }
+```
+The TagNames parameter.
+
+- Value: The `TagNames` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot
+```
+Provides the MitsubishiTagGroupSnapshot record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot.#ctor(System.String,System.Collections.Generic.IReadOnlyDictionary`2{System.String,System.Object})`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot(string GroupName, System.Collections.Generic.IReadOnlyDictionary<string, object> Values)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot`.
+
+- Parameter `GroupName`: The `GroupName` value.
+- Parameter `Values`: The `Values` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot.Deconstruct(System.String@,System.Collections.Generic.IReadOnlyDictionary`2{System.String,System.Object}@)`
+
+```csharp
+public void Deconstruct(out string GroupName, out System.Collections.Generic.IReadOnlyDictionary<string, object> Values)
+```
+Deconstructs the value into its component values.
+
+- Parameter `GroupName`: The `GroupName` value.
+- Parameter `Values`: The `Values` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot.GetOptional``1(IoT.DriverCore.Core.LogicalTagKey`1{``0})`
+
+```csharp
+public T GetOptional<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag)
+```
+Executes the `GetOptional` operation.
+
+- Parameter `tag`: The `tag` value.
+- Returns: A `T` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot.GetRequired``1(IoT.DriverCore.Core.LogicalTagKey`1{``0})`
+
+```csharp
+public T GetRequired<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag)
+```
+Executes the `GetRequired` operation.
+
+- Parameter `tag`: The `tag` value.
+- Returns: A `T` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot,IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot left, IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot,IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot left, IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot.GroupName`
+
+```csharp
+public string GroupName { get; set; }
+```
+The GroupName parameter.
+
+- Value: The `GroupName` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot.TagNames`
+
+```csharp
+public System.Collections.Generic.IReadOnlyList<string> TagNames { get; }
+```
+Gets or sets the TagNames property.
+
+- Value: The `TagNames` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTagGroupSnapshot.Values`
+
+```csharp
+public System.Collections.Generic.IReadOnlyDictionary<string, object> Values { get; set; }
+```
+The Values parameter.
+
+- Value: The `Values` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiTagRolloutPolicy`
+
+```csharp
+public enum IoT.DriverCore.MitsubishiRx.MitsubishiTagRolloutPolicy
+```
+Defines the MitsubishiTagRolloutPolicy values.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiTagRolloutPolicy.AllowAll`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiTagRolloutPolicy AllowAll
+```
+Represents the AllowAll option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiTagRolloutPolicy.SafeMetadataAndGroups`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiTagRolloutPolicy SafeMetadataAndGroups
+```
+Represents the SafeMetadataAndGroups option.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiTagValueConverter`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiTagValueConverter
+```
+Converts dynamically read tag values to declared tag types.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTagValueConverter.Require``1(System.Object,IoT.DriverCore.Core.LogicalTagKey`1{``0})`
+
+```csharp
+public static T Require<T>(object value, IoT.DriverCore.Core.LogicalTagKey<T> tag)
+```
+Executes the `Require` operation.
+
+- Parameter `value`: The `value` value.
+- Parameter `tag`: The `tag` value.
+- Returns: A `T` result.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiTransportKind`
+
+```csharp
+public enum IoT.DriverCore.MitsubishiRx.MitsubishiTransportKind
+```
+Defines the MitsubishiTransportKind values.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiTransportKind.Serial`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiTransportKind Serial
+```
+Represents the Serial option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiTransportKind.Tcp`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiTransportKind Tcp
+```
+Represents the Tcp option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.MitsubishiTransportKind.Udp`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.MitsubishiTransportKind Udp
+```
+Represents the Udp option.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest
+```
+Provides the MitsubishiTransportRequest record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest.#ctor(System.Byte[],System.Nullable`1{System.Int32},System.String)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest(byte[] Payload, System.Nullable<int> ExpectedResponseLength, string Description)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest`.
+
+- Parameter `Payload`: The `Payload` value.
+- Parameter `ExpectedResponseLength`: The `ExpectedResponseLength` value.
+- Parameter `Description`: The `Description` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest.Deconstruct(System.Byte[]@,System.Nullable`1{System.Int32}@,System.String@)`
+
+```csharp
+public void Deconstruct(out byte[] Payload, out System.Nullable<int> ExpectedResponseLength, out string Description)
+```
+Deconstructs the value into its component values.
+
+- Parameter `Payload`: The `Payload` value.
+- Parameter `ExpectedResponseLength`: The `ExpectedResponseLength` value.
+- Parameter `Description`: The `Description` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest,IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest left, IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest,IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest left, IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest.Description`
+
+```csharp
+public string Description { get; set; }
+```
+The Description parameter.
+
+- Value: The `Description` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest.ExpectedResponseLength`
+
+```csharp
+public System.Nullable<int> ExpectedResponseLength { get; set; }
+```
+The ExpectedResponseLength parameter.
+
+- Value: The `ExpectedResponseLength` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTransportRequest.Payload`
+
+```csharp
+public byte[] Payload { get; set; }
+```
+The Payload parameter.
+
+- Value: The `Payload` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiTypeName`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiTypeName
+```
+Provides the MitsubishiTypeName record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTypeName.#ctor(System.String,System.UInt16)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiTypeName(string ModelName, ushort ModelCode)
+```
+Provides the MitsubishiTypeName record.
+
+- Parameter `ModelName`: The ModelName parameter.
+- Parameter `ModelCode`: The ModelCode parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTypeName.Deconstruct(System.String@,System.UInt16@)`
+
+```csharp
+public void Deconstruct(out string ModelName, out ushort ModelCode)
+```
+Deconstructs the value into its component values.
+
+- Parameter `ModelName`: The `ModelName` value.
+- Parameter `ModelCode`: The `ModelCode` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTypeName.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiTypeName)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiTypeName other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTypeName.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTypeName.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTypeName.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTypeName.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiTypeName,IoT.DriverCore.MitsubishiRx.MitsubishiTypeName)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiTypeName left, IoT.DriverCore.MitsubishiRx.MitsubishiTypeName right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiTypeName.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiTypeName,IoT.DriverCore.MitsubishiRx.MitsubishiTypeName)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiTypeName left, IoT.DriverCore.MitsubishiRx.MitsubishiTypeName right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTypeName.ModelCode`
+
+```csharp
+public ushort ModelCode { get; set; }
+```
+The ModelCode parameter.
+
+- Value: The `ModelCode` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiTypeName.ModelName`
+
+```csharp
+public string ModelName { get; set; }
+```
+The ModelName parameter.
+
+- Value: The `ModelName` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock
+```
+Provides the MitsubishiWordBlock record.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock.#ctor(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress,System.ReadOnlyMemory`1{System.UInt16})`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress Address, System.ReadOnlyMemory<ushort> Values)
+```
+Initializes a new instance of `IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock`.
+
+- Parameter `Address`: The `Address` value.
+- Parameter `Values`: The `Values` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock.Deconstruct(IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress@,System.ReadOnlyMemory`1{System.UInt16}@)`
+
+```csharp
+public void Deconstruct(out IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress Address, out System.ReadOnlyMemory<ushort> Values)
+```
+Deconstructs the value into its component values.
+
+- Parameter `Address`: The `Address` value.
+- Parameter `Values`: The `Values` value.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock.Equals(IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock)`
+
+```csharp
+public bool Equals(IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock other)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `other`: The `other` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock.Equals(System.Object)`
+
+```csharp
+public bool Equals(object obj)
+```
+Determines whether the supplied value is equal to the current value.
+
+- Parameter `obj`: The `obj` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock.GetHashCode`
+
+```csharp
+public int GetHashCode()
+```
+Returns the hash code for the current value.
+
+- Returns: A `int` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock.ToString`
+
+```csharp
+public string ToString()
+```
+Returns a string representation of the current value.
+
+- Returns: A `string` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock.op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock,IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock)`
+
+```csharp
+public static bool op_Equality(IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock left, IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock right)
+```
+Determines whether the two supplied values are equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `M:IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock.op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock,IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock)`
+
+```csharp
+public static bool op_Inequality(IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock left, IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock right)
+```
+Determines whether the two supplied values are not equal.
+
+- Parameter `left`: The `left` value.
+- Parameter `right`: The `right` value.
+- Returns: A `bool` result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock.Address`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.MitsubishiDeviceAddress Address { get; set; }
+```
+The Address parameter.
+
+- Value: The `Address` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.MitsubishiWordBlock.Values`
+
+```csharp
+public System.ReadOnlyMemory<ushort> Values { get; set; }
+```
+The Values parameter.
+
+- Value: The `Values` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.Responce`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.Responce
+```
+Provides the Responce type.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.Responce.#ctor`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce()
+```
+Initializes a new instance of the `T:IoT.DriverCore.MitsubishiRx.Responce` class using `P:System.TimeProvider.System` .
+
+###### `M:IoT.DriverCore.MitsubishiRx.Responce.#ctor(System.TimeProvider)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce(System.TimeProvider timeProvider)
+```
+Initializes a new instance of the `T:IoT.DriverCore.MitsubishiRx.Responce` class.
+
+- Parameter `timeProvider`: The time provider used to stamp `P:IoT.DriverCore.MitsubishiRx.Responce.InitialTime` .
+
+###### `M:IoT.DriverCore.MitsubishiRx.Responce.AddErr2List`
+
+```csharp
+public void AddErr2List()
+```
+Executes the AddErr2List operation.
+
+###### `M:IoT.DriverCore.MitsubishiRx.Responce.SetErrInfo(IoT.DriverCore.MitsubishiRx.Responce)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce SetErrInfo(IoT.DriverCore.MitsubishiRx.Responce result)
+```
+Executes the SetErrInfo operation.
+
+- Parameter `result`: The result parameter.
+- Returns: The SetErrInfo operation result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.Responce.Err`
+
+```csharp
+public string Err { get; set; }
+```
+Gets or sets the Err property.
+
+- Value: The `Err` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.Responce.ErrCode`
+
+```csharp
+public int ErrCode { get; set; }
+```
+Gets or sets the ErrCode property.
+
+- Value: The `ErrCode` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.Responce.ErrList`
+
+```csharp
+public System.Collections.Generic.List<string> ErrList { get; }
+```
+Gets or sets the ErrList property.
+
+- Value: The `ErrList` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.Responce.Exception`
+
+```csharp
+public System.Exception Exception { get; set; }
+```
+Gets or sets the Exception property.
+
+- Value: The `Exception` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.Responce.InitialTime`
+
+```csharp
+public System.DateTimeOffset InitialTime { get; }
+```
+Gets the InitialTime property.
+
+- Value: The `InitialTime` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.Responce.IsSucceed`
+
+```csharp
+public bool IsSucceed { get; set; }
+```
+Gets or sets the IsSucceed property.
+
+- Value: The `IsSucceed` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.Responce.Request`
+
+```csharp
+public string Request { get; set; }
+```
+Gets or sets the Request property.
+
+- Value: The `Request` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.Responce.Request2`
+
+```csharp
+public string Request2 { get; set; }
+```
+Gets or sets the Request2 property.
+
+- Value: The `Request2` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.Responce.Response`
+
+```csharp
+public string Response { get; set; }
+```
+Gets or sets the Response property.
+
+- Value: The `Response` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.Responce.Response2`
+
+```csharp
+public string Response2 { get; set; }
+```
+Gets or sets the Response2 property.
+
+- Value: The `Response2` value.
+
+###### `P:IoT.DriverCore.MitsubishiRx.Responce.TimeConsuming`
+
+```csharp
+public System.Nullable<double> TimeConsuming { get; }
+```
+Gets the TimeConsuming property.
+
+- Value: The `TimeConsuming` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.Responce`1`
+
+```csharp
+public class IoT.DriverCore.MitsubishiRx.Responce`1
+```
+Provides the Responce type.
+
+##### Declared public members
+
+###### `M:IoT.DriverCore.MitsubishiRx.Responce`1.#ctor`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce<T>()
+```
+Initializes a new instance of the Responce class.
+
+###### `M:IoT.DriverCore.MitsubishiRx.Responce`1.#ctor(IoT.DriverCore.MitsubishiRx.Responce)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce<T>(IoT.DriverCore.MitsubishiRx.Responce result)
+```
+Initializes a new instance of the Responce class.
+
+- Parameter `result`: The result parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.Responce`1.#ctor(IoT.DriverCore.MitsubishiRx.Responce,`0)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce<T>(IoT.DriverCore.MitsubishiRx.Responce result, T data)
+```
+Initializes a new instance of the Responce class.
+
+- Parameter `result`: The result parameter.
+- Parameter `data`: The data parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.Responce`1.#ctor(`0)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce<T>(T data)
+```
+Initializes a new instance of the Responce class.
+
+- Parameter `data`: The data parameter.
+
+###### `M:IoT.DriverCore.MitsubishiRx.Responce`1.SetErrInfo(IoT.DriverCore.MitsubishiRx.Responce)`
+
+```csharp
+public IoT.DriverCore.MitsubishiRx.Responce<T> SetErrInfo(IoT.DriverCore.MitsubishiRx.Responce result)
+```
+Executes the SetErrInfo operation.
+
+- Parameter `result`: The result parameter.
+- Returns: The SetErrInfo operation result.
+
+###### `P:IoT.DriverCore.MitsubishiRx.Responce`1.Value`
+
+```csharp
+public T Value { get; set; }
+```
+Gets or sets the Value property.
+
+- Value: The `Value` value.
+
+#### `T:IoT.DriverCore.MitsubishiRx.XyAddressNotation`
+
+```csharp
+public enum IoT.DriverCore.MitsubishiRx.XyAddressNotation
+```
+Defines the XyAddressNotation values.
+
+##### Declared public members
+
+###### `F:IoT.DriverCore.MitsubishiRx.XyAddressNotation.Hexadecimal`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.XyAddressNotation Hexadecimal
+```
+Represents the Hexadecimal option.
+
+###### `F:IoT.DriverCore.MitsubishiRx.XyAddressNotation.Octal`
+
+```csharp
+public static const IoT.DriverCore.MitsubishiRx.XyAddressNotation Octal
+```
+Represents the Octal option.
+
+<!-- END GENERATED PUBLIC API -->
