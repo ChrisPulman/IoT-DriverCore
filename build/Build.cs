@@ -5,7 +5,6 @@
 using System;
 using Nuke.Common;
 using Nuke.Common.IO;
-using Nuke.Common.ProjectModel;
 using Nuke.Common.Tools.DotNet;
 using Serilog;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
@@ -17,9 +16,6 @@ public sealed class Build : NukeBuild
 {
     /// <summary>Gets the repository solution that the build pipeline operates on.</summary>
     private static readonly AbsolutePath SolutionFile = RootDirectory / "src" / "IoT-DriverCore.slnx";
-
-    /// <summary>Gets the loaded repository solution.</summary>
-    private readonly Solution _solution = SolutionFile.ReadSolution();
 
     /// <summary>Gets or sets the build configuration.</summary>
     [Parameter("Configuration to build - Default is 'Debug' (local) or 'Release' (server)")]
@@ -52,13 +48,13 @@ public sealed class Build : NukeBuild
     /// <summary>Gets the target that restores the repository solution dependencies.</summary>
     private Target Restore => target => target
         .DependsOn(Clean)
-        .Executes(() => DotNetRestore(s => s.SetProjectFile(_solution)));
+        .Executes(() => DotNetRestore(s => s.SetProjectFile(SolutionFile)));
 
     /// <summary>Gets the target that builds the repository solution for the selected configuration.</summary>
     private Target Compile => target => target
         .DependsOn(Restore, Print)
         .Executes(() => DotNetBuild(s => s
-                .SetProjectFile(_solution)
+                .SetProjectFile(SolutionFile)
                 .SetConfiguration(Configuration)
                 .SetNoRestore(true)));
 
