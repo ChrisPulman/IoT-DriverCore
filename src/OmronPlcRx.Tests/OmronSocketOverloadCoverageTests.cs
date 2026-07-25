@@ -33,16 +33,14 @@ public sealed class OmronSocketOverloadCoverageTests
     /// <summary>Gets the first TCP response payload.</summary>
     private const byte FirstTcpResponse = 5;
 
-    /// <summary>Gets how long the TCP peer remains connected after its response.</summary>
-    private const int PeerHoldMilliseconds = 100;
-
     /// <summary>Verifies TCP array and memory overloads, socket options, timeouts, and disposed state.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
     public async Task TcpClient_ExercisesAllModernOverloadsAsync()
     {
         var portSource = CreatePortSource();
-        var peer = RunTcpPeerAsync(portSource);
+        var peerRelease = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var peer = RunTcpPeerAsync(portSource, peerRelease);
         var port = await portSource.Task;
         var client = new CoreTcpClient(IPAddress.Loopback, port);
         try
@@ -62,6 +60,7 @@ public sealed class OmronSocketOverloadCoverageTests
         }
         finally
         {
+            _ = peerRelease.TrySetResult(true);
             await peer;
             client.Dispose();
         }
@@ -240,8 +239,11 @@ public sealed class OmronSocketOverloadCoverageTests
 
     /// <summary>Runs a TCP peer that receives all requests and publishes four response bytes.</summary>
     /// <param name="portSource">Receives the bound loopback port.</param>
+    /// <param name="releaseSource">Signals when the peer may close its connection.</param>
     /// <returns>A task that represents the peer lifetime.</returns>
-    private static async Task RunTcpPeerAsync(TaskCompletionSource<int> portSource)
+    private static async Task RunTcpPeerAsync(
+        TaskCompletionSource<int> portSource,
+        TaskCompletionSource<bool> releaseSource)
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -256,7 +258,7 @@ public sealed class OmronSocketOverloadCoverageTests
             .ToArray();
         await stream.WriteAsync(response, CancellationToken.None);
         await stream.FlushAsync(CancellationToken.None);
-        await Task.Delay(PeerHoldMilliseconds);
+        await releaseSource.Task;
     }
 
     /// <summary>Runs a UDP peer that replies once to every received datagram.</summary>
