@@ -153,7 +153,7 @@ public sealed class RxTcAdsClientCompositionTests
             write => RecordWritePublication(writes, writeFailurePublished, write));
 
         client.Connect(settings);
-        platform.Ticks.Emit(0);
+        await TUnitAssert.That(await DriveTicksUntilConnectedAsync(client, platform.Ticks)).IsTrue();
         ads.ReadAnyError = new IOException(ReadFailureMessage);
         client.Read(ValueVariable, "read");
         await TUnitAssert.That(await WaitForPublicationAsync(readFailurePublished.Task)).IsTrue();
@@ -379,6 +379,26 @@ public sealed class RxTcAdsClientCompositionTests
     /// <returns>The new completion source.</returns>
     private static TaskCompletionSource<bool> CreatePublicationSource() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Drives the deterministic interval until the composed client completes initialization.</summary>
+    /// <param name="client">The composed ADS client.</param>
+    /// <param name="ticks">The deterministic interval source.</param>
+    /// <returns>Whether the client connected before the timeout.</returns>
+    private static async Task<bool> DriveTicksUntilConnectedAsync(
+        RxTcAdsClient client,
+        ManualObservable<long> ticks)
+    {
+        var timeout = Task.Delay(PublicationTimeout);
+        var tick = 0L;
+        while (!client.Connected && !timeout.IsCompleted)
+        {
+            ticks.Emit(tick);
+            tick++;
+            _ = await Task.WhenAny(Task.Delay(TimeSpan.FromMilliseconds(1)), timeout);
+        }
+
+        return client.Connected;
+    }
 
     /// <summary>Records an error and completes a matching read-failure publication.</summary>
     /// <param name="errors">The observed errors.</param>
