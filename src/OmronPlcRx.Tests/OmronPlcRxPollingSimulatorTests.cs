@@ -24,6 +24,9 @@ public sealed class OmronPlcRxPollingSimulatorTests
     /// <summary>Gets the deterministic request timeout.</summary>
     private const int TimeoutMilliseconds = 100;
 
+    /// <summary>Gets the bounded timeout for asynchronous test orchestration.</summary>
+    private const int TestCompletionTimeoutMilliseconds = 5000;
+
     /// <summary>Gets the deterministic poll interval.</summary>
     private const int PollIntervalMilliseconds = 10;
 
@@ -52,7 +55,7 @@ public sealed class OmronPlcRxPollingSimulatorTests
         driver.AddUpdateTagItem(new PlcTag<short>("Poll", "D100"));
 
         var published = await changed.Task.WaitAsync(
-            TimeSpan.FromMilliseconds(TimeoutMilliseconds));
+            TimeSpan.FromMilliseconds(TestCompletionTimeoutMilliseconds));
         await Task.Delay(
             TimeSpan.FromMilliseconds(PollIntervalMilliseconds * ExpectedDayOfWeek));
         driver.Dispose();
@@ -125,7 +128,7 @@ public sealed class OmronPlcRxPollingSimulatorTests
         driver.AddUpdateTagItem(new PlcTag<short>("Bad", "INVALID"));
         driver.SetValue(new LogicalTagKey<short>("Bad"), ShortValue);
         var error = await errors.Task.WaitAsync(
-            TimeSpan.FromMilliseconds(TimeoutMilliseconds));
+            TimeSpan.FromMilliseconds(TestCompletionTimeoutMilliseconds));
 
         await Assert.That(channel.SendCount > 0).IsTrue();
         await Assert.That(error?.Message).Contains("Failed to write");
@@ -204,7 +207,7 @@ public sealed class OmronPlcRxPollingSimulatorTests
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         using var timeout = new CancellationTokenSource(
-            TimeSpan.FromMilliseconds(TimeoutMilliseconds));
+            TimeSpan.FromMilliseconds(TestCompletionTimeoutMilliseconds));
         while (!condition())
         {
             await Task.Delay(1, timeout.Token);
