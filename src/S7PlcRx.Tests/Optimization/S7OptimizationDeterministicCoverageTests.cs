@@ -137,10 +137,10 @@ public sealed class S7OptimizationDeterministicCoverageTests
         await Task.WhenAll(
             AsyncCompatibility.WaitAsync(
                 firstRequest.CompletionSource!.Task,
-                TimeSpan.FromSeconds(1)),
+                AsyncCompatibility.TestCompletionTimeout),
             AsyncCompatibility.WaitAsync(
                 secondRequest.CompletionSource!.Task,
-                TimeSpan.FromSeconds(1)));
+                AsyncCompatibility.TestCompletionTimeout));
         var statistics = engine.CacheStats;
         engine.ClearExpiredCache(TimeSpan.FromTicks(-1));
 
