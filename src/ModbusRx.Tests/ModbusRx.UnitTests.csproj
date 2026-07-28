@@ -28,7 +28,6 @@
   </ItemGroup>
 
   <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
-    <PackageReference Include="PolySharp" />
     <PackageReference Include="Polyfill" PrivateAssets="all" />
     <PackageReference Include="System.Memory" />
   </ItemGroup>

@@ -17,6 +17,10 @@
     <EnableTUnitPolyfills>false</EnableTUnitPolyfills>
   </PropertyGroup>
 
+  <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\ABPlcRx.Reactive\ABPlcRx.Reactive.csproj" />
     <ProjectReference Include="..\ABPlcRx\ABPlcRx.csproj" />

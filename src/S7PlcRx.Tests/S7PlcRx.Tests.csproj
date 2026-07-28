@@ -19,6 +19,7 @@
   </PropertyGroup>
 
   <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
     <Reference Include="netstandard">
       <Private>true</Private>
     </Reference>

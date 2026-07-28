@@ -124,7 +124,12 @@ internal static class Program
                     ?? throw new InvalidOperationException("The PLC structure could not be created.");
                 await WaitForStructureReadyAsync(values, token).ConfigureAwait(false);
                 using var observedSubscription = ObservableBridge.SubscribeTo(
-                    values.Observe<float>(PressureHighVariables.RelativeObservedVariable),
+                    values.Observe(
+                        PressureHighVariables.RelativeObservedVariable,
+                        static value => value is float pressure
+                            ? pressure
+                            : throw new InvalidCastException(
+                                $"{PressureHighVariables.RelativeObservedVariable} produced an incompatible value.")),
                     PrintObservedPressure);
                 await WriteSimulationValuesAsync(
                     value => WriteHashTableSimulationValueAsync(values, value),

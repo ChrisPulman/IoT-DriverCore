@@ -182,8 +182,7 @@ public class TwinCatReactiveStreamGeneratorTests
         await TUnitAssert.That(generated).Contains("TwinCatRxCoreExtensions.AddWriteVariable");
         await TUnitAssert.That(generated).Contains("settings, \".Root.Nested.Command\", arraySize: 2");
         await TUnitAssert.That(generated).Contains("DirectChanges => _directSubject;");
-        await TUnitAssert.That(generated)
-            .Contains("TwinCatRxHashTableExtensions.Observe<int>(structure0, \"Nested.Value\")");
+        await AssertStructuredObserveConverterAsync(generated);
         await TUnitAssert.That(generated).Contains("WriteCommand(int value)");
         await TUnitAssert.That(generated).Contains("AddTwinCatRxStructuredWrite");
         await TUnitAssert.That(generated).Contains("TryWriteTwinCatRxStructure");
@@ -308,6 +307,17 @@ public class TwinCatReactiveStreamGeneratorTests
         }
 
         return runResult.Results[0];
+    }
+
+    /// <summary>Verifies generated structured observations convert HashTableRx values explicitly.</summary>
+    /// <param name="generated">The generated source to inspect.</param>
+    /// <returns>The assertion task.</returns>
+    private static async Task AssertStructuredObserveConverterAsync(string generated)
+    {
+        const string expected = "TwinCatRxHashTableExtensions.Observe<int>(structure0, \"Nested.Value\", " +
+            "static value => value is int typedValue ? typedValue : throw new InvalidCastException(" +
+            "\"Nested.Value produced an incompatible value.\"))";
+        await TUnitAssert.That(generated).Contains(expected);
     }
 
     /// <summary>Verifies generated logical-tag members use the current core contract.</summary>

@@ -118,10 +118,6 @@ public sealed class OmronCs1gHardwareTests
                 await Task.Delay(readPairDelayMilliseconds, cancellationToken).ConfigureAwait(false);
             }
         }
-
-        Trace.WriteLine(
-            $"Omron CS1G read-only endurance succeeded: port={options.PortName}; pairs={readPairCount}; delayMs={readPairDelayMilliseconds}.");
-        Trace.WriteLine($"Controller model={plc.ControllerModel}; version={plc.ControllerVersion}.");
     }
 
     /// <summary>Reads and validates one clock and cycle-time pair.</summary>

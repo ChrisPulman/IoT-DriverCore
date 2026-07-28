@@ -12,11 +12,8 @@
     <PackageReference Include="ReactiveUI.Primitives.Async" />
   </ItemGroup>
 
-  <ItemGroup Condition=" $([System.String]::new('$(TargetFramework)').StartsWith('net4')) ">
-    <PackageReference Include="Polyfill">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+  <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
