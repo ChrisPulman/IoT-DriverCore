@@ -15,17 +15,23 @@ namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
 [Category("LiveAds")]
 public sealed class LiveAdsReadOnlyHardwareTests
 {
-    /// <summary>TwinCAT 3 AMS Net ID.</summary>
-    private const string TwinCat3Address = "10.1.180.147.1.1";
+    /// <summary>Default TwinCAT 3 AMS Net ID.</summary>
+    private const string DefaultTwinCat3Address = "10.1.180.147.1.1";
 
-    /// <summary>TwinCAT 3 PLC runtime port.</summary>
-    private const int TwinCat3Port = 851;
+    /// <summary>Default TwinCAT 3 PLC runtime port.</summary>
+    private const int DefaultTwinCat3Port = 851;
 
-    /// <summary>TwinCAT 2 AMS Net ID.</summary>
-    private const string TwinCat2Address = "5.35.59.10.1.1";
+    /// <summary>Default TwinCAT 2 AMS Net ID.</summary>
+    private const string DefaultTwinCat2Address = "5.35.59.10.1.1";
 
-    /// <summary>TwinCAT 2 PLC runtime port.</summary>
-    private const int TwinCat2Port = 801;
+    /// <summary>Default TwinCAT 2 PLC runtime port.</summary>
+    private const int DefaultTwinCat2Port = 801;
+
+    /// <summary>Minimum valid ADS runtime port.</summary>
+    private const int MinimumAdsPort = 1;
+
+    /// <summary>Maximum valid ADS runtime port.</summary>
+    private const int MaximumAdsPort = 65_535;
 
     /// <summary>Default number of ADS state reads per endpoint.</summary>
     private const int DefaultEnduranceReads = 120;
@@ -46,7 +52,15 @@ public sealed class LiveAdsReadOnlyHardwareTests
     [Timeout(900_000)]
     public async Task TwinCat3_ReadOnlyRoute_IsReachable_AndLoadsSymbols(CancellationToken cancellationToken)
     {
-        await VerifyEndpointAsync(TwinCat3Address, TwinCat3Port, cancellationToken).ConfigureAwait(false);
+        var adsAddress = GetEnvironmentValue(
+            "TWINCATRX_LIVE_ADS_TWINCAT3_ADDRESS",
+            DefaultTwinCat3Address);
+        var port = GetBoundedEnvironmentValue(
+            "TWINCATRX_LIVE_ADS_TWINCAT3_PORT",
+            DefaultTwinCat3Port,
+            MinimumAdsPort,
+            MaximumAdsPort);
+        await VerifyEndpointAsync(adsAddress, port, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Verifies the TwinCAT 2 AMS route without issuing any PLC write.</summary>
@@ -56,7 +70,15 @@ public sealed class LiveAdsReadOnlyHardwareTests
     [Timeout(900_000)]
     public async Task TwinCat2_ReadOnlyRoute_IsReachable_AndLoadsSymbols(CancellationToken cancellationToken)
     {
-        await VerifyEndpointAsync(TwinCat2Address, TwinCat2Port, cancellationToken).ConfigureAwait(false);
+        var adsAddress = GetEnvironmentValue(
+            "TWINCATRX_LIVE_ADS_TWINCAT2_ADDRESS",
+            DefaultTwinCat2Address);
+        var port = GetBoundedEnvironmentValue(
+            "TWINCATRX_LIVE_ADS_TWINCAT2_PORT",
+            DefaultTwinCat2Port,
+            MinimumAdsPort,
+            MaximumAdsPort);
+        await VerifyEndpointAsync(adsAddress, port, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Reads ADS state repeatedly and loads the endpoint symbol table once.</summary>
@@ -96,6 +118,16 @@ public sealed class LiveAdsReadOnlyHardwareTests
         using var generator = new CodeGenerator();
         var symbols = generator.LoadSymbols(adsAddress, port);
         await TUnitAssert.That(symbols.Count).IsGreaterThan(0);
+    }
+
+    /// <summary>Gets a non-empty environment option.</summary>
+    /// <param name="name">Environment variable name.</param>
+    /// <param name="defaultValue">Value used when the variable is absent or empty.</param>
+    /// <returns>The configured or default value.</returns>
+    private static string GetEnvironmentValue(string name, string defaultValue)
+    {
+        var configuredValue = Environment.GetEnvironmentVariable(name);
+        return string.IsNullOrWhiteSpace(configuredValue) ? defaultValue : configuredValue;
     }
 
     /// <summary>Gets a bounded integer environment option.</summary>

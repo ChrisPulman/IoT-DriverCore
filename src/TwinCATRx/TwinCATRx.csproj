@@ -25,7 +25,7 @@
     <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
   </PropertyGroup>
 
-  <ItemGroup Condition="$([System.String]::new('$(TargetFramework)').StartsWith('net4'))">
+  <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
     <PackageReference Include="Polyfill" PrivateAssets="all" />
   </ItemGroup>
 

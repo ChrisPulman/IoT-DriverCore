@@ -79,6 +79,11 @@
     <Features>$(Features);runtime-async=on</Features>
   </PropertyGroup>
 
+  <!-- Keep source-only Polyfill APIs local to each legacy assembly, including across InternalsVisibleTo. -->
+  <PropertyGroup Condition="$(TargetFramework.StartsWith('net4'))">
+    <PolyUseEmbeddedAttribute>true</PolyUseEmbeddedAttribute>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true' or '$(CI)' == 'true'">
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>

@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 
 #if LIVE_S7_TESTS
-using System.Diagnostics;
 using TUnitAssert = TUnit.Assertions.Assert;
 
 namespace IoT.DriverCore.S7PlcRx.Tests;
@@ -42,7 +41,6 @@ public sealed class S7LiveHardwareIntegrationTests
         var endpoint = GetEndpoint();
         var readCount = GetReadCount();
         var readDelay = GetReadDelay();
-        var stopwatch = Stopwatch.StartNew();
         var completedReads = 0;
 
         using var plc = S71500.Create(endpoint, interval: 250);
@@ -70,9 +68,6 @@ public sealed class S7LiveHardwareIntegrationTests
             }
         }
 
-        stopwatch.Stop();
-        Trace.WriteLine(
-            $"S7-1500 read-only endurance succeeded: endpoint={endpoint}; reads={completedReads}; delayMs={readDelay.TotalMilliseconds:F0}; elapsedMs={stopwatch.Elapsed.TotalMilliseconds:F0}.");
         await TUnitAssert.That(completedReads).IsEqualTo(readCount);
         await TUnitAssert.That(plc.IsConnectedValue).IsTrue();
     }

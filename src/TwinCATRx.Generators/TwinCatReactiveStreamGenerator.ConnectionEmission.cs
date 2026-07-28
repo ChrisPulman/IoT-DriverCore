@@ -160,7 +160,10 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
                 _ = sb.Append("        subscriptions.Add(TwinCatRxObservableBridge.SubscribeTo(")
                     .Append("TwinCatRxHashTableExtensions.Observe<").Append(property.TypeName).Append(">(")
                     .Append(structureName).Append(", \"").Append(Escape(property.MemberAddress!))
-                    .Append("\"), ").Append(property.SetterName).AppendLine("));");
+                    .Append("\", static value => value is ").Append(property.TypeName)
+                    .Append(" typedValue ? typedValue : throw new InvalidCastException(\"")
+                    .Append(Escape(property.MemberAddress!)).Append(" produced an incompatible value.\")), ")
+                    .Append(property.SetterName).AppendLine("));");
             }
         }
     }

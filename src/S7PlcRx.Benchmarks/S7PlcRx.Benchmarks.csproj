@@ -13,7 +13,6 @@
 
   <ItemGroup>
     <PackageReference Include="ReactiveUI.Primitives" />
-    <PackageReference Include="ReactiveUI.Primitives.Extensions" />
     <ProjectReference Include="..\MockS7Plc\MockS7Plc.csproj" />
     <ProjectReference Include="..\S7PlcRx\S7PlcRx.csproj" />
   </ItemGroup>
@@ -21,7 +20,6 @@
   <ItemGroup>
     <Using Include="IoT.DriverCore.Core" />
     <Using Include="ReactiveUI.Primitives" />
-    <Using Include="ReactiveUI.Primitives.Extensions" />
   </ItemGroup>
 
   <ItemGroup>

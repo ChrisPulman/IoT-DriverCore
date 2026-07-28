@@ -22,8 +22,11 @@
              Link="%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
     <PackageReference Include="Polyfill" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="ReactiveUI.Primitives.Reactive" />
     <PackageReference Include="Beckhoff.TwinCAT.Ads" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
