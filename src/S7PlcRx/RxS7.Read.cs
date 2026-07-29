@@ -163,7 +163,15 @@ public partial class RxS7
                     return false;
                 }
 
-                _ = _socketRx.Receive(tag, receiveBuffer, WriteResponseBufferSize);
+                var received = _socketRx.ReceiveIsoData(tag, ref receiveBuffer);
+                if (received <= ResponseReturnCodeOffset)
+                {
+                    _lastErrorCode.OnNext(ErrorCode.WriteData);
+                    _lastError.OnNext(
+                        $"Tag {tag.Name} failed to write - {nameof(ErrorCode.WrongNumberReceivedBytes)} " +
+                        $"received {received} bytes.");
+                    return false;
+                }
 
                 if (receiveBuffer[ResponseReturnCodeOffset] != 0xff)
                 {
