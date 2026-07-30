@@ -1,16 +1,94 @@
 ---
 name: serial-port-rx
-description: Implement, review, or troubleshoot reactive serial, TCP, and UDP I/O with SerialPortRx. Use for port configuration, receive ownership, message framing, connection streams, and deterministic in-memory port tests.
+description: Implement, review, or troubleshoot reactive serial, TCP, and UDP I/O with SerialPortRx, including configuration, receive ownership, framing, request-response coordination, errors, deterministic links, and generation.
 ---
 
 # SerialPortRx
 
-Use `IoT.DriverCore.Serial` for the default package surface. Configure serial settings before `OpenAsync`, subscribe to errors before opening, and dispose subscriptions with the port.
+## Use this skill when
 
-The source generator is embedded in `SerialPortRx` and `SerialPortRx.Reactive`; there is no standalone `SerialPortRx.Generators` NuGet package to install.
+Use this skill for serial instruments, barcode readers, scales, gateways, TCP streams, UDP datagrams, message framing, command/response devices, or deterministic in-memory transport tests.
 
-Choose exactly one receive owner. Leave `EnableAutoDataReceive` enabled for `DataReceived`, `DataReceivedBytes`, and `DataReceivedBatches`; set it to false before opening for manual read APIs. Do not mix automatic parsing with competing manual reads.
+Read the co-packaged `../../README.md`; in a repository checkout use `packagereadme/SerialPortRx/README.md`. Inspect `src/SerialPortRx` before describing undocumented members.
 
-Frame TCP and serial payloads explicitly. Treat TCP read batches as arbitrary transport chunks, use bounded `BufferUntil` or a protocol parser, and select finite timeouts for commands. Treat UDP batches as datagrams but still validate their source and content.
+## Package choice
 
-Use `InMemoryPortRxPair` for deterministic tests. For complete contracts, network client APIs, and platform restrictions, read the co-packaged `../../README.md`; in a repository checkout use `packagereadme/SerialPortRx/README.md`.
+- Use `SerialPortRx` with `IoT.DriverCore.Serial` by default.
+- Use `SerialPortRx.Reactive` and `IoT.DriverCore.Serial.Reactive` for System.Reactive applications.
+- The generator is embedded in both runtimes. There is no standalone `SerialPortRx.Generators` package.
+- Check the package matrix for target-framework and Windows-only serial features.
+
+## Serial workflow
+
+Set baud rate, data bits, parity, stop bits, handshake, timeouts, encoding, and delimiters before `OpenAsync`. Subscribe to state and errors before opening.
+
+```csharp
+using IoT.DriverCore.Serial;
+
+using var port = new SerialPortRx("COM3", 115200)
+{
+    ReadTimeout = -1,
+    WriteTimeout = -1,
+};
+
+using var state = port.IsOpenObservable
+    .Subscribe(open => Console.WriteLine($"Open: {open}"));
+using var errors = port.ErrorReceived
+    .Subscribe(error => Console.Error.WriteLine(error.Message));
+using var data = port.DataReceived.Subscribe(Console.Write);
+
+await port.OpenAsync();
+port.WriteLine("AT");
+port.Close();
+```
+
+Dispose the port and subscriptions. Use `PortNames` only as a discovery stream; still handle disappearance and open failures.
+
+## Choose one receive owner
+
+Choose exactly one model per connection:
+
+1. automatic receive through `DataReceived`, `DataReceivedBytes`, `DataReceivedBatches`, or `Lines`;
+2. an explicit `StartDataReception` lease;
+3. manual `Read*` calls with `EnableAutoDataReceive = false` before opening.
+
+Do not mix owners. Competing consumers split bytes unpredictably and corrupt protocol framing.
+
+## Framing and command coordination
+
+Serial and TCP receive batches are arbitrary transport chunks, not application messages. Use bounded `BufferUntil`, line framing, or a protocol parser that handles partial and multiple frames. Enforce maximum frame sizes and finite request timeouts.
+
+Use `SerialPortRxMessageHandler` for line-oriented request/response ownership. Configure device error prefixes, echo/response handling, and polling coordination. Use `WithPollingStoppedAsync` for exclusive commands and dispose the handler to stop polling.
+
+## TCP and UDP
+
+`TcpClientRx` and `UdpClientRx` implement `IPortRx`:
+
+```csharp
+using var tcp = new TcpClientRx("example.com", 80);
+await tcp.OpenAsync();
+
+using var udp = new UdpClientRx(12345);
+await udp.OpenAsync();
+```
+
+TCP is a byte stream: frame across arbitrary chunks. UDP batch events correspond to datagrams, but validate source, expected length, sequence, and content. Handle disconnect/reconnect and socket errors explicitly.
+
+## Writes and concurrency
+
+Serialize writes when device protocols do not support pipelining. Respect encoding and terminators for text commands; use byte overloads for binary protocols. Bound queues so a slow connection cannot grow memory without limit.
+
+## Testing and generation
+
+Use `InMemoryPortRxPair` and related deterministic links for framing, request/response, timeout, cancellation, disconnect, partial-frame, multiple-frame, and error tests.
+
+For generated serial properties, use documented attributes on partial types, build once, inspect diagnostics and generated members, and verify parsing, output, errors, and disposal against an in-memory link.
+
+## Safety checklist
+
+- Verify port/endpoint, electrical/interface standard, serial format, and handshake.
+- Choose one receive owner and one framing authority.
+- Bound frames, buffers, queues, retries, and timeouts.
+- Validate every inbound message before acting on it.
+- Treat protocol commands as potentially safety-sensitive writes.
+- Dispose ports, socket clients, handlers, and subscriptions.

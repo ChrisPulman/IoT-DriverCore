@@ -98,12 +98,12 @@
     <Description>Reactive Allen-Bradley PLC driver for ControlLogix, CompactLogix, MicroLogix, PLC-5, and compatible controllers.</Description>
     <PackageReleaseNotes>Allen-Bradley PLC communication with logical tags, reactive observation, and bulk operations across supported target frameworks.</PackageReleaseNotes>
     <PackageTags>Allen-Bradley;Rockwell;ControlLogix;CompactLogix;MicroLogix;PLC-5;PLC;IoT;reactive;observable</PackageTags>
-    <PackageIcon>abplclogo.png</PackageIcon>
+    <PackageIcon>ab-plc-rx.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'ABPlcRx' or '$(MSBuildProjectName)' == 'ABPlcRx.Reactive' or '$(MSBuildProjectName)' == 'ABPlcRx.Generators'">
-    <None Include="$(MSBuildThisFileDirectory)..\images\abplclogo.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\images\ab-plc-rx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\ABPlcRx\README.md" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\skills\ab-plc-rx\SKILL.md" Pack="true" PackagePath="skills/ab-plc-rx/SKILL.md"/>
   </ItemGroup>
@@ -112,12 +112,12 @@
     <Description>Reactive Mitsubishi MELSEC PLC driver using MC Protocol and SLMP over Ethernet and serial transports.</Description>
     <PackageReleaseNotes>Mitsubishi MC Protocol and SLMP support for 1E, 3E, 4E, 1C, 3C, and 4C frames with reactive logical tags.</PackageReleaseNotes>
     <PackageTags>Mitsubishi;MELSEC;MC Protocol;SLMP;PLC;Ethernet;serial;IoT;reactive;observable</PackageTags>
-    <PackageIcon>mitplclogo.png</PackageIcon>
+    <PackageIcon>mitsubishi-rx.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'MitsubishiRx' or '$(MSBuildProjectName)' == 'MitsubishiRx.Reactive' or '$(MSBuildProjectName)' == 'MitsubishiRx.Generators'">
-    <None Include="$(MSBuildThisFileDirectory)..\images\mitplclogo.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\images\mitsubishi-rx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\MitsubishiRx\README.md" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\skills\mitsubishi-rx\SKILL.md" Pack="true" PackagePath="skills/mitsubishi-rx/SKILL.md"/>
   </ItemGroup>
@@ -126,12 +126,12 @@
     <Description>Reactive Modbus driver for TCP, UDP, RTU, ASCII, master, slave, and gateway communications.</Description>
     <PackageReleaseNotes>Modbus transport, logical-tag, and contiguous coil/register bulk operations across supported target frameworks.</PackageReleaseNotes>
     <PackageTags>Modbus;TCP;UDP;RTU;ASCII;master;slave;coils;registers;PLC;IoT;reactive</PackageTags>
-    <PackageIcon>ModbusRx.png</PackageIcon>
+    <PackageIcon>modbus-rx.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'ModbusRx' or '$(MSBuildProjectName)' == 'ModbusRx.Reactive' or '$(MSBuildProjectName)' == 'ModbusRx.Generators'">
-    <None Include="$(MSBuildThisFileDirectory)..\images\ModbusRx.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\images\modbus-rx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\ModbusRx\README.md" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\skills\modbus-rx\SKILL.md" Pack="true" PackagePath="skills/modbus-rx/SKILL.md"/>
   </ItemGroup>
@@ -140,12 +140,12 @@
     <Description>Reactive Omron PLC driver for FINS, Host Link, Toolbus, Ethernet, and serial communications.</Description>
     <PackageReleaseNotes>Omron logical-tag support with FINS, Host Link, Toolbus, Ethernet, serial, and bulk memory-area operations.</PackageReleaseNotes>
     <PackageTags>Omron;FINS;Host Link;Toolbus;PLC;Ethernet;serial;memory area;IoT;reactive</PackageTags>
-    <PackageIcon>OmronPLCRx-icon.png</PackageIcon>
+    <PackageIcon>omron-plc-rx.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'OmronPlcRx' or '$(MSBuildProjectName)' == 'OmronPlcRx.Reactive' or '$(MSBuildProjectName)' == 'OmronPlcRx.Generators'">
-    <None Include="$(MSBuildThisFileDirectory)..\images\OmronPLCRx-icon.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\images\omron-plc-rx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\OmronPlcRx\README.md" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\skills\omron-plc-rx\SKILL.md" Pack="true" PackagePath="skills/omron-plc-rx/SKILL.md"/>
   </ItemGroup>
@@ -154,12 +154,12 @@
     <Description>Reactive Siemens S7 PLC driver for S7-200, S7-300, S7-400, S7-1200, and S7-1500 controllers.</Description>
     <PackageReleaseNotes>Siemens S7 logical-tag communication, native multi-variable operations, and reactive observation across supported target frameworks.</PackageReleaseNotes>
     <PackageTags>Siemens;S7;S7-200;S7-300;S7-400;S7-1200;S7-1500;PLC;IoT;reactive</PackageTags>
-    <PackageIcon>S7PlcRx.png</PackageIcon>
+    <PackageIcon>s7-plc-rx.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'S7PlcRx' or '$(MSBuildProjectName)' == 'S7PlcRx.Reactive' or '$(MSBuildProjectName)' == 'S7PlcRx.Generators'">
-    <None Include="$(MSBuildThisFileDirectory)..\images\S7PlcRx.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\images\s7-plc-rx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\S7PlcRx\README.md" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\skills\s7-plc-rx\SKILL.md" Pack="true" PackagePath="skills/s7-plc-rx/SKILL.md"/>
   </ItemGroup>
@@ -167,31 +167,31 @@
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'ABPlcRx.Generators'">
     <Description>Compile-time source generators for strongly typed Allen-Bradley PLC models.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageIcon>abplclogo.png</PackageIcon>
+    <PackageIcon>ab-plc-rx.png</PackageIcon>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'ModbusRx.Generators'">
     <Description>Compile-time source generators for strongly typed Modbus device models.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageIcon>ModbusRx.png</PackageIcon>
+    <PackageIcon>modbus-rx.png</PackageIcon>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'OmronPlcRx.Generators'">
     <Description>Compile-time source generators for strongly typed Omron PLC models.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageIcon>OmronPLCRx-icon.png</PackageIcon>
+    <PackageIcon>omron-plc-rx.png</PackageIcon>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'S7PlcRx.Generators'">
     <Description>Compile-time source generators for strongly typed Siemens S7 PLC models.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageIcon>S7PlcRx.png</PackageIcon>
+    <PackageIcon>s7-plc-rx.png</PackageIcon>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'MitsubishiRx.Generators'">
     <Description>Compile-time source generators for strongly typed Mitsubishi MELSEC tag clients.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageIcon>mitplclogo.png</PackageIcon>
+    <PackageIcon>mitsubishi-rx.png</PackageIcon>
     <PackageTags>Mitsubishi;MELSEC;MC Protocol;SLMP;PLC;source generator;Roslyn;IoT</PackageTags>
   </PropertyGroup>
 
@@ -199,12 +199,12 @@
     <Description>Reactive, cross-platform serial-port driver with asynchronous observable streams and source-generated helpers.</Description>
     <PackageReleaseNotes>Cross-platform serial communication for .NET 8 through .NET 11 with Windows-specific framework targets, async observables, and generated streams.</PackageReleaseNotes>
     <PackageTags>SerialPort;serial;cross-platform;IoT;reactive;observable;async;source generator</PackageTags>
-    <PackageIcon>serlogo.png</PackageIcon>
+    <PackageIcon>serial-port-rx.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'SerialPortRx' or '$(MSBuildProjectName)' == 'SerialPortRx.Reactive'">
-    <None Include="$(MSBuildThisFileDirectory)..\images\serlogo.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\images\serial-port-rx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\SerialPortRx\README.md" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\skills\serial-port-rx\SKILL.md" Pack="true" PackagePath="skills/serial-port-rx/SKILL.md"/>
   </ItemGroup>
@@ -213,18 +213,18 @@
     <Description>Reactive Beckhoff TwinCAT ADS PLC driver with core and Windows ADS integrations.</Description>
     <PackageReleaseNotes>Beckhoff TwinCAT ADS logical-tag communication, structured-variable access, reactive observation, and grouped bulk operations.</PackageReleaseNotes>
     <PackageTags>Beckhoff;TwinCAT;ADS;PLC;structured variables;IoT;reactive;observable</PackageTags>
-    <PackageIcon>TwinCATRx.png</PackageIcon>
+    <PackageIcon>twincat-rx.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'TwinCATRx' or '$(MSBuildProjectName)' == 'TwinCATRx.Reactive'">
-    <None Include="$(MSBuildThisFileDirectory)..\images\TwinCATRx.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\images\twincat-rx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\TwinCATRx\README.md" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\skills\twincat-rx\SKILL.md" Pack="true" PackagePath="skills/twincat-rx/SKILL.md"/>
   </ItemGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'TwinCATRx.Core' or '$(MSBuildProjectName)' == 'TwinCATRx.Core.Reactive'">
-    <None Include="$(MSBuildThisFileDirectory)..\images\TwinCATRx.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\images\twincat-rx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\TwinCATRx\README.md" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\skills\twincat-rx\SKILL.md" Pack="true" PackagePath="skills/twincat-rx/SKILL.md"/>
   </ItemGroup>
@@ -232,12 +232,12 @@
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'TwinCATRx.Generators'">
     <Description>Compile-time source generators for strongly typed Beckhoff TwinCAT ADS models and reactive streams.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageIcon>TwinCATRx.png</PackageIcon>
+    <PackageIcon>twincat-rx.png</PackageIcon>
     <PackageTags>Beckhoff;TwinCAT;ADS;PLC;source generator;Roslyn;IoT;reactive</PackageTags>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'TwinCATRx.Generators'">
-    <None Include="$(MSBuildThisFileDirectory)..\images\TwinCATRx.png" Pack="true" PackagePath="\"/>
+    <None Include="$(MSBuildThisFileDirectory)..\images\twincat-rx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\TwinCATRx\README.md" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\skills\twincat-rx\SKILL.md" Pack="true" PackagePath="skills/twincat-rx/SKILL.md"/>
   </ItemGroup>

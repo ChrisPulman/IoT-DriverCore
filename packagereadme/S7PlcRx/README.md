@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ChrisPulman/IoT-DriverCore/main/images/s7-plc-rx.png" alt="S7PlcRx package logo" width="320" />
+</p>
+
 # S7PlcRx
 
 Reactive Siemens S7 PLC communication for .NET. S7PlcRx provides tag-based S7 reads/writes, Primitives-based observable streams, optimized batch helpers, caching, diagnostics, production reliability helpers, high-availability helpers, PLC byte conversion utilities, and source-generator assisted property bindings. Version 3 moves the core package to ReactiveUI.Primitives and adds a companion `S7PlcRx.Reactive` package for System.Reactive-compatible applications.

@@ -123,10 +123,11 @@ Keep subscriptions alive for the required session and dispose them with the owni
 
 ## AI-agent skills
 
-Every protocol-family NuGet package includes a concise skill at `skills/<skill-name>/SKILL.md`. The skills tell an AI agent which namespace and package variant to use, which safety and lifecycle rules are mandatory, how to choose the protocol workflow, and where to find the full packaged README.
+Every NuGet package includes a detailed skill at `skills/<skill-name>/SKILL.md`. The skills tell an AI agent which namespace and package variant to use, how to configure and operate the driver, which safety and lifecycle rules are mandatory, how to test without hardware, and where to find the full packaged README.
 
 | Family | Packaged skill |
 | --- | --- |
+| Shared core | [`cp-iot-core`](skills/cp-iot-core/SKILL.md) |
 | Allen-Bradley | [`ab-plc-rx`](skills/ab-plc-rx/SKILL.md) |
 | Mitsubishi | [`mitsubishi-rx`](skills/mitsubishi-rx/SKILL.md) |
 | Modbus | [`modbus-rx`](skills/modbus-rx/SKILL.md) |
