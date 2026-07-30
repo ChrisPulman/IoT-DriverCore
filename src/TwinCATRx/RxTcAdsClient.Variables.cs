@@ -24,6 +24,9 @@ namespace IoT.DriverCore.TwinCATRx;
 /// <summary>Observable TwinCAT ADS Client.</summary>
 public partial class RxTcAdsClient
 {
+    /// <summary>Synchronizes generated data-type cleanup, creation, and loading across client instances.</summary>
+    private static readonly object GeneratedDataTypeFileLock = new();
+
     /// <summary>Builds the generated data type file prefix.</summary>
     /// <param name="variable">The PLC variable name.</param>
     /// <returns>The generated data type file prefix.</returns>
@@ -215,10 +218,14 @@ public partial class RxTcAdsClient
 
         var identifier = _timeProvider.GetUtcNow().UtcTicks.ToString(CultureInfo.InvariantCulture);
         var dataTypesBaseName = BuildDataTypesFileName(notificationVariable);
-        DeleteGeneratedDataTypeFiles(dataTypesBaseName);
-
         var dataTypesFileName = $"{dataTypesBaseName}{identifier}.dll";
-        var type = ResolveNotificationType(notificationVariable, dataTypesFileName, identifier, isTwinCat3);
+        Type? type;
+        lock (GeneratedDataTypeFileLock)
+        {
+            DeleteGeneratedDataTypeFiles(dataTypesBaseName);
+            type = ResolveNotificationType(notificationVariable, dataTypesFileName, identifier, isTwinCat3);
+        }
+
         if (type is null)
         {
             return;

@@ -35,6 +35,7 @@
   <ItemGroup>
     <Using Include="ReactiveUI.Primitives.Reactive" />
     <Using Include="ReactiveUI.Primitives.Disposables.MultipleDisposable" Alias="CompositeDisposable" />
+    <Using Include="ReactiveUI.Primitives.RxVoid" Alias="Unit" />
   </ItemGroup>
 
 </Project>
