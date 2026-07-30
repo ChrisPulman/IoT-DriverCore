@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ChrisPulman/IoT-DriverCore/main/images/serial-port-rx.png" alt="SerialPortRx package logo" width="320" />
+</p>
+
 # SerialPortRx
 A Reactive Serial, TCP, and UDP I/O library that exposes incoming data as IObservable streams and accepts writes via simple methods. Ideal for event-driven, message-framed, and polling scenarios.
 

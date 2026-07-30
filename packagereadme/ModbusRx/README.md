@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ChrisPulman/IoT-DriverCore/main/images/modbus-rx.png" alt="ModbusRx package logo" width="320" />
+</p>
+
 # ModbusRx
 
 ## Overview

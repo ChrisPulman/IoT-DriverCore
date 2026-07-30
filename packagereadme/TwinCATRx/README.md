@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ChrisPulman/IoT-DriverCore/main/images/twincat-rx.png" alt="TwinCATRx package logo" width="320" />
+</p>
+
 # TwinCATRx
 
 ## Overview

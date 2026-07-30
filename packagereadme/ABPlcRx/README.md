@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ChrisPulman/IoT-DriverCore/main/images/ab-plc-rx.png" alt="ABPlcRx package logo" width="320" />
+</p>
+
 # ABPlcRx
 
 ## Overview
