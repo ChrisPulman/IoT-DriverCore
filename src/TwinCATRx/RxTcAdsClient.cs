@@ -136,7 +136,7 @@ public partial class RxTcAdsClient : IRxTcAdsClient
 
     /// <summary>Gets error received.</summary>
     /// <returns>A Value.</returns>
-    public IObservable<Exception> ErrorReceived => _errorReceived.Retry(int.MaxValue).Publish().RefCount();
+    public IObservable<Exception> ErrorReceived => _errorReceived;
 
     /// <inheritdoc/>
     public IObservableAsync<Exception> ErrorReceivedAsync =>
