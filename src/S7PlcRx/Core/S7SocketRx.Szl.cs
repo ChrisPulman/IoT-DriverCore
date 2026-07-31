@@ -193,29 +193,31 @@ internal partial class S7SocketRx
         _metricsTimer?.Dispose();
         CloseSocketOptimized(_socket, _timeProvider);
         _socket = null;
-        _ = DrainBackgroundTasksAsync(backgroundTasks, _timeProvider);
-
-        try
+        if (TryDrainBackgroundTasks(backgroundTasks, _timeProvider, out var pendingBackgroundTasks))
         {
-            _socketExceptionSubject?.Dispose();
-        }
-        catch (Exception ex)
-        {
-            LogError($"Socket exception subject disposal failed: {ex.Message}", _timeProvider);
+            _ = pendingBackgroundTasks.ContinueWith(
+                static (task, state) => ((S7SocketRx)state!).CompleteManagedDisposal(task),
+                this,
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+            return;
         }
 
-        _metricsSubject?.Dispose();
-        _connectionStateSubject.Dispose();
-        _connectionLock.Dispose();
-        _lifetimeCancellation.Dispose();
+        CompleteManagedDisposal(null);
     }
 
     /// <summary>Waits briefly for owned background work to observe cancellation and finish.</summary>
     /// <param name="backgroundTasks">The tasks captured when disposal started.</param>
     /// <param name="timeProvider">The time provider used for diagnostics.</param>
-    /// <returns>A task that completes when the drain has completed or timed out.</returns>
-    private static async Task DrainBackgroundTasksAsync(IEnumerable<Task> backgroundTasks, TimeProvider timeProvider)
+    /// <param name="pendingTasks">Receives the combined task when work remains after the timeout.</param>
+    /// <returns><see langword="true"/> when background work remains after the timeout.</returns>
+    private static bool TryDrainBackgroundTasks(
+        IEnumerable<Task> backgroundTasks,
+        TimeProvider timeProvider,
+        out Task pendingTasks)
     {
+        pendingTasks = Task.CompletedTask;
         var currentTaskId = Task.CurrentId;
         var activeTasks = new List<Task>();
         foreach (var task in backgroundTasks)
@@ -228,26 +230,40 @@ internal partial class S7SocketRx
 
         if (activeTasks.Count == 0)
         {
-            return;
+            return false;
         }
 
-        try
+        var completion = Task.WhenAll(activeTasks);
+        if (!WaitForCompletion(completion, BackgroundShutdownTimeoutMilliseconds))
         {
-            var completion = Task.WhenAll(activeTasks);
-            var timeout = Task.Delay(BackgroundShutdownTimeoutMilliseconds);
-            if (await Task.WhenAny(completion, timeout).ConfigureAwait(false) != completion)
-            {
-                LogError("Timed out while stopping S7 background work.", timeProvider);
-            }
-            else
-            {
-                await completion.ConfigureAwait(false);
-            }
+            LogError("Timed out while stopping S7 background work.", timeProvider);
+            pendingTasks = completion;
+            return true;
         }
-        catch (AggregateException ex)
+
+        if (completion.Exception is not { } error)
         {
-            LogError($"S7 background work stopped with an error: {ex.Flatten().InnerException?.Message}", timeProvider);
+            return false;
         }
+
+        LogError($"S7 background work stopped with an error: {error.Flatten().InnerException?.Message}", timeProvider);
+        return false;
+    }
+
+    /// <summary>Waits for a task without disposing state that the task may still use after a timeout.</summary>
+    /// <param name="task">The task to observe.</param>
+    /// <param name="timeoutMilliseconds">The maximum wait in milliseconds.</param>
+    /// <returns><see langword="true"/> when the task completed within the timeout.</returns>
+    private static bool WaitForCompletion(Task task, int timeoutMilliseconds)
+    {
+        var signal = new CompletionSignal(task.IsCompleted);
+        _ = task.ContinueWith(
+            static (_, state) => ((CompletionSignal)state!).Complete(),
+            signal,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+        return signal.Wait(timeoutMilliseconds);
     }
 
     /// <summary>Logs an error message to the debug output when a debugger is attached.</summary>
@@ -499,6 +515,32 @@ internal partial class S7SocketRx
     }
 #endif
 
+    /// <summary>Disposes managed transport resources after all owned background work has stopped.</summary>
+    /// <param name="backgroundCompletion">The optional background completion whose error must be observed.</param>
+    private void CompleteManagedDisposal(Task? backgroundCompletion)
+    {
+        if (backgroundCompletion?.Exception is { } backgroundError)
+        {
+            LogError(
+                $"S7 background work stopped with an error: {backgroundError.Flatten().InnerException?.Message}",
+                _timeProvider);
+        }
+
+        try
+        {
+            _socketExceptionSubject?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            LogError($"Socket exception subject disposal failed: {ex.Message}", _timeProvider);
+        }
+
+        _metricsSubject?.Dispose();
+        _connectionStateSubject.Dispose();
+        _connectionLock.Dispose();
+        _lifetimeCancellation.Dispose();
+    }
+
     /// <summary>Receives and validates an ISO packet header.</summary>
     /// <param name="tag">The related PLC tag.</param>
     /// <param name="bytes">The receive buffer.</param>
@@ -527,5 +569,40 @@ internal partial class S7SocketRx
 
         done = true;
         return true;
+    }
+
+    /// <summary>Coordinates bounded synchronous waits with asynchronous task completion.</summary>
+    private sealed class CompletionSignal
+    {
+        /// <summary>Synchronizes completion state.</summary>
+        private readonly object _syncRoot = new();
+
+        /// <summary>Indicates whether the observed task completed.</summary>
+        private bool _completed;
+
+        /// <summary>Initializes a new instance of the <see cref="CompletionSignal"/> class.</summary>
+        /// <param name="completed">The initial completion state.</param>
+        public CompletionSignal(bool completed) => _completed = completed;
+
+        /// <summary>Signals task completion.</summary>
+        public void Complete()
+        {
+            lock (_syncRoot)
+            {
+                _completed = true;
+                Monitor.PulseAll(_syncRoot);
+            }
+        }
+
+        /// <summary>Waits for completion up to the specified timeout.</summary>
+        /// <param name="timeoutMilliseconds">The maximum wait in milliseconds.</param>
+        /// <returns><see langword="true"/> when completion was signalled.</returns>
+        public bool Wait(int timeoutMilliseconds)
+        {
+            lock (_syncRoot)
+            {
+                return _completed || (Monitor.Wait(_syncRoot, timeoutMilliseconds) && _completed);
+            }
+        }
     }
 }

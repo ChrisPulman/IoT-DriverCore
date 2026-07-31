@@ -124,6 +124,15 @@ public class MockServer : IDisposable
     /// <summary>Holds the native Snap7 server handle.</summary>
     private nint _server;
 
+    /// <summary>Roots the native event callback until the server is destroyed.</summary>
+    private SrvCallback? _eventsCallback;
+
+    /// <summary>Roots the native read-event callback until the server is destroyed.</summary>
+    private SrvCallback? _readEventsCallback;
+
+    /// <summary>Roots the native read/write-area callback until the server is destroyed.</summary>
+    private SrvRwAreaCallback? _readWriteAreaCallback;
+
     /// <summary>Tracks whether disposal has already run.</summary>
     private bool _disposedValue;
 
@@ -491,22 +500,61 @@ public class MockServer : IDisposable
     /// <param name="callback">The callback.</param>
     /// <param name="usrPtr">The user pointer.</param>
     /// <returns>The Snap7 result code.</returns>
-    public int SetEventsCallBack(SrvCallback callback, nint usrPtr) =>
-        _managedServer is not null ? 0 : NativeMethods.Srv_SetEventsCallback(_server, callback, usrPtr);
+    public int SetEventsCallBack(SrvCallback callback, nint usrPtr)
+    {
+        if (_managedServer is not null)
+        {
+            return 0;
+        }
+
+        var result = NativeMethods.Srv_SetEventsCallback(_server, callback, usrPtr);
+        if (result == 0)
+        {
+            _eventsCallback = callback;
+        }
+
+        return result;
+    }
 
     /// <summary>Sets the read-event callback.</summary>
     /// <param name="callback">The callback.</param>
     /// <param name="usrPtr">The user pointer.</param>
     /// <returns>The Snap7 result code.</returns>
-    public int SetReadEventsCallBack(SrvCallback callback, nint usrPtr) =>
-        _managedServer is not null ? 0 : NativeMethods.Srv_SetReadEventsCallback(_server, callback, usrPtr);
+    public int SetReadEventsCallBack(SrvCallback callback, nint usrPtr)
+    {
+        if (_managedServer is not null)
+        {
+            return 0;
+        }
+
+        var result = NativeMethods.Srv_SetReadEventsCallback(_server, callback, usrPtr);
+        if (result == 0)
+        {
+            _readEventsCallback = callback;
+        }
+
+        return result;
+    }
 
     /// <summary>Sets the read/write area callback.</summary>
     /// <param name="callback">The callback.</param>
     /// <param name="usrPtr">The user pointer.</param>
     /// <returns>The Snap7 result code.</returns>
-    public int SetRwAreaCallBack(SrvRwAreaCallback callback, nint usrPtr) =>
-        _managedServer is not null ? 0 : NativeMethods.Srv_SetRWAreaCallback(_server, callback, usrPtr);
+    public int SetRwAreaCallBack(SrvRwAreaCallback callback, nint usrPtr)
+    {
+        if (_managedServer is not null)
+        {
+            return 0;
+        }
+
+        var result = NativeMethods.Srv_SetRWAreaCallback(_server, callback, usrPtr);
+        if (result == 0)
+        {
+            _readWriteAreaCallback = callback;
+        }
+
+        return result;
+    }
 
     /// <summary>Retrieves the next queued event.</summary>
     /// <param name="event">The event.</param>
@@ -550,6 +598,15 @@ public class MockServer : IDisposable
             _ = Stop();
         }
 
+        if (_managedServer is not null)
+        {
+            _managedServer.Dispose();
+        }
+        else if (_server != default)
+        {
+            _ = NativeMethods.Srv_Destroy(ref _server);
+        }
+
         foreach (var item in _areaHandles)
         {
             var handle = item.Value;
@@ -559,14 +616,12 @@ public class MockServer : IDisposable
             }
         }
 
-        if (_managedServer is not null)
-        {
-            _managedServer.Dispose();
-        }
-        else if (_server != default)
-        {
-            _ = NativeMethods.Srv_Destroy(ref _server);
-        }
+        GC.KeepAlive(_eventsCallback);
+        GC.KeepAlive(_readEventsCallback);
+        GC.KeepAlive(_readWriteAreaCallback);
+        _eventsCallback = null;
+        _readEventsCallback = null;
+        _readWriteAreaCallback = null;
 
         _disposedValue = true;
     }
