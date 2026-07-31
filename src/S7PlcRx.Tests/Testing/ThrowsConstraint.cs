@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Testing;
+namespace IoT.Driver.S7PlcRx.Tests.Testing;
 
 /// <summary>Represents an asynchronous exception constraint.</summary>
 /// <param name="exceptionType">Describes parameter exceptionType for helper member 77.</param>
@@ -15,22 +15,23 @@ public sealed class ThrowsConstraint(Type exceptionType)
     /// <summary>Applies the constraint to an asynchronous action.</summary>
     /// <param name="action">Describes parameter action for helper member 78.</param>
     /// <param name="message">Describes parameter message for helper member 79.</param>
-    public void Apply(Func<Task> action, string? message)
+    /// <returns>A task that completes when the TUnit assertion has been evaluated.</returns>
+    public async Task Apply(Func<Task> action, string? message)
     {
         try
         {
-            action().GetAwaiter().GetResult();
+            await action().ConfigureAwait(false);
         }
         catch (Exception exception)
         {
-            AssertionHelpers.AssertTrue(
+            await AssertionHelpers.AssertTrueAsync(
                 _exceptionType.IsInstanceOfType(exception),
-                message ?? AssertionHelpers.ExpectedExceptionMessage(_exceptionType, exception));
+                message ?? AssertionHelpers.ExpectedExceptionMessage(_exceptionType, exception)).ConfigureAwait(false);
             return;
         }
 
-        AssertionHelpers.AssertTrue(
+        await AssertionHelpers.AssertTrueAsync(
             false,
-            message ?? AssertionHelpers.ExpectedExceptionMessage(_exceptionType, null));
+            message ?? AssertionHelpers.ExpectedExceptionMessage(_exceptionType, null)).ConfigureAwait(false);
     }
 }

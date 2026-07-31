@@ -1,6 +1,6 @@
 ---
 name: twincat-rx
-description: Implement, review, or troubleshoot Beckhoff TwinCAT ADS access with CP.TwinCATRx, including routes, settings, notifications, correlated reads and writes, structures, logical tags, simulation, and generation.
+description: Implement, review, or troubleshoot Beckhoff TwinCAT ADS access with IoT-Driver.TwinCATRx, including routes, settings, notifications, correlated reads and writes, structures, logical tags, simulation, and generation.
 ---
 
 # TwinCATRx
@@ -13,18 +13,18 @@ Read the co-packaged `../../README.md`; in a repository checkout use `packagerea
 
 ## Package choice
 
-- `CP.TwinCATRx` / `CP.TwinCATRx.Reactive` provide Windows ADS integrations.
-- `TwinCATRx.Core` / `TwinCATRx.Core.Reactive` provide core abstractions and testable composition.
-- Import `IoT.DriverCore.TwinCATRx` and `IoT.DriverCore.TwinCATRx.Core`, or the corresponding `.Reactive` namespaces.
-- Runtime ADS packages embed the generator. Install `TwinCATRx.Generators` only to version it independently; never load duplicate analyzers.
+- `IoT-Driver.TwinCATRx` / `IoT-Driver.TwinCATRx.Reactive` provide Windows ADS integrations.
+- `IoT-Driver.TwinCATRx.Core` / `IoT-Driver.TwinCATRx.Core.Reactive` provide core abstractions and testable composition.
+- Import `IoT.Driver.TwinCATRx` and `IoT.Driver.TwinCATRx.Core`, or the corresponding `.Reactive` namespaces.
+- Runtime ADS packages never embed the generator. Install `IoT-Driver.TwinCATRx.Generators` separately only when generated models are required.
 
 ## Configure and connect
 
 Set ADS address, port, and settings ID. Register every notification and writable variable before `Connect`.
 
 ```csharp
-using IoT.DriverCore.TwinCATRx;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx;
+using IoT.Driver.TwinCATRx.Core;
 
 using var client = new RxTcAdsClient();
 var settings = new Settings

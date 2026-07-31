@@ -5,15 +5,15 @@
 using System.Threading;
 using System.Threading.Tasks;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Enums;
+using IoT.Driver.OmronPlcRx.Reactive.Enums;
 #else
-using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive;
+namespace IoT.Driver.OmronPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.OmronPlcRx;
+namespace IoT.Driver.OmronPlcRx;
 #endif
 
 /// <summary>Abstracts native contiguous FINS memory-area operations.</summary>

@@ -9,9 +9,9 @@ using System.Threading;
 using System.Threading.Tasks;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core;
+namespace IoT.Driver.OmronPlcRx.Core;
 #endif
 
 /// <summary>
@@ -60,10 +60,7 @@ internal sealed class UdpClient : IDisposable
     /// <param name="port">The p or t value.</param>
     internal UdpClient(IPAddress address, int port)
     {
-        if (address is null)
-        {
-            throw new ArgumentNullException(nameof(address));
-        }
+        OmronArgumentGuards.ThrowIfNull(address, nameof(address));
 
         _remoteHost = address.ToString();
 
@@ -90,7 +87,6 @@ internal sealed class UdpClient : IDisposable
     public void Dispose()
     {
         Dispose(true);
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>Sends bytes with no finite timeout.</summary>

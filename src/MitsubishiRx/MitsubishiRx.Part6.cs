@@ -8,11 +8,11 @@ using System.Security.Cryptography;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -353,7 +353,7 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
             var read = await ReadWordsAsync(address, 1, cancellationToken).ConfigureAwait(false);
             if (!read.IsSucceed || read.Value is null)
             {
-                return new Responce<ushort[]>(read);
+                return new(read);
             }
 
             values.Add(read.Value[0]);

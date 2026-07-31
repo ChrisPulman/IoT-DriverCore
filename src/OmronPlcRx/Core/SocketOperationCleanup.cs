@@ -8,9 +8,9 @@ using System.Threading;
 using System.Threading.Tasks;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core;
+namespace IoT.Driver.OmronPlcRx.Core;
 #endif
 
 /// <summary>Provides cleanup helpers for timed socket operations.</summary>

@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.Serial.Tests;
+namespace IoT.Driver.Serial.Tests;
 
 /// <summary>Tests raw-byte processing used by automatic serial receive events.</summary>
 public sealed class SerialPortReceiveProcessorTests
@@ -62,7 +62,7 @@ public sealed class SerialPortReceiveProcessorTests
                 return 0;
             },
             _ => publishedByteCount++,
-            _ => { },
+            static _ => { },
             _ => publishedBatchCount++);
 
         await Assert.That(bytesRead).IsEqualTo(0);
@@ -91,7 +91,7 @@ public sealed class SerialPortReceiveProcessorTests
                 return count;
             },
             bytes.Add,
-            _ => { },
+            static _ => { },
             batches.Add);
 
         await Assert.That(bytesRead).IsEqualTo(MultiChunkSource.Length);
@@ -130,15 +130,21 @@ public sealed class SerialPortReceiveProcessorTests
                 sourceOffset += count;
                 return count;
             },
-            _ => { },
-            _ => { },
+            static _ => { },
+            static _ => { },
             publishedBatches.Add);
 
         await Assert.That(bytesRead).IsEqualTo(source.Length);
         await Assert.That(readRequests).IsEqualTo(Three);
         await Assert.That(availabilityRequests).IsEqualTo(readRequests + 1);
         await Assert.That(publishedBatches.Count).IsEqualTo(readRequests);
-        await Assert.That(publishedBatches.SelectMany(batch => batch)).IsEquivalentTo(source);
+        var publishedBytes = new List<byte>();
+        foreach (var batch in publishedBatches)
+        {
+            publishedBytes.AddRange(batch);
+        }
+
+        await Assert.That(publishedBytes).IsEquivalentTo(source);
     }
 
     /// <summary>Verifies all transport adapters expose the common batch receive contract.</summary>

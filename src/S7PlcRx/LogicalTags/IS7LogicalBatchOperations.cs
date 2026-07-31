@@ -3,10 +3,10 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.LogicalTags;
+namespace IoT.Driver.S7PlcRx.Reactive.LogicalTags;
 
 #else
-namespace IoT.DriverCore.S7PlcRx.LogicalTags;
+namespace IoT.Driver.S7PlcRx.LogicalTags;
 
 #endif
 

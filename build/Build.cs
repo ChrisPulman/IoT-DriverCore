@@ -9,7 +9,7 @@ using Nuke.Common.Tools.DotNet;
 using Serilog;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
 
-namespace IoT.DriverCore.Building;
+namespace IoT.Driver.Building;
 
 /// <summary>Defines the repository build pipeline.</summary>
 public sealed class Build : NukeBuild

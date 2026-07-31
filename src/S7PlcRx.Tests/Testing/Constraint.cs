@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Testing;
+namespace IoT.Driver.S7PlcRx.Tests.Testing;
 
 /// <summary>Represents a predicate-based value constraint.</summary>
 /// <param name="predicate">Describes parameter predicate for helper member 49.</param>
@@ -17,8 +17,8 @@ public sealed class Constraint(Func<object?, bool> predicate, string expectation
     private readonly string _expectation = expectation;
 
     /// <inheritdoc />
-    public void Apply(object? actual, string? message) =>
-        AssertionHelpers.AssertTrue(
+    public Task Apply(object? actual, string? message) =>
+        AssertionHelpers.AssertTrueAsync(
             _predicate(actual),
             message ?? $"Expected {AssertionHelpers.Format(actual)} to be {_expectation}.");
 }

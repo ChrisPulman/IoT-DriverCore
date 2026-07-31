@@ -5,15 +5,15 @@
 using System.Diagnostics;
 using System.Net.Sockets;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Enums;
+using IoT.Driver.S7PlcRx.Reactive.Enums;
 #else
-using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Core;
+namespace IoT.Driver.S7PlcRx.Reactive.Core;
 #else
-namespace IoT.DriverCore.S7PlcRx.Core;
+namespace IoT.Driver.S7PlcRx.Core;
 #endif
 
 /// <summary>Provides S7 socket connection functionality.</summary>
@@ -358,21 +358,30 @@ internal partial class S7SocketRx
 
         try
         {
+#if NETFRAMEWORK
             var stopwatch = Stopwatch.StartNew();
+#else
+            var startTimestamp = Stopwatch.GetTimestamp();
+#endif
 
             if (_socket?.Connected == true)
             {
                 var sent = _socket.Send(buffer, size, SocketFlags.None);
 
+#if NETFRAMEWORK
                 stopwatch.Stop();
-                RecordSuccessfulOperation(stopwatch.Elapsed, sent, isReceive: false);
+                var elapsed = stopwatch.Elapsed;
+#else
+                var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
+#endif
+                RecordSuccessfulOperation(elapsed, sent, isReceive: false);
 
                 if (tag is not null && Debugger.IsAttached)
                 {
                     var result = sent == size ? Success : Failed;
                     Debug.WriteLine(
                         $"{_timeProvider.GetUtcNow().LocalDateTime} Wrote Tag: {tag.Name} value: {tag.Value} {result} " +
-                        $"({sent}/{size} bytes, {stopwatch.ElapsedMilliseconds}ms)");
+                        $"({sent}/{size} bytes, {elapsed.TotalMilliseconds}ms)");
                 }
 
                 return sent;

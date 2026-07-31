@@ -6,11 +6,11 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -63,7 +63,9 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
             }
         }
 
-        _serialOneCMonitorAddresses = addresses.ToArray();
+        var monitorAddresses = new string[addresses.Length];
+        Array.Copy(addresses, monitorAddresses, addresses.Length);
+        _serialOneCMonitorAddresses = monitorAddresses;
         PublishOperation(
             "Register monitor 1C emulation",
             true,
@@ -88,14 +90,17 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
             .ConfigureAwait(false);
         if (!read.IsSucceed || read.Value is null)
         {
-            return new Responce<byte[]>(read);
+            return new(read);
         }
 
-        var payload = Encoding.ASCII.GetBytes(
-            string.Concat(
-                read.Value.Select(static value =>
-                    value.ToString("X4", System.Globalization.CultureInfo.InvariantCulture))));
-        return new Responce<byte[]>(read, payload);
+        var builder = new StringBuilder(read.Value.Length * MitsubishiNumericConstants.Four);
+        foreach (var value in read.Value)
+        {
+            _ = builder.Append(value.ToString("X4", System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        var payload = Encoding.ASCII.GetBytes(builder.ToString());
+        return new(read, payload);
     }
 
     /// <summary>Executes the ReadBlocksOneCAsync operation.</summary>
@@ -116,13 +121,13 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
                 .ConfigureAwait(false);
             if (!read.IsSucceed || read.Value is null)
             {
-                return new Responce<byte[]>(read);
+                return new(read);
             }
 
-            _ = builder.Append(
-                string.Concat(
-                    read.Value.Select(static value =>
-                        value.ToString("X4", System.Globalization.CultureInfo.InvariantCulture))));
+            foreach (var value in read.Value)
+            {
+                _ = builder.Append(value.ToString("X4", System.Globalization.CultureInfo.InvariantCulture));
+            }
         }
 
         foreach (var block in request.ResolvedBitBlocks)
@@ -134,11 +139,13 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
                 .ConfigureAwait(false);
             if (!read.IsSucceed || read.Value is null)
             {
-                return new Responce<byte[]>(read);
+                return new(read);
             }
 
-            _ = builder.Append(
-                string.Concat(read.Value.Select(static value => value ? "10" : "00")));
+            foreach (var value in read.Value)
+            {
+                _ = builder.Append(value ? "10" : "00");
+            }
         }
 
         return new Responce<byte[]>(Encoding.ASCII.GetBytes(builder.ToString())).EndTime();
@@ -229,7 +236,7 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
                 backoffFactor: 2.0,
                 maxDelay: null,
                 scheduler: _scheduler)
-            .Catch<Responce<byte[]>, Exception>(ex =>
+            .Catch<Responce<byte[]>, Exception>(static ex =>
                 Observable.Return(new Responce<byte[]>().Fail(ex.Message, exception: ex)));
         return observable.FirstAsync().ToTask(cancellationToken);
     }
@@ -304,7 +311,7 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
     {
         if (!raw.IsSucceed || raw.Value is null)
         {
-            return new Responce<bool[]>(raw);
+            return new(raw);
         }
 
         try
@@ -313,7 +320,7 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
                 Options.DataCode == CommunicationDataCode.Binary
                     ? ParseBinaryBits(raw.Value, expectedBitCount)
                     : ParseAsciiBits(raw.Value, expectedBitCount);
-            return new Responce<bool[]>(raw, values);
+            return new(raw, values);
         }
         catch (Exception ex)
         {
@@ -328,7 +335,7 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
     {
         if (!raw.IsSucceed || raw.Value is null)
         {
-            return new Responce<MitsubishiTypeName>(raw);
+            return new(raw);
         }
 
         try
@@ -343,7 +350,7 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
                 var name = System
                     .Text.Encoding.ASCII.GetString(raw.Value, 0, nameLength)
                     .TrimEnd('\0', ' ');
-                return new Responce<MitsubishiTypeName>(raw, new MitsubishiTypeName(name, code));
+                return new(raw, new MitsubishiTypeName(name, code));
             }
 
             var ascii = System.Text.Encoding.ASCII.GetString(raw.Value).Trim();
@@ -359,7 +366,7 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
             var modelName = ascii.Length > MitsubishiNumericConstants.Four
                 ? ascii[..^MitsubishiNumericConstants.Four].Trim()
                 : ascii;
-            return new Responce<MitsubishiTypeName>(
+            return new(
                 raw,
                 new MitsubishiTypeName(modelName, modelCode));
         }

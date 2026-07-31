@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Message;
+namespace IoT.Driver.ModbusRx.Reactive.Message;
 #else
-namespace IoT.DriverCore.ModbusRx.Message;
+namespace IoT.Driver.ModbusRx.Message;
 #endif
 
 /// <summary>Provides SlaveExceptionResponse functionality.</summary>
@@ -71,10 +71,7 @@ public class SlaveExceptionResponse : AbstractModbusMessage, IModbusMessage
     /// <inheritdoc/>
     protected override void InitializeUnique(byte[] frame)
     {
-        if (frame is null)
-        {
-            throw new ArgumentNullException(nameof(frame));
-        }
+        frame = ArgumentGuard.NotNull(frame, nameof(frame));
 
         if (FunctionCode <= Modbus.ExceptionOffset)
         {

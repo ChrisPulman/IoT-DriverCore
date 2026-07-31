@@ -4,15 +4,15 @@
 
 using System.Collections.Concurrent;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Core;
+using IoT.Driver.S7PlcRx.Reactive.Core;
 #else
-using IoT.DriverCore.S7PlcRx.Core;
+using IoT.Driver.S7PlcRx.Core;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Enterprise;
+namespace IoT.Driver.S7PlcRx.Reactive.Enterprise;
 #else
-namespace IoT.DriverCore.S7PlcRx.Enterprise;
+namespace IoT.Driver.S7PlcRx.Enterprise;
 #endif
 
 /// <summary>Provides enterprise PLC connectivity and symbolic-addressing extensions.</summary>
@@ -79,7 +79,7 @@ public static class EnterpriseExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Unsupported symbol table format."),
         };
 
-        _ = SymbolTables.AddOrUpdate(GetSymbolTableKey(plc), symbolTable, (_, _) => symbolTable);
+        SymbolTables[GetSymbolTableKey(plc)] = symbolTable;
 
         foreach (var symbol in symbolTable.Symbols.Values)
         {
@@ -167,7 +167,7 @@ public static class EnterpriseExtensions
         }
 
         var pool = new ConnectionPool(configs, poolConfig);
-        _ = ConnectionPools.AddOrUpdate($"Pool_{timeProvider.GetUtcNow().UtcDateTime.Ticks}", pool, (_, _) => pool);
+        ConnectionPools[$"Pool_{timeProvider.GetUtcNow().UtcDateTime.Ticks}"] = pool;
         return pool;
     }
 

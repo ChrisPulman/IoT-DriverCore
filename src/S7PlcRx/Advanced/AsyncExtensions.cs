@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Advanced;
+namespace IoT.Driver.S7PlcRx.Reactive.Advanced;
 #else
-namespace IoT.DriverCore.S7PlcRx.Advanced;
+namespace IoT.Driver.S7PlcRx.Advanced;
 #endif
 
 /// <summary>
@@ -30,26 +30,23 @@ public static class AsyncExtensions
         string? variable,
         CancellationToken cancellationToken)
         {
-            if (plc is null)
-            {
-                throw new ArgumentNullException(nameof(plc));
-            }
+            Guard.NotNull(plc, nameof(plc));
 
             var variableName = ValidateVariableName(variable);
 
             if (cancellationToken.IsCancellationRequested)
             {
-                return new ValueTask<T?>(Task.FromCanceled<T?>(cancellationToken));
+                return new(Task.FromCanceled<T?>(cancellationToken));
             }
 
             if (TryGetCurrentValue(plc, variableName, out T? currentValue))
             {
-                return new ValueTask<T?>(currentValue);
+                return new(currentValue);
             }
 
             return cancellationToken.CanBeCanceled
-                ? new ValueTask<T?>(plc.ReadAsync(new LogicalTagKey<T>(variableName), cancellationToken))
-                : new ValueTask<T?>(plc.ReadAsync(new LogicalTagKey<T>(variableName)));
+                ? new(plc.ReadAsync(new LogicalTagKey<T>(variableName), cancellationToken))
+                : new(plc.ReadAsync(new LogicalTagKey<T>(variableName)));
         }
 
         /// <summary>Reads multiple PLC values using a <see cref="ValueTask{TResult}"/>.</summary>
@@ -65,42 +62,35 @@ public static class AsyncExtensions
         IReadOnlyList<string> variables,
         CancellationToken cancellationToken)
         {
-            if (plc is null)
-            {
-                throw new ArgumentNullException(nameof(plc));
-            }
-
-            if (variables is null)
-            {
-                throw new ArgumentNullException(nameof(variables));
-            }
+            Guard.NotNull(plc, nameof(plc));
+            Guard.NotNull(variables, nameof(variables));
 
             if (variables.Count == 0)
             {
-                return new ValueTask<Dictionary<string, T?>>(new Dictionary<string, T?>());
+                return new(new Dictionary<string, T?>());
             }
 
             ValidateVariableNames(variables);
 
             if (cancellationToken.IsCancellationRequested)
             {
-                return new ValueTask<Dictionary<string, T?>>(
+                return new(
                     Task.FromCanceled<Dictionary<string, T?>>(cancellationToken));
             }
 
             if (TryGetCurrentValues<T>(plc, variables, out var cachedValues))
             {
-                return new ValueTask<Dictionary<string, T?>>(cachedValues);
+                return new(cachedValues);
             }
 
             if (plc is RxS7 rx && TryReadMultiVar<T>(rx, variables, out var multiValues))
             {
-                return new ValueTask<Dictionary<string, T?>>(multiValues);
+                return new(multiValues);
             }
 
             var pendingReads = CreatePendingReads<T>(plc, variables, cancellationToken);
 
-            return new ValueTask<Dictionary<string, T?>>(ReadValuesCoreAsync(variables, pendingReads));
+            return new(ReadValuesCoreAsync(variables, pendingReads));
         }
 
         /// <summary>Writes multiple PLC values using a <see cref="ValueTask"/>.</summary>
@@ -114,15 +104,8 @@ public static class AsyncExtensions
         IReadOnlyDictionary<string, T> values,
         CancellationToken cancellationToken)
         {
-            if (plc is null)
-            {
-                throw new ArgumentNullException(nameof(plc));
-            }
-
-            if (values is null)
-            {
-                throw new ArgumentNullException(nameof(values));
-            }
+            Guard.NotNull(plc, nameof(plc));
+            Guard.NotNull(values, nameof(values));
 
             if (values.Count == 0)
             {
@@ -157,10 +140,7 @@ public static class AsyncExtensions
         T typeValue,
         string? variable)
         {
-            if (plc is null)
-            {
-                throw new ArgumentNullException(nameof(plc));
-            }
+            Guard.NotNull(plc, nameof(plc));
 
             var variableName = ValidateVariableName(variable);
 
@@ -178,15 +158,8 @@ public static class AsyncExtensions
         T typeValue,
         params string[] variables)
         {
-            if (plc is null)
-            {
-                throw new ArgumentNullException(nameof(plc));
-            }
-
-            if (variables is null)
-            {
-                throw new ArgumentNullException(nameof(variables));
-            }
+            Guard.NotNull(plc, nameof(plc));
+            Guard.NotNull(variables, nameof(variables));
 
             if (variables.Length == 0)
             {

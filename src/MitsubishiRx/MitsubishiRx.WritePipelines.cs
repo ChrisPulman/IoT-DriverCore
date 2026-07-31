@@ -2,15 +2,15 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -28,7 +28,7 @@ public sealed partial class MitsubishiRx
         TimeSpan? coalescingWindow)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
-        return new MitsubishiReactiveWritePipeline<IReadOnlyList<ushort>>(
+        return new(
             _scheduler,
             $"Words:{address}",
             mode,
@@ -51,7 +51,7 @@ public sealed partial class MitsubishiRx
         var tagName = tag.Name;
         ArgumentException.ThrowIfNullOrWhiteSpace(tagName);
         _ = GetRequiredTag(tagName);
-        return new MitsubishiReactiveWritePipeline<T>(
+        return new(
             _scheduler,
             $"Tag:{tagName}",
             mode,

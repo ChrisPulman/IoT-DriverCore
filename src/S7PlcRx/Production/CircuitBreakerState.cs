@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Production;
+namespace IoT.Driver.S7PlcRx.Reactive.Production;
 #else
-namespace IoT.DriverCore.S7PlcRx.Production;
+namespace IoT.Driver.S7PlcRx.Production;
 #endif
 
 /// <summary>Specifies the operational state of a circuit breaker.</summary>

@@ -29,7 +29,7 @@
   <ItemGroup>
     <Using Include="TUnit.Core" />
     <Using Include="TUnit.Assertions.Extensions" />
-    <Using Include="IoT.DriverCore.ModbusRx.Generators.Tests.Testing.Assert" Alias="Assert" />
+    <Using Include="IoT.Driver.ModbusRx.Generators.Tests.Testing.Assert" Alias="Assert" />
   </ItemGroup>
 
 </Project>

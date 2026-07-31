@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -141,7 +141,7 @@ public sealed partial class MitsubishiRx
         ArgumentNullException.ThrowIfNull(projector);
         if (value.Quality == MitsubishiReactiveQuality.Error)
         {
-            return new MitsubishiReactiveValue<TOutput>(
+            return new(
                 default,
                 value.TimestampUtc,
                 value.Quality,
@@ -155,7 +155,7 @@ public sealed partial class MitsubishiRx
 
         if (value.Value is null)
         {
-            return new MitsubishiReactiveValue<TOutput>(
+            return new(
                 default,
                 value.TimestampUtc,
                 MitsubishiReactiveQuality.Error,
@@ -165,7 +165,7 @@ public sealed partial class MitsubishiRx
 
         try
         {
-            return new MitsubishiReactiveValue<TOutput>(
+            return new(
                 projector(value.Value),
                 value.TimestampUtc,
                 value.Quality,
@@ -178,7 +178,7 @@ public sealed partial class MitsubishiRx
         }
         catch (Exception ex)
         {
-            return new MitsubishiReactiveValue<TOutput>(
+            return new(
                 default,
                 value.TimestampUtc,
                 MitsubishiReactiveQuality.Error,
@@ -226,11 +226,11 @@ public sealed partial class MitsubishiRx
                     $"for tag '{item.TagName}'.");
             }
 
-            var slice = words.Skip(item.WordOffset).Take(item.WordCount).ToArray();
+            var slice = words.AsSpan(item.WordOffset, item.WordCount).ToArray();
             values[item.TagName] = ConvertTagWordsToObject(item.Tag, slice);
         }
 
-        return new MitsubishiTagGroupSnapshot(plan.GroupName, values);
+        return new(plan.GroupName, values);
     }
 
     /// <summary>Builds a contiguous read plan from ordered candidates.</summary>
@@ -244,16 +244,17 @@ public sealed partial class MitsubishiRx
         [NotNullWhen(true)] out ReactiveWordGroupPlan? plan)
     {
         var first = ordered[0];
-        if (
-            ordered.Any(item =>
-                !string.Equals(
+        foreach (var item in ordered)
+        {
+            if (!string.Equals(
                     item.Address.Descriptor.Symbol,
                     first.Address.Descriptor.Symbol,
                     StringComparison.OrdinalIgnoreCase)
-                || item.Address.Descriptor.BinaryCode != first.Address.Descriptor.BinaryCode))
-        {
-            plan = null;
-            return false;
+                || item.Address.Descriptor.BinaryCode != first.Address.Descriptor.BinaryCode)
+            {
+                plan = null;
+                return false;
+            }
         }
 
         var expectedNumber = first.Address.Number;
@@ -275,7 +276,14 @@ public sealed partial class MitsubishiRx
             expectedNumber += item.WordCount;
         }
 
-        var items = group.ResolvedTagNames.Select(tagName => offsets[tagName]).ToArray();
+        var items = new ReactiveWordGroupItem[group.ResolvedTagNames.Count];
+        var index = 0;
+        foreach (var tagName in group.ResolvedTagNames)
+        {
+            items[index] = offsets[tagName];
+            index++;
+        }
+
         plan = new(group.Name, first.Address, expectedNumber - first.Address.Number, items);
         return true;
     }
@@ -336,9 +344,9 @@ public sealed partial class MitsubishiRx
     {
         lock (_reactiveStreamsGate)
         {
-            foreach (var stream in _reactiveStreams.Values.OfType<IDisposable>())
+            foreach (var stream in _reactiveStreams.Values)
             {
-                stream.Dispose();
+                ((IDisposable)stream).Dispose();
             }
 
             _reactiveStreams.Clear();
@@ -362,13 +370,17 @@ public sealed partial class MitsubishiRx
             return false;
         }
 
-        var ordered = sortable
-            .OrderBy(
-                static item => item.Address.Descriptor.Symbol,
-                StringComparer.OrdinalIgnoreCase)
-            .ThenBy(static item => item.Address.Number)
-            .ToArray();
-        return TryBuildContiguousWordGroupPlan(group, ordered, out plan);
+        sortable.Sort(
+            static (left, right) =>
+            {
+                var result = StringComparer.OrdinalIgnoreCase.Compare(
+                    left.Address.Descriptor.Symbol,
+                    right.Address.Descriptor.Symbol);
+                return result != 0
+                    ? result
+                    : left.Address.Number.CompareTo(right.Address.Number);
+            });
+        return TryBuildContiguousWordGroupPlan(group, sortable, out plan);
     }
 
     /// <summary>Creates candidate word ranges for a reactive group.</summary>
@@ -486,7 +498,7 @@ public sealed partial class MitsubishiRx
         }
         catch (Exception ex)
         {
-            return new MitsubishiReactiveValue<MitsubishiTagGroupSnapshot>(
+            return new(
                 null,
                 _scheduler.Now,
                 MitsubishiReactiveQuality.Error,
@@ -516,7 +528,11 @@ public sealed partial class MitsubishiRx
         Func<bool, IObservable<MitsubishiReactiveValue<T>>> streamFactory) : IDisposable
     {
         /// <summary>Stores the gate field.</summary>
+#if NET9_0_OR_GREATER
+        private readonly System.Threading.Lock _gate = new();
+#else
         private readonly object _gate = new();
+#endif
 
         /// <summary>Stores the subject field.</summary>
         private readonly ReplaySignal<MitsubishiReactiveValue<T>> _subject = new(1);
@@ -539,7 +555,13 @@ public sealed partial class MitsubishiRx
 
         /// <summary>Gets or sets the Stream property.</summary>
         public IObservable<MitsubishiReactiveValue<T>> Stream =>
-            Observable.Create<MitsubishiReactiveValue<T>>(Subscribe);
+            Observable.Create<MitsubishiReactiveValue<T>>(observer =>
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                var subscription = _subject.Subscribe(observer);
+                StartIfNeeded();
+                return new SharedReactiveSubscription(this, subscription);
+            });
 
         /// <summary>Executes the Dispose operation.</summary>
         public void Dispose()
@@ -559,21 +581,6 @@ public sealed partial class MitsubishiRx
 
             _subject.OnCompleted();
             _subject.Dispose();
-        }
-
-        /// <summary>Subscribes an observer to the shared stream.</summary>
-        /// <param name="observer">The destination observer.</param>
-        /// <returns>The subscription.</returns>
-        private IDisposable Subscribe(IObserver<MitsubishiReactiveValue<T>> observer)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            var subscription = _subject.Subscribe(observer);
-            StartIfNeeded();
-            return Disposable.Create(() =>
-            {
-                subscription.Dispose();
-                StopIfUnused();
-            });
         }
 
         /// <summary>Executes the StartIfNeeded operation.</summary>
@@ -629,6 +636,29 @@ public sealed partial class MitsubishiRx
                     _connection?.Dispose();
                     _connection = null;
                 }
+            }
+        }
+
+        /// <summary>Coordinates subscription disposal with the owning shared stream.</summary>
+        /// <param name="owner">The shared stream that owns this subscription.</param>
+        /// <param name="subscription">The underlying observer subscription.</param>
+        private sealed class SharedReactiveSubscription(
+            SharedReactiveStream<T> owner,
+            IDisposable subscription) : IDisposable
+        {
+            /// <summary>Stores whether the subscription has already been disposed.</summary>
+            private int _disposed;
+
+            /// <inheritdoc/>
+            public void Dispose()
+            {
+                if (Interlocked.Exchange(ref _disposed, 1) != 0)
+                {
+                    return;
+                }
+
+                subscription.Dispose();
+                owner.StopIfUnused();
             }
         }
     }

@@ -4,8 +4,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <DefineConstants>$(DefineConstants);REACTIVE_SHIM</DefineConstants>
-    <MitsubishiGeneratorAssemblyPath>..\MitsubishiRx.Generators\bin\$(Configuration)\netstandard2.0\MitsubishiRx.Generators.dll</MitsubishiGeneratorAssemblyPath>
-    <MitsubishiGeneratorAssemblyPath Condition="'$(UseArtifactsOutput)' == 'true'">$(ArtifactsPath)\bin\MitsubishiRx.Generators\$([System.String]::Copy('$(Configuration)').ToLowerInvariant())\MitsubishiRx.Generators.dll</MitsubishiGeneratorAssemblyPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,7 +23,7 @@
     <Using Include="ReactiveUI.Primitives.Reactive.Concurrency" />
     <Using Include="ReactiveUI.Primitives.Extensions.Reactive" />
     <Using Include="ReactiveUI.Primitives.Extensions.Reactive.Operators" />
-    <Using Include="IoT.DriverCore.Serial.Reactive" />
+    <Using Include="IoT.Driver.Serial.Reactive" />
     <Using Include="System.Reactive.Concurrency.IScheduler" Alias="IScheduler" />
     <Using Include="System.Reactive.Concurrency.Scheduler" Alias="Scheduler" />
     <Using Include="System.Reactive.Unit" Alias="Unit" />
@@ -37,6 +35,5 @@
     <ProjectReference Include="..\CP.IoT.Core\CP.IoT.Core.csproj" />
     <ProjectReference Include="..\MitsubishiRx.Generators\MitsubishiRx.Generators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" SetConfiguration="Configuration=$(Configuration)" />
     <ProjectReference Include="..\SerialPortRx.Reactive\SerialPortRx.Reactive.csproj" />
-    <None Include="$(MitsubishiGeneratorAssemblyPath)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 </Project>

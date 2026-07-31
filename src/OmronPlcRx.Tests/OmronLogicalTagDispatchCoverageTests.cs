@@ -2,13 +2,13 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Core.Types;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Core.Types;
+using IoT.Driver.OmronPlcRx.Tags;
 using ReactiveUI.Primitives;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Exercises logical-tag type dispatch, merged observations, permissions, and failures.</summary>
 public sealed class OmronLogicalTagDispatchCoverageTests
@@ -70,7 +70,12 @@ public sealed class OmronLogicalTagDispatchCoverageTests
         using var client = new OmronLogicalTagClient(simulator);
         RegisterSupportedTags(client);
         var values = CreateSupportedValues();
-        var names = values.Select(static value => value.TagName).ToArray();
+        var names = new string[values.Length];
+        for (var index = 0; index < values.Length; index++)
+        {
+            names[index] = values[index].TagName;
+        }
+
         var observed = new List<LogicalTagValue>();
         var subscription = client
             .ObserveMany(names)
@@ -81,13 +86,40 @@ public sealed class OmronLogicalTagDispatchCoverageTests
         subscription.Dispose();
         subscription.Dispose();
 
+        var writesSucceeded = true;
+        foreach (var result in writes)
+        {
+            if (!result.Succeeded)
+            {
+                writesSucceeded = false;
+                break;
+            }
+        }
+
+        var readsSucceeded = true;
+        var integerMatchCount = 0;
+        object? integerValue = null;
+        foreach (var result in reads)
+        {
+            if (!result.Succeeded)
+            {
+                readsSucceeded = false;
+            }
+
+            if (result.Value?.TagName == "Int")
+            {
+                integerMatchCount++;
+                integerValue = result.Value.Value;
+            }
+        }
+
         await Assert.That(writes.Count).IsEqualTo(SupportedTypeCount);
-        await Assert.That(writes.All(static result => result.Succeeded)).IsTrue();
+        await Assert.That(writesSucceeded).IsTrue();
         await Assert.That(reads.Count).IsEqualTo(SupportedTypeCount);
-        await Assert.That(reads.All(static result => result.Succeeded)).IsTrue();
+        await Assert.That(readsSucceeded).IsTrue();
         await Assert.That(observed.Count >= SupportedTypeCount).IsTrue();
-        await Assert.That(reads.Single(static result => result.Value?.TagName == "Int").Value?.Value)
-            .IsEqualTo(IntegerValue);
+        await Assert.That(integerMatchCount).IsEqualTo(1);
+        await Assert.That(integerValue).IsEqualTo(IntegerValue);
     }
 
     /// <summary>Verifies asynchronous merged observation adapts typed values through its channel.</summary>
@@ -105,7 +137,11 @@ public sealed class OmronLogicalTagDispatchCoverageTests
             .GetAsyncEnumerator(cancellation.Token);
 
         var moved = await enumerator.MoveNextAsync();
+#if NETFRAMEWORK
         cancellation.Cancel();
+#else
+        await cancellation.CancelAsync();
+#endif
 
         await Assert.That(moved).IsTrue();
         await Assert.That(enumerator.Current.TagName).IsEqualTo(FirstTagName);
@@ -118,7 +154,7 @@ public sealed class OmronLogicalTagDispatchCoverageTests
     {
         using var simulator = new OmronPlcSimulator();
         using var catalog = new LogicalTagCatalog();
-        catalog.Upsert(new LogicalTag(UnsupportedTagName, "D1", "System.Decimal"));
+        catalog.Upsert(new(UnsupportedTagName, "D1", "System.Decimal"));
         var client = new OmronLogicalTagClient(simulator, catalog);
         _ = client.CreateTag(
             new PlcTag<short>(ReadOnlyTagName, "D2"),
@@ -138,11 +174,11 @@ public sealed class OmronLogicalTagDispatchCoverageTests
         var missing = await client.ReadAsync("Missing", CancellationToken.None);
         var deniedRead = await client.ReadAsync(WriteOnlyTagName, CancellationToken.None);
         var deniedWrite = await client.WriteAsync(
-            new LogicalTagValue(ReadOnlyTagName, ShortValue, TimeProvider.System.GetUtcNow()),
+            new(ReadOnlyTagName, ShortValue, TimeProvider.System.GetUtcNow()),
             CancellationToken.None);
         var unsupportedRead = await client.ReadAsync(UnsupportedTagName, CancellationToken.None);
         var unsupportedWrite = await client.WriteAsync(
-            new LogicalTagValue(UnsupportedTagName, ShortValue, TimeProvider.System.GetUtcNow()),
+            new(UnsupportedTagName, ShortValue, TimeProvider.System.GetUtcNow()),
             CancellationToken.None);
 
         await Assert.That(missing.Succeeded).IsFalse();
@@ -153,15 +189,19 @@ public sealed class OmronLogicalTagDispatchCoverageTests
         await AssertThrowsAsync<NotSupportedException>(
             () => Task.Run(() => client.Observe(UnsupportedTagName)));
         await AssertThrowsAsync<NotSupportedException>(
-            () => Task.Run(() => client.RegisterTag(new LogicalTag("Bad", "D4", "Decimal"))));
+            () => Task.Run(() => client.RegisterTag(new("Bad", "D4", "Decimal"))));
 
         using var cancellation = new CancellationTokenSource();
+#if NETFRAMEWORK
         cancellation.Cancel();
+#else
+        await cancellation.CancelAsync();
+#endif
         await AssertThrowsAsync<OperationCanceledException>(
             () => client.ReadAsync(ReadOnlyTagName, cancellation.Token));
         await AssertThrowsAsync<OperationCanceledException>(
             () => client.WriteAsync(
-                new LogicalTagValue(WriteOnlyTagName, ShortValue, TimeProvider.System.GetUtcNow()),
+                new(WriteOnlyTagName, ShortValue, TimeProvider.System.GetUtcNow()),
                 cancellation.Token));
         await AssertNullArgumentsAsync(client);
 

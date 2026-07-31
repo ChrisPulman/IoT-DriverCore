@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.TwinCATRx;
+using IoT.Driver.TwinCATRx;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Deterministic coverage tests for the lean observable bridge.</summary>
 public class LeanObservableBridgeCoverageTests
@@ -59,16 +59,16 @@ public class LeanObservableBridgeCoverageTests
     {
         IObservable<int> source = new ManualObservable<int>();
 
-        await TUnitAssert.That(() => ObservableBridgeExtensions.ToAsyncObservable((IObservable<int>)null!))
+        await TUnitAssert.That(static () => ObservableBridgeExtensions.ToAsyncObservable((IObservable<int>)null!))
             .Throws<ArgumentNullException>();
-        await TUnitAssert.That(() =>
-                ObservableBridgeExtensions.SubscribeTo((IObservable<int>)null!, _ => { }, _ => { }, () => { }))
+        await TUnitAssert.That(static () =>
+                ObservableBridgeExtensions.SubscribeTo((IObservable<int>)null!, static _ => { }, static _ => { }, static () => { }))
             .Throws<ArgumentNullException>();
-        await TUnitAssert.That(() => ObservableBridgeExtensions.SubscribeTo(source, null!, _ => { }, () => { }))
+        await TUnitAssert.That(() => ObservableBridgeExtensions.SubscribeTo(source, null!, static _ => { }, static () => { }))
             .Throws<ArgumentNullException>();
-        await TUnitAssert.That(() => ObservableBridgeExtensions.SubscribeTo(source, _ => { }, null!, () => { }))
+        await TUnitAssert.That(() => ObservableBridgeExtensions.SubscribeTo(source, static _ => { }, null!, static () => { }))
             .Throws<ArgumentNullException>();
-        await TUnitAssert.That(() => ObservableBridgeExtensions.SubscribeTo(source, _ => { }, _ => { }, null!))
+        await TUnitAssert.That(() => ObservableBridgeExtensions.SubscribeTo(source, static _ => { }, static _ => { }, null!))
             .Throws<ArgumentNullException>();
     }
 
@@ -79,7 +79,7 @@ public class LeanObservableBridgeCoverageTests
     {
         var source = new ManualObservable<int>();
         var expected = new InvalidOperationException(ExpectedErrorMessage);
-        using var subscription = ObservableBridgeExtensions.SubscribeTo(source, _ => { });
+        using var subscription = ObservableBridgeExtensions.SubscribeTo(source, static _ => { });
 
         await TUnitAssert.That(() => source.OnError(expected)).Throws<InvalidOperationException>();
     }
@@ -163,15 +163,32 @@ public class LeanObservableBridgeCoverageTests
     /// <summary>Cancels a token source without blocking on supported target frameworks.</summary>
     /// <param name="source">The token source.</param>
     /// <returns>The cancellation task.</returns>
-    private static async Task CancelAsync(CancellationTokenSource source)
-    {
 #if NET9_0_OR_GREATER
-        await source.CancelAsync();
+    private static Task CancelAsync(CancellationTokenSource source)
+        => source.CancelAsync();
 #else
-        source.Cancel();
-        await Task.CompletedTask;
+    private static Task CancelAsync(CancellationTokenSource source)
+        => CancelOnLegacyFrameworkAsync(source);
+
+    /// <summary>Schedules and observes cancellation on frameworks without asynchronous cancellation support.</summary>
+    /// <param name="source">The token source.</param>
+    /// <returns>The cancellation task.</returns>
+    private static async Task CancelOnLegacyFrameworkAsync(CancellationTokenSource source)
+    {
+        var cancellationObserved = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+#if NET8_0_OR_GREATER
+        await using var registration = source.Token.Register(
+            static state => ((TaskCompletionSource<object?>)state!).TrySetResult(null),
+            cancellationObserved);
+#else
+        using var registration = source.Token.Register(
+            static state => ((TaskCompletionSource<object?>)state!).TrySetResult(null),
+            cancellationObserved);
 #endif
+        source.CancelAfter(TimeSpan.Zero);
+        await cancellationObserved.Task;
     }
+#endif
 
     /// <summary>Manually controlled observable used to avoid external dependencies.</summary>
     /// <typeparam name="T">The value type.</typeparam>

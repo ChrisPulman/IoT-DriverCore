@@ -5,15 +5,14 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using IoT.DriverCore.Core;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.IO;
-using IoT.DriverCore.ModbusRx.LogicalTags;
+using IoT.Driver.Core;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx.IO;
+using IoT.Driver.ModbusRx.LogicalTags;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Direct TUnit tests for the logical-tag Modbus adapter.</summary>
 public sealed class ModbusLogicalTagClientTests
@@ -135,7 +134,7 @@ public sealed class ModbusLogicalTagClientTests
         using var catalog = new ModbusTagCatalog();
         using var client = new ModbusLogicalTagClient(master, catalog, TimeSpan.FromSeconds(1));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(
+            new(
                 FirstTagName,
                 1,
                 ModbusDataArea.HoldingRegister,
@@ -143,7 +142,7 @@ public sealed class ModbusLogicalTagClientTests
                 1,
                 typeof(ushort)));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(
+            new(
                 SecondTagName,
                 1,
                 ModbusDataArea.HoldingRegister,
@@ -169,7 +168,7 @@ public sealed class ModbusLogicalTagClientTests
         using var catalog = new ModbusTagCatalog();
         using var client = new ModbusLogicalTagClient(master, catalog, TimeSpan.FromSeconds(1));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(
+            new(
                 "Setpoint",
                 WriteUnitId,
                 ModbusDataArea.HoldingRegister,
@@ -178,7 +177,7 @@ public sealed class ModbusLogicalTagClientTests
                 typeof(ushort)));
 
         var result = await client.WriteAsync(
-            new LogicalTagValue("Setpoint", WriteValue, new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero)));
+            new("Setpoint", WriteValue, new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero)));
 
         await TUnit.Assertions.Assert.That(result.Succeeded).IsTrue();
         await TUnit.Assertions.Assert.That(master.LastSingleRegisterWrite).IsEqualTo(
@@ -197,7 +196,7 @@ public sealed class ModbusLogicalTagClientTests
         using var catalog = new ModbusTagCatalog();
         using var client = new ModbusLogicalTagClient(master, catalog, TimeSpan.FromSeconds(1));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(
+            new(
                 FirstTagName,
                 WriteUnitId,
                 ModbusDataArea.HoldingRegister,
@@ -205,7 +204,7 @@ public sealed class ModbusLogicalTagClientTests
                 1,
                 typeof(ushort)));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(
+            new(
                 SecondTagName,
                 WriteUnitId,
                 ModbusDataArea.HoldingRegister,
@@ -222,7 +221,17 @@ public sealed class ModbusLogicalTagClientTests
         ]);
 
         await TUnit.Assertions.Assert.That(results.Count).IsEqualTo(DuplicateResultCount);
-        await TUnit.Assertions.Assert.That(results.All(static result => result.Succeeded)).IsTrue();
+        var allResultsSucceeded = true;
+        foreach (var result in results)
+        {
+            if (!result.Succeeded)
+            {
+                allResultsSucceeded = false;
+                break;
+            }
+        }
+
+        await TUnit.Assertions.Assert.That(allResultsSucceeded).IsTrue();
         await TUnit.Assertions.Assert.That(results[0].Value!.TagName).IsEqualTo(SecondTagName);
         await TUnit.Assertions.Assert.That(results[1].Value!.TagName).IsEqualTo(FirstTagName);
         await TUnit.Assertions.Assert.That(results[2].Value!.TagName).IsEqualTo(FirstTagName);
@@ -249,7 +258,7 @@ public sealed class ModbusLogicalTagClientTests
         using var catalog = new ModbusTagCatalog();
         using var client = new ModbusLogicalTagClient(master, catalog, TimeSpan.FromSeconds(1));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(
+            new(
                 "FirstCoil",
                 WriteUnitId,
                 ModbusDataArea.Coil,
@@ -257,7 +266,7 @@ public sealed class ModbusLogicalTagClientTests
                 1,
                 typeof(bool)));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(
+            new(
                 "SecondCoil",
                 WriteUnitId,
                 ModbusDataArea.Coil,
@@ -272,7 +281,17 @@ public sealed class ModbusLogicalTagClientTests
             new LogicalTagValue("SecondCoil", false, requestedAt),
         ]);
 
-        await TUnit.Assertions.Assert.That(results.All(static result => result.Succeeded)).IsTrue();
+        var allResultsSucceeded = true;
+        foreach (var result in results)
+        {
+            if (!result.Succeeded)
+            {
+                allResultsSucceeded = false;
+                break;
+            }
+        }
+
+        await TUnit.Assertions.Assert.That(allResultsSucceeded).IsTrue();
         await TUnit.Assertions.Assert.That(master.MultipleCoilWrites.Count).IsEqualTo(1);
         await TUnit.Assertions.Assert.That(master.MultipleCoilWrites[0].Address).IsEqualTo(FirstCoilAddress);
         await TUnit.Assertions.Assert.That(master.MultipleCoilWrites[0].Data[0]).IsTrue();
@@ -289,7 +308,7 @@ public sealed class ModbusLogicalTagClientTests
         using var catalog = new ModbusTagCatalog();
         using var client = new ModbusLogicalTagClient(master, catalog, TimeSpan.FromSeconds(1));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(
+            new(
                 FirstTagName,
                 WriteUnitId,
                 ModbusDataArea.HoldingRegister,
@@ -297,7 +316,7 @@ public sealed class ModbusLogicalTagClientTests
                 1,
                 typeof(ushort)));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(
+            new(
                 "Invalid",
                 WriteUnitId,
                 ModbusDataArea.HoldingRegister,
@@ -305,7 +324,7 @@ public sealed class ModbusLogicalTagClientTests
                 1,
                 typeof(ushort)));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(
+            new(
                 SeparatedTagName,
                 WriteUnitId,
                 ModbusDataArea.HoldingRegister,
@@ -339,7 +358,7 @@ public sealed class ModbusLogicalTagClientTests
         using var catalog = new ModbusTagCatalog();
         using var client = new ModbusLogicalTagClient(master, catalog, TimeSpan.FromSeconds(1));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(
+            new(
                 ReadOnlyTagName,
                 WriteUnitId,
                 ModbusDataArea.HoldingRegister,
@@ -377,7 +396,7 @@ public sealed class ModbusLogicalTagClientTests
         using var catalog = new ModbusTagCatalog();
         using var client = new ModbusLogicalTagClient(master, catalog, TimeSpan.FromSeconds(1));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(
+            new(
                 FirstTagName,
                 WriteUnitId,
                 ModbusDataArea.HoldingRegister,
@@ -385,7 +404,7 @@ public sealed class ModbusLogicalTagClientTests
                 1,
                 typeof(ushort)));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(
+            new(
                 SecondTagName,
                 WriteUnitId,
                 ModbusDataArea.HoldingRegister,
@@ -393,7 +412,7 @@ public sealed class ModbusLogicalTagClientTests
                 1,
                 typeof(ushort)));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(
+            new(
                 SeparatedTagName,
                 WriteUnitId,
                 ModbusDataArea.HoldingRegister,
@@ -504,10 +523,7 @@ public sealed class ModbusLogicalTagClientTests
             HoldingReadCount++;
             LastHoldingRead = (slaveAddress, startAddress, numberOfPoints);
             return Task.FromResult(
-                Enumerable.Range(startAddress, numberOfPoints)
-                    .Select(address =>
-                        HoldingRegisters.TryGetValue((ushort)address, out var value) ? value : (ushort)0)
-                    .ToArray());
+                CreateHoldingRegisterSnapshot(startAddress, numberOfPoints));
         }
 
         /// <inheritdoc/>
@@ -536,7 +552,7 @@ public sealed class ModbusLogicalTagClientTests
             ushort startAddress,
             ushort[] data)
         {
-            MultipleRegisterWrites.Add((slaveAddress, startAddress, data.ToArray()));
+            MultipleRegisterWrites.Add((slaveAddress, startAddress, CopyValues(data)));
             if (FailingMultipleRegisterAddress == startAddress)
             {
                 throw new InvalidOperationException("Simulated multiple-register failure.");
@@ -553,7 +569,7 @@ public sealed class ModbusLogicalTagClientTests
         /// <inheritdoc/>
         public Task WriteMultipleCoilsAsync(byte slaveAddress, ushort startAddress, bool[] data)
         {
-            MultipleCoilWrites.Add((slaveAddress, startAddress, data.ToArray()));
+            MultipleCoilWrites.Add((slaveAddress, startAddress, CopyValues(data)));
             return Task.CompletedTask;
         }
 
@@ -568,5 +584,40 @@ public sealed class ModbusLogicalTagClientTests
 
         /// <inheritdoc/>
         public void Dispose() => IsDisposed = true;
+
+        /// <summary>Copies register values into a new array.</summary>
+        /// <param name="source">The values to copy.</param>
+        /// <returns>A copy of <paramref name="source"/>.</returns>
+        private static ushort[] CopyValues(ushort[] source)
+        {
+            var copy = new ushort[source.Length];
+            Array.Copy(source, copy, source.Length);
+            return copy;
+        }
+
+        /// <summary>Copies coil values into a new array.</summary>
+        /// <param name="source">The values to copy.</param>
+        /// <returns>A copy of <paramref name="source"/>.</returns>
+        private static bool[] CopyValues(bool[] source)
+        {
+            var copy = new bool[source.Length];
+            Array.Copy(source, copy, source.Length);
+            return copy;
+        }
+
+        /// <summary>Creates a snapshot of holding-register values for the requested range.</summary>
+        /// <param name="startAddress">The first register address.</param>
+        /// <param name="numberOfPoints">The number of register values.</param>
+        /// <returns>The requested holding-register values.</returns>
+        private ushort[] CreateHoldingRegisterSnapshot(ushort startAddress, ushort numberOfPoints)
+        {
+            var values = new ushort[numberOfPoints];
+            for (var index = 0; index < values.Length; index++)
+            {
+                values[index] = HoldingRegisters.TryGetValue((ushort)(startAddress + index), out var value) ? value : (ushort)0;
+            }
+
+            return values;
+        }
     }
 }

@@ -2,12 +2,12 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Reactive.Async;
-using IoT.DriverCore.OmronPlcRx.Reactive.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Reactive.Async;
+using IoT.Driver.OmronPlcRx.Reactive.Tags;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Tests;
+namespace IoT.Driver.OmronPlcRx.Reactive.Tests;
 
 /// <summary>Verifies the deterministic simulator in the System.Reactive compatibility assembly.</summary>
 public sealed class OmronPlcSimulatorReactiveTests
@@ -28,8 +28,9 @@ public sealed class OmronPlcSimulatorReactiveTests
     {
         var simulator = new OmronPlcSimulator();
         var tag = new LogicalTagKey<int>(CounterTagName);
+        PlcTag<int> counterTag = new(CounterTagName, "D100");
         var values = new List<int>();
-        simulator.Seed(new PlcTag<int>(CounterTagName, "D100"), InitialValue);
+        simulator.Seed(counterTag, InitialValue);
         using var subscription = simulator
             .Observe(tag)
             .Subscribe(values.Add, static error => throw error);

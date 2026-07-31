@@ -2,12 +2,12 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.LogicalTags;
+namespace IoT.Driver.ModbusRx.Reactive.LogicalTags;
 #else
-namespace IoT.DriverCore.ModbusRx.LogicalTags;
+namespace IoT.Driver.ModbusRx.LogicalTags;
 #endif
 
 /// <summary>Provides Modbus-specific CRUD over the common SQLite logical-tag store.</summary>
@@ -41,9 +41,7 @@ public sealed class ModbusTagSqliteStore
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The stored definitions.</returns>
     public async Task<IReadOnlyList<ModbusLogicalTag>> ListAsync(CancellationToken cancellationToken) =>
-        (await CoreStore.ListTagsAsync(cancellationToken).ConfigureAwait(false))
-            .Select(ModbusLogicalTag.FromLogicalTag)
-            .ToArray();
+        CreateTagList(await CoreStore.ListTagsAsync(cancellationToken).ConfigureAwait(false));
 
     /// <summary>Creates or replaces a stored Modbus tag.</summary>
     /// <param name="tag">The definition to persist.</param>
@@ -51,10 +49,14 @@ public sealed class ModbusTagSqliteStore
     /// <returns>A task representing the operation.</returns>
     public Task UpsertAsync(ModbusLogicalTag tag, CancellationToken cancellationToken)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(tag);
+#else
         if (tag is null)
         {
             throw new ArgumentNullException(nameof(tag));
         }
+#endif
 
         return CoreStore.UpsertTagAsync(tag.ToLogicalTag(), cancellationToken);
     }
@@ -65,10 +67,14 @@ public sealed class ModbusTagSqliteStore
     /// <returns>True when the definition existed.</returns>
     public Task<bool> UpdateAsync(ModbusLogicalTag tag, CancellationToken cancellationToken)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(tag);
+#else
         if (tag is null)
         {
             throw new ArgumentNullException(nameof(tag));
         }
+#endif
 
         return CoreStore.UpdateTagAsync(tag.ToLogicalTag(), cancellationToken);
     }
@@ -88,5 +94,19 @@ public sealed class ModbusTagSqliteStore
         var catalog = new ModbusTagCatalog();
         _ = await catalog.LoadFromSqliteAsync(CoreStore, cancellationToken).ConfigureAwait(false);
         return catalog;
+    }
+
+    /// <summary>Converts common definitions to a Modbus-specific immutable snapshot.</summary>
+    /// <param name="tags">The common definitions.</param>
+    /// <returns>The converted definitions.</returns>
+    private static ModbusLogicalTag[] CreateTagList(IReadOnlyList<LogicalTag> tags)
+    {
+        var result = new ModbusLogicalTag[tags.Count];
+        for (var index = 0; index < tags.Count; index++)
+        {
+            result[index] = ModbusLogicalTag.FromLogicalTag(tags[index]);
+        }
+
+        return result;
     }
 }

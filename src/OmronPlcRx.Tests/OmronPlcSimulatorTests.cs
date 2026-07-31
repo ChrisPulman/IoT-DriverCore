@@ -2,14 +2,14 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Async;
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Async;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Tags;
 using ReactiveUI.Primitives;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Tests the production deterministic Omron PLC simulator.</summary>
 public sealed class OmronPlcSimulatorTests
@@ -101,23 +101,31 @@ public sealed class OmronPlcSimulatorTests
         await Assert.That(simulator.Operations.Count).IsEqualTo(ExpectedTwo);
 
         using var cancelled = new CancellationTokenSource();
-        cancelled.Cancel();
+        await cancelled.CancelAsync();
         await AssertThrowsAsync<OperationCanceledException>(
             () => simulator.ConnectAsync(cancelled.Token));
         await AssertThrowsAsync<ArgumentException>(
-            () => Task.FromResult(new OmronPlcSimulator(
-                PlcType.CJ2,
-                " ",
-                "1.0",
-                true,
-                InitialClock)));
+            static () =>
+            {
+                _ = new OmronPlcSimulator(
+                    PlcType.CJ2,
+                    " ",
+                    "1.0",
+                    true,
+                    InitialClock);
+                return Task.CompletedTask;
+            });
         await AssertThrowsAsync<ArgumentException>(
-            () => Task.FromResult(new OmronPlcSimulator(
-                PlcType.CJ2,
-                "CJ2",
-                string.Empty,
-                true,
-                InitialClock)));
+            static () =>
+            {
+                _ = new OmronPlcSimulator(
+                    PlcType.CJ2,
+                    "CJ2",
+                    string.Empty,
+                    true,
+                    InitialClock);
+                return Task.CompletedTask;
+            });
     }
 
     /// <summary>Verifies tag setup, conversion, observation, reads, writes, and removal.</summary>
@@ -138,17 +146,17 @@ public sealed class OmronPlcSimulatorTests
             static error => throw error);
 
         await simulator.WriteValueAsync(
-            new LogicalTagKey<short>(SpeedTagName),
+            new(SpeedTagName),
             WrittenSpeed,
             CancellationToken.None);
-        simulator.SetValue(new LogicalTagKey<short>(SpeedTagName), FinalSpeed);
+        simulator.SetValue(new(SpeedTagName), FinalSpeed);
         var read = await simulator.ReadValueAsync(
             new LogicalTagKey<short>(SpeedTagName),
             CancellationToken.None);
 
         var convertedTag = new PlcTag<int>(ConvertedTagName, "D101");
         simulator.AddUpdateTagItem(convertedTag);
-        simulator.SetValue(new LogicalTagKey<int>(ConvertedTagName), ConvertedValue);
+        simulator.SetValue(new(ConvertedTagName), ConvertedValue);
         var converted = simulator.GetValue(new LogicalTagKey<long>(ConvertedTagName));
         var replacement = new PlcTag<int>(ConvertedTagName, "D102");
         simulator.AddUpdateTagItem(replacement);
@@ -167,7 +175,7 @@ public sealed class OmronPlcSimulatorTests
         await AssertThrowsAsync<KeyNotFoundException>(
             () => simulator.ReadValueAsync(new LogicalTagKey<int>("Missing"), CancellationToken.None));
         await AssertThrowsAsync<KeyNotFoundException>(
-            () => simulator.WriteValueAsync(new LogicalTagKey<int>(SpeedTagName), 1, CancellationToken.None));
+            () => simulator.WriteValueAsync(new(SpeedTagName), 1, CancellationToken.None));
         await AssertThrowsAsync<ArgumentNullException>(
             () => Task.Run(() => simulator.AddUpdateTagItem<int>(null!)));
         await AssertThrowsAsync<ArgumentNullException>(
@@ -205,9 +213,29 @@ public sealed class OmronPlcSimulatorTests
             CancellationToken.None);
 
         await Assert.That(reads.Count).IsEqualTo(ExpectedTwo);
-        await Assert.That(reads.All(static result => result.Succeeded)).IsTrue();
+        var readsSucceeded = true;
+        foreach (var result in reads)
+        {
+            if (!result.Succeeded)
+            {
+                readsSucceeded = false;
+                break;
+            }
+        }
+
+        await Assert.That(readsSucceeded).IsTrue();
         await Assert.That(writes.Count).IsEqualTo(ExpectedTwo);
-        await Assert.That(writes.All(static result => result.Succeeded)).IsTrue();
+        var writesSucceeded = true;
+        foreach (var result in writes)
+        {
+            if (!result.Succeeded)
+            {
+                writesSucceeded = false;
+                break;
+            }
+        }
+
+        await Assert.That(writesSucceeded).IsTrue();
         await Assert.That(simulator.GetValue(new LogicalTagKey<short>(SpeedTagName))).IsEqualTo(FinalBulkSpeed);
         await Assert.That(simulator.GetValue(new LogicalTagKey<bool>(RunningTagName))).IsFalse();
     }
@@ -243,7 +271,7 @@ public sealed class OmronPlcSimulatorTests
             new InvalidOperationException("write failed"));
         await AssertThrowsAsync<OmronPLCException>(
             () => simulator.WriteValueAsync(
-                new LogicalTagKey<int>(CounterTagName),
+                new(CounterTagName),
                 FaultedCounter,
                 CancellationToken.None));
         await Assert.That(simulator.IsConnected).IsFalse();
@@ -258,7 +286,16 @@ public sealed class OmronPlcSimulatorTests
         await Assert.That(recoveredRead).IsEqualTo(RetainedCounter);
         await Assert.That(retained).IsEqualTo(RetainedCounter);
         await Assert.That(errors.Count).IsEqualTo(ExpectedThree);
-        await Assert.That(simulator.Operations.Count(static operation => !operation.Succeeded)).IsEqualTo(ExpectedThree);
+        var failedOperationCount = 0;
+        foreach (var operation in simulator.Operations)
+        {
+            if (!operation.Succeeded)
+            {
+                failedOperationCount++;
+            }
+        }
+
+        await Assert.That(failedOperationCount).IsEqualTo(ExpectedThree);
 
         simulator.QueueFault(OmronSimulatorOperation.Connect, new TimeoutException("connect failed"));
         simulator.Disconnect();
@@ -405,9 +442,9 @@ public sealed class OmronPlcSimulatorTests
         await AssertThrowsAsync<ArgumentNullException>(
             () => Task.Run(() => OmronPlcRxAsyncObservableExtensions.ObserveAsAsyncObservable(null!, tag)));
         await AssertThrowsAsync<ArgumentNullException>(
-            () => Task.Run(() => OmronPlcRxAsyncObservableExtensions.ObserveAllAsAsyncObservable(null!)));
+            static () => Task.Run(static () => OmronPlcRxAsyncObservableExtensions.ObserveAllAsAsyncObservable(null!)));
         await AssertThrowsAsync<ArgumentNullException>(
-            () => Task.Run(() => OmronPlcRxAsyncObservableExtensions.ErrorsAsAsyncObservable(null!)));
+            static () => Task.Run(static () => OmronPlcRxAsyncObservableExtensions.ErrorsAsAsyncObservable(null!)));
     }
 
     /// <summary>Captures and verifies an asynchronous exception.</summary>

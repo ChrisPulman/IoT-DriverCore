@@ -3,12 +3,12 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Globalization;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.LogicalTags;
+namespace IoT.Driver.ModbusRx.Reactive.LogicalTags;
 #else
-namespace IoT.DriverCore.ModbusRx.LogicalTags;
+namespace IoT.Driver.ModbusRx.LogicalTags;
 #endif
 
 /// <summary>Maps a logical name to a strongly typed Modbus address.</summary>
@@ -58,10 +58,14 @@ public sealed class ModbusLogicalTag
     /// <param name="configuration">The address and behavior configuration.</param>
     public ModbusLogicalTag(ModbusTagConfiguration configuration)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(configuration);
+#else
         if (configuration is null)
         {
             throw new ArgumentNullException(nameof(configuration));
         }
+#endif
 
         ValidateName(configuration.Name);
         ValidateRange(configuration.DataArea, configuration.Address, configuration.Count);
@@ -126,10 +130,14 @@ public sealed class ModbusLogicalTag
     /// <returns>The validated Modbus definition.</returns>
     public static ModbusLogicalTag FromLogicalTag(LogicalTag tag)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(tag);
+#else
         if (tag is null)
         {
             throw new ArgumentNullException(nameof(tag));
         }
+#endif
 
         var configuration = new ModbusTagConfiguration(
             tag.Name,
@@ -146,7 +154,7 @@ public sealed class ModbusLogicalTag
             AccessMode = tag.AccessMode,
             ScanInterval = tag.ScanInterval,
         };
-        return new ModbusLogicalTag(configuration);
+        return new(configuration);
     }
 
     /// <summary>Converts this definition to the common logical-tag representation.</summary>
@@ -168,7 +176,7 @@ public sealed class ModbusLogicalTag
         var accessMode = AccessMode;
         var scanInterval = ScanInterval;
 
-        return new LogicalTag(
+        return new(
             Name,
             Address.ToString(CultureInfo.InvariantCulture),
             GetDataTypeName(ClrDataType),
@@ -295,11 +303,13 @@ public sealed class ModbusLogicalTag
     /// <returns>The type lookup.</returns>
     private static Dictionary<string, Type> CreateDataTypes()
     {
-        var result = DataTypeNames.ToDictionary(
-            static pair => pair.Value,
-            static pair => pair.Key,
-            StringComparer.Ordinal);
-        foreach (var pair in new Dictionary<string, Type>(StringComparer.Ordinal)
+        var result = new Dictionary<string, Type>(StringComparer.Ordinal);
+        foreach (var pair in DataTypeNames)
+        {
+            result.Add(pair.Value, pair.Key);
+        }
+
+        var aliases = new Dictionary<string, Type>(StringComparer.Ordinal)
         {
             ["bool"] = typeof(bool), ["ushort"] = typeof(ushort), ["short"] = typeof(short),
             ["uint"] = typeof(uint), ["int"] = typeof(int), ["float"] = typeof(float), ["double"] = typeof(double),
@@ -308,7 +318,8 @@ public sealed class ModbusLogicalTag
             ["int[]"] = typeof(int[]),
             ["float[]"] = typeof(float[]),
             ["double[]"] = typeof(double[]),
-        })
+        };
+        foreach (var pair in aliases)
         {
             result.Add(pair.Key, pair.Value);
         }
@@ -339,7 +350,7 @@ public sealed class ModbusLogicalTag
         var maximumCount = dataArea is ModbusDataArea.Coil or ModbusDataArea.DiscreteInput
             ? MaximumBitCount
             : MaximumRegisterCount;
-        _ = count > 0 && count <= maximumCount && (uint)address + count <= ushort.MaxValue + 1U
+        _ = count != 0 && count <= maximumCount && (uint)address + count <= ushort.MaxValue + 1U
             ? true
             : throw new ArgumentOutOfRangeException(
                 nameof(count),

@@ -2,14 +2,14 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Results;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Results;
+using IoT.Driver.OmronPlcRx.Tags;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Signals;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>In-memory PLC test double used by generated stream tests.</summary>
 public sealed class FakeOmronPlcRx : IOmronPlcRx
@@ -72,7 +72,7 @@ public sealed class FakeOmronPlcRx : IOmronPlcRx
     public IObservable<T?> Observe<T>(LogicalTagKey<T> tag) =>
         TagsThrowingOnSubscribe.Contains(tag.Name)
             ? new ThrowingObservable<T?>()
-            : GetSubject(tag.Name).Select(value => value is null ? default : (T?)value);
+            : GetSubject(tag.Name).Select(static value => value is null ? default : (T?)value);
 
     /// <inheritdoc />
     public T? GetValue<T>(LogicalTagKey<T> tag) =>

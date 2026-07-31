@@ -7,7 +7,7 @@ A Reactive Serial, TCP, and UDP I/O library that exposes incoming data as IObser
 
 ## Overview
 
-The package is named `SerialPortRx`; migrated application code imports `IoT.DriverCore.Serial`. It provides one receive contract over serial ports, TCP streams, UDP datagrams, deterministic in-memory links, request/response coordination, observables, async-observables, and a bundled source generator. `SerialPortRx.Reactive` mirrors the implementation under `IoT.DriverCore.Serial.Reactive` for System.Reactive-oriented consumers.
+The runtime packages are `IoT-Driver.SerialPortRx` and `IoT-Driver.SerialPortRx.Reactive`; migrated application code imports `IoT.Driver.Serial` or `IoT.Driver.Serial.Reactive`. They provide one receive contract over serial ports, TCP streams, UDP datagrams, deterministic in-memory links, request/response coordination, observables, and async-observables. Source generation is delivered only by the standalone `IoT-Driver.SerialPortRx.Generators` package.
 
 Choose exactly one receive owner for each connection: automatic observable reception, an explicit `StartDataReception` lease, or manual `Read*` calls. Combining these models makes bytes compete and breaks protocol framing.
 
@@ -22,13 +22,16 @@ Choose exactly one receive owner for each connection: automatic observable recep
 
 | Package | Namespace | When to choose it | Generator |
 |---|---|---|---|
-| `SerialPortRx` | `IoT.DriverCore.Serial` | New code using ReactiveUI.Primitives | Includes the serial analyzer asset. |
-| `SerialPortRx.Reactive` | `IoT.DriverCore.Serial.Reactive` | Existing System.Reactive-facing code | Includes the same analyzer behavior. |
+| `IoT-Driver.SerialPortRx` | `IoT.Driver.Serial` | New code using ReactiveUI.Primitives | No generator assembly included. |
+| `IoT-Driver.SerialPortRx.Reactive` | `IoT.Driver.Serial.Reactive` | Existing System.Reactive-facing code | No generator assembly included. |
+| `IoT-Driver.SerialPortRx.Generators` | generated code targets the selected runtime namespace | Projects using generated serial stream models | Standalone analyzer package. |
 
 ```bash
-dotnet add package SerialPortRx
+dotnet add package IoT-Driver.SerialPortRx
 # Or, for the reactive compatibility surface:
-dotnet add package SerialPortRx.Reactive
+dotnet add package IoT-Driver.SerialPortRx.Reactive
+# Add separately only when using generated serial stream models:
+dotnet add package IoT-Driver.SerialPortRx.Generators
 ```
 
 Target frameworks are `net462`, `net472`, `net481`, `net8.0`, `net9.0`, `net10.0`, and `net11.0`; Windows-specific pin APIs are conditionally compiled for Windows-capable targets.
@@ -38,7 +41,7 @@ Target frameworks are `net462`, `net472`, `net481`, `net8.0`, `net9.0`, `net10.0
 `OpenAsync` starts a configured transport and starts the automatic receiver when enabled. `Close` and `Dispose` release the underlying port/socket and complete owned streams; a disposed object must not be reopened. `ErrorReceived` reports transport/parser errors; `IsOpenObservable` reports state transitions. `ReadAsync`, `ReadLineAsync`, and `ReadToAsync` can throw timeout, cancellation, I/O, and invalid-operation exceptions. Observe errors before opening and use a cancellation token/finite timeout for request paths.
 
 ```csharp
-using IoT.DriverCore.Serial;
+using IoT.Driver.Serial;
 
 using var port = new SerialPortRx("COM3", 115200)
 {
@@ -89,26 +92,26 @@ finally
 
 ## Installation
 ```bash
-dotnet add package SerialPortRx
+dotnet add package IoT-Driver.SerialPortRx
 ```
 
-Use the default `SerialPortRx` package for new code. Version 5.0.x is a breaking release that replaces direct `System.Reactive` usage with `ReactiveUI.Primitives`, including Primitives signals, async observables, sequencers, and disposable helpers.
+Use the default `IoT-Driver.SerialPortRx` package for new code. Version 5.0.x is a breaking release that replaces direct `System.Reactive` usage with `ReactiveUI.Primitives`, including Primitives signals, async observables, sequencers, and disposable helpers.
 
 Existing Rx consumers should install the compatibility package:
 
 ```bash
-dotnet add package SerialPortRx.Reactive
+dotnet add package IoT-Driver.SerialPortRx.Reactive
 ```
 
-`SerialPortRx.Reactive` shares the same source as `SerialPortRx` and uses ReactiveUI.Primitives `.Reactive` package variants so existing `System.Reactive` `Unit`, `IScheduler`, and Rx operator conventions remain available.
+`IoT-Driver.SerialPortRx.Reactive` shares the same source as `IoT-Driver.SerialPortRx` and uses ReactiveUI.Primitives `.Reactive` package variants so existing `System.Reactive` `Unit`, `IScheduler`, and Rx operator conventions remain available.
 
-The package includes the SerialPortRx source generator as an analyzer. No separate generator package is required.
+Install `IoT-Driver.SerialPortRx.Generators` separately when generated serial stream models are required. Runtime packages never contain the generator assembly.
 
 ### Breaking changes in 5.0.x
-- The main `SerialPortRx` package no longer depends on `System.Reactive`; it is based on `ReactiveUI.Primitives`.
+- The main `IoT-Driver.SerialPortRx` package no longer depends on `System.Reactive`; it is based on `ReactiveUI.Primitives`.
 - `Unit`, scheduler, subject, and disposable implementation details are now Primitives-based in the default package.
-- Use `SerialPortRx.Reactive` when an application or library must keep System.Reactive-facing APIs and Rx scheduler/unit conventions.
-- ReactiveUI.Primitives analyzer assets are excluded from the SerialPortRx packages; no extra bridge generator package is included.
+- Use `IoT-Driver.SerialPortRx.Reactive` when an application or library must keep System.Reactive-facing APIs and Rx scheduler/unit conventions.
+- Runtime packages exclude all generator assets. Install `IoT-Driver.SerialPortRx.Generators` explicitly when source generation is needed.
 - The repository solution entry point is now `src/SerialPortRx.slnx`.
 
 ## Supported target frameworks
@@ -119,7 +122,7 @@ The package includes the SerialPortRx source generator as an analyzer. No separa
 ## Quick start (Serial)
 ```csharp
 using System;
-using IoT.DriverCore.Serial;
+using IoT.Driver.Serial;
 using ReactiveUI.Primitives;
 
 var port = new SerialPortRx("COM3", 115200) { ReadTimeout = -1, WriteTimeout = -1 };
@@ -179,7 +182,7 @@ using var portNamesSubscription = SerialPortRx.PortNames()
 SerialPortRx uses ReactiveUI.Primitives async observables for consumers that need asynchronous observer callbacks and full `IObservableAsync<T>` operators.
 
 ```csharp
-using IoT.DriverCore.Serial;
+using IoT.Driver.Serial;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Async;
 
@@ -389,11 +392,11 @@ port.Lines.Subscribe(line => Console.WriteLine($"LINE: {line}"));
 ```
 
 ## Source-generated serial properties
-The package includes a source generator that can turn serial protocol messages into strongly typed properties with classic and async observable streams. Mark a partial class with one or more `SerialPortReactiveStream` attributes, then connect it to an `ISerialPortRx`.
+The standalone `IoT-Driver.SerialPortRx.Generators` package can turn serial protocol messages into strongly typed properties with classic and async observable streams. Mark a partial class with one or more `SerialPortReactiveStream` attributes, then connect it to an `ISerialPortRx`.
 
 ```csharp
-using IoT.DriverCore.Serial;
-using IoT.DriverCore.Serial.SourceGeneration;
+using IoT.Driver.Serial;
+using IoT.Driver.Serial.SourceGeneration;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Async;
 
@@ -514,7 +517,7 @@ new UdpClientRx(12345).DataReceivedBatches
 `SerialPortRxMessageHandler` is the ownership boundary for line-oriented command devices. Construct it with an open-capable `ISerialPortRx` and any device error prefixes. `RequestAsync(command)` waits for the next non-echo response; the overload accepting `Action<string>` parses/applies that response before completing. It uses `ReadTimeout` (or three seconds) and faults/cancels on error lines or timeout. `ResponsePrefix` supports devices that prefix replies. `PollingTasks`, `StartPolling`, `StopPolling`, and `WithPollingStoppedAsync` let periodic polling coexist safely with exclusive commands. Dispose the handler to stop polling and unsubscribe from `Lines`.
 
 ```csharp
-using IoT.DriverCore.Serial;
+using IoT.Driver.Serial;
 
 using var port = new SerialPortRx("COM3", 115200) { NewLine = "\r\n", ReadTimeout = 1500 };
 using var handler = new SerialPortRxMessageHandler(port, "ERR", "ERROR")
@@ -536,7 +539,7 @@ handler.StopPolling();
 `PendingRequest` is the immutable record used by the handler's correlation queue; application code normally consumes the handler instead of constructing it. `InMemoryPortRxPair` provides two connected `SerialPortRx` endpoints (`First`/`Second`) plus deterministic error injection. Use it for unit/integration tests without COM hardware; dispose the pair to dispose both endpoints. The physical-serial runtime adapters are implementation details and are deliberately not part of the package's public application API.
 
 ```csharp
-using IoT.DriverCore.Serial;
+using IoT.Driver.Serial;
 
 using var pair = new InMemoryPortRxPair("TEST-A", "TEST-B");
 pair.First.NewLine = pair.Second.NewLine = "\n";
@@ -547,11 +550,11 @@ pair.First.WriteLine("TEMP:21.5");
 pair.InjectFirstError(new IOException("Simulated cable fault"));
 ```
 
-The packaged analyzer emits the `SerialPortReactiveStream` attribute and `SerialPortReactiveSource` enum in `IoT.DriverCore.Serial.SourceGeneration`. A partial target class receives a typed property, classic `IObservable<T>`, `IObservableAsync<T>`, and `ConnectReactiveSerialPort(ISerialPortRx)`. Use the optional regex `Pattern`, named `GroupName`/numeric `GroupNumber`, `IgnoreCase`, and `Source` settings to select and parse a stream. `SerialPortReactiveValueConverter.TryConvertMatch<T>` is public for applying the identical parsing/conversion rules manually; it returns `false` rather than throwing for a non-match/unconvertible value.
+The standalone analyzer emits the `SerialPortReactiveStream` attribute and `SerialPortReactiveSource` enum in `IoT.Driver.Serial.SourceGeneration`. A partial target class receives a typed property, classic `IObservable<T>`, `IObservableAsync<T>`, and `ConnectReactiveSerialPort(ISerialPortRx)`. Use the optional regex `Pattern`, named `GroupName`/numeric `GroupNumber`, `IgnoreCase`, and `Source` settings to select and parse a stream. `SerialPortReactiveValueConverter.TryConvertMatch<T>` is public for applying the identical parsing/conversion rules manually; it returns `false` rather than throwing for a non-match/unconvertible value.
 
 ```csharp
-using IoT.DriverCore.Serial;
-using IoT.DriverCore.Serial.SourceGeneration;
+using IoT.Driver.Serial;
+using IoT.Driver.Serial.SourceGeneration;
 
 [SerialPortReactiveStream(
     "AlarmCode", typeof(int), @"^ALARM:(?<value>\d+)$",
@@ -578,7 +581,7 @@ if (SerialPortReactiveValueConverter.TryConvertMatch(
 This combines automatic line reception, a `BufferUntil` parser for unsolicited frames, a message handler for correlated replies, error/state observation, and polling suspension around an exclusive command. The same serial bytes must have one parser owner; both subscriptions here are line/observable consumers, not manual reads.
 
 ```csharp
-using IoT.DriverCore.Serial;
+using IoT.Driver.Serial;
 
 using var port = new SerialPortRx("COM7", 57600) { NewLine = "\r\n", ReadTimeout = 2000 };
 using var errors = port.ErrorReceived.Subscribe(Console.Error.WriteLine);
@@ -599,7 +602,7 @@ await handler.WithPollingStoppedAsync(() => handler.RequestAsync("SET MODE=SERVI
 This combines network lifecycle, preserved batch boundaries, application framing, and the async-observable bridge. TCP chunks are arbitrary; accumulate them in a protocol parser. UDP batches are datagrams and can normally be handled one-at-a-time.
 
 ```csharp
-using IoT.DriverCore.Serial;
+using IoT.Driver.Serial;
 
 using var tcp = new TcpClientRx();
 tcp.Connect("192.168.10.15", 9000);
@@ -639,7 +642,7 @@ await using var logger = await asyncBatches.SubscribeAsync(
 | Lines/frames are missing or corrupt | Set `NewLine`/encoding before open, select automatic **or** manual receive, and use a single framing parser with a realistic timeout. |
 | Request times out | Confirm device echoes/error prefixes and `ResponsePrefix`, configure `ReadTimeout`, and keep the message handler alive/subscribed. |
 | TCP parser loses messages | Accumulate `DataReceivedBatches`; a TCP read may split or join protocol frames. |
-| Generator output is absent | Reference the runtime package/analyzer, use a partial class, fix stream attribute metadata and regex group/type conversion. |
+| Generator output is absent | Reference one runtime package plus `IoT-Driver.SerialPortRx.Generators`, use a partial class, and fix stream attribute metadata and regex group/type conversion. |
 | Tests need hardware independence | Use `InMemoryPortRxPair` and error injection; reserve physical/virtual COM tests for explicit integration coverage. |
 
 ## Testing
@@ -667,7 +670,7 @@ Serial integration tests expect a virtual COM port pair named `COM1` and `COM2`.
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using IoT.DriverCore.Serial;
+using IoT.Driver.Serial;
 using ReactiveUI.Primitives;
 
 internal static class Program
@@ -761,30 +764,30 @@ This catalogue is generated from the packaged runtime assemblies and their XML d
 
 Exported public types: 13; declared public members: 258.
 
-#### `T:IoT.DriverCore.Serial.IPortRx`
+#### `T:IoT.Driver.Serial.IPortRx`
 
 ```csharp
-public interface IoT.DriverCore.Serial.IPortRx
+public interface IoT.Driver.Serial.IPortRx
 ```
 Represents a reactive receive port.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.Serial.IPortRx.Close`
+###### `M:IoT.Driver.Serial.IPortRx.Close`
 
 ```csharp
 public void Close()
 ```
 Closes this instance.
 
-###### `M:IoT.DriverCore.Serial.IPortRx.DiscardInBuffer`
+###### `M:IoT.Driver.Serial.IPortRx.DiscardInBuffer`
 
 ```csharp
 public void DiscardInBuffer()
 ```
 Purges the receive buffer.
 
-###### `M:IoT.DriverCore.Serial.IPortRx.OpenAsync`
+###### `M:IoT.Driver.Serial.IPortRx.OpenAsync`
 
 ```csharp
 public System.Threading.Tasks.Task OpenAsync()
@@ -793,7 +796,7 @@ Opens this instance.
 
 - Returns: A Task.
 
-###### `M:IoT.DriverCore.Serial.IPortRx.ReadAsync(System.Byte[],System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.IPortRx.ReadAsync(System.Byte[],System.Int32,System.Int32)`
 
 ```csharp
 public System.Threading.Tasks.Task<int> ReadAsync(byte[] buffer, int offset, int count)
@@ -805,7 +808,7 @@ Reads bytes from the input buffer into a buffer segment.
 - Parameter `count`: The number of bytes to read.
 - Returns: The number of bytes read.
 
-###### `M:IoT.DriverCore.Serial.IPortRx.Write(System.Byte[],System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.IPortRx.Write(System.Byte[],System.Int32,System.Int32)`
 
 ```csharp
 public void Write(byte[] buffer, int offset, int count)
@@ -816,7 +819,7 @@ Writes a buffer segment to the port.
 - Parameter `offset`: The offset in the buffer array to begin writing.
 - Parameter `count`: The number of bytes to write.
 
-###### `P:IoT.DriverCore.Serial.IPortRx.BytesReceived`
+###### `P:IoT.Driver.Serial.IPortRx.BytesReceived`
 
 ```csharp
 public System.IObservable<int> BytesReceived { get; }
@@ -825,7 +828,7 @@ Gets the data received after opening the receive port.
 
 - Value: The byte read as a stream.
 
-###### `P:IoT.DriverCore.Serial.IPortRx.InfiniteTimeout`
+###### `P:IoT.Driver.Serial.IPortRx.InfiniteTimeout`
 
 ```csharp
 public int InfiniteTimeout { get; }
@@ -834,7 +837,7 @@ Gets indicates that no timeout should occur.
 
 - Value: The `InfiniteTimeout` value.
 
-###### `P:IoT.DriverCore.Serial.IPortRx.ReadTimeout`
+###### `P:IoT.Driver.Serial.IPortRx.ReadTimeout`
 
 ```csharp
 public int ReadTimeout { get; set; }
@@ -843,7 +846,7 @@ Gets or sets the read timeout in milliseconds.
 
 - Value: The `ReadTimeout` value.
 
-###### `P:IoT.DriverCore.Serial.IPortRx.WriteTimeout`
+###### `P:IoT.Driver.Serial.IPortRx.WriteTimeout`
 
 ```csharp
 public int WriteTimeout { get; set; }
@@ -852,16 +855,16 @@ Gets or sets the write timeout in milliseconds.
 
 - Value: The `WriteTimeout` value.
 
-#### `T:IoT.DriverCore.Serial.IReceiveBatchPortRx`
+#### `T:IoT.Driver.Serial.IReceiveBatchPortRx`
 
 ```csharp
-public interface IoT.DriverCore.Serial.IReceiveBatchPortRx
+public interface IoT.Driver.Serial.IReceiveBatchPortRx
 ```
 Represents a receive port that publishes the original boundaries of received byte batches.
 
 ##### Declared public members
 
-###### `P:IoT.DriverCore.Serial.IReceiveBatchPortRx.DataReceivedBatches`
+###### `P:IoT.Driver.Serial.IReceiveBatchPortRx.DataReceivedBatches`
 
 ```csharp
 public System.IObservable<byte[]> DataReceivedBatches { get; }
@@ -870,23 +873,23 @@ Gets the raw byte batches received after opening the port.
 
 - Value: The `DataReceivedBatches` value.
 
-#### `T:IoT.DriverCore.Serial.ISerialPortRx`
+#### `T:IoT.Driver.Serial.ISerialPortRx`
 
 ```csharp
-public interface IoT.DriverCore.Serial.ISerialPortRx
+public interface IoT.Driver.Serial.ISerialPortRx
 ```
 Serial Port Rx interface.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.DiscardOutBuffer`
+###### `M:IoT.Driver.Serial.ISerialPortRx.DiscardOutBuffer`
 
 ```csharp
 public void DiscardOutBuffer()
 ```
 Discards the out buffer.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.Read(System.Byte[],System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.ISerialPortRx.Read(System.Byte[],System.Int32,System.Int32)`
 
 ```csharp
 public int Read(byte[] buffer, int offset, int count)
@@ -898,7 +901,7 @@ Reads the specified buffer.
 - Parameter `count`: The count.
 - Returns: An integer.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.Read(System.Char[],System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.ISerialPortRx.Read(System.Char[],System.Int32,System.Int32)`
 
 ```csharp
 public int Read(char[] buffer, int offset, int count)
@@ -910,7 +913,7 @@ Reads the specified buffer.
 - Parameter `count`: The count.
 - Returns: An integer.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.ReadByte`
+###### `M:IoT.Driver.Serial.ISerialPortRx.ReadByte`
 
 ```csharp
 public int ReadByte()
@@ -919,7 +922,7 @@ Reads the byte.
 
 - Returns: An integer.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.ReadChar`
+###### `M:IoT.Driver.Serial.ISerialPortRx.ReadChar`
 
 ```csharp
 public int ReadChar()
@@ -928,7 +931,7 @@ Reads the character.
 
 - Returns: An integer.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.ReadExisting`
+###### `M:IoT.Driver.Serial.ISerialPortRx.ReadExisting`
 
 ```csharp
 public string ReadExisting()
@@ -937,7 +940,7 @@ Reads the existing.
 
 - Returns: A string.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.ReadLine`
+###### `M:IoT.Driver.Serial.ISerialPortRx.ReadLine`
 
 ```csharp
 public string ReadLine()
@@ -946,7 +949,7 @@ Reads the line.
 
 - Returns: A string.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.ReadLineAsync`
+###### `M:IoT.Driver.Serial.ISerialPortRx.ReadLineAsync`
 
 ```csharp
 public System.Threading.Tasks.Task<string> ReadLineAsync()
@@ -955,7 +958,7 @@ Reads the line asynchronous.
 
 - Returns: A Task of string.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.ReadLineAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.Serial.ISerialPortRx.ReadLineAsync(System.Threading.CancellationToken)`
 
 ```csharp
 public System.Threading.Tasks.Task<string> ReadLineAsync(System.Threading.CancellationToken cancellationToken)
@@ -965,7 +968,7 @@ Reads the line asynchronous with cancellation and respecting ReadTimeout (> 0) a
 - Parameter `cancellationToken`: Cancellation token to cancel waiting.
 - Returns: A Task of string.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.ReadTo(System.String)`
+###### `M:IoT.Driver.Serial.ISerialPortRx.ReadTo(System.String)`
 
 ```csharp
 public string ReadTo(string value)
@@ -975,7 +978,7 @@ Reads to.
 - Parameter `value`: The value.
 - Returns: A string.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.ReadToAsync(System.String)`
+###### `M:IoT.Driver.Serial.ISerialPortRx.ReadToAsync(System.String)`
 
 ```csharp
 public System.Threading.Tasks.Task<string> ReadToAsync(string value)
@@ -985,7 +988,7 @@ Reads a string up to the specified value asynchronously.
 - Parameter `value`: The value to read up to.
 - Returns: The contents of the input buffer up to the specified value.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.ReadToAsync(System.String,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.Serial.ISerialPortRx.ReadToAsync(System.String,System.Threading.CancellationToken)`
 
 ```csharp
 public System.Threading.Tasks.Task<string> ReadToAsync(string value, System.Threading.CancellationToken cancellationToken)
@@ -996,7 +999,7 @@ Reads a string up to the specified value asynchronously.
 - Parameter `cancellationToken`: Cancellation token to cancel waiting.
 - Returns: The contents of the input buffer up to the specified value.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.StartDataReception`
+###### `M:IoT.Driver.Serial.ISerialPortRx.StartDataReception`
 
 ```csharp
 public System.IDisposable StartDataReception()
@@ -1005,7 +1008,7 @@ Starts continuous data reception that feeds both DataReceived and DataReceivedBy
 
 - Returns: A disposable that stops the data reception when disposed.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.StartDataReception(System.Int32)`
+###### `M:IoT.Driver.Serial.ISerialPortRx.StartDataReception(System.Int32)`
 
 ```csharp
 public System.IDisposable StartDataReception(int pollingIntervalMs)
@@ -1015,7 +1018,7 @@ Starts continuous data reception that feeds both DataReceived and DataReceivedBy
 - Parameter `pollingIntervalMs`: Polling interval in milliseconds (default: 10ms).
 - Returns: A disposable that stops the data reception when disposed.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.Write(System.Byte[])`
+###### `M:IoT.Driver.Serial.ISerialPortRx.Write(System.Byte[])`
 
 ```csharp
 public void Write(byte[] byteArray)
@@ -1024,7 +1027,7 @@ Writes the specified byte array.
 
 - Parameter `byteArray`: The byte array.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.Write(System.Char[])`
+###### `M:IoT.Driver.Serial.ISerialPortRx.Write(System.Char[])`
 
 ```csharp
 public void Write(char[] charArray)
@@ -1033,7 +1036,7 @@ Writes the specified character array.
 
 - Parameter `charArray`: The character array.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.Write(System.Char[],System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.ISerialPortRx.Write(System.Char[],System.Int32,System.Int32)`
 
 ```csharp
 public void Write(char[] charArray, int offset, int count)
@@ -1044,7 +1047,7 @@ Writes the specified character array.
 - Parameter `offset`: The offset.
 - Parameter `count`: The count.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.Write(System.ReadOnlyMemory`1{System.Byte})`
+###### `M:IoT.Driver.Serial.ISerialPortRx.Write(System.ReadOnlyMemory`1{System.Byte})`
 
 ```csharp
 public void Write(System.ReadOnlyMemory<byte> data)
@@ -1053,7 +1056,7 @@ Executes the `Write` operation.
 
 - Parameter `data`: The `data` value.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.Write(System.ReadOnlySpan`1{System.Byte})`
+###### `M:IoT.Driver.Serial.ISerialPortRx.Write(System.ReadOnlySpan`1{System.Byte})`
 
 ```csharp
 public void Write(System.ReadOnlySpan<byte> data)
@@ -1062,7 +1065,7 @@ Executes the `Write` operation.
 
 - Parameter `data`: The `data` value.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.Write(System.ReadOnlySpan`1{System.Char})`
+###### `M:IoT.Driver.Serial.ISerialPortRx.Write(System.ReadOnlySpan`1{System.Char})`
 
 ```csharp
 public void Write(System.ReadOnlySpan<char> data)
@@ -1071,7 +1074,7 @@ Executes the `Write` operation.
 
 - Parameter `data`: The `data` value.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.Write(System.String)`
+###### `M:IoT.Driver.Serial.ISerialPortRx.Write(System.String)`
 
 ```csharp
 public void Write(string text)
@@ -1080,7 +1083,7 @@ Writes the specified text.
 
 - Parameter `text`: The text.
 
-###### `M:IoT.DriverCore.Serial.ISerialPortRx.WriteLine(System.String)`
+###### `M:IoT.Driver.Serial.ISerialPortRx.WriteLine(System.String)`
 
 ```csharp
 public void WriteLine(string text)
@@ -1089,7 +1092,7 @@ Writes the line.
 
 - Parameter `text`: The text.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.BaudRate`
+###### `P:IoT.Driver.Serial.ISerialPortRx.BaudRate`
 
 ```csharp
 public int BaudRate { get; set; }
@@ -1098,7 +1101,7 @@ Gets or sets the baud rate.
 
 - Value: The baud rate.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.BreakState`
+###### `P:IoT.Driver.Serial.ISerialPortRx.BreakState`
 
 ```csharp
 public bool BreakState { get; set; }
@@ -1107,7 +1110,7 @@ Gets or sets a value indicating whether break state.
 
 - Value: The break state.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.BytesToRead`
+###### `P:IoT.Driver.Serial.ISerialPortRx.BytesToRead`
 
 ```csharp
 public int BytesToRead { get; }
@@ -1116,7 +1119,7 @@ Gets the number of bytes of data in the receive buffer.
 
 - Value: The bytes to read.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.BytesToWrite`
+###### `P:IoT.Driver.Serial.ISerialPortRx.BytesToWrite`
 
 ```csharp
 public int BytesToWrite { get; }
@@ -1125,7 +1128,7 @@ Gets the number of bytes of data in the send buffer.
 
 - Value: The bytes to write.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.CDHolding`
+###### `P:IoT.Driver.Serial.ISerialPortRx.CDHolding`
 
 ```csharp
 public bool CDHolding { get; }
@@ -1134,7 +1137,7 @@ Gets a value indicating whether the Carrier Detect (CD) signal is on.
 
 - Value: The CD holding.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.CtsHolding`
+###### `P:IoT.Driver.Serial.ISerialPortRx.CtsHolding`
 
 ```csharp
 public bool CtsHolding { get; }
@@ -1143,7 +1146,7 @@ Gets a value indicating whether the Clear-to-Send (CTS) signal is on.
 
 - Value: The CTS holding.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.DataBits`
+###### `P:IoT.Driver.Serial.ISerialPortRx.DataBits`
 
 ```csharp
 public int DataBits { get; set; }
@@ -1152,7 +1155,7 @@ Gets or sets the data bits.
 
 - Value: The data bits.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.DataReceived`
+###### `P:IoT.Driver.Serial.ISerialPortRx.DataReceived`
 
 ```csharp
 public System.IObservable<char> DataReceived { get; }
@@ -1161,7 +1164,7 @@ Gets the data received as characters.
 
 - Value: The data received.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.DataReceivedBytes`
+###### `P:IoT.Driver.Serial.ISerialPortRx.DataReceivedBytes`
 
 ```csharp
 public System.IObservable<byte> DataReceivedBytes { get; }
@@ -1170,7 +1173,7 @@ Gets the raw bytes received from the serial port.
 
 - Value: The raw bytes received.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.DiscardNull`
+###### `P:IoT.Driver.Serial.ISerialPortRx.DiscardNull`
 
 ```csharp
 public bool DiscardNull { get; set; }
@@ -1179,7 +1182,7 @@ Gets or sets a value indicating whether null bytes are ignored when transmitted 
 
 - Value: The discard null.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.DsrHolding`
+###### `P:IoT.Driver.Serial.ISerialPortRx.DsrHolding`
 
 ```csharp
 public bool DsrHolding { get; }
@@ -1188,7 +1191,7 @@ Gets a value indicating whether the Data Set Ready (DSR) signal is on.
 
 - Value: The DSR holding.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.DtrEnable`
+###### `P:IoT.Driver.Serial.ISerialPortRx.DtrEnable`
 
 ```csharp
 public bool DtrEnable { get; set; }
@@ -1197,7 +1200,7 @@ Gets or sets whether the Data Terminal Ready (DTR) signal is enabled.
 
 - Value: The DTR enable.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.EnableAutoDataReceive`
+###### `P:IoT.Driver.Serial.ISerialPortRx.EnableAutoDataReceive`
 
 ```csharp
 public bool EnableAutoDataReceive { get; set; }
@@ -1206,7 +1209,7 @@ Gets or sets a value indicating whether to automatically consume received data a
 
 - Value: True to enable automatic data reception (default), false to use sync reads.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.Encoding`
+###### `P:IoT.Driver.Serial.ISerialPortRx.Encoding`
 
 ```csharp
 public System.Text.Encoding Encoding { get; set; }
@@ -1215,7 +1218,7 @@ Gets or sets the encoding.
 
 - Value: The encoding.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.ErrorReceived`
+###### `P:IoT.Driver.Serial.ISerialPortRx.ErrorReceived`
 
 ```csharp
 public System.IObservable<System.Exception> ErrorReceived { get; }
@@ -1224,7 +1227,7 @@ Gets the error received.
 
 - Value: The error received.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.Handshake`
+###### `P:IoT.Driver.Serial.ISerialPortRx.Handshake`
 
 ```csharp
 public System.IO.Ports.Handshake Handshake { get; set; }
@@ -1233,7 +1236,7 @@ Gets or sets the handshake.
 
 - Value: The handshake.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.IsDisposed`
+###### `P:IoT.Driver.Serial.ISerialPortRx.IsDisposed`
 
 ```csharp
 public bool IsDisposed { get; }
@@ -1242,7 +1245,7 @@ Gets a value indicating whether this instance is disposed.
 
 - Value: true if this instance is disposed; otherwise, false .
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.IsOpen`
+###### `P:IoT.Driver.Serial.ISerialPortRx.IsOpen`
 
 ```csharp
 public bool IsOpen { get; }
@@ -1251,7 +1254,7 @@ Gets a value indicating whether gets the is open.
 
 - Value: The is open.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.IsOpenObservable`
+###### `P:IoT.Driver.Serial.ISerialPortRx.IsOpenObservable`
 
 ```csharp
 public System.IObservable<bool> IsOpenObservable { get; }
@@ -1260,7 +1263,7 @@ Gets the is open observable.
 
 - Value: The is open observable.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.Lines`
+###### `P:IoT.Driver.Serial.ISerialPortRx.Lines`
 
 ```csharp
 public System.IObservable<string> Lines { get; }
@@ -1269,7 +1272,7 @@ Gets a lazily-created observable sequence of complete lines split by the NewLine
 
 - Value: The `Lines` value.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.NewLine`
+###### `P:IoT.Driver.Serial.ISerialPortRx.NewLine`
 
 ```csharp
 public string NewLine { get; set; }
@@ -1278,7 +1281,7 @@ Gets or sets the new line.
 
 - Value: The new line.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.Parity`
+###### `P:IoT.Driver.Serial.ISerialPortRx.Parity`
 
 ```csharp
 public System.IO.Ports.Parity Parity { get; set; }
@@ -1287,7 +1290,7 @@ Gets or sets the parity.
 
 - Value: The parity.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.ParityReplace`
+###### `P:IoT.Driver.Serial.ISerialPortRx.ParityReplace`
 
 ```csharp
 public byte ParityReplace { get; set; }
@@ -1296,7 +1299,7 @@ Gets or sets the parity replace.
 
 - Value: The parity replace.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.PortName`
+###### `P:IoT.Driver.Serial.ISerialPortRx.PortName`
 
 ```csharp
 public string PortName { get; set; }
@@ -1305,7 +1308,7 @@ Gets or sets the port.
 
 - Value: The port.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.ReadBufferSize`
+###### `P:IoT.Driver.Serial.ISerialPortRx.ReadBufferSize`
 
 ```csharp
 public int ReadBufferSize { get; set; }
@@ -1314,7 +1317,7 @@ Gets or sets the size of the read buffer.
 
 - Value: The size of the read buffer.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.ReceivedBytesThreshold`
+###### `P:IoT.Driver.Serial.ISerialPortRx.ReceivedBytesThreshold`
 
 ```csharp
 public int ReceivedBytesThreshold { get; set; }
@@ -1323,7 +1326,7 @@ Gets or sets the byte threshold that raises DataReceived.
 
 - Value: The received bytes threshold.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.RtsEnable`
+###### `P:IoT.Driver.Serial.ISerialPortRx.RtsEnable`
 
 ```csharp
 public bool RtsEnable { get; set; }
@@ -1332,7 +1335,7 @@ Gets or sets whether the Request to Send (RTS) signal is enabled.
 
 - Value: The RTS enable.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.StopBits`
+###### `P:IoT.Driver.Serial.ISerialPortRx.StopBits`
 
 ```csharp
 public System.IO.Ports.StopBits StopBits { get; set; }
@@ -1341,7 +1344,7 @@ Gets or sets the stop bits.
 
 - Value: The stop bits.
 
-###### `P:IoT.DriverCore.Serial.ISerialPortRx.WriteBufferSize`
+###### `P:IoT.Driver.Serial.ISerialPortRx.WriteBufferSize`
 
 ```csharp
 public int WriteBufferSize { get; set; }
@@ -1350,40 +1353,40 @@ Gets or sets the size of the write buffer.
 
 - Value: The size of the write buffer.
 
-#### `T:IoT.DriverCore.Serial.InMemoryPortRxPair`
+#### `T:IoT.Driver.Serial.InMemoryPortRxPair`
 
 ```csharp
-public class IoT.DriverCore.Serial.InMemoryPortRxPair
+public class IoT.Driver.Serial.InMemoryPortRxPair
 ```
-Owns two deterministic, connected `T:IoT.DriverCore.Serial.SerialPortRx` instances that exercise the normal serial wrapper without requiring physical or virtual serial hardware.
+Owns two deterministic, connected `T:IoT.Driver.Serial.SerialPortRx` instances that exercise the normal serial wrapper without requiring physical or virtual serial hardware.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.Serial.InMemoryPortRxPair.#ctor`
+###### `M:IoT.Driver.Serial.InMemoryPortRxPair.#ctor`
 
 ```csharp
-public IoT.DriverCore.Serial.InMemoryPortRxPair()
+public IoT.Driver.Serial.InMemoryPortRxPair()
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.InMemoryPortRxPair` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.InMemoryPortRxPair` class.
 
-###### `M:IoT.DriverCore.Serial.InMemoryPortRxPair.#ctor(System.String,System.String)`
+###### `M:IoT.Driver.Serial.InMemoryPortRxPair.#ctor(System.String,System.String)`
 
 ```csharp
-public IoT.DriverCore.Serial.InMemoryPortRxPair(string firstPortName, string secondPortName)
+public IoT.Driver.Serial.InMemoryPortRxPair(string firstPortName, string secondPortName)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.InMemoryPortRxPair` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.InMemoryPortRxPair` class.
 
 - Parameter `firstPortName`: The diagnostic name of the first endpoint.
 - Parameter `secondPortName`: The diagnostic name of the second endpoint.
 
-###### `M:IoT.DriverCore.Serial.InMemoryPortRxPair.Dispose`
+###### `M:IoT.Driver.Serial.InMemoryPortRxPair.Dispose`
 
 ```csharp
 public void Dispose()
 ```
 Inherits XML documentation from its implemented or overridden member.
 
-###### `M:IoT.DriverCore.Serial.InMemoryPortRxPair.InjectFirstError(System.Exception)`
+###### `M:IoT.Driver.Serial.InMemoryPortRxPair.InjectFirstError(System.Exception)`
 
 ```csharp
 public void InjectFirstError(System.Exception exception)
@@ -1392,7 +1395,7 @@ Injects a deterministic connection error into the first endpoint.
 
 - Parameter `exception`: The error to publish.
 
-###### `M:IoT.DriverCore.Serial.InMemoryPortRxPair.InjectSecondError(System.Exception)`
+###### `M:IoT.Driver.Serial.InMemoryPortRxPair.InjectSecondError(System.Exception)`
 
 ```csharp
 public void InjectSecondError(System.Exception exception)
@@ -1401,34 +1404,34 @@ Injects a deterministic connection error into the second endpoint.
 
 - Parameter `exception`: The error to publish.
 
-###### `P:IoT.DriverCore.Serial.InMemoryPortRxPair.First`
+###### `P:IoT.Driver.Serial.InMemoryPortRxPair.First`
 
 ```csharp
-public IoT.DriverCore.Serial.SerialPortRx First { get; }
+public IoT.Driver.Serial.SerialPortRx First { get; }
 ```
 Gets the first connected serial endpoint.
 
 - Value: The `First` value.
 
-###### `P:IoT.DriverCore.Serial.InMemoryPortRxPair.Second`
+###### `P:IoT.Driver.Serial.InMemoryPortRxPair.Second`
 
 ```csharp
-public IoT.DriverCore.Serial.SerialPortRx Second { get; }
+public IoT.Driver.Serial.SerialPortRx Second { get; }
 ```
 Gets the second connected serial endpoint.
 
 - Value: The `Second` value.
 
-#### `T:IoT.DriverCore.Serial.ObservableAsync`
+#### `T:IoT.Driver.Serial.ObservableAsync`
 
 ```csharp
-public class IoT.DriverCore.Serial.ObservableAsync
+public class IoT.Driver.Serial.ObservableAsync
 ```
 Compatibility factory for async observables.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.Serial.ObservableAsync.Return``1(``0)`
+###### `M:IoT.Driver.Serial.ObservableAsync.Return``1(``0)`
 
 ```csharp
 public static ReactiveUI.Primitives.Async.IObservableAsync<T> Return<T>(T value)
@@ -1438,16 +1441,16 @@ Creates an async observable that emits a single value.
 - Parameter `value`: The value to emit.
 - Returns: An async observable that emits `value` .
 
-#### `T:IoT.DriverCore.Serial.ObservableAsyncBridgeExtensions`
+#### `T:IoT.Driver.Serial.ObservableAsyncBridgeExtensions`
 
 ```csharp
-public class IoT.DriverCore.Serial.ObservableAsyncBridgeExtensions
+public class IoT.Driver.Serial.ObservableAsyncBridgeExtensions
 ```
 Compatibility bridge between classic observables and ReactiveUI.Primitives async observables.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.Serial.ObservableAsyncBridgeExtensions.ToAsyncObservable``1(System.IObservable`1{``0})`
+###### `M:IoT.Driver.Serial.ObservableAsyncBridgeExtensions.ToAsyncObservable``1(System.IObservable`1{``0})`
 
 ```csharp
 public static ReactiveUI.Primitives.Async.IObservableAsync<T> ToAsyncObservable<T>(System.IObservable<T> source)
@@ -1457,7 +1460,7 @@ Executes the `ToAsyncObservable` operation.
 - Parameter `source`: The `source` value.
 - Returns: A `ReactiveUI.Primitives.Async.IObservableAsync<T>` result.
 
-###### `M:IoT.DriverCore.Serial.ObservableAsyncBridgeExtensions.ToObservable``1(ReactiveUI.Primitives.Async.IObservableAsync`1{``0})`
+###### `M:IoT.Driver.Serial.ObservableAsyncBridgeExtensions.ToObservable``1(ReactiveUI.Primitives.Async.IObservableAsync`1{``0})`
 
 ```csharp
 public static System.IObservable<T> ToObservable<T>(ReactiveUI.Primitives.Async.IObservableAsync<T> source)
@@ -1467,27 +1470,27 @@ Executes the `ToObservable` operation.
 - Parameter `source`: The `source` value.
 - Returns: A `System.IObservable<T>` result.
 
-#### `T:IoT.DriverCore.Serial.PendingRequest`
+#### `T:IoT.Driver.Serial.PendingRequest`
 
 ```csharp
-public class IoT.DriverCore.Serial.PendingRequest
+public class IoT.Driver.Serial.PendingRequest
 ```
 Represents a pending command request awaiting a serial response.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.Serial.PendingRequest.#ctor(System.String,System.Action`1{System.String},System.Threading.Tasks.TaskCompletionSource`1{System.Boolean})`
+###### `M:IoT.Driver.Serial.PendingRequest.#ctor(System.String,System.Action`1{System.String},System.Threading.Tasks.TaskCompletionSource`1{System.Boolean})`
 
 ```csharp
-public IoT.DriverCore.Serial.PendingRequest(string Command, System.Action<string> Apply, System.Threading.Tasks.TaskCompletionSource<bool> Completion)
+public IoT.Driver.Serial.PendingRequest(string Command, System.Action<string> Apply, System.Threading.Tasks.TaskCompletionSource<bool> Completion)
 ```
-Initializes a new instance of `IoT.DriverCore.Serial.PendingRequest`.
+Initializes a new instance of `IoT.Driver.Serial.PendingRequest`.
 
 - Parameter `Command`: The `Command` value.
 - Parameter `Apply`: The `Apply` value.
 - Parameter `Completion`: The `Completion` value.
 
-###### `M:IoT.DriverCore.Serial.PendingRequest.Deconstruct(System.String@,System.Action`1{System.String}@,System.Threading.Tasks.TaskCompletionSource`1{System.Boolean}@)`
+###### `M:IoT.Driver.Serial.PendingRequest.Deconstruct(System.String@,System.Action`1{System.String}@,System.Threading.Tasks.TaskCompletionSource`1{System.Boolean}@)`
 
 ```csharp
 public void Deconstruct(out string Command, out System.Action<string> Apply, out System.Threading.Tasks.TaskCompletionSource<bool> Completion)
@@ -1498,17 +1501,17 @@ Deconstructs the value into its component values.
 - Parameter `Apply`: The `Apply` value.
 - Parameter `Completion`: The `Completion` value.
 
-###### `M:IoT.DriverCore.Serial.PendingRequest.Equals(IoT.DriverCore.Serial.PendingRequest)`
+###### `M:IoT.Driver.Serial.PendingRequest.Equals(IoT.Driver.Serial.PendingRequest)`
 
 ```csharp
-public bool Equals(IoT.DriverCore.Serial.PendingRequest other)
+public bool Equals(IoT.Driver.Serial.PendingRequest other)
 ```
 Determines whether the supplied value is equal to the current value.
 
 - Parameter `other`: The `other` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.Serial.PendingRequest.Equals(System.Object)`
+###### `M:IoT.Driver.Serial.PendingRequest.Equals(System.Object)`
 
 ```csharp
 public bool Equals(object obj)
@@ -1518,7 +1521,7 @@ Determines whether the supplied value is equal to the current value.
 - Parameter `obj`: The `obj` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.Serial.PendingRequest.GetHashCode`
+###### `M:IoT.Driver.Serial.PendingRequest.GetHashCode`
 
 ```csharp
 public int GetHashCode()
@@ -1527,7 +1530,7 @@ Returns the hash code for the current value.
 
 - Returns: A `int` result.
 
-###### `M:IoT.DriverCore.Serial.PendingRequest.ToString`
+###### `M:IoT.Driver.Serial.PendingRequest.ToString`
 
 ```csharp
 public string ToString()
@@ -1536,10 +1539,10 @@ Returns a string representation of the current value.
 
 - Returns: A `string` result.
 
-###### `M:IoT.DriverCore.Serial.PendingRequest.op_Equality(IoT.DriverCore.Serial.PendingRequest,IoT.DriverCore.Serial.PendingRequest)`
+###### `M:IoT.Driver.Serial.PendingRequest.op_Equality(IoT.Driver.Serial.PendingRequest,IoT.Driver.Serial.PendingRequest)`
 
 ```csharp
-public static bool op_Equality(IoT.DriverCore.Serial.PendingRequest left, IoT.DriverCore.Serial.PendingRequest right)
+public static bool op_Equality(IoT.Driver.Serial.PendingRequest left, IoT.Driver.Serial.PendingRequest right)
 ```
 Determines whether the two supplied values are equal.
 
@@ -1547,10 +1550,10 @@ Determines whether the two supplied values are equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.Serial.PendingRequest.op_Inequality(IoT.DriverCore.Serial.PendingRequest,IoT.DriverCore.Serial.PendingRequest)`
+###### `M:IoT.Driver.Serial.PendingRequest.op_Inequality(IoT.Driver.Serial.PendingRequest,IoT.Driver.Serial.PendingRequest)`
 
 ```csharp
-public static bool op_Inequality(IoT.DriverCore.Serial.PendingRequest left, IoT.DriverCore.Serial.PendingRequest right)
+public static bool op_Inequality(IoT.Driver.Serial.PendingRequest left, IoT.Driver.Serial.PendingRequest right)
 ```
 Determines whether the two supplied values are not equal.
 
@@ -1558,7 +1561,7 @@ Determines whether the two supplied values are not equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `P:IoT.DriverCore.Serial.PendingRequest.Apply`
+###### `P:IoT.Driver.Serial.PendingRequest.Apply`
 
 ```csharp
 public System.Action<string> Apply { get; set; }
@@ -1567,7 +1570,7 @@ The action that applies the response payload.
 
 - Value: The `Apply` value.
 
-###### `P:IoT.DriverCore.Serial.PendingRequest.Command`
+###### `P:IoT.Driver.Serial.PendingRequest.Command`
 
 ```csharp
 public string Command { get; set; }
@@ -1576,7 +1579,7 @@ The command text sent to the serial port.
 
 - Value: The `Command` value.
 
-###### `P:IoT.DriverCore.Serial.PendingRequest.Completion`
+###### `P:IoT.Driver.Serial.PendingRequest.Completion`
 
 ```csharp
 public System.Threading.Tasks.TaskCompletionSource<bool> Completion { get; set; }
@@ -1585,70 +1588,70 @@ The completion source signaled when a response arrives.
 
 - Value: The `Completion` value.
 
-#### `T:IoT.DriverCore.Serial.SerialPortRx`
+#### `T:IoT.Driver.Serial.SerialPortRx`
 
 ```csharp
-public class IoT.DriverCore.Serial.SerialPortRx
+public class IoT.Driver.Serial.SerialPortRx
 ```
 Implements a cohesive portion of the reactive serial port.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.#ctor`
+###### `M:IoT.Driver.Serial.SerialPortRx.#ctor`
 
 ```csharp
-public IoT.DriverCore.Serial.SerialPortRx()
+public IoT.Driver.Serial.SerialPortRx()
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.SerialPortRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.SerialPortRx` class.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.#ctor(System.String)`
+###### `M:IoT.Driver.Serial.SerialPortRx.#ctor(System.String)`
 
 ```csharp
-public IoT.DriverCore.Serial.SerialPortRx(string port)
+public IoT.Driver.Serial.SerialPortRx(string port)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.SerialPortRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.SerialPortRx` class.
 
 - Parameter `port`: The port.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.#ctor(System.String,System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRx.#ctor(System.String,System.Int32)`
 
 ```csharp
-public IoT.DriverCore.Serial.SerialPortRx(string port, int baudRate)
+public IoT.Driver.Serial.SerialPortRx(string port, int baudRate)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.SerialPortRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.SerialPortRx` class.
 
 - Parameter `port`: The port.
 - Parameter `baudRate`: The baud rate.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.#ctor(System.String,System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRx.#ctor(System.String,System.Int32,System.Int32)`
 
 ```csharp
-public IoT.DriverCore.Serial.SerialPortRx(string port, int baudRate, int dataBits)
+public IoT.Driver.Serial.SerialPortRx(string port, int baudRate, int dataBits)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.SerialPortRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.SerialPortRx` class.
 
 - Parameter `port`: The port.
 - Parameter `baudRate`: The baud rate.
 - Parameter `dataBits`: The data bits.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.#ctor(System.String,System.Int32,System.Int32,System.IO.Ports.Parity)`
+###### `M:IoT.Driver.Serial.SerialPortRx.#ctor(System.String,System.Int32,System.Int32,System.IO.Ports.Parity)`
 
 ```csharp
-public IoT.DriverCore.Serial.SerialPortRx(string port, int baudRate, int dataBits, System.IO.Ports.Parity parity)
+public IoT.Driver.Serial.SerialPortRx(string port, int baudRate, int dataBits, System.IO.Ports.Parity parity)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.SerialPortRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.SerialPortRx` class.
 
 - Parameter `port`: The port.
 - Parameter `baudRate`: The baud rate.
 - Parameter `dataBits`: The data bits.
 - Parameter `parity`: The parity.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.#ctor(System.String,System.Int32,System.Int32,System.IO.Ports.Parity,System.IO.Ports.StopBits)`
+###### `M:IoT.Driver.Serial.SerialPortRx.#ctor(System.String,System.Int32,System.Int32,System.IO.Ports.Parity,System.IO.Ports.StopBits)`
 
 ```csharp
-public IoT.DriverCore.Serial.SerialPortRx(string port, int baudRate, int dataBits, System.IO.Ports.Parity parity, System.IO.Ports.StopBits stopBits)
+public IoT.Driver.Serial.SerialPortRx(string port, int baudRate, int dataBits, System.IO.Ports.Parity parity, System.IO.Ports.StopBits stopBits)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.SerialPortRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.SerialPortRx` class.
 
 - Parameter `port`: The port.
 - Parameter `baudRate`: The baud rate.
@@ -1656,12 +1659,12 @@ Initializes a new instance of the `T:IoT.DriverCore.Serial.SerialPortRx` class.
 - Parameter `parity`: The parity.
 - Parameter `stopBits`: The stop bits.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.#ctor(System.String,System.Int32,System.Int32,System.IO.Ports.Parity,System.IO.Ports.StopBits,System.IO.Ports.Handshake)`
+###### `M:IoT.Driver.Serial.SerialPortRx.#ctor(System.String,System.Int32,System.Int32,System.IO.Ports.Parity,System.IO.Ports.StopBits,System.IO.Ports.Handshake)`
 
 ```csharp
-public IoT.DriverCore.Serial.SerialPortRx(string port, int baudRate, int dataBits, System.IO.Ports.Parity parity, System.IO.Ports.StopBits stopBits, System.IO.Ports.Handshake handshake)
+public IoT.Driver.Serial.SerialPortRx(string port, int baudRate, int dataBits, System.IO.Ports.Parity parity, System.IO.Ports.StopBits stopBits, System.IO.Ports.Handshake handshake)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.SerialPortRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.SerialPortRx` class.
 
 - Parameter `port`: The port.
 - Parameter `baudRate`: The baud rate.
@@ -1670,35 +1673,35 @@ Initializes a new instance of the `T:IoT.DriverCore.Serial.SerialPortRx` class.
 - Parameter `stopBits`: The stop bits.
 - Parameter `handshake`: The handshake.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.Close`
+###### `M:IoT.Driver.Serial.SerialPortRx.Close`
 
 ```csharp
 public void Close()
 ```
 Closes this instance.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.DiscardInBuffer`
+###### `M:IoT.Driver.Serial.SerialPortRx.DiscardInBuffer`
 
 ```csharp
 public void DiscardInBuffer()
 ```
 Discards the in buffer.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.DiscardOutBuffer`
+###### `M:IoT.Driver.Serial.SerialPortRx.DiscardOutBuffer`
 
 ```csharp
 public void DiscardOutBuffer()
 ```
 Discards the out buffer.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.Dispose`
+###### `M:IoT.Driver.Serial.SerialPortRx.Dispose`
 
 ```csharp
 public void Dispose()
 ```
 Releases owned resources.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.OpenAsync`
+###### `M:IoT.Driver.Serial.SerialPortRx.OpenAsync`
 
 ```csharp
 public System.Threading.Tasks.Task OpenAsync()
@@ -1707,7 +1710,7 @@ Opens this instance.
 
 - Returns: A Task.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.PortNames`
+###### `M:IoT.Driver.Serial.SerialPortRx.PortNames`
 
 ```csharp
 public static System.IObservable<string[]> PortNames()
@@ -1716,7 +1719,7 @@ Gets the port names using the default polling interval.
 
 - Returns: Observable string.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.PortNames(System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRx.PortNames(System.Int32)`
 
 ```csharp
 public static System.IObservable<string[]> PortNames(int pollInterval)
@@ -1726,7 +1729,7 @@ Gets the port names.
 - Parameter `pollInterval`: The poll interval.
 - Returns: Observable string.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.PortNames(System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRx.PortNames(System.Int32,System.Int32)`
 
 ```csharp
 public static System.IObservable<string[]> PortNames(int pollInterval, int pollLimit)
@@ -1738,7 +1741,7 @@ Gets the port names.
 - Returns: Observable string.
 - Value: The port names.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.Read(System.Byte[],System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRx.Read(System.Byte[],System.Int32,System.Int32)`
 
 ```csharp
 public int Read(byte[] buffer, int offset, int count)
@@ -1750,7 +1753,7 @@ Reads bytes from the SerialPort input buffer into a byte array at the specified 
 - Parameter `count`: The number of bytes to read.
 - Returns: The number of bytes read.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.Read(System.Char[],System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRx.Read(System.Char[],System.Int32,System.Int32)`
 
 ```csharp
 public int Read(char[] buffer, int offset, int count)
@@ -1762,7 +1765,7 @@ Reads characters from the SerialPort input buffer into a character array.
 - Parameter `count`: The number of characters to read.
 - Returns: The number of characters read.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.ReadAsync(System.Byte[],System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRx.ReadAsync(System.Byte[],System.Int32,System.Int32)`
 
 ```csharp
 public System.Threading.Tasks.Task<int> ReadAsync(byte[] buffer, int offset, int count)
@@ -1774,7 +1777,7 @@ Reads the specified buffer.
 - Parameter `count`: The count.
 - Returns: The number of bytes read.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.ReadByte`
+###### `M:IoT.Driver.Serial.SerialPortRx.ReadByte`
 
 ```csharp
 public int ReadByte()
@@ -1783,7 +1786,7 @@ Synchronously reads one byte from the SerialPort input buffer.
 
 - Returns: The byte, or -1 if no byte is available.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.ReadChar`
+###### `M:IoT.Driver.Serial.SerialPortRx.ReadChar`
 
 ```csharp
 public int ReadChar()
@@ -1792,7 +1795,7 @@ Synchronously reads one character from the SerialPort input buffer.
 
 - Returns: The character, or -1 if no character is available.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.ReadExisting`
+###### `M:IoT.Driver.Serial.SerialPortRx.ReadExisting`
 
 ```csharp
 public string ReadExisting()
@@ -1801,7 +1804,7 @@ Reads all immediately available encoded bytes from the SerialPort stream and inp
 
 - Returns: The contents of the input buffer and the stream.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.ReadLine`
+###### `M:IoT.Driver.Serial.SerialPortRx.ReadLine`
 
 ```csharp
 public string ReadLine()
@@ -1810,7 +1813,7 @@ Reads up to the NewLine value in the input buffer.
 
 - Returns: The contents of the input buffer up to the first occurrence of a NewLine value.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.ReadLineAsync`
+###### `M:IoT.Driver.Serial.SerialPortRx.ReadLineAsync`
 
 ```csharp
 public System.Threading.Tasks.Task<string> ReadLineAsync()
@@ -1819,7 +1822,7 @@ Reads the line asynchronous.
 
 - Returns: A `T:System.Threading.Tasks.Task` representing the asynchronous operation.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.ReadLineAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.Serial.SerialPortRx.ReadLineAsync(System.Threading.CancellationToken)`
 
 ```csharp
 public System.Threading.Tasks.Task<string> ReadLineAsync(System.Threading.CancellationToken cancellationToken)
@@ -1829,7 +1832,7 @@ Reads the line asynchronous with cancellation and respecting ReadTimeout (> 0) a
 - Parameter `cancellationToken`: Cancellation token to cancel waiting.
 - Returns: A Task of string.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.ReadTo(System.String)`
+###### `M:IoT.Driver.Serial.SerialPortRx.ReadTo(System.String)`
 
 ```csharp
 public string ReadTo(string value)
@@ -1839,7 +1842,7 @@ Reads a string up to the specified value in the input buffer.
 - Parameter `value`: The value to read up to.
 - Returns: The contents of the input buffer up to the specified value.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.ReadToAsync(System.String)`
+###### `M:IoT.Driver.Serial.SerialPortRx.ReadToAsync(System.String)`
 
 ```csharp
 public System.Threading.Tasks.Task<string> ReadToAsync(string value)
@@ -1849,7 +1852,7 @@ Reads a string up to the specified value asynchronously.
 - Parameter `value`: The value to read up to.
 - Returns: The contents of the input buffer up to the specified value.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.ReadToAsync(System.String,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.Serial.SerialPortRx.ReadToAsync(System.String,System.Threading.CancellationToken)`
 
 ```csharp
 public System.Threading.Tasks.Task<string> ReadToAsync(string value, System.Threading.CancellationToken cancellationToken)
@@ -1860,7 +1863,7 @@ Reads a string up to the specified value asynchronously.
 - Parameter `cancellationToken`: Cancellation token to cancel waiting.
 - Returns: The contents of the input buffer up to the specified value.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.StartDataReception`
+###### `M:IoT.Driver.Serial.SerialPortRx.StartDataReception`
 
 ```csharp
 public System.IDisposable StartDataReception()
@@ -1869,7 +1872,7 @@ Starts continuous data reception that feeds both DataReceived and DataReceivedBy
 
 - Returns: A disposable that stops the data reception when disposed.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.StartDataReception(System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRx.StartDataReception(System.Int32)`
 
 ```csharp
 public System.IDisposable StartDataReception(int pollingIntervalMs)
@@ -1879,7 +1882,7 @@ Starts continuous data reception that feeds both DataReceived and DataReceivedBy
 - Parameter `pollingIntervalMs`: Polling interval in milliseconds (default: 10ms).
 - Returns: A disposable that stops the data reception when disposed.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.Write(System.Byte[])`
+###### `M:IoT.Driver.Serial.SerialPortRx.Write(System.Byte[])`
 
 ```csharp
 public void Write(byte[] byteArray)
@@ -1888,7 +1891,7 @@ Writes the specified byte array.
 
 - Parameter `byteArray`: The byte array.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.Write(System.Byte[],System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRx.Write(System.Byte[],System.Int32,System.Int32)`
 
 ```csharp
 public void Write(byte[] buffer, int offset, int count)
@@ -1899,7 +1902,7 @@ Writes the specified byte array.
 - Parameter `offset`: The offset.
 - Parameter `count`: The count.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.Write(System.Char[])`
+###### `M:IoT.Driver.Serial.SerialPortRx.Write(System.Char[])`
 
 ```csharp
 public void Write(char[] charArray)
@@ -1908,7 +1911,7 @@ Writes the specified character array.
 
 - Parameter `charArray`: The character array.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.Write(System.Char[],System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRx.Write(System.Char[],System.Int32,System.Int32)`
 
 ```csharp
 public void Write(char[] charArray, int offset, int count)
@@ -1919,7 +1922,7 @@ Writes the specified character array.
 - Parameter `offset`: The offset.
 - Parameter `count`: The count.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.Write(System.ReadOnlyMemory`1{System.Byte})`
+###### `M:IoT.Driver.Serial.SerialPortRx.Write(System.ReadOnlyMemory`1{System.Byte})`
 
 ```csharp
 public void Write(System.ReadOnlyMemory<byte> data)
@@ -1928,7 +1931,7 @@ Executes the `Write` operation.
 
 - Parameter `data`: The `data` value.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.Write(System.ReadOnlySpan`1{System.Byte})`
+###### `M:IoT.Driver.Serial.SerialPortRx.Write(System.ReadOnlySpan`1{System.Byte})`
 
 ```csharp
 public void Write(System.ReadOnlySpan<byte> data)
@@ -1937,7 +1940,7 @@ Executes the `Write` operation.
 
 - Parameter `data`: The `data` value.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.Write(System.ReadOnlySpan`1{System.Char})`
+###### `M:IoT.Driver.Serial.SerialPortRx.Write(System.ReadOnlySpan`1{System.Char})`
 
 ```csharp
 public void Write(System.ReadOnlySpan<char> data)
@@ -1946,7 +1949,7 @@ Executes the `Write` operation.
 
 - Parameter `data`: The `data` value.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.Write(System.String)`
+###### `M:IoT.Driver.Serial.SerialPortRx.Write(System.String)`
 
 ```csharp
 public void Write(string text)
@@ -1955,7 +1958,7 @@ Writes the specified text.
 
 - Parameter `text`: The text.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRx.WriteLine(System.String)`
+###### `M:IoT.Driver.Serial.SerialPortRx.WriteLine(System.String)`
 
 ```csharp
 public void WriteLine(string text)
@@ -1964,7 +1967,7 @@ Writes the line.
 
 - Parameter `text`: The text.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.BaudRate`
+###### `P:IoT.Driver.Serial.SerialPortRx.BaudRate`
 
 ```csharp
 public int BaudRate { get; set; }
@@ -1973,7 +1976,7 @@ Gets or sets the baud rate.
 
 - Value: The baud rate.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.BreakState`
+###### `P:IoT.Driver.Serial.SerialPortRx.BreakState`
 
 ```csharp
 public bool BreakState { get; set; }
@@ -1982,7 +1985,7 @@ Gets or sets a value indicating whether break state.
 
 - Value: The break state.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.BytesReceived`
+###### `P:IoT.Driver.Serial.SerialPortRx.BytesReceived`
 
 ```csharp
 public System.IObservable<int> BytesReceived { get; }
@@ -1991,7 +1994,7 @@ Gets the data received when executing ReadAsync.
 
 - Value: The data received.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.BytesReceivedAsync`
+###### `P:IoT.Driver.Serial.SerialPortRx.BytesReceivedAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<int> BytesReceivedAsync { get; }
@@ -2000,7 +2003,7 @@ Gets the data received when executing ReadAsync via an async observable.
 
 - Value: The data received.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.BytesToRead`
+###### `P:IoT.Driver.Serial.SerialPortRx.BytesToRead`
 
 ```csharp
 public int BytesToRead { get; }
@@ -2009,7 +2012,7 @@ Gets the number of bytes of data in the receive buffer.
 
 - Value: The bytes to read.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.BytesToWrite`
+###### `P:IoT.Driver.Serial.SerialPortRx.BytesToWrite`
 
 ```csharp
 public int BytesToWrite { get; }
@@ -2018,7 +2021,7 @@ Gets the number of bytes of data in the send buffer.
 
 - Value: The bytes to write.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.CDHolding`
+###### `P:IoT.Driver.Serial.SerialPortRx.CDHolding`
 
 ```csharp
 public bool CDHolding { get; }
@@ -2027,7 +2030,7 @@ Gets a value indicating whether the Carrier Detect (CD) signal is on.
 
 - Value: The CD holding.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.CtsHolding`
+###### `P:IoT.Driver.Serial.SerialPortRx.CtsHolding`
 
 ```csharp
 public bool CtsHolding { get; }
@@ -2036,7 +2039,7 @@ Gets a value indicating whether the Clear-to-Send (CTS) signal is on.
 
 - Value: The CTS holding.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.DataBits`
+###### `P:IoT.Driver.Serial.SerialPortRx.DataBits`
 
 ```csharp
 public int DataBits { get; set; }
@@ -2045,7 +2048,7 @@ Gets or sets the data bits.
 
 - Value: The data bits.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.DataReceived`
+###### `P:IoT.Driver.Serial.SerialPortRx.DataReceived`
 
 ```csharp
 public System.IObservable<char> DataReceived { get; }
@@ -2054,7 +2057,7 @@ Gets the data received as characters.
 
 - Value: The data received.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.DataReceivedAsync`
+###### `P:IoT.Driver.Serial.SerialPortRx.DataReceivedAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<char> DataReceivedAsync { get; }
@@ -2063,7 +2066,7 @@ Gets the data received as characters via an async observable.
 
 - Value: The data received.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.DataReceivedBatches`
+###### `P:IoT.Driver.Serial.SerialPortRx.DataReceivedBatches`
 
 ```csharp
 public System.IObservable<byte[]> DataReceivedBatches { get; }
@@ -2072,7 +2075,7 @@ Gets raw byte batches received from the serial port.
 
 - Value: The raw byte batches received.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.DataReceivedBytes`
+###### `P:IoT.Driver.Serial.SerialPortRx.DataReceivedBytes`
 
 ```csharp
 public System.IObservable<byte> DataReceivedBytes { get; }
@@ -2081,7 +2084,7 @@ Gets the raw bytes received from the serial port.
 
 - Value: The raw bytes received.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.DataReceivedBytesAsync`
+###### `P:IoT.Driver.Serial.SerialPortRx.DataReceivedBytesAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<byte> DataReceivedBytesAsync { get; }
@@ -2090,7 +2093,7 @@ Gets the raw bytes received from the serial port via an async observable.
 
 - Value: The raw bytes received.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.DiscardNull`
+###### `P:IoT.Driver.Serial.SerialPortRx.DiscardNull`
 
 ```csharp
 public bool DiscardNull { get; set; }
@@ -2099,7 +2102,7 @@ Gets or sets a value indicating whether null bytes are ignored when transmitted 
 
 - Value: The discard null.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.DsrHolding`
+###### `P:IoT.Driver.Serial.SerialPortRx.DsrHolding`
 
 ```csharp
 public bool DsrHolding { get; }
@@ -2108,7 +2111,7 @@ Gets a value indicating whether the Data Set Ready (DSR) signal is on.
 
 - Value: The DSR holding.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.DtrEnable`
+###### `P:IoT.Driver.Serial.SerialPortRx.DtrEnable`
 
 ```csharp
 public bool DtrEnable { get; set; }
@@ -2117,7 +2120,7 @@ Gets or sets whether the Data Terminal Ready (DTR) signal is enabled.
 
 - Value: The DTR enable.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.EnableAutoDataReceive`
+###### `P:IoT.Driver.Serial.SerialPortRx.EnableAutoDataReceive`
 
 ```csharp
 public bool EnableAutoDataReceive { get; set; }
@@ -2126,7 +2129,7 @@ Gets or sets a value indicating whether to automatically consume received data a
 
 - Value: True to enable automatic data reception (default), false to use sync reads.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.Encoding`
+###### `P:IoT.Driver.Serial.SerialPortRx.Encoding`
 
 ```csharp
 public System.Text.Encoding Encoding { get; set; }
@@ -2135,7 +2138,7 @@ Gets or sets the encoding.
 
 - Value: The encoding.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.ErrorReceived`
+###### `P:IoT.Driver.Serial.SerialPortRx.ErrorReceived`
 
 ```csharp
 public System.IObservable<System.Exception> ErrorReceived { get; }
@@ -2144,7 +2147,7 @@ Gets the error received.
 
 - Value: The error received.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.ErrorReceivedAsync`
+###### `P:IoT.Driver.Serial.SerialPortRx.ErrorReceivedAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<System.Exception> ErrorReceivedAsync { get; }
@@ -2153,7 +2156,7 @@ Gets the error received via an async observable.
 
 - Value: The error received.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.Handshake`
+###### `P:IoT.Driver.Serial.SerialPortRx.Handshake`
 
 ```csharp
 public System.IO.Ports.Handshake Handshake { get; set; }
@@ -2162,7 +2165,7 @@ Gets or sets the handshake.
 
 - Value: The handshake.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.InfiniteTimeout`
+###### `P:IoT.Driver.Serial.SerialPortRx.InfiniteTimeout`
 
 ```csharp
 public int InfiniteTimeout { get; }
@@ -2171,7 +2174,7 @@ Gets indicates that no timeout should occur.
 
 - Value: The `InfiniteTimeout` value.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.IsDisposed`
+###### `P:IoT.Driver.Serial.SerialPortRx.IsDisposed`
 
 ```csharp
 public bool IsDisposed { get; }
@@ -2180,7 +2183,7 @@ Gets a value indicating whether this instance is disposed.
 
 - Value: true if this instance is disposed; otherwise, false .
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.IsOpen`
+###### `P:IoT.Driver.Serial.SerialPortRx.IsOpen`
 
 ```csharp
 public bool IsOpen { get; }
@@ -2189,7 +2192,7 @@ Gets a value indicating whether gets the is open.
 
 - Value: The is open.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.IsOpenObservable`
+###### `P:IoT.Driver.Serial.SerialPortRx.IsOpenObservable`
 
 ```csharp
 public System.IObservable<bool> IsOpenObservable { get; }
@@ -2198,7 +2201,7 @@ Gets the is open observable.
 
 - Value: The is open observable.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.IsOpenObservableAsync`
+###### `P:IoT.Driver.Serial.SerialPortRx.IsOpenObservableAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<bool> IsOpenObservableAsync { get; }
@@ -2207,7 +2210,7 @@ Gets the is open async observable.
 
 - Value: The is open async observable.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.Lines`
+###### `P:IoT.Driver.Serial.SerialPortRx.Lines`
 
 ```csharp
 public System.IObservable<string> Lines { get; }
@@ -2216,7 +2219,7 @@ Gets a lazily-created observable sequence of complete lines split by the NewLine
 
 - Value: The `Lines` value.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.LinesAsync`
+###### `P:IoT.Driver.Serial.SerialPortRx.LinesAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<string> LinesAsync { get; }
@@ -2225,7 +2228,7 @@ Gets complete lines as an async observable.
 
 - Value: The `LinesAsync` value.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.NewLine`
+###### `P:IoT.Driver.Serial.SerialPortRx.NewLine`
 
 ```csharp
 public string NewLine { get; set; }
@@ -2234,7 +2237,7 @@ Gets or sets creates new line.
 
 - Value: The new line.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.Parity`
+###### `P:IoT.Driver.Serial.SerialPortRx.Parity`
 
 ```csharp
 public System.IO.Ports.Parity Parity { get; set; }
@@ -2243,7 +2246,7 @@ Gets or sets the parity.
 
 - Value: The parity.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.ParityReplace`
+###### `P:IoT.Driver.Serial.SerialPortRx.ParityReplace`
 
 ```csharp
 public byte ParityReplace { get; set; }
@@ -2252,7 +2255,7 @@ Gets or sets the parity replace.
 
 - Value: The parity replace.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.PortName`
+###### `P:IoT.Driver.Serial.SerialPortRx.PortName`
 
 ```csharp
 public string PortName { get; set; }
@@ -2261,7 +2264,7 @@ Gets or sets the port.
 
 - Value: The port.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.ReadBufferSize`
+###### `P:IoT.Driver.Serial.SerialPortRx.ReadBufferSize`
 
 ```csharp
 public int ReadBufferSize { get; set; }
@@ -2270,7 +2273,7 @@ Gets or sets the size of the read buffer.
 
 - Value: The size of the read buffer.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.ReadTimeout`
+###### `P:IoT.Driver.Serial.SerialPortRx.ReadTimeout`
 
 ```csharp
 public int ReadTimeout { get; set; }
@@ -2279,7 +2282,7 @@ Gets or sets the read timeout.
 
 - Value: The read timeout.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.ReceivedBytesThreshold`
+###### `P:IoT.Driver.Serial.SerialPortRx.ReceivedBytesThreshold`
 
 ```csharp
 public int ReceivedBytesThreshold { get; set; }
@@ -2288,7 +2291,7 @@ Gets or sets the byte threshold that raises DataReceived.
 
 - Value: The received bytes threshold.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.RtsEnable`
+###### `P:IoT.Driver.Serial.SerialPortRx.RtsEnable`
 
 ```csharp
 public bool RtsEnable { get; set; }
@@ -2297,7 +2300,7 @@ Gets or sets whether the Request to Send (RTS) signal is enabled.
 
 - Value: The RTS enable.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.StopBits`
+###### `P:IoT.Driver.Serial.SerialPortRx.StopBits`
 
 ```csharp
 public System.IO.Ports.StopBits StopBits { get; set; }
@@ -2306,7 +2309,7 @@ Gets or sets the stop bits.
 
 - Value: The stop bits.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.WriteBufferSize`
+###### `P:IoT.Driver.Serial.SerialPortRx.WriteBufferSize`
 
 ```csharp
 public int WriteBufferSize { get; set; }
@@ -2315,7 +2318,7 @@ Gets or sets the size of the write buffer.
 
 - Value: The size of the write buffer.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRx.WriteTimeout`
+###### `P:IoT.Driver.Serial.SerialPortRx.WriteTimeout`
 
 ```csharp
 public int WriteTimeout { get; set; }
@@ -2324,33 +2327,33 @@ Gets or sets the write timeout.
 
 - Value: The write timeout.
 
-#### `T:IoT.DriverCore.Serial.SerialPortRxMessageHandler`
+#### `T:IoT.Driver.Serial.SerialPortRxMessageHandler`
 
 ```csharp
-public class IoT.DriverCore.Serial.SerialPortRxMessageHandler
+public class IoT.Driver.Serial.SerialPortRxMessageHandler
 ```
 Coordinates command requests and responses over a reactive serial port.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMessageHandler.#ctor(IoT.DriverCore.Serial.ISerialPortRx,System.String[])`
+###### `M:IoT.Driver.Serial.SerialPortRxMessageHandler.#ctor(IoT.Driver.Serial.ISerialPortRx,System.String[])`
 
 ```csharp
-public IoT.DriverCore.Serial.SerialPortRxMessageHandler(IoT.DriverCore.Serial.ISerialPortRx port, string[] errorLine)
+public IoT.Driver.Serial.SerialPortRxMessageHandler(IoT.Driver.Serial.ISerialPortRx port, string[] errorLine)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.SerialPortRxMessageHandler` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.SerialPortRxMessageHandler` class.
 
 - Parameter `port`: The port.
 - Parameter `errorLine`: The error line.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMessageHandler.Dispose`
+###### `M:IoT.Driver.Serial.SerialPortRxMessageHandler.Dispose`
 
 ```csharp
 public void Dispose()
 ```
 Releases owned resources.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMessageHandler.RequestAsync(System.String)`
+###### `M:IoT.Driver.Serial.SerialPortRxMessageHandler.RequestAsync(System.String)`
 
 ```csharp
 public System.Threading.Tasks.Task RequestAsync(string cmd)
@@ -2360,7 +2363,7 @@ Requests the asynchronous.
 - Parameter `cmd`: The command.
 - Returns: A `T:System.Threading.Tasks.Task` representing the asynchronous operation.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMessageHandler.RequestAsync(System.String,System.Action`1{System.String})`
+###### `M:IoT.Driver.Serial.SerialPortRxMessageHandler.RequestAsync(System.String,System.Action`1{System.String})`
 
 ```csharp
 public System.Threading.Tasks.Task RequestAsync(string cmd, System.Action<string> apply)
@@ -2371,7 +2374,7 @@ Executes the `RequestAsync` operation.
 - Parameter `apply`: The `apply` value.
 - Returns: A `System.Threading.Tasks.Task` result.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMessageHandler.SendCommandAsync(System.String)`
+###### `M:IoT.Driver.Serial.SerialPortRxMessageHandler.SendCommandAsync(System.String)`
 
 ```csharp
 public System.Threading.Tasks.Task SendCommandAsync(string fullCmd)
@@ -2381,21 +2384,21 @@ Sends the command asynchronous.
 - Parameter `fullCmd`: The full command.
 - Returns: A `T:System.Threading.Tasks.Task` representing the asynchronous operation.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMessageHandler.StartPolling`
+###### `M:IoT.Driver.Serial.SerialPortRxMessageHandler.StartPolling`
 
 ```csharp
 public void StartPolling()
 ```
 Starts the polling.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMessageHandler.StopPolling`
+###### `M:IoT.Driver.Serial.SerialPortRxMessageHandler.StopPolling`
 
 ```csharp
 public void StopPolling()
 ```
 Stops the polling.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMessageHandler.WithPollingStoppedAsync(System.Func`1{System.Threading.Tasks.Task})`
+###### `M:IoT.Driver.Serial.SerialPortRxMessageHandler.WithPollingStoppedAsync(System.Func`1{System.Threading.Tasks.Task})`
 
 ```csharp
 public System.Threading.Tasks.Task WithPollingStoppedAsync(System.Func<System.Threading.Tasks.Task> action)
@@ -2405,7 +2408,7 @@ Executes the `WithPollingStoppedAsync` operation.
 - Parameter `action`: The `action` value.
 - Returns: A `System.Threading.Tasks.Task` result.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRxMessageHandler.PollingTasks`
+###### `P:IoT.Driver.Serial.SerialPortRxMessageHandler.PollingTasks`
 
 ```csharp
 public System.Func<System.Threading.Tasks.Task> PollingTasks { get; set; }
@@ -2414,7 +2417,7 @@ Gets or sets the polling task.
 
 - Value: The polling task.
 
-###### `P:IoT.DriverCore.Serial.SerialPortRxMessageHandler.ResponsePrefix`
+###### `P:IoT.Driver.Serial.SerialPortRxMessageHandler.ResponsePrefix`
 
 ```csharp
 public string ResponsePrefix { get; set; }
@@ -2423,16 +2426,16 @@ Gets or sets an optional prefix that the device may prepend to responses (e.g., 
 
 - Value: The `ResponsePrefix` value.
 
-#### `T:IoT.DriverCore.Serial.SerialPortRxMixins`
+#### `T:IoT.Driver.Serial.SerialPortRxMixins`
 
 ```csharp
-public class IoT.DriverCore.Serial.SerialPortRxMixins
+public class IoT.Driver.Serial.SerialPortRxMixins
 ```
 Provides serial port reactive extension methods.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.AsAsyncObservable(System.Byte)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.AsAsyncObservable(System.Byte)`
 
 ```csharp
 public static ReactiveUI.Primitives.Async.IObservableAsync<char> AsAsyncObservable(byte value)
@@ -2442,7 +2445,7 @@ Transforms a byte into a single value async observable.
 - Parameter `value`: The source byte.
 - Returns: An async observable char.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.AsAsyncObservable(System.Int16)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.AsAsyncObservable(System.Int16)`
 
 ```csharp
 public static ReactiveUI.Primitives.Async.IObservableAsync<char> AsAsyncObservable(short value)
@@ -2452,7 +2455,7 @@ Transforms a short into a single value async observable.
 - Parameter `value`: The source short.
 - Returns: An async observable char.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.AsAsyncObservable(System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.AsAsyncObservable(System.Int32)`
 
 ```csharp
 public static ReactiveUI.Primitives.Async.IObservableAsync<char> AsAsyncObservable(int value)
@@ -2462,7 +2465,7 @@ Transforms an int into a single value async observable.
 - Parameter `value`: The source integer.
 - Returns: An async observable char.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.AsObservable(System.Byte)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.AsObservable(System.Byte)`
 
 ```csharp
 public static System.IObservable<char> AsObservable(byte value)
@@ -2472,7 +2475,7 @@ Transforms a byte into a single value observable.
 - Parameter `value`: The source byte.
 - Returns: An observable char.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.AsObservable(System.Int16)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.AsObservable(System.Int16)`
 
 ```csharp
 public static System.IObservable<char> AsObservable(short value)
@@ -2482,7 +2485,7 @@ Transforms a short into a single value observable.
 - Parameter `value`: The source short.
 - Returns: An observable char.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.AsObservable(System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.AsObservable(System.Int32)`
 
 ```csharp
 public static System.IObservable<char> AsObservable(int value)
@@ -2492,7 +2495,7 @@ Transforms an int into a single value observable.
 - Parameter `value`: The source integer.
 - Returns: An observable char.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.BufferUntil(ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.String},System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.BufferUntil(ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.String},System.Int32)`
 
 ```csharp
 public static ReactiveUI.Primitives.Async.IObservableAsync<string> BufferUntil(ReactiveUI.Primitives.Async.IObservableAsync<char> source, ReactiveUI.Primitives.Async.IObservableAsync<char> startsWith, ReactiveUI.Primitives.Async.IObservableAsync<char> endsWith, ReactiveUI.Primitives.Async.IObservableAsync<string> defaultValue, int timeOut)
@@ -2506,7 +2509,7 @@ Executes the `BufferUntil` operation.
 - Parameter `timeOut`: The `timeOut` value.
 - Returns: A `ReactiveUI.Primitives.Async.IObservableAsync<string>` result.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.BufferUntil(ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.String},System.Int32,ReactiveUI.Primitives.Concurrency.ISequencer)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.BufferUntil(ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.String},System.Int32,ReactiveUI.Primitives.Concurrency.ISequencer)`
 
 ```csharp
 public static ReactiveUI.Primitives.Async.IObservableAsync<string> BufferUntil(ReactiveUI.Primitives.Async.IObservableAsync<char> source, ReactiveUI.Primitives.Async.IObservableAsync<char> startsWith, ReactiveUI.Primitives.Async.IObservableAsync<char> endsWith, ReactiveUI.Primitives.Async.IObservableAsync<string> defaultValue, int timeOut, ReactiveUI.Primitives.Concurrency.ISequencer scheduler)
@@ -2521,7 +2524,7 @@ Executes the `BufferUntil` operation.
 - Parameter `scheduler`: The `scheduler` value.
 - Returns: A `ReactiveUI.Primitives.Async.IObservableAsync<string>` result.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.BufferUntil(ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.BufferUntil(ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},System.Int32)`
 
 ```csharp
 public static ReactiveUI.Primitives.Async.IObservableAsync<string> BufferUntil(ReactiveUI.Primitives.Async.IObservableAsync<char> source, ReactiveUI.Primitives.Async.IObservableAsync<char> startsWith, ReactiveUI.Primitives.Async.IObservableAsync<char> endsWith, int timeOut)
@@ -2534,7 +2537,7 @@ Executes the `BufferUntil` operation.
 - Parameter `timeOut`: The `timeOut` value.
 - Returns: A `ReactiveUI.Primitives.Async.IObservableAsync<string>` result.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.BufferUntil(ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},System.Int32,ReactiveUI.Primitives.Concurrency.ISequencer)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.BufferUntil(ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},ReactiveUI.Primitives.Async.IObservableAsync`1{System.Char},System.Int32,ReactiveUI.Primitives.Concurrency.ISequencer)`
 
 ```csharp
 public static ReactiveUI.Primitives.Async.IObservableAsync<string> BufferUntil(ReactiveUI.Primitives.Async.IObservableAsync<char> source, ReactiveUI.Primitives.Async.IObservableAsync<char> startsWith, ReactiveUI.Primitives.Async.IObservableAsync<char> endsWith, int timeOut, ReactiveUI.Primitives.Concurrency.ISequencer scheduler)
@@ -2548,7 +2551,7 @@ Executes the `BufferUntil` operation.
 - Parameter `scheduler`: The `scheduler` value.
 - Returns: A `ReactiveUI.Primitives.Async.IObservableAsync<string>` result.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.BufferUntil(System.IObservable`1{System.Char},System.IObservable`1{System.Char},System.IObservable`1{System.Char},System.IObservable`1{System.String},System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.BufferUntil(System.IObservable`1{System.Char},System.IObservable`1{System.Char},System.IObservable`1{System.Char},System.IObservable`1{System.String},System.Int32)`
 
 ```csharp
 public static System.IObservable<string> BufferUntil(System.IObservable<char> source, System.IObservable<char> startsWith, System.IObservable<char> endsWith, System.IObservable<string> defaultValue, int timeOut)
@@ -2562,7 +2565,7 @@ Executes the `BufferUntil` operation.
 - Parameter `timeOut`: The `timeOut` value.
 - Returns: A `System.IObservable<string>` result.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.BufferUntil(System.IObservable`1{System.Char},System.IObservable`1{System.Char},System.IObservable`1{System.Char},System.IObservable`1{System.String},System.Int32,ReactiveUI.Primitives.Concurrency.ISequencer)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.BufferUntil(System.IObservable`1{System.Char},System.IObservable`1{System.Char},System.IObservable`1{System.Char},System.IObservable`1{System.String},System.Int32,ReactiveUI.Primitives.Concurrency.ISequencer)`
 
 ```csharp
 public static System.IObservable<string> BufferUntil(System.IObservable<char> source, System.IObservable<char> startsWith, System.IObservable<char> endsWith, System.IObservable<string> defaultValue, int timeOut, ReactiveUI.Primitives.Concurrency.ISequencer scheduler)
@@ -2577,7 +2580,7 @@ Executes the `BufferUntil` operation.
 - Parameter `scheduler`: The `scheduler` value.
 - Returns: A `System.IObservable<string>` result.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.BufferUntil(System.IObservable`1{System.Char},System.IObservable`1{System.Char},System.IObservable`1{System.Char},System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.BufferUntil(System.IObservable`1{System.Char},System.IObservable`1{System.Char},System.IObservable`1{System.Char},System.Int32)`
 
 ```csharp
 public static System.IObservable<string> BufferUntil(System.IObservable<char> source, System.IObservable<char> startsWith, System.IObservable<char> endsWith, int timeOut)
@@ -2590,7 +2593,7 @@ Executes the `BufferUntil` operation.
 - Parameter `timeOut`: The `timeOut` value.
 - Returns: A `System.IObservable<string>` result.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.BufferUntil(System.IObservable`1{System.Char},System.IObservable`1{System.Char},System.IObservable`1{System.Char},System.Int32,ReactiveUI.Primitives.Concurrency.ISequencer)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.BufferUntil(System.IObservable`1{System.Char},System.IObservable`1{System.Char},System.IObservable`1{System.Char},System.Int32,ReactiveUI.Primitives.Concurrency.ISequencer)`
 
 ```csharp
 public static System.IObservable<string> BufferUntil(System.IObservable<char> source, System.IObservable<char> startsWith, System.IObservable<char> endsWith, int timeOut, ReactiveUI.Primitives.Concurrency.ISequencer scheduler)
@@ -2604,37 +2607,37 @@ Executes the `BufferUntil` operation.
 - Parameter `scheduler`: The `scheduler` value.
 - Returns: A `System.IObservable<string>` result.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.BytesReceivedAsyncObservable(IoT.DriverCore.Serial.IPortRx)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.BytesReceivedAsyncObservable(IoT.Driver.Serial.IPortRx)`
 
 ```csharp
-public static ReactiveUI.Primitives.Async.IObservableAsync<int> BytesReceivedAsyncObservable(IoT.DriverCore.Serial.IPortRx port)
+public static ReactiveUI.Primitives.Async.IObservableAsync<int> BytesReceivedAsyncObservable(IoT.Driver.Serial.IPortRx port)
 ```
 Gets the data received after opening a receive port as an async observable.
 
 - Parameter `port`: The source port.
 - Returns: An async observable of received byte values.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.DataReceivedAsyncObservable(IoT.DriverCore.Serial.ISerialPortRx)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.DataReceivedAsyncObservable(IoT.Driver.Serial.ISerialPortRx)`
 
 ```csharp
-public static ReactiveUI.Primitives.Async.IObservableAsync<char> DataReceivedAsyncObservable(IoT.DriverCore.Serial.ISerialPortRx serialPort)
+public static ReactiveUI.Primitives.Async.IObservableAsync<char> DataReceivedAsyncObservable(IoT.Driver.Serial.ISerialPortRx serialPort)
 ```
 Gets serial characters as an async observable.
 
 - Parameter `serialPort`: The source serial port.
 - Returns: An async observable of received characters.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.DataReceivedBytesAsyncObservable(IoT.DriverCore.Serial.ISerialPortRx)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.DataReceivedBytesAsyncObservable(IoT.Driver.Serial.ISerialPortRx)`
 
 ```csharp
-public static ReactiveUI.Primitives.Async.IObservableAsync<byte> DataReceivedBytesAsyncObservable(IoT.DriverCore.Serial.ISerialPortRx serialPort)
+public static ReactiveUI.Primitives.Async.IObservableAsync<byte> DataReceivedBytesAsyncObservable(IoT.Driver.Serial.ISerialPortRx serialPort)
 ```
 Gets serial bytes as an async observable.
 
 - Parameter `serialPort`: The source serial port.
 - Returns: An async observable of received bytes.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.DataReceivedObserver(System.IO.Ports.SerialPort)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.DataReceivedObserver(System.IO.Ports.SerialPort)`
 
 ```csharp
 public static System.IObservable<ReactiveUI.Primitives.Core.EventPattern<System.IO.Ports.SerialDataReceivedEventArgs>> DataReceivedObserver(System.IO.Ports.SerialPort serialPort)
@@ -2644,17 +2647,17 @@ Monitors the received observer.
 - Parameter `serialPort`: The source serial port.
 - Returns: Observable value.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.ErrorReceivedAsyncObservable(IoT.DriverCore.Serial.ISerialPortRx)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.ErrorReceivedAsyncObservable(IoT.Driver.Serial.ISerialPortRx)`
 
 ```csharp
-public static ReactiveUI.Primitives.Async.IObservableAsync<System.Exception> ErrorReceivedAsyncObservable(IoT.DriverCore.Serial.ISerialPortRx serialPort)
+public static ReactiveUI.Primitives.Async.IObservableAsync<System.Exception> ErrorReceivedAsyncObservable(IoT.Driver.Serial.ISerialPortRx serialPort)
 ```
 Gets serial errors as an async observable.
 
 - Parameter `serialPort`: The source serial port.
 - Returns: An async observable of errors.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.ErrorReceivedObserver(System.IO.Ports.SerialPort)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.ErrorReceivedObserver(System.IO.Ports.SerialPort)`
 
 ```csharp
 public static System.IObservable<ReactiveUI.Primitives.Core.EventPattern<System.IO.Ports.SerialErrorReceivedEventArgs>> ErrorReceivedObserver(System.IO.Ports.SerialPort serialPort)
@@ -2664,27 +2667,27 @@ Monitors the Errors observer.
 - Parameter `serialPort`: The source serial port.
 - Returns: Observable value.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.IsOpenAsyncObservable(IoT.DriverCore.Serial.ISerialPortRx)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.IsOpenAsyncObservable(IoT.Driver.Serial.ISerialPortRx)`
 
 ```csharp
-public static ReactiveUI.Primitives.Async.IObservableAsync<bool> IsOpenAsyncObservable(IoT.DriverCore.Serial.ISerialPortRx serialPort)
+public static ReactiveUI.Primitives.Async.IObservableAsync<bool> IsOpenAsyncObservable(IoT.Driver.Serial.ISerialPortRx serialPort)
 ```
 Gets serial open-state changes as an async observable.
 
 - Parameter `serialPort`: The source serial port.
 - Returns: An async observable of open-state changes.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.LinesAsyncObservable(IoT.DriverCore.Serial.ISerialPortRx)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.LinesAsyncObservable(IoT.Driver.Serial.ISerialPortRx)`
 
 ```csharp
-public static ReactiveUI.Primitives.Async.IObservableAsync<string> LinesAsyncObservable(IoT.DriverCore.Serial.ISerialPortRx serialPort)
+public static ReactiveUI.Primitives.Async.IObservableAsync<string> LinesAsyncObservable(IoT.Driver.Serial.ISerialPortRx serialPort)
 ```
 Gets serial lines as an async observable.
 
 - Parameter `serialPort`: The source serial port.
 - Returns: An async observable of received lines.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.PortNamesAsyncObservable`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.PortNamesAsyncObservable`
 
 ```csharp
 public static ReactiveUI.Primitives.Async.IObservableAsync<string[]> PortNamesAsyncObservable()
@@ -2693,7 +2696,7 @@ Emits the list of available port names whenever it changes as an async observabl
 
 - Returns: An async observable of port name arrays.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.PortNamesAsyncObservable(System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.PortNamesAsyncObservable(System.Int32)`
 
 ```csharp
 public static ReactiveUI.Primitives.Async.IObservableAsync<string[]> PortNamesAsyncObservable(int pollInterval)
@@ -2703,7 +2706,7 @@ Emits the list of available port names whenever it changes as an async observabl
 - Parameter `pollInterval`: The poll interval.
 - Returns: An async observable of port name arrays.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.PortNamesAsyncObservable(System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.PortNamesAsyncObservable(System.Int32,System.Int32)`
 
 ```csharp
 public static ReactiveUI.Primitives.Async.IObservableAsync<string[]> PortNamesAsyncObservable(int pollInterval, int pollLimit)
@@ -2714,10 +2717,10 @@ Emits the list of available port names whenever it changes as an async observabl
 - Parameter `pollLimit`: The poll limit.
 - Returns: An async observable of port name arrays.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.WhileIsOpen(IoT.DriverCore.Serial.SerialPortRx,System.TimeSpan)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.WhileIsOpen(IoT.Driver.Serial.SerialPortRx,System.TimeSpan)`
 
 ```csharp
-public static System.IObservable<bool> WhileIsOpen(IoT.DriverCore.Serial.SerialPortRx serialPort, System.TimeSpan timespan)
+public static System.IObservable<bool> WhileIsOpen(IoT.Driver.Serial.SerialPortRx serialPort, System.TimeSpan timespan)
 ```
 Executes while port is open at the given TimeSpan.
 
@@ -2725,10 +2728,10 @@ Executes while port is open at the given TimeSpan.
 - Parameter `timespan`: The timespan at which to notify.
 - Returns: Observable value.
 
-###### `M:IoT.DriverCore.Serial.SerialPortRxMixins.WhileIsOpenAsyncObservable(IoT.DriverCore.Serial.SerialPortRx,System.TimeSpan)`
+###### `M:IoT.Driver.Serial.SerialPortRxMixins.WhileIsOpenAsyncObservable(IoT.Driver.Serial.SerialPortRx,System.TimeSpan)`
 
 ```csharp
-public static ReactiveUI.Primitives.Async.IObservableAsync<bool> WhileIsOpenAsyncObservable(IoT.DriverCore.Serial.SerialPortRx serialPort, System.TimeSpan timespan)
+public static ReactiveUI.Primitives.Async.IObservableAsync<bool> WhileIsOpenAsyncObservable(IoT.Driver.Serial.SerialPortRx serialPort, System.TimeSpan timespan)
 ```
 Executes while port is open at the given TimeSpan via an async observable.
 
@@ -2736,16 +2739,16 @@ Executes while port is open at the given TimeSpan via an async observable.
 - Parameter `timespan`: The timespan at which to notify.
 - Returns: Async observable value.
 
-#### `T:IoT.DriverCore.Serial.SourceGeneration.SerialPortReactiveValueConverter`
+#### `T:IoT.Driver.Serial.SourceGeneration.SerialPortReactiveValueConverter`
 
 ```csharp
-public class IoT.DriverCore.Serial.SourceGeneration.SerialPortReactiveValueConverter
+public class IoT.Driver.Serial.SourceGeneration.SerialPortReactiveValueConverter
 ```
 Converts generated serial stream values into strongly typed reactive properties.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.Serial.SourceGeneration.SerialPortReactiveValueConverter.TryConvertMatch``1(System.Object,System.String,System.String,System.Int32,System.Boolean,``0@)`
+###### `M:IoT.Driver.Serial.SourceGeneration.SerialPortReactiveValueConverter.TryConvertMatch``1(System.Object,System.String,System.String,System.Int32,System.Boolean,``0@)`
 
 ```csharp
 public static bool TryConvertMatch<T>(object value, string pattern, string groupName, int groupNumber, bool ignoreCase, out T result)
@@ -2760,67 +2763,67 @@ Tries to match and convert a serial stream value.
 - Parameter `result`: The converted value.
 - Returns: true when a value was matched and converted; otherwise, false .
 
-#### `T:IoT.DriverCore.Serial.TcpClientRx`
+#### `T:IoT.Driver.Serial.TcpClientRx`
 
 ```csharp
-public class IoT.DriverCore.Serial.TcpClientRx
+public class IoT.Driver.Serial.TcpClientRx
 ```
 Provides a reactive wrapper around `T:System.Net.Sockets.TcpClient` .
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.Serial.TcpClientRx.#ctor`
+###### `M:IoT.Driver.Serial.TcpClientRx.#ctor`
 
 ```csharp
-public IoT.DriverCore.Serial.TcpClientRx()
+public IoT.Driver.Serial.TcpClientRx()
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.TcpClientRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.TcpClientRx` class.
 
-###### `M:IoT.DriverCore.Serial.TcpClientRx.#ctor(System.Net.IPEndPoint)`
+###### `M:IoT.Driver.Serial.TcpClientRx.#ctor(System.Net.IPEndPoint)`
 
 ```csharp
-public IoT.DriverCore.Serial.TcpClientRx(System.Net.IPEndPoint localEP)
+public IoT.Driver.Serial.TcpClientRx(System.Net.IPEndPoint localEP)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.TcpClientRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.TcpClientRx` class.
 
 - Parameter `localEP`: The local ep.
 
-###### `M:IoT.DriverCore.Serial.TcpClientRx.#ctor(System.Net.Sockets.AddressFamily)`
+###### `M:IoT.Driver.Serial.TcpClientRx.#ctor(System.Net.Sockets.AddressFamily)`
 
 ```csharp
-public IoT.DriverCore.Serial.TcpClientRx(System.Net.Sockets.AddressFamily family)
+public IoT.Driver.Serial.TcpClientRx(System.Net.Sockets.AddressFamily family)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.TcpClientRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.TcpClientRx` class.
 
 - Parameter `family`: The family.
 
-###### `M:IoT.DriverCore.Serial.TcpClientRx.#ctor(System.Net.Sockets.TcpClient)`
+###### `M:IoT.Driver.Serial.TcpClientRx.#ctor(System.Net.Sockets.TcpClient)`
 
 ```csharp
-public IoT.DriverCore.Serial.TcpClientRx(System.Net.Sockets.TcpClient tcpClient)
+public IoT.Driver.Serial.TcpClientRx(System.Net.Sockets.TcpClient tcpClient)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.TcpClientRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.TcpClientRx` class.
 
 - Parameter `tcpClient`: The TCP client.
 
-###### `M:IoT.DriverCore.Serial.TcpClientRx.#ctor(System.String,System.Int32)`
+###### `M:IoT.Driver.Serial.TcpClientRx.#ctor(System.String,System.Int32)`
 
 ```csharp
-public IoT.DriverCore.Serial.TcpClientRx(string hostname, int port)
+public IoT.Driver.Serial.TcpClientRx(string hostname, int port)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.TcpClientRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.TcpClientRx` class.
 
 - Parameter `hostname`: The hostname.
 - Parameter `port`: The port.
 
-###### `M:IoT.DriverCore.Serial.TcpClientRx.Close`
+###### `M:IoT.Driver.Serial.TcpClientRx.Close`
 
 ```csharp
 public void Close()
 ```
 Closes this instance.
 
-###### `M:IoT.DriverCore.Serial.TcpClientRx.Connect(System.Net.IPAddress,System.Int32)`
+###### `M:IoT.Driver.Serial.TcpClientRx.Connect(System.Net.IPAddress,System.Int32)`
 
 ```csharp
 public void Connect(System.Net.IPAddress address, int port)
@@ -2830,7 +2833,7 @@ Connects the specified address.
 - Parameter `address`: The address.
 - Parameter `port`: The port.
 
-###### `M:IoT.DriverCore.Serial.TcpClientRx.Connect(System.Net.IPAddress[],System.Int32)`
+###### `M:IoT.Driver.Serial.TcpClientRx.Connect(System.Net.IPAddress[],System.Int32)`
 
 ```csharp
 public void Connect(System.Net.IPAddress[] addresses, int port)
@@ -2840,7 +2843,7 @@ Connects the specified IP addresses.
 - Parameter `addresses`: The IP addresses.
 - Parameter `port`: The port.
 
-###### `M:IoT.DriverCore.Serial.TcpClientRx.Connect(System.Net.IPEndPoint)`
+###### `M:IoT.Driver.Serial.TcpClientRx.Connect(System.Net.IPEndPoint)`
 
 ```csharp
 public void Connect(System.Net.IPEndPoint remoteEP)
@@ -2849,7 +2852,7 @@ Connects the specified remote ep.
 
 - Parameter `remoteEP`: The remote ep.
 
-###### `M:IoT.DriverCore.Serial.TcpClientRx.Connect(System.String,System.Int32)`
+###### `M:IoT.Driver.Serial.TcpClientRx.Connect(System.String,System.Int32)`
 
 ```csharp
 public void Connect(string hostname, int port)
@@ -2859,21 +2862,21 @@ Connects the specified hostname.
 - Parameter `hostname`: The hostname.
 - Parameter `port`: The port.
 
-###### `M:IoT.DriverCore.Serial.TcpClientRx.DiscardInBuffer`
+###### `M:IoT.Driver.Serial.TcpClientRx.DiscardInBuffer`
 
 ```csharp
 public void DiscardInBuffer()
 ```
 Discards the in buffer.
 
-###### `M:IoT.DriverCore.Serial.TcpClientRx.Dispose`
+###### `M:IoT.Driver.Serial.TcpClientRx.Dispose`
 
 ```csharp
 public void Dispose()
 ```
 Releases owned resources.
 
-###### `M:IoT.DriverCore.Serial.TcpClientRx.OpenAsync`
+###### `M:IoT.Driver.Serial.TcpClientRx.OpenAsync`
 
 ```csharp
 public System.Threading.Tasks.Task OpenAsync()
@@ -2882,7 +2885,7 @@ Opens this instance.
 
 - Returns: A Task.
 
-###### `M:IoT.DriverCore.Serial.TcpClientRx.ReadAsync(System.Byte[],System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.TcpClientRx.ReadAsync(System.Byte[],System.Int32,System.Int32)`
 
 ```csharp
 public System.Threading.Tasks.Task<int> ReadAsync(byte[] buffer, int offset, int count)
@@ -2894,7 +2897,7 @@ Reads the specified buffer.
 - Parameter `count`: The count.
 - Returns: A int.
 
-###### `M:IoT.DriverCore.Serial.TcpClientRx.Write(System.Byte[],System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.TcpClientRx.Write(System.Byte[],System.Int32,System.Int32)`
 
 ```csharp
 public void Write(byte[] buffer, int offset, int count)
@@ -2905,7 +2908,7 @@ Writes the specified buffer.
 - Parameter `offset`: The offset.
 - Parameter `count`: The count.
 
-###### `P:IoT.DriverCore.Serial.TcpClientRx.BytesReceived`
+###### `P:IoT.Driver.Serial.TcpClientRx.BytesReceived`
 
 ```csharp
 public System.IObservable<int> BytesReceived { get; }
@@ -2914,7 +2917,7 @@ Gets the data received From ReadAsync.
 
 - Value: The data received.
 
-###### `P:IoT.DriverCore.Serial.TcpClientRx.BytesReceivedAsync`
+###### `P:IoT.Driver.Serial.TcpClientRx.BytesReceivedAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<int> BytesReceivedAsync { get; }
@@ -2923,7 +2926,7 @@ Gets the data received from ReadAsync as an async observable.
 
 - Value: The data received.
 
-###### `P:IoT.DriverCore.Serial.TcpClientRx.Client`
+###### `P:IoT.Driver.Serial.TcpClientRx.Client`
 
 ```csharp
 public System.Net.Sockets.Socket Client { get; }
@@ -2932,7 +2935,7 @@ Gets the underlying System.Net.Sockets.Socket.
 
 - Value: The underlying network System.Net.Sockets.Socket.
 
-###### `P:IoT.DriverCore.Serial.TcpClientRx.DataReceived`
+###### `P:IoT.Driver.Serial.TcpClientRx.DataReceived`
 
 ```csharp
 public System.IObservable<int> DataReceived { get; }
@@ -2941,7 +2944,7 @@ Gets the data received after calling Open.
 
 - Value: The data received.
 
-###### `P:IoT.DriverCore.Serial.TcpClientRx.DataReceivedAsync`
+###### `P:IoT.Driver.Serial.TcpClientRx.DataReceivedAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<int> DataReceivedAsync { get; }
@@ -2950,7 +2953,7 @@ Gets the data received after calling Open as an async observable.
 
 - Value: The data received.
 
-###### `P:IoT.DriverCore.Serial.TcpClientRx.DataReceivedBatches`
+###### `P:IoT.Driver.Serial.TcpClientRx.DataReceivedBatches`
 
 ```csharp
 public System.IObservable<byte[]> DataReceivedBatches { get; }
@@ -2959,7 +2962,7 @@ Gets stream chunks (byte arrays) produced by the internal read loop.
 
 - Value: The `DataReceivedBatches` value.
 
-###### `P:IoT.DriverCore.Serial.TcpClientRx.DataReceivedBatchesAsync`
+###### `P:IoT.Driver.Serial.TcpClientRx.DataReceivedBatchesAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<byte[]> DataReceivedBatchesAsync { get; }
@@ -2968,7 +2971,7 @@ Gets stream chunks produced by the internal read loop as an async observable.
 
 - Value: The `DataReceivedBatchesAsync` value.
 
-###### `P:IoT.DriverCore.Serial.TcpClientRx.InfiniteTimeout`
+###### `P:IoT.Driver.Serial.TcpClientRx.InfiniteTimeout`
 
 ```csharp
 public int InfiniteTimeout { get; }
@@ -2977,7 +2980,7 @@ Gets the infinite timeout.
 
 - Value: The infinite timeout.
 
-###### `P:IoT.DriverCore.Serial.TcpClientRx.ReadTimeout`
+###### `P:IoT.Driver.Serial.TcpClientRx.ReadTimeout`
 
 ```csharp
 public int ReadTimeout { get; set; }
@@ -2986,7 +2989,7 @@ Gets or sets the read timeout.
 
 - Value: The read timeout.
 
-###### `P:IoT.DriverCore.Serial.TcpClientRx.Stream`
+###### `P:IoT.Driver.Serial.TcpClientRx.Stream`
 
 ```csharp
 public System.Net.Sockets.NetworkStream Stream { get; }
@@ -2995,7 +2998,7 @@ Gets the System.Net.Sockets.NetworkStream used to send and receive data.
 
 - Value: The stream.
 
-###### `P:IoT.DriverCore.Serial.TcpClientRx.WriteTimeout`
+###### `P:IoT.Driver.Serial.TcpClientRx.WriteTimeout`
 
 ```csharp
 public int WriteTimeout { get; set; }
@@ -3004,86 +3007,86 @@ Gets or sets the write timeout.
 
 - Value: The write timeout.
 
-#### `T:IoT.DriverCore.Serial.UdpClientRx`
+#### `T:IoT.Driver.Serial.UdpClientRx`
 
 ```csharp
-public class IoT.DriverCore.Serial.UdpClientRx
+public class IoT.Driver.Serial.UdpClientRx
 ```
 Provides a reactive wrapper around `T:System.Net.Sockets.UdpClient` .
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.#ctor`
+###### `M:IoT.Driver.Serial.UdpClientRx.#ctor`
 
 ```csharp
-public IoT.DriverCore.Serial.UdpClientRx()
+public IoT.Driver.Serial.UdpClientRx()
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.UdpClientRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.UdpClientRx` class.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.#ctor(System.Int32)`
+###### `M:IoT.Driver.Serial.UdpClientRx.#ctor(System.Int32)`
 
 ```csharp
-public IoT.DriverCore.Serial.UdpClientRx(int port)
+public IoT.Driver.Serial.UdpClientRx(int port)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.UdpClientRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.UdpClientRx` class.
 
 - Parameter `port`: The port.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.#ctor(System.Int32,System.Net.Sockets.AddressFamily)`
+###### `M:IoT.Driver.Serial.UdpClientRx.#ctor(System.Int32,System.Net.Sockets.AddressFamily)`
 
 ```csharp
-public IoT.DriverCore.Serial.UdpClientRx(int port, System.Net.Sockets.AddressFamily family)
+public IoT.Driver.Serial.UdpClientRx(int port, System.Net.Sockets.AddressFamily family)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.UdpClientRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.UdpClientRx` class.
 
 - Parameter `port`: The port.
 - Parameter `family`: The family.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.#ctor(System.Net.IPEndPoint)`
+###### `M:IoT.Driver.Serial.UdpClientRx.#ctor(System.Net.IPEndPoint)`
 
 ```csharp
-public IoT.DriverCore.Serial.UdpClientRx(System.Net.IPEndPoint localEP)
+public IoT.Driver.Serial.UdpClientRx(System.Net.IPEndPoint localEP)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.UdpClientRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.UdpClientRx` class.
 
 - Parameter `localEP`: The local ep.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.#ctor(System.Net.Sockets.AddressFamily)`
+###### `M:IoT.Driver.Serial.UdpClientRx.#ctor(System.Net.Sockets.AddressFamily)`
 
 ```csharp
-public IoT.DriverCore.Serial.UdpClientRx(System.Net.Sockets.AddressFamily family)
+public IoT.Driver.Serial.UdpClientRx(System.Net.Sockets.AddressFamily family)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.UdpClientRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.UdpClientRx` class.
 
 - Parameter `family`: The family.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.#ctor(System.Net.Sockets.UdpClient)`
+###### `M:IoT.Driver.Serial.UdpClientRx.#ctor(System.Net.Sockets.UdpClient)`
 
 ```csharp
-public IoT.DriverCore.Serial.UdpClientRx(System.Net.Sockets.UdpClient udpClient)
+public IoT.Driver.Serial.UdpClientRx(System.Net.Sockets.UdpClient udpClient)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.UdpClientRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.UdpClientRx` class.
 
 - Parameter `udpClient`: The UDP client.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.#ctor(System.String,System.Int32)`
+###### `M:IoT.Driver.Serial.UdpClientRx.#ctor(System.String,System.Int32)`
 
 ```csharp
-public IoT.DriverCore.Serial.UdpClientRx(string hostname, int port)
+public IoT.Driver.Serial.UdpClientRx(string hostname, int port)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.Serial.UdpClientRx` class.
+Initializes a new instance of the `T:IoT.Driver.Serial.UdpClientRx` class.
 
 - Parameter `hostname`: The hostname.
 - Parameter `port`: The port.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.Close`
+###### `M:IoT.Driver.Serial.UdpClientRx.Close`
 
 ```csharp
 public void Close()
 ```
 Closes this instance.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.Connect(System.Net.IPAddress,System.Int32)`
+###### `M:IoT.Driver.Serial.UdpClientRx.Connect(System.Net.IPAddress,System.Int32)`
 
 ```csharp
 public void Connect(System.Net.IPAddress addr, int port)
@@ -3093,7 +3096,7 @@ Connects the specified addr.
 - Parameter `addr`: The addr.
 - Parameter `port`: The port.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.Connect(System.Net.IPEndPoint)`
+###### `M:IoT.Driver.Serial.UdpClientRx.Connect(System.Net.IPEndPoint)`
 
 ```csharp
 public void Connect(System.Net.IPEndPoint endPoint)
@@ -3102,7 +3105,7 @@ Connects the specified end point.
 
 - Parameter `endPoint`: The end point.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.Connect(System.String,System.Int32)`
+###### `M:IoT.Driver.Serial.UdpClientRx.Connect(System.String,System.Int32)`
 
 ```csharp
 public void Connect(string hostname, int port)
@@ -3112,21 +3115,21 @@ Connects the specified hostname.
 - Parameter `hostname`: The hostname.
 - Parameter `port`: The port.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.DiscardInBuffer`
+###### `M:IoT.Driver.Serial.UdpClientRx.DiscardInBuffer`
 
 ```csharp
 public void DiscardInBuffer()
 ```
 Discards the in buffer.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.Dispose`
+###### `M:IoT.Driver.Serial.UdpClientRx.Dispose`
 
 ```csharp
 public void Dispose()
 ```
 Releases owned resources.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.OpenAsync`
+###### `M:IoT.Driver.Serial.UdpClientRx.OpenAsync`
 
 ```csharp
 public System.Threading.Tasks.Task OpenAsync()
@@ -3135,7 +3138,7 @@ Opens this instance.
 
 - Returns: A Task.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.ReadAsync(System.Byte[],System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.UdpClientRx.ReadAsync(System.Byte[],System.Int32,System.Int32)`
 
 ```csharp
 public System.Threading.Tasks.Task<int> ReadAsync(byte[] buffer, int offset, int count)
@@ -3147,7 +3150,7 @@ Reads the specified buffer.
 - Parameter `count`: The count.
 - Returns: A int.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.ReceiveAsync`
+###### `M:IoT.Driver.Serial.UdpClientRx.ReceiveAsync`
 
 ```csharp
 public System.Threading.Tasks.Task<System.Net.Sockets.UdpReceiveResult> ReceiveAsync()
@@ -3156,7 +3159,7 @@ Returns a UDP datagram asynchronously that was sent by a remote host.
 
 - Returns: The task object representing the asynchronous operation.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.SendAsync(System.Byte[],System.Int32,System.Net.IPEndPoint)`
+###### `M:IoT.Driver.Serial.UdpClientRx.SendAsync(System.Byte[],System.Int32,System.Net.IPEndPoint)`
 
 ```csharp
 public System.Threading.Tasks.Task<int> SendAsync(byte[] dataGram, int bytes, System.Net.IPEndPoint endPoint)
@@ -3168,7 +3171,7 @@ Sends a UDP datagram asynchronously to a remote host.
 - Parameter `endPoint`: The end point.
 - Returns: A Task of int.
 
-###### `M:IoT.DriverCore.Serial.UdpClientRx.Write(System.Byte[],System.Int32,System.Int32)`
+###### `M:IoT.Driver.Serial.UdpClientRx.Write(System.Byte[],System.Int32,System.Int32)`
 
 ```csharp
 public void Write(byte[] buffer, int offset, int count)
@@ -3179,7 +3182,7 @@ Writes the specified buffer.
 - Parameter `offset`: The offset.
 - Parameter `count`: The count.
 
-###### `P:IoT.DriverCore.Serial.UdpClientRx.Available`
+###### `P:IoT.Driver.Serial.UdpClientRx.Available`
 
 ```csharp
 public int Available { get; }
@@ -3188,7 +3191,7 @@ Gets the available.
 
 - Value: The available.
 
-###### `P:IoT.DriverCore.Serial.UdpClientRx.BytesReceived`
+###### `P:IoT.Driver.Serial.UdpClientRx.BytesReceived`
 
 ```csharp
 public System.IObservable<int> BytesReceived { get; }
@@ -3197,7 +3200,7 @@ Gets the data received.
 
 - Value: The data received.
 
-###### `P:IoT.DriverCore.Serial.UdpClientRx.BytesReceivedAsync`
+###### `P:IoT.Driver.Serial.UdpClientRx.BytesReceivedAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<int> BytesReceivedAsync { get; }
@@ -3206,7 +3209,7 @@ Gets the data received from ReadAsync as an async observable.
 
 - Value: The data received.
 
-###### `P:IoT.DriverCore.Serial.UdpClientRx.Client`
+###### `P:IoT.Driver.Serial.UdpClientRx.Client`
 
 ```csharp
 public System.Net.Sockets.Socket Client { get; set; }
@@ -3215,7 +3218,7 @@ Gets or sets the underlying System.Net.Sockets.Socket.
 
 - Value: The underlying network System.Net.Sockets.Socket.
 
-###### `P:IoT.DriverCore.Serial.UdpClientRx.DataReceived`
+###### `P:IoT.Driver.Serial.UdpClientRx.DataReceived`
 
 ```csharp
 public System.IObservable<int> DataReceived { get; }
@@ -3224,7 +3227,7 @@ Gets the data received.
 
 - Value: The data received.
 
-###### `P:IoT.DriverCore.Serial.UdpClientRx.DataReceivedAsync`
+###### `P:IoT.Driver.Serial.UdpClientRx.DataReceivedAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<int> DataReceivedAsync { get; }
@@ -3233,7 +3236,7 @@ Gets the data received as an async observable.
 
 - Value: The data received.
 
-###### `P:IoT.DriverCore.Serial.UdpClientRx.DataReceivedBatches`
+###### `P:IoT.Driver.Serial.UdpClientRx.DataReceivedBatches`
 
 ```csharp
 public System.IObservable<byte[]> DataReceivedBatches { get; }
@@ -3242,7 +3245,7 @@ Gets stream chunks (byte arrays) for each received UDP datagram.
 
 - Value: The `DataReceivedBatches` value.
 
-###### `P:IoT.DriverCore.Serial.UdpClientRx.DataReceivedBatchesAsync`
+###### `P:IoT.Driver.Serial.UdpClientRx.DataReceivedBatchesAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<byte[]> DataReceivedBatchesAsync { get; }
@@ -3251,7 +3254,7 @@ Gets stream chunks for each received UDP datagram as an async observable.
 
 - Value: The `DataReceivedBatchesAsync` value.
 
-###### `P:IoT.DriverCore.Serial.UdpClientRx.DontFragment`
+###### `P:IoT.Driver.Serial.UdpClientRx.DontFragment`
 
 ```csharp
 public bool DontFragment { get; set; }
@@ -3260,7 +3263,7 @@ Gets or sets a value indicating whether [dont fragment].
 
 - Value: true if [dont fragment]; otherwise, false .
 
-###### `P:IoT.DriverCore.Serial.UdpClientRx.EnableBroadcast`
+###### `P:IoT.Driver.Serial.UdpClientRx.EnableBroadcast`
 
 ```csharp
 public bool EnableBroadcast { get; set; }
@@ -3269,7 +3272,7 @@ Gets or sets a value indicating whether [enable broadcast].
 
 - Value: true if [enable broadcast]; otherwise, false .
 
-###### `P:IoT.DriverCore.Serial.UdpClientRx.ExclusiveAddressUse`
+###### `P:IoT.Driver.Serial.UdpClientRx.ExclusiveAddressUse`
 
 ```csharp
 public bool ExclusiveAddressUse { get; set; }
@@ -3278,7 +3281,7 @@ Gets or sets a value indicating whether [exclusive address use].
 
 - Value: true if [exclusive address use]; otherwise, false .
 
-###### `P:IoT.DriverCore.Serial.UdpClientRx.InfiniteTimeout`
+###### `P:IoT.Driver.Serial.UdpClientRx.InfiniteTimeout`
 
 ```csharp
 public int InfiniteTimeout { get; }
@@ -3287,7 +3290,7 @@ Gets the infinite timeout.
 
 - Value: The infinite timeout.
 
-###### `P:IoT.DriverCore.Serial.UdpClientRx.MulticastLoopback`
+###### `P:IoT.Driver.Serial.UdpClientRx.MulticastLoopback`
 
 ```csharp
 public bool MulticastLoopback { get; set; }
@@ -3296,7 +3299,7 @@ Gets or sets a value indicating whether [multicast loopback].
 
 - Value: true if [multicast loopback]; otherwise, false .
 
-###### `P:IoT.DriverCore.Serial.UdpClientRx.ReadTimeout`
+###### `P:IoT.Driver.Serial.UdpClientRx.ReadTimeout`
 
 ```csharp
 public int ReadTimeout { get; set; }
@@ -3305,7 +3308,7 @@ Gets or sets the read timeout.
 
 - Value: The read timeout.
 
-###### `P:IoT.DriverCore.Serial.UdpClientRx.Ttl`
+###### `P:IoT.Driver.Serial.UdpClientRx.Ttl`
 
 ```csharp
 public short Ttl { get; set; }
@@ -3314,7 +3317,7 @@ Gets or sets the TTL.
 
 - Value: The TTL.
 
-###### `P:IoT.DriverCore.Serial.UdpClientRx.WriteTimeout`
+###### `P:IoT.Driver.Serial.UdpClientRx.WriteTimeout`
 
 ```csharp
 public int WriteTimeout { get; set; }

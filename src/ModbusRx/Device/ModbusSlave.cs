@@ -4,25 +4,25 @@
 
 using System.Diagnostics;
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Data;
+using IoT.Driver.ModbusRx.Reactive.Data;
 #else
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.IO;
+using IoT.Driver.ModbusRx.Reactive.IO;
 #else
-using IoT.DriverCore.ModbusRx.IO;
+using IoT.Driver.ModbusRx.IO;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Message;
+using IoT.Driver.ModbusRx.Reactive.Message;
 #else
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Message;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Device;
+namespace IoT.Driver.ModbusRx.Reactive.Device;
 #else
-namespace IoT.DriverCore.ModbusRx.Device;
+namespace IoT.Driver.ModbusRx.Device;
 #endif
 
 /// <summary>Modbus slave device.</summary>
@@ -73,7 +73,7 @@ public abstract class ModbusSlave : ModbusDevice
             request.NumberOfPoints,
             dataStore.SyncRoot);
 
-        return new ReadCoilsInputsResponse(
+        return new(
             request.FunctionCode,
             request.SlaveAddress,
             data.ByteCount,
@@ -97,7 +97,7 @@ public abstract class ModbusSlave : ModbusDevice
             request.NumberOfPoints,
             dataStore.SyncRoot);
 
-        return new ReadHoldingInputRegistersResponse(
+        return new(
             request.FunctionCode,
             request.SlaveAddress,
             data);

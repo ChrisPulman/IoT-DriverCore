@@ -4,11 +4,11 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 #endif
 
@@ -36,27 +36,27 @@ internal sealed class MitsubishiTagDatabaseCompletionTests
     internal async Task DirectMutationGuardsRejectInvalidDefinitionsAsync()
     {
         var database = new MitsubishiTagDatabase([]);
-        database.Add(new MitsubishiTagDefinition("Plain", "D0"));
+        database.Add(new("Plain", "D0"));
 
         _ = Assert.Throws<ArgumentNullException>(() => database.Add(null!));
         _ = Assert.Throws<ArgumentException>(
-            () => database.Add(new MitsubishiTagDefinition(" ", "D0")));
+            () => database.Add(new(" ", "D0")));
         _ = Assert.Throws<ArgumentException>(
-            () => database.Add(new MitsubishiTagDefinition("NoAddress", " ")));
+            () => database.Add(new("NoAddress", " ")));
         _ = Assert.Throws<ArgumentOutOfRangeException>(
-            () => database.Add(new MitsubishiTagDefinition("Length", "D0", Length: 0)));
+            () => database.Add(new("Length", "D0", Length: 0)));
         _ = Assert.Throws<FormatException>(
-            () => database.Add(new MitsubishiTagDefinition("BadType", "D0", "Unsupported")));
+            () => database.Add(new("BadType", "D0", "Unsupported")));
         _ = Assert.Throws<FormatException>(
-            () => database.Add(new MitsubishiTagDefinition("Encoding", "D0", Encoding: "EBCDIC")));
+            () => database.Add(new("Encoding", "D0", Encoding: "EBCDIC")));
         _ = Assert.Throws<FormatException>(
-            () => database.Add(new MitsubishiTagDefinition("Order", "D0", ByteOrder: "Middle")));
+            () => database.Add(new("Order", "D0", ByteOrder: "Middle")));
         _ = Assert.Throws<KeyNotFoundException>(() => database.GetRequired("Missing"));
         _ = Assert.Throws<KeyNotFoundException>(() => database.GetRequiredGroup("Missing"));
         _ = Assert.Throws<ArgumentException>(
-            () => database.AddGroup(new MitsubishiTagGroupDefinition("Empty", [])));
+            () => database.AddGroup(new("Empty", [])));
         _ = Assert.Throws<ArgumentException>(
-            () => database.AddGroup(new MitsubishiTagGroupDefinition("Blank", [" "])));
+            () => database.AddGroup(new("Blank", [" "])));
         _ = Assert.Throws<ArgumentNullException>(() => database.AddGroup(null!));
 
         await Assert.That(database.GetRequired("Plain").DataType).IsNull();
@@ -84,17 +84,17 @@ internal sealed class MitsubishiTagDatabaseCompletionTests
             .IsEquivalentTo(["Quoted"]);
         await Assert.That(empty.Tags).IsEmpty();
 
-        _ = Assert.Throws<FormatException>(() => MitsubishiTagDatabase.FromCsv("Name,Address"));
+        _ = Assert.Throws<FormatException>(static () => MitsubishiTagDatabase.FromCsv("Name,Address"));
         _ = Assert.Throws<FormatException>(
-            () => MitsubishiTagDatabase.FromCsv("Name\nOnly"));
+            static () => MitsubishiTagDatabase.FromCsv("Name\nOnly"));
         _ = Assert.Throws<FormatException>(
-            () => MitsubishiTagDatabase.FromCsv("Name,Address\nOnly,"));
+            static () => MitsubishiTagDatabase.FromCsv("Name,Address\nOnly,"));
         _ = Assert.Throws<FormatException>(
-            () => MitsubishiTagDatabase.FromCsv("Name,Address,DataType\nOnly,D0,Bad"));
+            static () => MitsubishiTagDatabase.FromCsv("Name,Address,DataType\nOnly,D0,Bad"));
         _ = Assert.Throws<FormatException>(
-            () => MitsubishiTagDatabase.FromCsv("Name,Address,Encoding\nOnly,D0,Bad"));
+            static () => MitsubishiTagDatabase.FromCsv("Name,Address,Encoding\nOnly,D0,Bad"));
         _ = Assert.Throws<FormatException>(
-            () => MitsubishiTagDatabase.FromCsv("Name,Address,ByteOrder\nOnly,D0,Bad"));
+            static () => MitsubishiTagDatabase.FromCsv("Name,Address,ByteOrder\nOnly,D0,Bad"));
     }
 
     /// <summary>Exercises unsupported file paths for both persistence directions.</summary>
@@ -137,21 +137,21 @@ internal sealed class MitsubishiTagDatabaseCompletionTests
             "D0",
             "OldGroup",
             [RemovedTagName, ChangedTagName]);
-        previous.Add(new MitsubishiTagDefinition(ChangedTagName, "D1", UInt16DataType));
+        previous.Add(new(ChangedTagName, "D1", UInt16DataType));
         var current = CreateDiffDatabase(
             AddedTagName,
             "D2",
             "NewGroup",
             [AddedTagName, ChangedTagName]);
-        current.Add(new MitsubishiTagDefinition(ChangedTagName, "D3", UInt16DataType));
-        previous.AddGroup(new MitsubishiTagGroupDefinition("ChangedGroup", [RemovedTagName]));
-        current.AddGroup(new MitsubishiTagGroupDefinition("ChangedGroup", [AddedTagName]));
+        current.Add(new(ChangedTagName, "D3", UInt16DataType));
+        previous.AddGroup(new("ChangedGroup", [RemovedTagName]));
+        current.AddGroup(new("ChangedGroup", [AddedTagName]));
 
         var diff = previous.CompareWith(current);
 
         await Assert.That(diff.ChangeCount).IsEqualTo(ExpectedChangeCount);
         await Assert.That(diff.HasChanges).IsTrue();
-        await Assert.That(diff.ChangeKinds.HasFlag(MitsubishiSchemaChangeKind.StructureChange)).IsTrue();
+        await Assert.That((diff.ChangeKinds & MitsubishiSchemaChangeKind.StructureChange) == MitsubishiSchemaChangeKind.StructureChange).IsTrue();
         await Assert.That(diff.ChangedTags[0].ChangeKinds).IsNotEqualTo(MitsubishiSchemaChangeKind.None);
         await Assert.That(diff.ChangedGroups[0].ChangeKinds).IsNotEqualTo(MitsubishiSchemaChangeKind.None);
         await Assert.That(MitsubishiTagDatabaseDiff.Empty.HasChanges).IsFalse();
@@ -177,7 +177,7 @@ internal sealed class MitsubishiTagDatabaseCompletionTests
         [
             new MitsubishiTagDefinition(tagName, address, UInt16DataType),
         ]);
-        database.AddGroup(new MitsubishiTagGroupDefinition(groupName, members));
+        database.AddGroup(new(groupName, members));
         return database;
     }
 }

@@ -4,11 +4,11 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -70,10 +70,7 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         int wordLength,
         CancellationToken cancellationToken)
     {
-        if (wordLength <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(wordLength));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(wordLength);
 
         var tag = GetRequiredTag(tagName);
         var raw = await ReadWordsByTagAsync(tagName, wordLength, cancellationToken)
@@ -112,10 +109,7 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(value);
-        if (wordLength <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(wordLength));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(wordLength);
 
         var tag = GetRequiredTag(tagName);
         return WriteWordsByTagAsync(
@@ -167,18 +161,18 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
             var validation = ValidateTagDatabase(database);
             if (!validation.IsSucceed)
             {
-                return new Responce<MitsubishiTagDatabase>(validation);
+                return new(validation);
             }
 
             var diff = (TagDatabase ?? new MitsubishiTagDatabase([])).CompareWith(database);
             var policyResult = ValidateRolloutPolicy(diff, policy);
             if (!policyResult.IsSucceed)
             {
-                return new Responce<MitsubishiTagDatabase>(policyResult, database);
+                return new(policyResult, database);
             }
 
             TagDatabase = database;
-            return new Responce<MitsubishiTagDatabase>(policyResult, database);
+            return new(policyResult, database);
         }
         catch (Exception ex)
         {
@@ -207,12 +201,12 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
             var validation = ValidateTagDatabase(database);
             if (!validation.IsSucceed)
             {
-                return new Responce<MitsubishiTagDatabaseDiff>(validation);
+                return new(validation);
             }
 
             var diff = (TagDatabase ?? new MitsubishiTagDatabase([])).CompareWith(database);
             var policyResult = ValidateRolloutPolicy(diff, policy);
-            return new Responce<MitsubishiTagDatabaseDiff>(policyResult, diff);
+            return new(policyResult, diff);
         }
         catch (Exception ex)
         {
@@ -364,13 +358,13 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
                 .ConfigureAwait(false);
             if (!valueResult.IsSucceed)
             {
-                return new Responce<MitsubishiTagGroupSnapshot>(valueResult);
+                return new(valueResult);
             }
 
             values[tagName] = valueResult.Value;
         }
 
-        return new Responce<MitsubishiTagGroupSnapshot>(
+        return new(
             new MitsubishiTagGroupSnapshot(group.Name, values));
     }
 }

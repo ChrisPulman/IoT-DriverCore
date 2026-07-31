@@ -6,7 +6,7 @@ using System;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace IoT.DriverCore.ModbusRx.Generators;
+namespace IoT.Driver.ModbusRx.Generators;
 
 /// <summary>Generates Modbus-backed reactive properties and observable streams.</summary>
 public sealed partial class ModbusReactiveStreamGenerator
@@ -148,13 +148,13 @@ public sealed partial class ModbusReactiveStreamGenerator
                 }
             }
 
-            return new DeviceOptions(
+            return new(
                 connectionMember,
                 tagClientMember,
                 slaveAddress,
                 defaultInterval,
                 masterKind,
-                "global::IoT.DriverCore.ModbusRx");
+                "global::IoT.Driver.ModbusRx");
         }
 
         /// <summary>Creates a copy with a resolved API root namespace.</summary>
@@ -212,7 +212,7 @@ public sealed partial class ModbusReactiveStreamGenerator
                 }
             }
 
-            return new PointOptions(count, swapWords, tagName);
+            return new(count, swapWords, tagName);
         }
     }
 

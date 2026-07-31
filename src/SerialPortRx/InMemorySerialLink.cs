@@ -3,16 +3,20 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.Serial.Reactive;
+namespace IoT.Driver.Serial.Reactive;
 #else
-namespace IoT.DriverCore.Serial;
+namespace IoT.Driver.Serial;
 #endif
 
 /// <summary>Provides a deterministic two-ended byte link for in-memory serial connections.</summary>
 internal sealed class InMemorySerialLink
 {
     /// <summary>Synchronizes active endpoint access.</summary>
+#if NET9_0_OR_GREATER || NETFRAMEWORK
+    private readonly Lock _sync = new();
+#else
     private readonly object _sync = new();
+#endif
 
     /// <summary>The currently open endpoints.</summary>
     private readonly InMemorySerialPortConnection?[] _endpoints = new InMemorySerialPortConnection?[2];

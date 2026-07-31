@@ -6,9 +6,9 @@ using System.Reflection;
 using ReactiveUI.Primitives.Signals;
 using TUnit.Assertions;
 using TUnit.Core;
-using PlcController = IoT.DriverCore.ABPlcRx.ABPlcRx;
+using PlcController = IoT.Driver.ABPlcRx.ABPlcRx;
 
-namespace IoT.DriverCore.ABPlcRx.Tests;
+namespace IoT.Driver.ABPlcRx.Tests;
 
 /// <summary>Tests core PLC helper behavior that does not require a live controller.</summary>
 public sealed class CoreBehaviorTests
@@ -85,7 +85,7 @@ public sealed class CoreBehaviorTests
         var values = TagHelper.CreateObject(default(string[]), SampleCollectionLength);
 
         await Assert.That(values.Length).IsEqualTo(SampleCollectionLength);
-        await Assert.That(values.All(static value => value is { Length: 0 })).IsTrue();
+        await Assert.That(Array.TrueForAll(values, static value => value is { Length: 0 })).IsTrue();
     }
 
     /// <summary>Verifies bool creation returns the default value.</summary>
@@ -196,11 +196,11 @@ public sealed class CoreBehaviorTests
     [Test]
     internal async Task BitIndexValidationRejectsInvalidTypesAndRangesAsync()
     {
-        await Assert.That(() => ValidateBitIndex(typeof(byte), LastByteBit)).ThrowsNothing();
-        await Assert.That(() => ValidateBitIndex(typeof(short), LastShortBit)).ThrowsNothing();
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => ValidateBitIndex(typeof(byte), -1));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => ValidateBitIndex(typeof(byte), ByteBitWidth));
-        _ = Assert.Throws<ArgumentException>(() => ValidateBitIndex(typeof(bool), 0));
+        await Assert.That(static () => ValidateBitIndex(typeof(byte), LastByteBit)).ThrowsNothing();
+        await Assert.That(static () => ValidateBitIndex(typeof(short), LastShortBit)).ThrowsNothing();
+        _ = Assert.Throws<ArgumentOutOfRangeException>(static () => ValidateBitIndex(typeof(byte), -1));
+        _ = Assert.Throws<ArgumentOutOfRangeException>(static () => ValidateBitIndex(typeof(byte), ByteBitWidth));
+        _ = Assert.Throws<ArgumentException>(static () => ValidateBitIndex(typeof(bool), 0));
     }
 
     /// <summary>Invokes the private unsigned integral reader.</summary>

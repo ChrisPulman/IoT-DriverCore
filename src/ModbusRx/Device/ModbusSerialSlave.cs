@@ -4,25 +4,25 @@
 
 using System.Diagnostics;
 #if REACTIVE_SHIM
-using IoT.DriverCore.Serial.Reactive;
+using IoT.Driver.Serial.Reactive;
 #else
-using IoT.DriverCore.Serial;
+using IoT.Driver.Serial;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.IO;
+using IoT.Driver.ModbusRx.Reactive.IO;
 #else
-using IoT.DriverCore.ModbusRx.IO;
+using IoT.Driver.ModbusRx.IO;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Message;
+using IoT.Driver.ModbusRx.Reactive.Message;
 #else
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Message;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Device;
+namespace IoT.Driver.ModbusRx.Reactive.Device;
 #else
-namespace IoT.DriverCore.ModbusRx.Device;
+namespace IoT.Driver.ModbusRx.Device;
 #endif
 
 /// <summary>Modbus serial slave device.</summary>
@@ -41,12 +41,8 @@ public sealed class ModbusSerialSlave : ModbusSlave
     {
         get
         {
-            if (Transport is not ModbusSerialTransport transport)
-            {
-                throw new ObjectDisposedException(nameof(SerialTransport));
-            }
-
-            return transport;
+            return Transport as ModbusSerialTransport
+                ?? throw new ObjectDisposedException(nameof(SerialTransport));
         }
     }
 
@@ -57,10 +53,7 @@ public sealed class ModbusSerialSlave : ModbusSlave
     /// <exception cref="System.ArgumentNullException">serialPort.</exception>
     public static ModbusSerialSlave CreateAscii(byte unitId, SerialPortRx serialPort)
     {
-        if (serialPort is null)
-        {
-            throw new ArgumentNullException(nameof(serialPort));
-        }
+        serialPort = ArgumentGuard.NotNull(serialPort, nameof(serialPort));
 
         return CreateAscii(unitId, new SerialPortAdapter(serialPort));
     }
@@ -72,12 +65,9 @@ public sealed class ModbusSerialSlave : ModbusSlave
     /// <exception cref="System.ArgumentNullException">streamResource.</exception>
     public static ModbusSerialSlave CreateAscii(byte unitId, IStreamResource streamResource)
     {
-        if (streamResource is null)
-        {
-            throw new ArgumentNullException(nameof(streamResource));
-        }
+        streamResource = ArgumentGuard.NotNull(streamResource, nameof(streamResource));
 
-        return new ModbusSerialSlave(unitId, new ModbusAsciiTransport(streamResource));
+        return new(unitId, new ModbusAsciiTransport(streamResource));
     }
 
     /// <summary>Modbus RTU slave factory method.</summary>
@@ -87,10 +77,7 @@ public sealed class ModbusSerialSlave : ModbusSlave
     /// <exception cref="System.ArgumentNullException">serialPort.</exception>
     public static ModbusSerialSlave CreateRtu(byte unitId, SerialPortRx serialPort)
     {
-        if (serialPort is null)
-        {
-            throw new ArgumentNullException(nameof(serialPort));
-        }
+        serialPort = ArgumentGuard.NotNull(serialPort, nameof(serialPort));
 
         return CreateRtu(unitId, new SerialPortAdapter(serialPort));
     }
@@ -102,12 +89,9 @@ public sealed class ModbusSerialSlave : ModbusSlave
     /// <exception cref="System.ArgumentNullException">streamResource.</exception>
     public static ModbusSerialSlave CreateRtu(byte unitId, IStreamResource streamResource)
     {
-        if (streamResource is null)
-        {
-            throw new ArgumentNullException(nameof(streamResource));
-        }
+        streamResource = ArgumentGuard.NotNull(streamResource, nameof(streamResource));
 
-        return new ModbusSerialSlave(unitId, new ModbusRtuTransport(streamResource));
+        return new(unitId, new ModbusRtuTransport(streamResource));
     }
 
     /// <summary>Start slave listening for requests.</summary>
@@ -126,7 +110,7 @@ public sealed class ModbusSerialSlave : ModbusSlave
 
                 if (transport.CheckFrame && !transport.ChecksumsMatch(request, frame))
                 {
-                    var msg = $"Checksums failed to match {string.Join(", ", request.MessageFrame)} " +
+                    var msg = $"Checksums failed to match {string.Join(", ", request.ToMessageFrame())} " +
                               $"!= {string.Join(", ", frame)}.";
                     Debug.WriteLine(msg);
                     throw new IOException(msg);

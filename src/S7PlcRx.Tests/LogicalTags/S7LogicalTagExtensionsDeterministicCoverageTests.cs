@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.S7PlcRx.Binding;
-using IoT.DriverCore.S7PlcRx.LogicalTags;
+using IoT.Driver.Core;
+using IoT.Driver.S7PlcRx.Binding;
+using IoT.Driver.S7PlcRx.LogicalTags;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.LogicalTags;
+namespace IoT.Driver.S7PlcRx.Tests.LogicalTags;
 
 /// <summary>Provides deterministic coverage of S7 logical-tag extension methods.</summary>
 public sealed class S7LogicalTagExtensionsDeterministicCoverageTests
@@ -41,6 +41,9 @@ public sealed class S7LogicalTagExtensionsDeterministicCoverageTests
     /// <summary>Defines the null-time-provider write payload.</summary>
     private const int NullProviderWriteValue = 20;
 
+    /// <summary>Defines the SQLite connection string for the transient persistence test.</summary>
+    private static readonly string InMemoryConnectionString = string.Concat("Data Source=", ":memory:");
+
     /// <summary>Verifies generated binding definitions become correctly configured common logical tags.</summary>
     /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
@@ -74,7 +77,7 @@ public sealed class S7LogicalTagExtensionsDeterministicCoverageTests
         await TUnit.Assertions.Assert.That(output?.ScanInterval).IsNull();
         await TUnit.Assertions.Assert.That(catalog.TryGet("Input", out var input)).IsTrue();
         await TUnit.Assertions.Assert.That(input?.AccessMode).IsEqualTo(LogicalTagAccessMode.Read);
-        await TUnit.Assertions.Assert.That(() => S7LogicalTagExtensions.CreateLogicalTagCatalog(null!))
+        await TUnit.Assertions.Assert.That(static () => S7LogicalTagExtensions.CreateLogicalTagCatalog(null!))
             .Throws<ArgumentNullException>();
     }
 
@@ -108,7 +111,7 @@ public sealed class S7LogicalTagExtensionsDeterministicCoverageTests
             CanceledWriteValue,
             TimeProvider.System,
             cancellation.Token);
-        Func<Task> nullClient = async () => _ = await S7LogicalTagExtensions.ReadAsync(
+        Func<Task> nullClient = static async () => _ = await S7LogicalTagExtensions.ReadAsync(
             null!,
             ValueTagName,
             default(int),
@@ -142,7 +145,7 @@ public sealed class S7LogicalTagExtensionsDeterministicCoverageTests
         using var persistentClient = S7LogicalTagExtensions.CreateLogicalTagClient(
             plc,
             catalog,
-            new LogicalTagSqliteStore("Data Source=:memory:"));
+            new(InMemoryConnectionString));
         plc.SetAsyncValue(ValueTagName, InitialValue);
 
         var read = await S7LogicalTagExtensions.ReadAsync(client, ValueTagName, default(int));
@@ -170,8 +173,8 @@ public sealed class S7LogicalTagExtensionsDeterministicCoverageTests
     private static LogicalTagCatalog CreateCatalog()
     {
         var catalog = new LogicalTagCatalog();
-        catalog.Upsert(new LogicalTag(ValueTagName, "DB1.DBW0", "WORD"));
-        catalog.Upsert(new LogicalTag(
+        catalog.Upsert(new(ValueTagName, "DB1.DBW0", "WORD"));
+        catalog.Upsert(new(
             ReadOnlyTagName,
             "DB1.DBW2",
             "WORD",

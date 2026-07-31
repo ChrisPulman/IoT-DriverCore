@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using Byte = IoT.DriverCore.S7PlcRx.PlcTypes.Byte;
+using Byte = IoT.Driver.S7PlcRx.PlcTypes.Byte;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Tests.PlcTypes;
 
 /// <summary>Tests the byte PlcType helpers.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
@@ -16,49 +16,54 @@ public class ByteTests
     private string DebuggerDisplay => ToString() ?? string.Empty;
 
     /// <summary>Ensures byte conversion roundtrips.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void ToByteArray_ThenFromByteArray_ShouldRoundtrip()
+    public async Task ToByteArray_ThenFromByteArray_ShouldRoundtrip()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         var bytes = Byte.ToByteArray(0xAB);
         var parsed = Byte.FromByteArray(bytes);
-        Assert.That(parsed, Is.EqualTo(0xAB));
+        await Assert.That(parsed, Is.EqualTo(0xAB));
     }
 
     /// <summary>Ensures span write guard is enforced.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void ToSpan_WhenDestinationTooSmall_ShouldThrow()
+    public async Task ToSpan_WhenDestinationTooSmall_ShouldThrow()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         var dest = Array.Empty<byte>();
-        _ = Assert.Throws<ArgumentException>(() => Byte.ToSpan(0x01, dest));
+        _ = await Assert.Throws<ArgumentException>(() => Byte.ToSpan(0x01, dest));
     }
 
     /// <summary>Ensures span read guard is enforced.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void FromSpan_WhenEmpty_ShouldThrow()
+    public async Task FromSpan_WhenEmpty_ShouldThrow()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
-        _ = Assert.Throws<ArgumentException>(() => Byte.FromSpan(ReadOnlySpan<byte>.Empty));
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
+        _ = await Assert.Throws<ArgumentException>(static () => Byte.FromSpan(ReadOnlySpan<byte>.Empty));
     }
 
     /// <summary>Ensures multi-byte copy works.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void ToSpan_WhenCopyingMultipleBytes_ShouldCopy()
+    public async Task ToSpan_WhenCopyingMultipleBytes_ShouldCopy()
     {
         byte[] src = [1, 2, 3];
-        Span<byte> dest = stackalloc byte[3];
+        var dest = new byte[3];
         Byte.ToSpan(src, dest);
-        Assert.That(dest.ToArray(), Is.EqualTo(src));
+        await Assert.That(dest, Is.EqualTo(src));
     }
 
     /// <summary>Ensures multi-byte copy guard is enforced.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void ToSpan_WhenDestinationTooSmallForMultiple_ShouldThrow()
+    public async Task ToSpan_WhenDestinationTooSmallForMultiple_ShouldThrow()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         byte[] src = [1, 2, 3];
         var dest = new byte[2];
-        _ = Assert.Throws<ArgumentException>(() => Byte.ToSpan(src, dest));
+        _ = await Assert.Throws<ArgumentException>(() => Byte.ToSpan(src, dest));
     }
 }

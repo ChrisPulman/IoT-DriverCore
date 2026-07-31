@@ -4,15 +4,15 @@
 
 using System.Collections.ObjectModel;
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Utility;
+using IoT.Driver.ModbusRx.Reactive.Utility;
 #else
-using IoT.DriverCore.ModbusRx.Utility;
+using IoT.Driver.ModbusRx.Utility;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Data;
+namespace IoT.Driver.ModbusRx.Reactive.Data;
 #else
-namespace IoT.DriverCore.ModbusRx.Data;
+namespace IoT.Driver.ModbusRx.Data;
 #endif
 
 /// <summary>Event args for read write actions performed on the DataStore.</summary>
@@ -47,15 +47,13 @@ public sealed class DataStoreEventArgs : EventArgs
         ModbusDataType modbusDataType,
         IEnumerable<T> data)
     {
-        if (data is null)
-        {
-            throw new ArgumentNullException(nameof(data));
-        }
+        data = ArgumentGuard.NotNull(data, nameof(data));
+        var valuesToConvert = data as ICollection<T> ?? [.. data];
 
         if (typeof(T) == typeof(bool))
         {
             var values = new List<bool>();
-            foreach (var item in data)
+            foreach (var item in valuesToConvert)
             {
                 if (item is bool value)
                 {
@@ -63,18 +61,17 @@ public sealed class DataStoreEventArgs : EventArgs
                 }
             }
 
-            var a = new ReadOnlyCollection<bool>(values);
+            ReadOnlyCollection<bool> readOnlyValues = new(values);
 
-            return new DataStoreEventArgs(startAddress, modbusDataType)
-            {
-                Data = DiscriminatedUnion<ReadOnlyCollection<bool>, ReadOnlyCollection<ushort>>.CreateA(a),
-            };
+            var eventArgs = new DataStoreEventArgs(startAddress, modbusDataType);
+            eventArgs.Data = DiscriminatedUnion<ReadOnlyCollection<bool>, ReadOnlyCollection<ushort>>.CreateA(readOnlyValues);
+            return eventArgs;
         }
 
         if (typeof(T) == typeof(ushort))
         {
             var values = new List<ushort>();
-            foreach (var item in data)
+            foreach (var item in valuesToConvert)
             {
                 if (item is ushort value)
                 {
@@ -82,12 +79,11 @@ public sealed class DataStoreEventArgs : EventArgs
                 }
             }
 
-            var b = new ReadOnlyCollection<ushort>(values);
+            ReadOnlyCollection<ushort> readOnlyValues = new(values);
 
-            return new DataStoreEventArgs(startAddress, modbusDataType)
-            {
-                Data = DiscriminatedUnion<ReadOnlyCollection<bool>, ReadOnlyCollection<ushort>>.CreateB(b),
-            };
+            var eventArgs = new DataStoreEventArgs(startAddress, modbusDataType);
+            eventArgs.Data = DiscriminatedUnion<ReadOnlyCollection<bool>, ReadOnlyCollection<ushort>>.CreateB(readOnlyValues);
+            return eventArgs;
         }
 
         throw new ArgumentException("Generic type T should be of type bool or ushort");

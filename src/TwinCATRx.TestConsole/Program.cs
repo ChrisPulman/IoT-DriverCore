@@ -4,13 +4,13 @@
 
 using System.Diagnostics.CodeAnalysis;
 using CP.Collections;
-using IoT.DriverCore.TwinCATRx;
-using IoT.DriverCore.TwinCATRx.Core;
-using CoreApi = IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions;
-using ObservableBridge = IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions;
-using TwinCatRxApi = IoT.DriverCore.TwinCATRx.TwinCatRxExtensions;
+using IoT.Driver.TwinCATRx;
+using IoT.Driver.TwinCATRx.Core;
+using CoreApi = IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions;
+using ObservableBridge = IoT.Driver.TwinCATRx.ObservableBridgeExtensions;
+using TwinCatRxApi = IoT.Driver.TwinCATRx.TwinCatRxExtensions;
 
-namespace IoT.DriverCore.TwinCATRx.TestConsole;
+namespace IoT.Driver.TwinCATRx.TestConsole;
 
 /// <summary>The main entry point for the application.</summary>
 internal static class Program
@@ -51,6 +51,7 @@ internal static class Program
     /// <summary>Runs the test console.</summary>
     /// <param name="args">The command-line arguments.</param>
     /// <returns>The application task.</returns>
+    [STAThread]
     [RequiresDynamicCode("RxTcAdsClient generates PLC structure types at runtime.")]
     [RequiresUnreferencedCode("RxTcAdsClient uses reflection to materialize PLC types.")]
     internal static async Task Main(string[] args)
@@ -177,10 +178,10 @@ internal static class Program
         using var client = new RxTcAdsClient();
         using var initializeSubscription = ObservableBridge.SubscribeTo(
             client.InitializeComplete,
-            _ => Output.WriteLine("TwinCATRx client initialized."));
+            static _ => Output.WriteLine("TwinCATRx client initialized."));
         using var errorSubscription = ObservableBridge.SubscribeTo(
             client.ErrorReceived,
-            error => Output.WriteLine($"ADS error: {error}"));
+            static error => Output.WriteLine($"ADS error: {error}"));
         try
         {
             client.Connect(settings);
@@ -256,7 +257,13 @@ internal static class Program
         void SetException(Exception error) => _ = completion.TrySetException(error);
 
         await using var cancellationRegistration = cancellationToken.Register(
-            () => completion.TrySetCanceled(cancellationToken));
+            static state =>
+            {
+                var cancellationState =
+                    ((TaskCompletionSource<bool> CompletionSource, CancellationToken Token))state!;
+                _ = cancellationState.CompletionSource.TrySetCanceled(cancellationState.Token);
+            },
+            (completion, cancellationToken));
         using var subscription = ObservableBridge.SubscribeTo(
             TwinCatRxApi.StructureReady(values),
             _ => completion.TrySetResult(true),

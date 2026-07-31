@@ -3,17 +3,17 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Enums;
-using IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+using IoT.Driver.S7PlcRx.Reactive.Enums;
+using IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.PlcTypes;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive;
+namespace IoT.Driver.S7PlcRx.Reactive;
 #else
-namespace IoT.DriverCore.S7PlcRx;
+namespace IoT.Driver.S7PlcRx;
 #endif
 
 /// <summary>Contains read-operation members for <see cref="RxS7"/>.</summary>
@@ -157,8 +157,9 @@ public partial class RxS7
                 // now join the header and the data
                 package.Add(value);
 
-                var sent = _socketRx.Send(tag, package.Array, package.Array.Length);
-                if (package.Array.Length != sent)
+                var packageBytes = package.ToArray();
+                var sent = _socketRx.Send(tag, packageBytes, packageBytes.Length);
+                if (packageBytes.Length != sent)
                 {
                     return false;
                 }
@@ -337,30 +338,33 @@ public partial class RxS7
             return correctVariable[..AreaAddressCodeLength] switch
             {
                 "DB" => ReadDataBlockAddress(tag, correctVariable),
-                "EB" => ReadByteAddress(tag, DataType.Input, int.Parse(correctVariable[AreaAddressCodeLength..])),
-                "EW" => ReadWordAddress(
+                "EB" => AddressReader.ReadByteAddress(this, tag, DataType.Input, int.Parse(correctVariable[AreaAddressCodeLength..])),
+                "EW" => AddressReader.ReadWordAddress(
+                    this,
                     tag,
                     DataType.Input,
                     int.Parse(correctVariable[AreaAddressCodeLength..]),
                     VarType.Word,
                     VarType.Word),
-                "ED" => ReadAreaDWordAddress(tag, DataType.Input, int.Parse(correctVariable[AreaAddressCodeLength..])),
-                "AB" => ReadByteAddress(tag, DataType.Output, int.Parse(correctVariable[AreaAddressCodeLength..])),
-                "AW" => ReadWordAddress(
+                "ED" => AddressReader.ReadAreaDWordAddress(this, tag, DataType.Input, int.Parse(correctVariable[AreaAddressCodeLength..])),
+                "AB" => AddressReader.ReadByteAddress(this, tag, DataType.Output, int.Parse(correctVariable[AreaAddressCodeLength..])),
+                "AW" => AddressReader.ReadWordAddress(
+                    this,
                     tag,
                     DataType.Output,
                     int.Parse(correctVariable[AreaAddressCodeLength..]),
                     VarType.Word,
                     VarType.Word),
-                "AD" => ReadAreaDWordAddress(tag, DataType.Output, int.Parse(correctVariable[AreaAddressCodeLength..])),
-                "MB" => ReadByteAddress(tag, DataType.Memory, int.Parse(correctVariable[AreaAddressCodeLength..])),
-                "MW" => ReadWordAddress(
+                "AD" => AddressReader.ReadAreaDWordAddress(this, tag, DataType.Output, int.Parse(correctVariable[AreaAddressCodeLength..])),
+                "MB" => AddressReader.ReadByteAddress(this, tag, DataType.Memory, int.Parse(correctVariable[AreaAddressCodeLength..])),
+                "MW" => AddressReader.ReadWordAddress(
+                    this,
                     tag,
                     DataType.Memory,
                     int.Parse(correctVariable[AreaAddressCodeLength..]),
                     VarType.Word,
                     VarType.Word),
-                "MD" => ReadMemoryDWordAddress(tag, int.Parse(correctVariable[AreaAddressCodeLength..])),
+                "MD" => AddressReader.ReadMemoryDWordAddress(this, tag, int.Parse(correctVariable[AreaAddressCodeLength..])),
                 _ => ReadSpecialOrBitAddress(tag, correctVariable),
             };
         }
@@ -390,26 +394,31 @@ public partial class RxS7
         var dbIndex = int.Parse(strings[1][AddressTypeCodeLength..]);
         return dbType switch
         {
-            "DBB" => ReadByteAddress(tag, DataType.DataBlock, dbIndex, dbNumber),
-            "DBW" => ReadWordAddress(tag, DataType.DataBlock, dbIndex, VarType.Int, VarType.Word, dbNumber),
-            "DBD" => ReadDataBlockDWordAddress(tag, dbNumber, dbIndex),
-            "DBX" => ReadDataBlockBitAddress(tag, strings, dbNumber, dbIndex),
+            "DBB" => AddressReader.ReadByteAddress(this, tag, DataType.DataBlock, dbIndex, dbNumber),
+            "DBW" => AddressReader.ReadWordAddress(this, tag, DataType.DataBlock, dbIndex, VarType.Int, VarType.Word, dbNumber),
+            "DBD" => AddressReader.ReadDataBlockDWordAddress(this, tag, dbNumber, dbIndex),
+            "DBX" => ReadDataBlockBitAddress(this, tag, strings, dbNumber, dbIndex),
             _ => throw new ArgumentException($"Unable to parse DB address type '{dbType}'.", nameof(tag)),
         };
     }
 
+    /// <summary>Provides static address-specific read helpers.</summary>
+    private static class AddressReader
+    {
     /// <summary>Reads a byte address from the specified data area.</summary>
+    /// <param name="instance">The PLC reader that performs the operation.</param>
     /// <param name="tag">The tag to read.</param>
     /// <param name="dataType">The data area type.</param>
     /// <param name="startByteAdr">The byte offset.</param>
     /// <param name="db">The data block number.</param>
     /// <returns>The byte value or array.</returns>
-    private object? ReadByteAddress(Tag tag, DataType dataType, int startByteAdr, int db = 0) =>
+    internal static object? ReadByteAddress(RxS7 instance, Tag tag, DataType dataType, int startByteAdr, int db = 0) =>
         tag.Type == typeof(byte[])
-            ? Read<byte[]>(tag, dataType, db, startByteAdr, VarType.Byte)
-            : Read<byte>(tag, dataType, db, startByteAdr, VarType.Byte);
+            ? instance.Read<byte[]>(tag, dataType, db, startByteAdr, VarType.Byte)
+            : instance.Read<byte>(tag, dataType, db, startByteAdr, VarType.Byte);
 
     /// <summary>Reads a word address from the specified data area.</summary>
+    /// <param name="instance">The PLC reader that performs the operation.</param>
     /// <param name="tag">The tag to read.</param>
     /// <param name="dataType">The data area type.</param>
     /// <param name="startByteAdr">The byte offset.</param>
@@ -417,7 +426,8 @@ public partial class RxS7
     /// <param name="unsignedVarType">The variable type for unsigned values.</param>
     /// <param name="db">The data block number.</param>
     /// <returns>The word value or array.</returns>
-    private object? ReadWordAddress(
+    internal static object? ReadWordAddress(
+        RxS7 instance,
         Tag tag,
         DataType dataType,
         int startByteAdr,
@@ -427,89 +437,93 @@ public partial class RxS7
     {
         if (tag.Type == typeof(short[]))
         {
-            return Read<short[]>(tag, dataType, db, startByteAdr, signedVarType);
+            return instance.Read<short[]>(tag, dataType, db, startByteAdr, signedVarType);
         }
 
         if (tag.Type == typeof(short))
         {
-            return Read<short>(tag, dataType, db, startByteAdr, signedVarType);
+            return instance.Read<short>(tag, dataType, db, startByteAdr, signedVarType);
         }
 
         return tag.Type == typeof(ushort[])
-            ? Read<ushort[]>(tag, dataType, db, startByteAdr, unsignedVarType)
-            : Read<ushort>(tag, dataType, db, startByteAdr, unsignedVarType);
+            ? instance.Read<ushort[]>(tag, dataType, db, startByteAdr, unsignedVarType)
+            : instance.Read<ushort>(tag, dataType, db, startByteAdr, unsignedVarType);
     }
 
     /// <summary>Reads a data block double-word address.</summary>
+    /// <param name="instance">The PLC reader that performs the operation.</param>
     /// <param name="tag">The tag to read.</param>
     /// <param name="db">The data block number.</param>
     /// <param name="startByteAdr">The byte offset.</param>
     /// <returns>The double-word value or array.</returns>
-    private object? ReadDataBlockDWordAddress(Tag tag, int db, int startByteAdr)
+    internal static object? ReadDataBlockDWordAddress(RxS7 instance, Tag tag, int db, int startByteAdr)
     {
         if (tag.Type == typeof(double))
         {
-            return Read<double>(tag, DataType.DataBlock, db, startByteAdr, VarType.LReal);
+            return instance.Read<double>(tag, DataType.DataBlock, db, startByteAdr, VarType.LReal);
         }
 
         if (tag.Type == typeof(double[]))
         {
-            return Read<double[]>(tag, DataType.DataBlock, db, startByteAdr, VarType.LReal);
+            return instance.Read<double[]>(tag, DataType.DataBlock, db, startByteAdr, VarType.LReal);
         }
 
         if (tag.Type == typeof(float))
         {
-            return Read<float>(tag, DataType.DataBlock, db, startByteAdr, VarType.Real);
+            return instance.Read<float>(tag, DataType.DataBlock, db, startByteAdr, VarType.Real);
         }
 
         if (tag.Type == typeof(float[]))
         {
-            return Read<float[]>(tag, DataType.DataBlock, db, startByteAdr, VarType.Real);
+            return instance.Read<float[]>(tag, DataType.DataBlock, db, startByteAdr, VarType.Real);
         }
 
         if (tag.Type == typeof(int))
         {
-            return Read<int>(tag, DataType.DataBlock, db, startByteAdr, VarType.DInt);
+            return instance.Read<int>(tag, DataType.DataBlock, db, startByteAdr, VarType.DInt);
         }
 
         if (tag.Type == typeof(int[]))
         {
-            return Read<int[]>(tag, DataType.DataBlock, db, startByteAdr, VarType.DInt);
+            return instance.Read<int[]>(tag, DataType.DataBlock, db, startByteAdr, VarType.DInt);
         }
 
         return tag.Type == typeof(uint[])
-            ? Read<uint[]>(tag, DataType.DataBlock, db, startByteAdr, VarType.DWord)
-            : Read<uint>(tag, DataType.DataBlock, db, startByteAdr, VarType.DWord);
+            ? instance.Read<uint[]>(tag, DataType.DataBlock, db, startByteAdr, VarType.DWord)
+            : instance.Read<uint>(tag, DataType.DataBlock, db, startByteAdr, VarType.DWord);
     }
 
     /// <summary>Reads a non-data-block double-word address.</summary>
+    /// <param name="instance">The PLC reader that performs the operation.</param>
     /// <param name="tag">The tag to read.</param>
     /// <param name="dataType">The data area type.</param>
     /// <param name="startByteAdr">The byte offset.</param>
     /// <returns>The double-word value or array.</returns>
-    private object? ReadAreaDWordAddress(Tag tag, DataType dataType, int startByteAdr)
+    internal static object? ReadAreaDWordAddress(RxS7 instance, Tag tag, DataType dataType, int startByteAdr)
     {
         if (tag.Type == typeof(uint[]))
         {
-            return Read<uint[]>(tag, dataType, 0, startByteAdr, VarType.DWord);
+            return instance.Read<uint[]>(tag, dataType, 0, startByteAdr, VarType.DWord);
         }
 
         if (tag.Type == typeof(int[]))
         {
-            return Read<int[]>(tag, dataType, 0, startByteAdr, VarType.DInt);
+            return instance.Read<int[]>(tag, dataType, 0, startByteAdr, VarType.DInt);
         }
 
         return tag.Type == typeof(int)
-            ? Read<int>(tag, dataType, 0, startByteAdr, VarType.DInt)
-            : Read<uint>(tag, dataType, 0, startByteAdr, VarType.DWord);
+            ? instance.Read<int>(tag, dataType, 0, startByteAdr, VarType.DInt)
+            : instance.Read<uint>(tag, dataType, 0, startByteAdr, VarType.DWord);
     }
 
     /// <summary>Reads a memory double-word address.</summary>
+    /// <param name="instance">The PLC reader that performs the operation.</param>
     /// <param name="tag">The tag to read.</param>
     /// <param name="startByteAdr">The byte offset.</param>
     /// <returns>The memory double-word value or array.</returns>
-    private object? ReadMemoryDWordAddress(Tag tag, int startByteAdr) =>
+    internal static object? ReadMemoryDWordAddress(RxS7 instance, Tag tag, int startByteAdr) =>
         tag.Type == typeof(double[])
-            ? Read<double[]>(tag, DataType.Memory, 0, startByteAdr, VarType.LReal)
-            : Read<double>(tag, DataType.Memory, 0, startByteAdr, VarType.LReal);
+            ? instance.Read<double[]>(tag, DataType.Memory, 0, startByteAdr, VarType.LReal)
+            : instance.Read<double>(tag, DataType.Memory, 0, startByteAdr, VarType.LReal);
+    }
 }

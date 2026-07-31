@@ -6,17 +6,17 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Core;
-using IoT.DriverCore.OmronPlcRx.Reactive.Tags;
+using IoT.Driver.OmronPlcRx.Reactive.Core;
+using IoT.Driver.OmronPlcRx.Reactive.Tags;
 #else
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Tags;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive;
+namespace IoT.Driver.OmronPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.OmronPlcRx;
+namespace IoT.Driver.OmronPlcRx;
 #endif
 
 /// <summary>Contains typed tag-entry polling behavior.</summary>

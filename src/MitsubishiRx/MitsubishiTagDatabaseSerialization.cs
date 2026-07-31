@@ -9,11 +9,11 @@ using YamlDotNet.Serialization.NamingConventions;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -87,23 +87,39 @@ internal static class MitsubishiTagDatabaseSerialization
     /// <summary>Executes the ToDocument operation.</summary>
     /// <param name="database">The database parameter.</param>
     /// <returns>The ToDocument operation result.</returns>
-    private static MitsubishiTagDatabaseDocument ToDocument(MitsubishiTagDatabase database) =>
-        new()
+    private static MitsubishiTagDatabaseDocument ToDocument(MitsubishiTagDatabase database)
+    {
+        var tags = new List<MitsubishiTagDefinitionDocument>(database.Tags.Count);
+        foreach (var tag in database.Tags)
         {
-            Tags = database.Tags.Select(MitsubishiTagDefinitionDocument.FromModel).ToList(),
-            Groups = database
-                .Groups.Select(MitsubishiTagGroupDefinitionDocument.FromModel)
-                .ToList(),
+            tags.Add(MitsubishiTagDefinitionDocument.FromModel(tag));
+        }
+
+        var groups = new List<MitsubishiTagGroupDefinitionDocument>(database.Groups.Count);
+        foreach (var group in database.Groups)
+        {
+            groups.Add(MitsubishiTagGroupDefinitionDocument.FromModel(group));
+        }
+
+        return new MitsubishiTagDatabaseDocument
+        {
+            Tags = tags,
+            Groups = groups,
         };
+    }
 
     /// <summary>Executes the FromDocument operation.</summary>
     /// <param name="document">The document parameter.</param>
     /// <returns>The FromDocument operation result.</returns>
     private static MitsubishiTagDatabase FromDocument(MitsubishiTagDatabaseDocument document)
     {
-        var database = new MitsubishiTagDatabase(
-            (document.Tags ?? new List<MitsubishiTagDefinitionDocument>()).Select(static tag =>
-                tag.ToModel()));
+        var definitions = new List<MitsubishiTagDefinition>();
+        foreach (var tag in document.Tags ?? [])
+        {
+            definitions.Add(tag.ToModel());
+        }
+
+        var database = new MitsubishiTagDatabase(definitions);
         foreach (var group in document.Groups ?? new List<MitsubishiTagGroupDefinitionDocument>())
         {
             database.AddGroup(group.ToModel());

@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Advanced;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.Mock;
+using IoT.Driver.S7PlcRx.Advanced;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Mock;
 
-namespace IoT.DriverCore.S7PlcRx.Tests;
+namespace IoT.Driver.S7PlcRx.Tests;
 
 /// <summary>Tests for multi-variable PDU write batching.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]

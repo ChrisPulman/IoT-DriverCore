@@ -2,14 +2,14 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiReactiveWritePipelineTests type.</summary>
@@ -86,11 +86,15 @@ internal sealed class MitsubishiReactiveWritePipelineTests
                     CancellationToken.None)).IsSucceed)
             .IsTrue();
 
-        await Assert.That(transport.Requests.Select(static request => Convert.ToHexString(request.Payload)).ToArray())
-            .IsEquivalentTo(
-                baselineTransport.Requests
-                    .Select(static request => Convert.ToHexString(request.Payload))
-                    .ToArray());
+        var actualPayloads = new string[transport.Requests.Count];
+        var expectedPayloads = new string[baselineTransport.Requests.Count];
+        for (var index = 0; index < actualPayloads.Length; index++)
+        {
+            actualPayloads[index] = Convert.ToHexString(transport.Requests[index].Payload);
+            expectedPayloads[index] = Convert.ToHexString(baselineTransport.Requests[index].Payload);
+        }
+
+        await Assert.That(actualPayloads).IsEquivalentTo(expectedPayloads);
     }
 
     /// <summary>Executes the LatestWinsReactiveWordWritePipelineCollapsesBurstToFinalValue operation.</summary>

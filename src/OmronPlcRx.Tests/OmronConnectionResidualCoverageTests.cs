@@ -4,12 +4,12 @@
 
 using System.Net;
 using System.Net.Sockets;
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Core.Channels;
-using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Core.Channels;
+using IoT.Driver.OmronPlcRx.Enums;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Exercises injected connection constructor, initialization, and single-value convenience paths.</summary>
 public sealed class OmronConnectionResidualCoverageTests
@@ -52,20 +52,19 @@ public sealed class OmronConnectionResidualCoverageTests
     [Test]
     public async Task Connection_ValidatesInjectedOptionsAndModelLimitsAsync()
     {
-        await AssertThrowsAsync<ArgumentNullException>(
-            () => Task.Run(
-                () => new OmronPLCConnection(
-                    null!,
-                    new CoreProtocolCoverageTests.TestChannel(),
-                    PlcType.CJ2,
-                    null,
-                    null,
-                    true)));
+        await AssertThrowsSynchronouslyAsync<ArgumentNullException>(
+            static () => new OmronPLCConnection(
+                null!,
+                new CoreProtocolCoverageTests.TestChannel(),
+                PlcType.CJ2,
+                null,
+                null,
+                true));
         await AssertInvalidOptionsAsync(CreateOptions(0, 0));
         await AssertInvalidOptionsAsync(CreateOptions(TimeoutMilliseconds, -1));
 
-        using var cp1 = CreateConnection(new CoreProtocolCoverageTests.TestChannel(), PlcType.CP1, true);
-        using var nj = CreateConnection(new CoreProtocolCoverageTests.TestChannel(), PlcType.NJ101, true);
+        using var cp1 = CreateConnection(new(), PlcType.CP1, true);
+        using var nj = CreateConnection(new(), PlcType.NJ101, true);
         await cp1.InitializeAsync(CancellationToken.None);
 
         await Assert.That(cp1.IsCSeries).IsTrue();
@@ -118,8 +117,10 @@ public sealed class OmronConnectionResidualCoverageTests
             MemoryWordDataType.DataMemory,
             CancellationToken.None);
 
-        await Assert.That(bit.Values.Single()).IsTrue();
-        await Assert.That(word.Values.Single()).IsEqualTo(RemoteNode);
+        await Assert.That(bit.Values.Length).IsEqualTo(1);
+        await Assert.That(bit.Values[0]).IsTrue();
+        await Assert.That(word.Values.Length).IsEqualTo(1);
+        await Assert.That(word.Values[0]).IsEqualTo(RemoteNode);
         await Assert.That(writeBit.PacketsSent).IsEqualTo(1);
         await Assert.That(writeWord.PacketsSent).IsEqualTo(1);
     }
@@ -130,7 +131,7 @@ public sealed class OmronConnectionResidualCoverageTests
     public async Task Connection_RejectsInvalidWordWriteAreaAndAddressAsync()
     {
         using var connection = CreateConnection(
-            new CoreProtocolCoverageTests.TestChannel(),
+            new(),
             PlcType.CJ2,
             true);
         await AssertThrowsAsync<ArgumentException>(
@@ -152,8 +153,8 @@ public sealed class OmronConnectionResidualCoverageTests
     [Test]
     public async Task Connection_ComposesConfiguredTransportChannelsAsync()
     {
-        await AssertThrowsAsync<ArgumentNullException>(
-            () => Task.Run(() => new OmronPLCConnection(null!)));
+        await AssertThrowsSynchronouslyAsync<ArgumentNullException>(
+            static () => new OmronPLCConnection(null!));
 
         using var tcp = new OmronPLCConnection(
             new OmronConnectionOptions(
@@ -207,10 +208,10 @@ public sealed class OmronConnectionResidualCoverageTests
 
         await AssertBitArgumentFailuresAsync(cj2);
 
-        using var cp1 = CreateConnection(new CoreProtocolCoverageTests.TestChannel(), PlcType.CP1, true);
+        using var cp1 = CreateConnection(new(), PlcType.CP1, true);
         await AssertThrowsAsync<ArgumentException>(
             () => cp1.WriteBitsAsync([true], Address, 0, MemoryBitDataType.DataMemory, CancellationToken.None));
-        using var nx = CreateConnection(new CoreProtocolCoverageTests.TestChannel(), PlcType.NX1P2, true);
+        using var nx = CreateConnection(new(), PlcType.NX1P2, true);
         await AssertThrowsAsync<ArgumentException>(
             () => nx.WriteBitsAsync([true], Address, 0, MemoryBitDataType.Auxiliary, CancellationToken.None));
         await AssertThrowsAsync<ArgumentOutOfRangeException>(
@@ -247,7 +248,7 @@ public sealed class OmronConnectionResidualCoverageTests
             await Assert.That(result.PacketsSent).IsEqualTo(1);
         }
 
-        using var nx = CreateConnection(new CoreProtocolCoverageTests.TestChannel(), PlcType.NX1P2, true);
+        using var nx = CreateConnection(new(), PlcType.NX1P2, true);
         await AssertThrowsAsync<ArgumentException>(
             () => nx.WriteWordsAsync([1], Address, MemoryWordDataType.Auxiliary, CancellationToken.None));
         await AssertThrowsAsync<ArgumentOutOfRangeException>(
@@ -381,6 +382,26 @@ public sealed class OmronConnectionResidualCoverageTests
         try
         {
             await action().ConfigureAwait(false);
+        }
+        catch (TException exception)
+        {
+            await Assert.That(exception).IsNotNull();
+            return;
+        }
+
+        throw new InvalidOperationException($"Expected {nameof(TException)}.");
+    }
+
+    /// <summary>Captures and verifies a synchronous connection-construction exception.</summary>
+    /// <typeparam name="TException">Expected exception type.</typeparam>
+    /// <param name="action">Connection construction to invoke.</param>
+    /// <returns>A task that represents the asynchronous assertion.</returns>
+    private static async Task AssertThrowsSynchronouslyAsync<TException>(Func<IDisposable> action)
+        where TException : Exception
+    {
+        try
+        {
+            using var unexpectedConnection = action();
         }
         catch (TException exception)
         {

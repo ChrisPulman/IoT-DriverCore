@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Reactive.Concurrency;
-using LeanClient = IoT.DriverCore.TwinCATRx.IRxTcAdsClient;
-using LeanSettings = IoT.DriverCore.TwinCATRx.Core.Settings;
+using LeanClient = IoT.Driver.TwinCATRx.IRxTcAdsClient;
+using LeanSettings = IoT.Driver.TwinCATRx.Core.Settings;
 using LeanUnit = ReactiveUI.Primitives.RxVoid;
-using ReactiveClient = IoT.DriverCore.TwinCATRx.Reactive.IRxTcAdsClient;
-using ReactiveCoreExtensions = IoT.DriverCore.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
-using ReactiveSettings = IoT.DriverCore.TwinCATRx.Core.Reactive.Settings;
+using ReactiveClient = IoT.Driver.TwinCATRx.Reactive.IRxTcAdsClient;
+using ReactiveCoreExtensions = IoT.Driver.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
+using ReactiveSettings = IoT.Driver.TwinCATRx.Core.Reactive.Settings;
 using ReactiveUnit = System.Reactive.Unit;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Tests that lean and System.Reactive TwinCATRx surfaces coexist.</summary>
 public class ReactiveCoexistenceTests
@@ -53,14 +53,18 @@ public class ReactiveCoexistenceTests
     [Test]
     public async Task Reactive_Core_Uses_System_Reactive_SchedulerAsync()
     {
-        var schedulerParameter = typeof(ReactiveCoreExtensions)
-            .GetMethods()
-            .Single(method =>
-                method.Name == nameof(ReactiveCoreExtensions.OnErrorRetry) &&
-                method.GetParameters().Length == SchedulerOverloadParameterCount &&
-                method.GetParameters()[SchedulerParameterIndex].ParameterType == typeof(IScheduler))
-            .GetParameters()[SchedulerParameterIndex]
-            .ParameterType;
+        Type? schedulerParameter = null;
+        foreach (var method in typeof(ReactiveCoreExtensions).GetMethods())
+        {
+            var parameters = method.GetParameters();
+            if (method.Name == nameof(ReactiveCoreExtensions.OnErrorRetry) &&
+                parameters.Length == SchedulerOverloadParameterCount &&
+                parameters[SchedulerParameterIndex].ParameterType == typeof(IScheduler))
+            {
+                schedulerParameter = parameters[SchedulerParameterIndex].ParameterType;
+                break;
+            }
+        }
 
         await TUnitAssert.That(schedulerParameter).IsEqualTo(typeof(IScheduler));
     }

@@ -5,9 +5,9 @@
 using libplctag.NativeImport;
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>Status code operation.</summary>

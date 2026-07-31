@@ -1,6 +1,6 @@
 ---
 name: modbus-rx
-description: Implement, review, or troubleshoot Modbus TCP, UDP, RTU, ASCII, master, slave, simulation, logical-tag, observable, and generated register-map workflows with ModbusRx.
+description: Implement, review, or troubleshoot Modbus TCP, UDP, RTU, ASCII, master, slave, simulation, logical-tag, observable, and generated register-map workflows with IoT-Driver.ModbusRx.
 ---
 
 # ModbusRx
@@ -13,17 +13,17 @@ Read the co-packaged `../../README.md`; in a repository checkout use `packagerea
 
 ## Package choice
 
-- Use `ModbusRx` with `IoT.DriverCore.ModbusRx` by default.
-- Use `ModbusRx.Reactive` and its `.Reactive` namespace for System.Reactive applications.
-- Runtime packages do not embed the analyzer. Install `ModbusRx.Generators` alongside the selected runtime only when generated register maps are required.
+- Use `IoT-Driver.ModbusRx` with `IoT.Driver.ModbusRx` by default.
+- Use `IoT-Driver.ModbusRx.Reactive` and its `.Reactive` namespace for System.Reactive applications.
+- Runtime packages do not embed the analyzer. Install `IoT-Driver.ModbusRx.Generators` alongside the selected runtime only when generated register maps are required.
 
 ## Master workflow
 
 Create the transport first, then create the master. Match endpoint, timeouts, unit ID, and serial parameters to the device.
 
 ```csharp
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.Serial;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.Serial;
 
 using var tcp = new TcpClientRx("192.168.0.20", 502);
 using var master = ModbusIpMaster.CreateIp(tcp);
@@ -75,7 +75,7 @@ Subscribe to request/operation observation when auditing or testing. Dispose lis
 
 Use `DataStore`, `ModbusSimulator`, or `ModbusTcpLoopbackEndpoint` for deterministic tests. Cover each used function, unit routing, exception responses, timeouts, malformed requests, word order, boundary ranges, and reconnect behavior.
 
-For generated maps, install `ModbusRx.Generators`, declare supported attributes on partial types, build once, inspect diagnostics and generated members, then test the map against a simulator.
+For generated maps, install `IoT-Driver.ModbusRx.Generators`, declare supported attributes on partial types, build once, inspect diagnostics and generated members, then test the map against a simulator.
 
 ## Safety checklist
 

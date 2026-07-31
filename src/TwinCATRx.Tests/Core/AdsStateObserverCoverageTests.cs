@@ -3,10 +3,10 @@
 // See the LICENSE file in the project root for full license information.
 
 using TwinCAT.Ads;
-using LeanCoreExtensions = IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions;
-using ReactiveCoreExtensions = IoT.DriverCore.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
+using LeanCoreExtensions = IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions;
+using ReactiveCoreExtensions = IoT.Driver.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Core;
+namespace IoT.Driver.TwinCATRx.Tests.Core;
 
 /// <summary>Exercises ADS state observables without opening an ADS connection.</summary>
 public class AdsStateObserverCoverageTests
@@ -22,7 +22,7 @@ public class AdsStateObserverCoverageTests
         using var client = new AdsClient();
         using var subscription = System.ObservableExtensions.Subscribe(
             LeanCoreExtensions.AdsStateChangedObserver(client),
-            _ => { });
+            static _ => { });
 
         await TUnitAssert.That(subscription).IsNotNull();
     }
@@ -35,7 +35,7 @@ public class AdsStateObserverCoverageTests
         using var client = new AdsClient();
         using var subscription = System.ObservableExtensions.Subscribe(
             ReactiveCoreExtensions.AdsStateChangedObserver(client),
-            _ => { });
+            static _ => { });
 
         await TUnitAssert.That(subscription).IsNotNull();
     }
@@ -58,7 +58,7 @@ public class AdsStateObserverCoverageTests
     private static async Task AssertDisconnectedStateAsync(Func<AdsClient, IObservable<StateInfo>> createObservable)
     {
         using var client = new AdsClient();
-        var completion = new TaskCompletionSource<StateInfo>();
+        var completion = new TaskCompletionSource<StateInfo>(TaskCreationOptions.RunContinuationsAsynchronously);
         void SetResult(StateInfo state) => _ = completion.TrySetResult(state);
         void SetException(Exception exception) => _ = completion.TrySetException(exception);
         var firstState = System.Reactive.Linq.Observable.Take(createObservable(client), 1);

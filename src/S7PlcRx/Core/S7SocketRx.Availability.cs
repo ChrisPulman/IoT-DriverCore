@@ -5,20 +5,36 @@
 using System.Net;
 using System.Net.Sockets;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+using IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-using IoT.DriverCore.S7PlcRx.PlcTypes;
+using IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Core;
+namespace IoT.Driver.S7PlcRx.Reactive.Core;
 #else
-namespace IoT.DriverCore.S7PlcRx.Core;
+namespace IoT.Driver.S7PlcRx.Core;
 #endif
 
 /// <summary>Provides S7 socket connection functionality.</summary>
 internal partial class S7SocketRx
 {
+    /// <summary>Registers a callback that closes a socket when cancellation is requested.</summary>
+    /// <param name="socket">The socket to close.</param>
+    /// <param name="timeProvider">The time provider used by socket diagnostics.</param>
+    /// <param name="cancellationToken">The token that controls socket shutdown.</param>
+    /// <returns>The cancellation registration.</returns>
+    private static CancellationTokenRegistration RegisterSocketClose(
+        Socket socket,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken) => cancellationToken.Register(
+            static state =>
+            {
+                var (registeredSocket, registeredTimeProvider) = ((Socket, TimeProvider))state!;
+                CloseSocketOptimized(registeredSocket, registeredTimeProvider);
+            },
+            (socket, timeProvider));
+
     /// <summary>Observes availability changes without blocking the subscription callback.</summary>
     /// <param name="observer">The observer to notify.</param>
     private void ObserveAvailability(IObserver<bool> observer)
@@ -105,7 +121,7 @@ internal partial class S7SocketRx
     /// <param name="sequenceIn">The incoming sequence value.</param>
     /// <param name="sequenceOut">The outgoing sequence value.</param>
     private void SendSzlRequest(
-        SzlRequest requestData,
+        in SzlRequest requestData,
         bool first,
         byte sequenceIn,
         ref ushort sequenceOut)
@@ -144,8 +160,17 @@ internal partial class S7SocketRx
         }
 
         var socketAccepted = false;
-        using var cancellationRegistration = _lifetimeCancellation.Token.Register(
-            () => CloseSocketOptimized(attemptSocket, _timeProvider));
+#if NETFRAMEWORK
+        using var cancellationRegistration = RegisterSocketClose(
+            attemptSocket,
+            _timeProvider,
+            _lifetimeCancellation.Token);
+#else
+        await using var cancellationRegistration = RegisterSocketClose(
+            attemptSocket,
+            _timeProvider,
+            _lifetimeCancellation.Token);
+#endif
         try
         {
             ConfigureConnectionSocket(attemptSocket);
@@ -160,8 +185,10 @@ internal partial class S7SocketRx
 #else
             using var connectCancellation = CancellationTokenSource.CreateLinkedTokenSource(
                 _lifetimeCancellation.Token);
-            using var connectCancellationRegistration = connectCancellation.Token.Register(
-                () => CloseSocketOptimized(attemptSocket, _timeProvider));
+            await using var connectCancellationRegistration = RegisterSocketClose(
+                attemptSocket,
+                _timeProvider,
+                connectCancellation.Token);
             connectCancellation.CancelAfter(ConnectionAttemptTimeoutMilliseconds);
             await attemptSocket.ConnectAsync(server, connectCancellation.Token).ConfigureAwait(false);
             var connected = attemptSocket.Connected;
@@ -184,11 +211,7 @@ internal partial class S7SocketRx
         {
             return null;
         }
-        catch (ObjectDisposedException)
-        {
-            return null;
-        }
-        catch (SocketException)
+        catch (Exception ex) when (ex is ObjectDisposedException or SocketException)
         {
             return null;
         }

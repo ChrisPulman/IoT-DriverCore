@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.IO;
+namespace IoT.Driver.ModbusRx.Reactive.IO;
 #else
-namespace IoT.DriverCore.ModbusRx.IO;
+namespace IoT.Driver.ModbusRx.IO;
 #endif
 
 /// <summary>Represents a serial resource. Implementor - http://en.wikipedia.org/wiki/Bridge_Pattern.</summary>

@@ -2,12 +2,12 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive;
+namespace IoT.Driver.OmronPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.OmronPlcRx;
+namespace IoT.Driver.OmronPlcRx;
 #endif
 
 /// <summary>Contains parsed, encoded state for one logical batch item.</summary>

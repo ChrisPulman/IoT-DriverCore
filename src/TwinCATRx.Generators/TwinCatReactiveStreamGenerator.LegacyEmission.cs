@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.Text;
 using Microsoft.CodeAnalysis;
 
-namespace IoT.DriverCore.TwinCATRx.SourceGenerators;
+namespace IoT.Driver.TwinCATRx.SourceGenerators;
 
 /// <summary>Generates TwinCAT reactive stream binding members.</summary>
 public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerator
@@ -123,8 +123,8 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
     /// <param name="property">The legacy property specification.</param>
     private static void AppendLegacyLogicalTagMembers(StringBuilder sb, LegacyReactivePropertySpec property)
     {
-        _ = sb.Append("    public global::IoT.DriverCore.Core.LogicalTag ").Append(property.PropertyName)
-            .Append("Tag => new global::IoT.DriverCore.Core.LogicalTag(nameof(").Append(property.PropertyName)
+        _ = sb.Append("    public global::IoT.Driver.Core.LogicalTag ").Append(property.PropertyName)
+            .Append("Tag => new global::IoT.Driver.Core.LogicalTag(nameof(").Append(property.PropertyName)
             .Append("), \"").Append(Escape(property.Variable)).Append("\", typeof(").Append(property.TypeName)
             .Append(").FullName ?? typeof(").Append(property.TypeName).AppendLine(").Name);")
             .Append(AsyncResultMethodPrefix).Append(property.TypeName).Append(">> Read")
@@ -284,7 +284,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
             if (property.IsWritable)
             {
                 _ = sb.Append("    public async System.Threading.Tasks.Task<")
-                    .Append("global::IoT.DriverCore.Core.TagOperationResult<").Append(property.TypeName).Append(">> ")
+                    .Append("global::IoT.Driver.Core.TagOperationResult<").Append(property.TypeName).Append(">> ")
                     .Append(property.WriteMethodName).Append("Async(").Append(property.TypeName)
                     .AppendLine(" value, System.Threading.CancellationToken cancellationToken = default)")
                     .AppendLine(ClassOpenBrace)
@@ -331,11 +331,11 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
             accessMode = "ReadWrite";
         }
 
-        _ = sb.Append("    public global::IoT.DriverCore.Core.LogicalTag ").Append(property.PropertyName)
-            .Append("Tag => new global::IoT.DriverCore.Core.LogicalTag(nameof(").Append(property.PropertyName)
+        _ = sb.Append("    public global::IoT.Driver.Core.LogicalTag ").Append(property.PropertyName)
+            .Append("Tag => new global::IoT.Driver.Core.LogicalTag(nameof(").Append(property.PropertyName)
             .Append("), \"").Append(Escape(logicalAddress)).Append("\", typeof(").Append(property.TypeName)
             .Append(").FullName ?? typeof(").Append(property.TypeName)
-            .Append(").Name, new global::IoT.DriverCore.Core.LogicalTagOptions")
+            .Append(").Name, new global::IoT.Driver.Core.LogicalTagOptions")
             .AppendLine()
             .AppendLine("        {");
 
@@ -361,7 +361,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
             _ = sb.AppendLine("            },");
         }
 
-        _ = sb.Append("            AccessMode = global::IoT.DriverCore.Core.LogicalTagAccessMode.")
+        _ = sb.Append("            AccessMode = global::IoT.Driver.Core.LogicalTagAccessMode.")
             .Append(accessMode).AppendLine(",")
             .AppendLine("        });");
     }
@@ -377,11 +377,11 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
         string operation,
         string typeName,
         string propertyName) =>
-        sb.Append("global::IoT.DriverCore.Core.LogicalTagMixins.")
+        sb.Append("global::IoT.Driver.Core.LogicalTagMixins.")
             .Append(operation)
             .Append('<')
             .Append(typeName)
-            .Append(">(RequireTwinCatRxLogicalTags(), new global::IoT.DriverCore.Core.LogicalTagKey<")
+            .Append(">(RequireTwinCatRxLogicalTags(), new global::IoT.Driver.Core.LogicalTagKey<")
             .Append(typeName)
             .Append(">(nameof(")
             .Append(propertyName)

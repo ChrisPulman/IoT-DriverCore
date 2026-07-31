@@ -5,7 +5,7 @@
 using System.Net;
 using System.Net.Sockets;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Composition wrapper that gives a TCP listener portable test ownership.</summary>
 internal sealed class TestTcpListener : IDisposable

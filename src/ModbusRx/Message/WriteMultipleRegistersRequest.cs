@@ -4,15 +4,15 @@
 
 using System.Net;
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Data;
+using IoT.Driver.ModbusRx.Reactive.Data;
 #else
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Message;
+namespace IoT.Driver.ModbusRx.Reactive.Message;
 #else
-namespace IoT.DriverCore.ModbusRx.Message;
+namespace IoT.Driver.ModbusRx.Message;
 #endif
 
 /// <summary>Provides WriteMultipleRegistersRequest functionality.</summary>
@@ -31,10 +31,7 @@ public class WriteMultipleRegistersRequest : AbstractModbusMessageWithData<Regis
     public WriteMultipleRegistersRequest(byte slaveAddress, ushort startAddress, RegisterCollection data)
         : base(slaveAddress, Modbus.WriteMultipleRegisters)
     {
-        if (data is null)
-        {
-            throw new ArgumentNullException(nameof(data));
-        }
+        data = ArgumentGuard.NotNull(data, nameof(data));
 
         StartAddress = startAddress;
         NumberOfPoints = (ushort)data.Count;

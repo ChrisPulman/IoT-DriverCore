@@ -7,11 +7,11 @@ using System.Diagnostics.CodeAnalysis;
 #endif
 using System.Reflection;
 using System.Text;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx.Core;
 using TwinCAT.TypeSystem;
-using CoreTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions;
+using CoreTwinCatRxExtensions = IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Core;
+namespace IoT.Driver.TwinCATRx.Tests.Core;
 
 /// <summary>Exercises deterministic remaining core guard branches without an ADS connection.</summary>
 public sealed class AdditionalCoreBranchCoverageTests
@@ -243,7 +243,7 @@ public sealed class AdditionalCoreBranchCoverageTests
         string typeName,
         DataTypeCategory category = DataTypeCategory.Primitive)
     {
-        return new TestSymbol(instanceName, typeName, category);
+        return new(instanceName, typeName, category);
     }
 
     /// <summary>Supplies the TwinCAT symbol contract consumed by the deterministic code emitter.</summary>
@@ -354,17 +354,61 @@ public sealed class AdditionalCoreBranchCoverageTests
         public ISymbol this[string instancePath] => GetInstance(instancePath);
 
         /// <inheritdoc/>
-        public bool Contains(string instancePath) => this.Any(symbol => symbol.InstancePath == instancePath);
+        public bool Contains(string instancePath)
+        {
+            foreach (var symbol in this)
+            {
+                if (symbol.InstancePath == instancePath)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         /// <inheritdoc/>
-        public bool ContainsName(string instanceName) => this.Any(symbol => symbol.InstanceName == instanceName);
+        public bool ContainsName(string instanceName)
+        {
+            foreach (var symbol in this)
+            {
+                if (symbol.InstanceName == instanceName)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         /// <inheritdoc/>
-        public ISymbol GetInstance(string instancePath) => this.First(symbol => symbol.InstancePath == instancePath);
+        public ISymbol GetInstance(string instancePath)
+        {
+            foreach (var symbol in this)
+            {
+                if (symbol.InstancePath == instancePath)
+                {
+                    return symbol;
+                }
+            }
+
+            throw new KeyNotFoundException($"No symbol has instance path '{instancePath}'.");
+        }
 
         /// <inheritdoc/>
-        public IList<ISymbol> GetInstanceByName(string instanceName) =>
-            this.Where(symbol => symbol.InstanceName == instanceName).ToList();
+        public IList<ISymbol> GetInstanceByName(string instanceName)
+        {
+            var symbols = new List<ISymbol>();
+            foreach (var symbol in this)
+            {
+                if (symbol.InstanceName == instanceName)
+                {
+                    symbols.Add(symbol);
+                }
+            }
+
+            return symbols;
+        }
 
         /// <inheritdoc/>
 #if NETFRAMEWORK
@@ -373,8 +417,17 @@ public sealed class AdditionalCoreBranchCoverageTests
         public bool TryGetInstance(string instancePath, [NotNullWhen(true)] out ISymbol? symbol)
 #endif
         {
-            symbol = this.FirstOrDefault(candidate => candidate.InstancePath == instancePath);
-            return symbol is not null;
+            foreach (var candidate in this)
+            {
+                if (candidate.InstancePath == instancePath)
+                {
+                    symbol = candidate;
+                    return true;
+                }
+            }
+
+            symbol = null!;
+            return false;
         }
 
         /// <inheritdoc/>
@@ -400,7 +453,11 @@ public sealed class AdditionalCoreBranchCoverageTests
         {
             Text = text;
             Tag = tag;
-            Nodes = children.Cast<INodeEmulator>().ToHashSet();
+            Nodes = new();
+            foreach (var child in children)
+            {
+                _ = Nodes.Add(child);
+            }
         }
 
         /// <inheritdoc/>

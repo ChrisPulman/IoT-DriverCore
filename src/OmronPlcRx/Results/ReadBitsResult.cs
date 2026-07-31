@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Results;
+namespace IoT.Driver.OmronPlcRx.Reactive.Results;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Results;
+namespace IoT.Driver.OmronPlcRx.Results;
 #endif
 
 /// <summary>Result of a Read Bits operation.</summary>

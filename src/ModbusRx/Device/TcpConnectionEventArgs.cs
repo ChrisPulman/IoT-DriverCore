@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Device;
+namespace IoT.Driver.ModbusRx.Reactive.Device;
 #else
-namespace IoT.DriverCore.ModbusRx.Device;
+namespace IoT.Driver.ModbusRx.Device;
 #endif
 
 /// <summary>Provides Tcp Connection Event Args functionality.</summary>
@@ -15,10 +15,7 @@ internal sealed class TcpConnectionEventArgs : EventArgs
     /// <param name="endPoint">The end Point value.</param>
     public TcpConnectionEventArgs(string endPoint)
     {
-        if (endPoint is null)
-        {
-            throw new ArgumentNullException(nameof(endPoint));
-        }
+        endPoint = ArgumentGuard.NotNull(endPoint, nameof(endPoint));
 
         if (endPoint.Length == 0)
         {

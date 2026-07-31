@@ -6,11 +6,11 @@ using System.ServiceProcess;
 #if !NETFRAMEWORK
 using System.Runtime.Versioning;
 #endif
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx.Core;
 using TwinCAT.Ads;
-using LeanBridge = IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions;
+using LeanBridge = IoT.Driver.TwinCATRx.ObservableBridgeExtensions;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Exercises disconnected native adapter entry points without requiring a TwinCAT route.</summary>
 #if !NETFRAMEWORK
@@ -40,7 +40,7 @@ public sealed class NativeRuntimeAdapterCoverageTests
             Invoke(() => _ = ads.ReadAny(DisconnectedHandle, typeof(int), [1]), errors, ref attempts);
             Invoke(() => ads.WriteAny(DisconnectedHandle, 1), errors, ref attempts);
             Invoke(
-                () => ads.WriteControl(new StateInfo(AdsState.Run, 0)),
+                () => ads.WriteControl(new(AdsState.Run, 0)),
                 errors,
                 ref attempts);
         }
@@ -89,12 +89,15 @@ public sealed class NativeRuntimeAdapterCoverageTests
             errors,
             ref attempts);
         Invoke(
-            () =>
+            static () =>
             {
-                foreach (var discovered in ServiceControllerSource.Instance.GetServices().Take(1))
+                using var enumerator = ServiceControllerSource.Instance.GetServices().GetEnumerator();
+                if (!enumerator.MoveNext())
                 {
-                    discovered.Dispose();
+                    return;
                 }
+
+                enumerator.Current.Dispose();
             },
             errors,
             ref attempts);

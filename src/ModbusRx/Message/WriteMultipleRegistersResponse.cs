@@ -5,9 +5,9 @@
 using System.Net;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Message;
+namespace IoT.Driver.ModbusRx.Reactive.Message;
 #else
-namespace IoT.DriverCore.ModbusRx.Message;
+namespace IoT.Driver.ModbusRx.Message;
 #endif
 
 /// <summary>Provides WriteMultipleRegistersResponse functionality.</summary>

@@ -4,15 +4,15 @@
 
 using System.Net;
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Data;
+using IoT.Driver.ModbusRx.Reactive.Data;
 #else
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Message;
+namespace IoT.Driver.ModbusRx.Reactive.Message;
 #else
-namespace IoT.DriverCore.ModbusRx.Message;
+namespace IoT.Driver.ModbusRx.Message;
 #endif
 
 /// <summary>
@@ -62,69 +62,65 @@ internal sealed class ModbusMessageImpl
     /// <summary>Gets or sets the Data value.</summary>
     internal IDataCollection? Data { get; set; }
 
-    /// <summary>Gets the Message Frame value.</summary>
-    internal byte[] MessageFrame
+    /// <summary>Creates the message frame.</summary>
+    /// <returns>A newly allocated message frame.</returns>
+    internal byte[] ToMessageFrame()
     {
-        get
-        {
-            var pdu = ProtocolDataUnit;
-            using var frame = new MemoryStream(1 + pdu.Length);
+        var pdu = ToProtocolDataUnit();
+        using var frame = new MemoryStream(1 + pdu.Length);
 
-            frame.WriteByte(SlaveAddress);
-            frame.Write(pdu, 0, pdu.Length);
+        frame.WriteByte(SlaveAddress);
+        frame.Write(pdu, 0, pdu.Length);
 
-            return frame.ToArray();
-        }
+        return frame.ToArray();
     }
 
-    /// <summary>Gets the Protocol Data Unit value.</summary>
-    internal byte[] ProtocolDataUnit
+    /// <summary>Creates the protocol data unit.</summary>
+    /// <returns>A newly allocated protocol data unit.</returns>
+    internal byte[] ToProtocolDataUnit()
     {
-        get
+        var pdu = new List<byte>
         {
-            var pdu = new List<byte>
+            FunctionCode,
+        };
+
+        AddOptionalByte(pdu, ExceptionCode);
+        AddOptionalNetworkOrder(pdu, SubFunctionCode);
+        AddOptionalNetworkOrder(pdu, StartAddress);
+        AddOptionalNetworkOrder(pdu, NumberOfPoints);
+        AddOptionalByte(pdu, ByteCount);
+        AddData(pdu, Data);
+
+        return pdu.ToArray();
+
+        static void AddOptionalByte(List<byte> target, byte? value)
+        {
+            if (!value.HasValue)
             {
-                FunctionCode,
-            };
-
-            AddOptionalByte(pdu, ExceptionCode);
-            AddOptionalNetworkOrder(pdu, SubFunctionCode);
-            AddOptionalNetworkOrder(pdu, StartAddress);
-            AddOptionalNetworkOrder(pdu, NumberOfPoints);
-            AddOptionalByte(pdu, ByteCount);
-            AddData(pdu, Data);
-
-            return pdu.ToArray();
-
-            static void AddOptionalByte(List<byte> target, byte? value)
-            {
-                if (!value.HasValue)
-                {
-                    return;
-                }
-
-                target.Add(value.Value);
+                return;
             }
 
-            static void AddOptionalNetworkOrder(List<byte> target, ushort? value)
-            {
-                if (!value.HasValue)
-                {
-                    return;
-                }
+            target.Add(value.Value);
+        }
 
-                target.AddRange(BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)value.Value)));
+        static void AddOptionalNetworkOrder(List<byte> target, ushort? value)
+        {
+            if (!value.HasValue)
+            {
+                return;
             }
 
-            static void AddData(List<byte> target, IDataCollection? data)
-            {
-                if (data is null)
-                {
-                    return;
-                }
+            target.AddRange(BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)value.Value)));
+        }
 
-                target.AddRange(data.NetworkBytes);
+        static void AddData(List<byte> target, IDataCollection? data)
+        {
+            if (data is null)
+            {
+                return;
             }
+
+            target.AddRange(data.ToNetworkBytes());
         }
     }
 
@@ -132,10 +128,7 @@ internal sealed class ModbusMessageImpl
     /// <param name="frame">The frame value.</param>
     internal void Initialize(byte[] frame)
     {
-        if (frame is null)
-        {
-            throw new ArgumentNullException(nameof(frame));
-        }
+        frame = ArgumentGuard.NotNull(frame, nameof(frame));
 
         if (frame.Length < Modbus.MinimumFrameSize)
         {

@@ -10,25 +10,25 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace IoT.DriverCore.S7PlcRx.SourceGenerators;
+namespace IoT.Driver.S7PlcRx.SourceGenerators;
 
 /// <summary>Generates strongly typed PLC property binding hooks from S7 tag attributes.</summary>
 [Generator(LanguageNames.CSharp)]
 public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
 {
     /// <summary>Original binding attribute metadata name.</summary>
-    private const string BindingAttributeName = "IoT.DriverCore.S7PlcRx.SourceGeneration.S7PlcBindingAttribute";
+    private const string BindingAttributeName = "IoT.Driver.S7PlcRx.SourceGeneration.S7PlcBindingAttribute";
 
     /// <summary>Reactive binding attribute metadata name.</summary>
     private const string ReactiveBindingAttributeName =
-        "IoT.DriverCore.S7PlcRx.Reactive.SourceGeneration.S7PlcBindingAttribute";
+        "IoT.Driver.S7PlcRx.Reactive.SourceGeneration.S7PlcBindingAttribute";
 
     /// <summary>Original tag attribute metadata name.</summary>
-    private const string TagAttributeName = "IoT.DriverCore.S7PlcRx.SourceGeneration.S7TagAttribute";
+    private const string TagAttributeName = "IoT.Driver.S7PlcRx.SourceGeneration.S7TagAttribute";
 
     /// <summary>Reactive tag attribute metadata name.</summary>
     private const string ReactiveTagAttributeName =
-        "IoT.DriverCore.S7PlcRx.Reactive.SourceGeneration.S7TagAttribute";
+        "IoT.Driver.S7PlcRx.Reactive.SourceGeneration.S7TagAttribute";
 
     /// <summary>Generated member-level opening brace.</summary>
     private const string MemberBlockOpen = "    {";
@@ -57,7 +57,7 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
                 node is ClassDeclarationSyntax classDeclaration && classDeclaration.AttributeLists.Count > 0,
             GetDiagnostics);
 
-        context.RegisterSourceOutput(candidates.Collect(), Execute);
+        context.RegisterSourceOutput(candidates.Collect(), static (productionContext, items) => Execute(in productionContext, items));
         context.RegisterSourceOutput(diagnostics, static (ctx, items) =>
         {
             foreach (var diagnostic in items)
@@ -83,31 +83,7 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
             return null;
         }
 
-        var properties = new List<BindingProperty>();
-        foreach (var propertySymbol in classSymbol.GetMembers().OfType<IPropertySymbol>())
-        {
-            var propertySyntax = propertySymbol.DeclaringSyntaxReferences
-                .Select(static reference => reference.GetSyntax())
-                .OfType<PropertyDeclarationSyntax>()
-                .FirstOrDefault();
-            if (propertySyntax is null)
-            {
-                continue;
-            }
-
-            var attribute = FindAttribute(propertySymbol.GetAttributes(), TagAttributeName, ReactiveTagAttributeName);
-            if (attribute is null)
-            {
-                continue;
-            }
-
-            if (!HasPartialModifier(propertySyntax.Modifiers))
-            {
-                continue;
-            }
-
-            properties.Add(CreateProperty(propertySymbol, attribute));
-        }
+        var properties = GetBindingProperties(classSymbol);
 
         if (properties.Count == 0)
         {
@@ -117,7 +93,60 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
         var namespaceName = classSymbol.ContainingNamespace.IsGlobalNamespace
             ? null
             : classSymbol.ContainingNamespace.ToDisplayString();
-        return new BindingClass(namespaceName, classSymbol.Name, classSymbol.DeclaredAccessibility, properties);
+        return new(namespaceName, classSymbol.Name, classSymbol.DeclaredAccessibility, properties);
+    }
+
+    /// <summary>Gets the valid generated-property metadata for a binding class.</summary>
+    /// <param name="classSymbol">The binding class symbol.</param>
+    /// <returns>The valid generated-property metadata in declaration order.</returns>
+    private static List<BindingProperty> GetBindingProperties(INamedTypeSymbol classSymbol)
+    {
+        var properties = new List<BindingProperty>();
+        foreach (var member in classSymbol.GetMembers())
+        {
+            if (member is IPropertySymbol propertySymbol)
+            {
+                var property = TryCreateBindingProperty(propertySymbol);
+                if (property is not null)
+                {
+                    properties.Add(property);
+                }
+            }
+        }
+
+        return properties;
+    }
+
+    /// <summary>Creates metadata for a valid binding property.</summary>
+    /// <param name="propertySymbol">The property symbol to inspect.</param>
+    /// <returns>The generated-property metadata, when the property is a binding target.</returns>
+    private static BindingProperty? TryCreateBindingProperty(IPropertySymbol propertySymbol)
+    {
+        var propertySyntax = GetPropertyDeclaration(propertySymbol);
+        var attribute = FindAttribute(propertySymbol.GetAttributes(), TagAttributeName, ReactiveTagAttributeName);
+        if (propertySyntax is null || attribute is null)
+        {
+            return null;
+        }
+
+        var modifiers = propertySyntax.Modifiers;
+        return HasPartialModifier(in modifiers) ? CreateProperty(propertySymbol, attribute) : null;
+    }
+
+    /// <summary>Gets the first property declaration associated with a property symbol.</summary>
+    /// <param name="propertySymbol">The property symbol to inspect.</param>
+    /// <returns>The first property declaration, when available.</returns>
+    private static PropertyDeclarationSyntax? GetPropertyDeclaration(IPropertySymbol propertySymbol)
+    {
+        foreach (var reference in propertySymbol.DeclaringSyntaxReferences)
+        {
+            if (reference.GetSyntax() is PropertyDeclarationSyntax declaration)
+            {
+                return declaration;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>Creates generated property metadata from an attributed property.</summary>
@@ -126,7 +155,7 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
     /// <returns>The generated binding property metadata.</returns>
     private static BindingProperty CreateProperty(IPropertySymbol property, AttributeData attribute)
     {
-        var address = attribute.ConstructorArguments.Length > 0
+        var address = !attribute.ConstructorArguments.IsEmpty
             ? attribute.ConstructorArguments[0].Value?.ToString() ?? string.Empty
             : string.Empty;
         var pollIntervalMs = 100;
@@ -162,7 +191,7 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
             }
         }
 
-        return new BindingProperty(
+        return new(
             property.Name,
             GetFullyQualifiedTypeName(property.Type),
             address,
@@ -190,7 +219,7 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
     /// <summary>Emits generated files for all binding classes.</summary>
     /// <param name="context">The source production context.</param>
     /// <param name="items">The binding class metadata items.</param>
-    private static void Execute(SourceProductionContext context, ImmutableArray<BindingClass?> items)
+    private static void Execute(in SourceProductionContext context, ImmutableArray<BindingClass?> items)
     {
         var generatedTypes = new HashSet<string>(StringComparer.Ordinal);
         foreach (var item in items)
@@ -332,7 +361,7 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
             $"{property.Name}ObservableAsync => global::{libraryRoot}.Binding.S7TagObservableAdapter" +
             $".ToAsyncEnumerable({GetObservableFieldName(property.Name)});");
         AppendLine(builder);
-        var resultType = $"global::IoT.DriverCore.Core.TagOperationResult<{property.FullyQualifiedTypeName}>";
+        var resultType = $"global::IoT.Driver.Core.TagOperationResult<{property.FullyQualifiedTypeName}>";
         GenerateReadOperation(builder, libraryRoot, property, resultType);
         GenerateWriteOperation(builder, libraryRoot, property, resultType);
     }
@@ -437,7 +466,7 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
         AppendLine(builder);
         AppendLine(builder, "    /// <summary>Creates the common logical-tag catalog.</summary>");
         AppendLine(builder, "    /// <returns>The generated logical-tag catalog.</returns>");
-        AppendLine(builder, "    public static global::IoT.DriverCore.Core.LogicalTagCatalog CreateLogicalTagCatalog() =>");
+        AppendLine(builder, "    public static global::IoT.Driver.Core.LogicalTagCatalog CreateLogicalTagCatalog() =>");
         AppendLine(
             builder,
             string.Concat(
@@ -584,7 +613,7 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
     /// <summary>Checks whether a property declaration is partial.</summary>
     /// <param name="modifiers">The property modifiers.</param>
     /// <returns>True when the property has a partial modifier; otherwise false.</returns>
-    private static bool HasPartialModifier(SyntaxTokenList modifiers)
+    private static bool HasPartialModifier(in SyntaxTokenList modifiers)
     {
         foreach (var modifier in modifiers)
         {
@@ -601,9 +630,9 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
     /// <param name="bindingClass">The binding class metadata.</param>
     /// <returns>The root namespace to use in generated code.</returns>
     private static string GetLibraryRoot(BindingClass bindingClass) =>
-        bindingClass.NamespaceName?.StartsWith("IoT.DriverCore.S7PlcRx.Reactive", StringComparison.Ordinal) == true
-            ? "IoT.DriverCore.S7PlcRx.Reactive"
-            : "IoT.DriverCore.S7PlcRx";
+        bindingClass.NamespaceName?.StartsWith("IoT.Driver.S7PlcRx.Reactive", StringComparison.Ordinal) == true
+            ? "IoT.Driver.S7PlcRx.Reactive"
+            : "IoT.Driver.S7PlcRx";
 
     /// <summary>Gets the generated backing field name.</summary>
     /// <param name="propertyName">The source property name.</param>

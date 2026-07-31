@@ -3,10 +3,10 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
+namespace IoT.Driver.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the WriteMultipleRegistersRequestFixture behavior.</summary>
 public class WriteMultipleRegistersRequestFixture
@@ -22,13 +22,13 @@ public class WriteMultipleRegistersRequestFixture
         Assert.Equal(Num.Value11, request.SlaveAddress);
         Assert.Equal(Num.Value34, request.StartAddress);
         Assert.Equal(Num.Value10, request.ByteCount);
-        Assert.Equal(col.NetworkBytes, request.Data.NetworkBytes);
+        Assert.Equal(col.ToNetworkBytes(), request.Data.ToNetworkBytes());
     }
 
     /// <summary>Creates the write multiple registers request too much data.</summary>
     [TUnit.Core.Test]
     public void CreateWriteMultipleRegistersRequestTooMuchData() =>
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        Assert.Throws<ArgumentOutOfRangeException>(static () =>
             _ = new WriteMultipleRegistersRequest(
                 1,
                 Num.Value2,

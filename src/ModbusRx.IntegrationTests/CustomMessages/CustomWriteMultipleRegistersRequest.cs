@@ -5,10 +5,10 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.IntegrationTests.CustomMessages;
+namespace IoT.Driver.ModbusRx.IntegrationTests.CustomMessages;
 
 /// <summary>Custom write multiple registers request.</summary>
 /// <seealso cref="IModbusMessage" />
@@ -43,10 +43,7 @@ public class CustomWriteMultipleRegistersRequest : IModbusMessage
         ushort startAddress,
         RegisterCollection data)
     {
-        if (data is null)
-        {
-            throw new ArgumentNullException(nameof(data));
-        }
+        ArgumentNullException.ThrowIfNull(data);
 
         FunctionCode = functionCode;
         SlaveAddress = slaveAddress;
@@ -83,7 +80,7 @@ public class CustomWriteMultipleRegistersRequest : IModbusMessage
             pdu.AddRange(BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)StartAddress)));
             pdu.AddRange(BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)NumberOfPoints)));
             pdu.Add(ByteCount);
-            pdu.AddRange(Data.NetworkBytes);
+            pdu.AddRange(Data.ToNetworkBytes());
 
             return [.. pdu];
         }
@@ -122,16 +119,19 @@ public class CustomWriteMultipleRegistersRequest : IModbusMessage
     /// </value>
     public RegisterCollection Data { get; private set; }
 
+    /// <inheritdoc/>
+    public byte[] ToMessageFrame() => MessageFrame;
+
+    /// <inheritdoc/>
+    public byte[] ToProtocolDataUnit() => ProtocolDataUnit;
+
     /// <summary>Initializes a modbus message from the specified message frame.</summary>
     /// <param name="frame">Bytes of Modbus frame.</param>
     /// <exception cref="System.ArgumentNullException">frame.</exception>
     /// <exception cref="System.FormatException">Message frame does not contain enough bytes.</exception>
     public void Initialize(byte[] frame)
     {
-        if (frame is null)
-        {
-            throw new ArgumentNullException(nameof(frame));
-        }
+        ArgumentNullException.ThrowIfNull(frame);
 
         if (frame.Length < FrameHeaderLength || frame.Length < FrameHeaderLength + frame[ByteCountIndex])
         {

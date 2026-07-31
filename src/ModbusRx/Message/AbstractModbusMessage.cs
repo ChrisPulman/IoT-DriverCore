@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Message;
+namespace IoT.Driver.ModbusRx.Reactive.Message;
 #else
-namespace IoT.DriverCore.ModbusRx.Message;
+namespace IoT.Driver.ModbusRx.Message;
 #endif
 
 /// <summary>Abstract Modbus message.</summary>
@@ -45,31 +45,28 @@ public abstract class AbstractModbusMessage
         set => MessageImpl.SlaveAddress = value;
     }
 
-    /// <summary>Gets the message frame.</summary>
-    /// <value>The message frame.</value>
-    public byte[] MessageFrame
-    {
-        get
-        {
-            var pdu = ProtocolDataUnit;
-            using var frame = new MemoryStream(1 + pdu.Length);
-            frame.WriteByte(SlaveAddress);
-            frame.Write(pdu, 0, pdu.Length);
-            return frame.ToArray();
-        }
-    }
-
-    /// <summary>Gets the protocol data unit.</summary>
-    /// <value>The protocol data unit.</value>
-    public virtual byte[] ProtocolDataUnit =>
-        MessageImpl.ProtocolDataUnit;
-
     /// <summary>Gets the minimum size of the frame.</summary>
     /// <value>The minimum size of the frame.</value>
     public abstract int MinimumFrameSize { get; }
 
     /// <summary>Gets or sets the Message Impl value.</summary>
     internal ModbusMessageImpl MessageImpl { get; }
+
+    /// <summary>Creates the message frame.</summary>
+    /// <returns>A newly allocated message frame.</returns>
+    public byte[] ToMessageFrame()
+    {
+        var pdu = ToProtocolDataUnit();
+        using var frame = new MemoryStream(1 + pdu.Length);
+        frame.WriteByte(SlaveAddress);
+        frame.Write(pdu, 0, pdu.Length);
+        return frame.ToArray();
+    }
+
+    /// <summary>Creates the protocol data unit.</summary>
+    /// <returns>A newly allocated protocol data unit.</returns>
+    public virtual byte[] ToProtocolDataUnit() =>
+        MessageImpl.ToProtocolDataUnit();
 
     /// <summary>Initializes the specified frame.</summary>
     /// <param name="frame">The frame.</param>

@@ -5,9 +5,9 @@
 using ReactiveUI.Primitives.Async;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Reactive;
+namespace IoT.Driver.TwinCATRx.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx;
+namespace IoT.Driver.TwinCATRx;
 #endif
 
 /// <summary>Adapts an observable sequence to the async observable contract.</summary>
@@ -27,13 +27,17 @@ internal sealed class ObservableAsyncAdapter<T> : IObservableAsync<T>
     /// <returns>The async subscription.</returns>
     public ValueTask<IAsyncDisposable> SubscribeAsync(IObserverAsync<T> observer, CancellationToken cancellationToken)
     {
+#if NET
+        ArgumentNullException.ThrowIfNull(observer);
+#else
         if (observer is null)
         {
             throw new ArgumentNullException(nameof(observer));
         }
+#endif
 
         var subscription = new ObservableAsyncSubscription<T>(observer, cancellationToken);
         subscription.SetSourceSubscription(_source.Subscribe(subscription));
-        return new ValueTask<IAsyncDisposable>(subscription);
+        return new(subscription);
     }
 }

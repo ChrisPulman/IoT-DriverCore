@@ -4,9 +4,9 @@
 
 using System.Reflection;
 using System.Text;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx.Core;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Core;
+namespace IoT.Driver.TwinCATRx.Tests.Core;
 
 /// <summary>Exercises deterministic code-generator branches without connecting to ADS.</summary>
 public class CodeGeneratorDeterministicCoverageTests
@@ -78,7 +78,7 @@ public class CodeGeneratorDeterministicCoverageTests
             .IsEqualTo("System.Int32[],1..3");
         await TUnitAssert.That(CodeGenerator.PLCToCSharpTypeConverter("STRING(42)")).IsEqualTo("System.String,42");
         await TUnitAssert.That(
-                () => CodeGenerator.PLCToCSharpTypeConverter("POINTER TO DINT"))
+                static () => CodeGenerator.PLCToCSharpTypeConverter("POINTER TO DINT"))
             .Throws<UnsuportedTypeException>();
     }
 
@@ -160,11 +160,7 @@ public class CodeGeneratorDeterministicCoverageTests
         var fixedNoClose = InvokeWithOutParameters(TryGetFixedStringLengthMethod, "STRING(80");
         var fixedWrongType = InvokeWithOutParameters(TryGetFixedStringLengthMethod, "WSTRING(80)");
         var fixedBadLength = InvokeWithOutParameters(TryGetFixedStringLengthMethod, "STRING(nope)");
-#if NETFRAMEWORK
-        var parsedElementType = parseValid.Last();
-#else
         var parsedElementType = parseValid[^1];
-#endif
 
         await TUnitAssert.That(GetRequired<bool>(parseValid[0])).IsTrue();
         await TUnitAssert.That(GetRequired<string>(parseValid[1])).IsEqualTo("0..2, 1..3");
@@ -211,11 +207,7 @@ public class CodeGeneratorDeterministicCoverageTests
         var missing = InvokeWithOutParameters("TryGetPrimitiveArrayMapping", "CUSTOM", ArrayLength);
         var field = GetRequired<string>(GetPrivateMethod("BuildArrayField")
             .Invoke(null, ["[Marshal]", "System.Int32", "Values", ArrayLength]));
-#if NETFRAMEWORK
-        var marshalAttribute = mapped.Last();
-#else
         var marshalAttribute = mapped[^1];
-#endif
 
         await TUnitAssert.That(GetRequired<bool>(mapped[0])).IsTrue();
         await TUnitAssert.That(GetRequired<string>(mapped[1])).IsEqualTo("bool");
@@ -235,7 +227,10 @@ public class CodeGeneratorDeterministicCoverageTests
         var arguments = new object?[method.GetParameters().Length];
         Array.Copy(inputs, arguments, inputs.Length);
         var result = method.Invoke(null, arguments);
-        return [result, .. arguments.Skip(inputs.Length)];
+        var values = new object?[arguments.Length - inputs.Length + 1];
+        values[0] = result;
+        Array.Copy(arguments, inputs.Length, values, 1, arguments.Length - inputs.Length);
+        return values;
     }
 
     /// <summary>Gets a private static CodeGenerator method.</summary>

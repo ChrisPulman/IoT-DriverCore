@@ -2,12 +2,12 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Reactive;
+namespace IoT.Driver.TwinCATRx.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx;
+namespace IoT.Driver.TwinCATRx;
 #endif
 
 /// <summary>Provides stateless logical-tag routing helpers.</summary>

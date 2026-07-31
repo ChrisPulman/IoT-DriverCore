@@ -8,9 +8,9 @@ using SystemDateTimeOffset = System.DateTimeOffset;
 using SystemTimeSpan = System.TimeSpan;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace IoT.DriverCore.S7PlcRx.PlcTypes;
+namespace IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>Converts offset-aware values to and from the S7 date-time representation.</summary>
@@ -105,7 +105,7 @@ public static class DateTime
                 $"Parsing a DateTime requires exactly 8 bytes of input data, input data is '{bytes.Length}' long.");
         }
 
-        return new SystemDateTimeOffset(FromSpanImpl(bytes), SystemTimeSpan.Zero);
+        return new(FromSpanImpl(bytes), SystemTimeSpan.Zero);
     }
 
     /// <summary>Parses an array of <see cref="System.DateTimeOffset" /> values from bytes.</summary>
@@ -156,7 +156,7 @@ public static class DateTime
     /// <returns>A byte array containing the S7 date time representations of <paramref name="dateTimes"/>.</returns>
     public static byte[] ToByteArray(SystemDateTimeOffset[] dateTimes)
     {
-        if (dateTimes?.Any(dateTime => dateTime < SpecMinimumDateTime || dateTime > SpecMaximumDateTime) != false)
+        if (dateTimes?.Any(static dateTime => dateTime < SpecMinimumDateTime || dateTime > SpecMaximumDateTime) != false)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(dateTimes),
@@ -291,7 +291,7 @@ public static class DateTime
             0,
             MaximumSingleDigit,
             "third millisecond digit");
-        return new SystemDateTime(
+        return new(
             year,
             month,
             day,

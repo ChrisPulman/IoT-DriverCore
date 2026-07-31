@@ -4,17 +4,17 @@
 
 using System;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Converters;
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Requests;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Converters;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Requests;
 #else
-using IoT.DriverCore.OmronPlcRx.Core.Converters;
-using IoT.DriverCore.OmronPlcRx.Core.Requests;
+using IoT.Driver.OmronPlcRx.Core.Converters;
+using IoT.Driver.OmronPlcRx.Core.Requests;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Responses;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core.Responses;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core.Responses;
+namespace IoT.Driver.OmronPlcRx.Core.Responses;
 #endif
 
 /// <summary>Represents the r ea dc lo ck re sp on se type.</summary>
@@ -41,11 +41,9 @@ internal static class ReadClockResponse
                 $"The Response Data Length of '{actual}' was too short - Expecting a Length of '{expected}'");
         }
 
-        return new ClockResult
-        {
-            ClockDateTime = GetClockDateTime(SubArray(data, 0, DateLength)),
-            DayOfWeek = BCDConverter.ToByte(data![DateLength]),
-        };
+        return new(
+            GetClockDateTime(SubArray(data, 0, DateLength)),
+            BCDConverter.ToByte(data![DateLength]));
     }
 
     /// <summary>Initializes a new instance of the <see cref="GetClockDateTime"/> class.</summary>
@@ -62,7 +60,7 @@ internal static class ReadClockResponse
 
         if (year < ProtocolConstants.Seventy)
         {
-            return new DateTime(
+            return new(
                 ProtocolConstants.TwoThousand + year,
                 month,
                 day,
@@ -74,7 +72,7 @@ internal static class ReadClockResponse
 
         if (year < ProtocolConstants.OneHundred)
         {
-            return new DateTime(
+            return new(
                 ProtocolConstants.OneThousandNineHundred + year,
                 month,
                 day,
@@ -100,12 +98,7 @@ internal static class ReadClockResponse
     }
 
     /// <summary>Represents the c lo ck re su lt type.</summary>
-    internal struct ClockResult
-    {
-        /// <summary>Gets or sets the clock date time value.</summary>
-        internal DateTime ClockDateTime { get; set; }
-
-        /// <summary>Gets or sets the day of week value.</summary>
-        internal byte DayOfWeek { get; set; }
-    }
+    /// <param name="ClockDateTime">Clock value read from the PLC.</param>
+    /// <param name="DayOfWeek">Day-of-week value read from the PLC.</param>
+    internal readonly record struct ClockResult(DateTime ClockDateTime, byte DayOfWeek);
 }

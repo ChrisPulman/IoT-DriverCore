@@ -4,22 +4,21 @@
 
 using System.IO.Ports;
 using System.Net;
-using System.Net.Sockets;
 #if REACTIVE_SHIM
-using IoT.DriverCore.Serial.Reactive;
+using IoT.Driver.Serial.Reactive;
 #else
-using IoT.DriverCore.Serial;
+using IoT.Driver.Serial;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Device;
+using IoT.Driver.ModbusRx.Reactive.Device;
 #else
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Device;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive;
+namespace IoT.Driver.ModbusRx.Reactive;
 #else
-namespace IoT.DriverCore.ModbusRx;
+namespace IoT.Driver.ModbusRx;
 #endif
     /// <summary>Provides ModbusRx functionality.</summary>
     public static partial class Create
@@ -90,7 +89,7 @@ namespace IoT.DriverCore.ModbusRx;
 
             var address = IPAddress.Parse(hostAddress);
             return ObserveSlave(() =>
-                ModbusTcpSlave.CreateTcp(unitId, new TcpListener(address, port)));
+                ModbusTcpSlave.CreateTcp(unitId, new(address, port)));
         }
 
         /// <summary>Create a UdpIpMaster with the specified host address.</summary>
@@ -135,8 +134,9 @@ namespace IoT.DriverCore.ModbusRx;
             }
 
             var address = IPAddress.Parse(hostAddress);
+            var endpoint = new IPEndPoint(address, port);
             return ObserveSlave(() =>
-                ModbusUdpSlave.CreateUdp(unitId, new UdpClientRx(new IPEndPoint(address, port))));
+                ModbusUdpSlave.CreateUdp(unitId, new(endpoint)));
         }
 
         /// <summary>Create a SerialIpMaster with the specified ip address.</summary>
@@ -263,45 +263,68 @@ namespace IoT.DriverCore.ModbusRx;
         /// <returns>A shared observable of the active slave.</returns>
         private static IObservable<TSlave> ObserveSlave<TSlave>(Func<TSlave> factory)
             where TSlave : ModbusSlave =>
-            Observable.Create<TSlave>(observer =>
+            Observable.CreateWithState<TSlave, Func<TSlave>>(factory, static (factory, observer) =>
             {
-                var disposed = 0;
                 var slave = factory();
+                var subscription = new SlaveSubscriptionState<TSlave>(slave, observer);
                 observer.OnNext(slave);
-                _ = RunSlaveAsync(slave, observer, () => Volatile.Read(ref disposed) != 0);
-                return Disposable.Create(() =>
-                {
-                    _ = Interlocked.Exchange(ref disposed, 1);
-                    slave.Dispose();
-                });
+                _ = RunSlaveAsync(subscription);
+                return Disposable.Create(subscription.Dispose);
             }).Retry(int.MaxValue).Publish().RefCount();
 
         /// <summary>Forwards a slave listener failure unless its subscription has ended.</summary>
         /// <typeparam name="TSlave">The concrete slave type.</typeparam>
-        /// <param name="slave">The active slave.</param>
-        /// <param name="observer">The subscription observer.</param>
-        /// <param name="isDisposed">Reports whether the subscription has ended.</param>
+        /// <param name="subscription">Owns the active slave and subscription observer.</param>
         /// <returns>A task representing the listener lifetime.</returns>
         private static async Task RunSlaveAsync<TSlave>(
-            TSlave slave,
-            IObserver<TSlave> observer,
-            Func<bool> isDisposed)
+            SlaveSubscriptionState<TSlave> subscription)
             where TSlave : ModbusSlave
         {
             try
             {
-                await slave.ListenAsync().ConfigureAwait(false);
-                if (!isDisposed())
+                await subscription.Slave.ListenAsync().ConfigureAwait(false);
+                if (!subscription.IsDisposed)
                 {
-                    observer.OnCompleted();
+                    subscription.Observer.OnCompleted();
                 }
             }
             catch (Exception exception)
             {
-                if (!isDisposed())
+                if (!subscription.IsDisposed)
                 {
-                    observer.OnError(new ModbusCommunicationException(SlaveFaultMessage, exception));
+                    subscription.Observer.OnError(new ModbusCommunicationException(SlaveFaultMessage, exception));
                 }
+            }
+        }
+
+        /// <summary>Owns a slave for the lifetime of a subscription.</summary>
+        /// <typeparam name="TSlave">The concrete slave type.</typeparam>
+        /// <param name="slave">The active slave.</param>
+        /// <param name="observer">The subscription observer.</param>
+        private sealed class SlaveSubscriptionState<TSlave>(TSlave slave, IObserver<TSlave> observer) : IDisposable
+            where TSlave : ModbusSlave
+        {
+            /// <summary>Tracks whether the subscription has ended.</summary>
+            private int _disposed;
+
+            /// <summary>Gets the active slave.</summary>
+            internal TSlave Slave { get; } = slave;
+
+            /// <summary>Gets the subscription observer.</summary>
+            internal IObserver<TSlave> Observer { get; } = observer;
+
+            /// <summary>Gets a value indicating whether the subscription has ended.</summary>
+            internal bool IsDisposed => Volatile.Read(ref _disposed) != 0;
+
+            /// <summary>Disposes the active slave once.</summary>
+            public void Dispose()
+            {
+                if (Interlocked.Exchange(ref _disposed, 1) != 0)
+                {
+                    return;
+                }
+
+                Slave.Dispose();
             }
         }
 }

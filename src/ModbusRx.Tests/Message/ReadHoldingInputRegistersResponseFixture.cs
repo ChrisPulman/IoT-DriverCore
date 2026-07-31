@@ -3,10 +3,10 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
+namespace IoT.Driver.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the ReadHoldingInputRegistersResponseFixture behavior.</summary>
 public class ReadHoldingInputRegistersResponseFixture
@@ -14,7 +14,7 @@ public class ReadHoldingInputRegistersResponseFixture
     /// <summary>Reads the holding input registers response null data.</summary>
     [TUnit.Core.Test]
     public void ReadHoldingInputRegistersResponse_NullData() =>
-        Assert.Throws<ArgumentNullException>(() => _ = new ReadHoldingInputRegistersResponse(0, 0, null!));
+        Assert.Throws<ArgumentNullException>(static () => _ = new ReadHoldingInputRegistersResponse(0, 0, null!));
 
     /// <summary>Reads the holding registers response.</summary>
     [TUnit.Core.Test]
@@ -28,7 +28,7 @@ public class ReadHoldingInputRegistersResponseFixture
         Assert.Equal(Num.Value5, response.SlaveAddress);
         Assert.Equal(Num.Value4, response.ByteCount);
         var col = new RegisterCollection(1, Num.Value2);
-        Assert.Equal(col.NetworkBytes, response.Data.NetworkBytes);
+        Assert.Equal(col.ToNetworkBytes(), response.Data.ToNetworkBytes());
     }
 
     /// <summary>Converts to string_readholdingregistersresponse.</summary>
@@ -51,7 +51,7 @@ public class ReadHoldingInputRegistersResponseFixture
         Assert.Equal(Num.Value5, response.SlaveAddress);
         Assert.Equal(Num.Value4, response.ByteCount);
         var col = new RegisterCollection(1, Num.Value2);
-        Assert.Equal(col.NetworkBytes, response.Data.NetworkBytes);
+        Assert.Equal(col.ToNetworkBytes(), response.Data.ToNetworkBytes());
     }
 
     /// <summary>Converts to string_readinputregistersresponse.</summary>

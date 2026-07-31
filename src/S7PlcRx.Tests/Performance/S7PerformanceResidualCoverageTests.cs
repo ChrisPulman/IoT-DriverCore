@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.Optimization;
-using IoT.DriverCore.S7PlcRx.Performance;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Optimization;
+using IoT.Driver.S7PlcRx.Performance;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Performance;
+namespace IoT.Driver.S7PlcRx.Tests.Performance;
 
 /// <summary>Provides deterministic residual coverage for S7 performance helpers.</summary>
 [NotInParallel]
@@ -125,7 +125,7 @@ public sealed class S7PerformanceResidualCoverageTests
         var timestamp = new DateTimeOffset(2026, 7, 23, 12, 0, 0, TimeSpan.Zero);
         var clock = new ManualTimeProvider(timestamp);
         using var plc = new RecordingPlc("performance-monitor");
-        plc.TagList.Add(new Tag("Active", FirstAddress, 1, typeof(int)));
+        plc.TagList.Add(new("Active", FirstAddress, 1, typeof(int)));
         var inactive = new Tag("Inactive", "DB1.DBW2", ExpectedPairCount, typeof(int));
         inactive.SetDoNotPoll(true);
         plc.TagList.Add(inactive);
@@ -262,7 +262,7 @@ public sealed class S7PerformanceResidualCoverageTests
         var writeFailure = await PerformanceExtensions.WriteOptimizedAsync(
             plc,
             new Dictionary<string, int> { [FirstTagName] = FirstWriteValue },
-            new WriteOptimizationConfig(),
+            new(),
             clock);
         await TUnit.Assertions.Assert.That(writeFailure.FailedWrites.ContainsKey(FirstTagName)).IsTrue();
 
@@ -273,12 +273,12 @@ public sealed class S7PerformanceResidualCoverageTests
         var groupingFailure = await PerformanceExtensions.WriteOptimizedAsync(
             groupingFailurePlc,
             new Dictionary<string, int> { [FirstTagName] = 1 },
-            new WriteOptimizationConfig(),
+            new(),
             clock);
         Func<Task> nullValues = async () => _ = await PerformanceExtensions.WriteOptimizedAsync<int>(
             plc,
             null!,
-            new WriteOptimizationConfig(),
+            new(),
             clock);
 
         await TUnit.Assertions.Assert.That(groupingFailure.OverallError).Contains("Tag list unavailable");
@@ -293,7 +293,7 @@ public sealed class S7PerformanceResidualCoverageTests
         var clock = new ManualTimeProvider(new DateTimeOffset(2026, 7, 23, 14, 0, 0, TimeSpan.Zero));
         using var plc = new RecordingPlc("performance-benchmark")
         {
-            CpuInfoFactory = () => Observable.Throw<string[]>(new InvalidOperationException("CPU unavailable")),
+            CpuInfoFactory = static () => Observable.Throw<string[]>(new InvalidOperationException("CPU unavailable")),
         };
         var result = await PerformanceExtensions.RunBenchmarkAsync(
             plc,
@@ -314,7 +314,7 @@ public sealed class S7PerformanceResidualCoverageTests
 
         Func<Task> nullPlc = async () => _ = await PerformanceExtensions.RunBenchmarkAsync(
             null!,
-            new BenchmarkConfig(),
+            new(),
             clock);
         await TUnit.Assertions.Assert.That(nullPlc).Throws<ArgumentNullException>();
     }
@@ -350,8 +350,8 @@ public sealed class S7PerformanceResidualCoverageTests
     public async Task HighPerformanceGroupObservesChangesFiltersWritesAndDisposesTwiceAsync()
     {
         using var plc = new S7PlcRxAsyncExtensionsTests.TestPlc();
-        plc.TagList.Add(new Tag(FirstTagName, FirstAddress, 1, typeof(int)));
-        plc.TagList.Add(new Tag(SecondTagName, "DB1.DBW2", ExpectedPairCount, typeof(int)));
+        plc.TagList.Add(new(FirstTagName, FirstAddress, 1, typeof(int)));
+        plc.TagList.Add(new(SecondTagName, "DB1.DBW2", ExpectedPairCount, typeof(int)));
         var group = new HighPerformanceTagGroup<int>(plc, "Observed", [FirstTagName, SecondTagName]);
         var snapshots = new List<Dictionary<string, int>>();
         using var subscription = group.ObserveGroup().Subscribe(snapshots.Add);
@@ -390,7 +390,7 @@ public sealed class S7PerformanceResidualCoverageTests
         const string address = "DB99.DBW0";
         using var plc = new S7PlcRxAsyncExtensionsTests.TestPlc();
         var group = new HighPerformanceTagGroup<int>(plc, "Auto", [address]);
-        plc.TagList.Add(new Tag(address, address, 1, typeof(int)));
+        plc.TagList.Add(new(address, address, 1, typeof(int)));
 
         group.Dispose();
         group.Dispose();
@@ -479,7 +479,7 @@ public sealed class S7PerformanceResidualCoverageTests
     private sealed class RecordingPlc(string ip) : IRxS7
     {
         /// <summary>Stores registered tags.</summary>
-        private readonly global::IoT.DriverCore.S7PlcRx.Tags _tagList = [];
+        private readonly global::IoT.Driver.S7PlcRx.Tags _tagList = [];
 
         /// <summary>Publishes observed values.</summary>
         private readonly Signal<Tag?> _updates = new();
@@ -504,7 +504,7 @@ public sealed class S7PerformanceResidualCoverageTests
 
         /// <summary>Gets or sets the CPU-information sequence factory.</summary>
         public Func<IObservable<string[]>> CpuInfoFactory { get; set; } =
-            () => Observable.Return<string[]>([]);
+            static () => Observable.Return<string[]>([]);
 
         /// <inheritdoc/>
         public string IP { get; } = ip;
@@ -540,7 +540,7 @@ public sealed class S7PerformanceResidualCoverageTests
         public IObservable<string> Status => Observable.Empty<string>();
 
         /// <inheritdoc/>
-        public global::IoT.DriverCore.S7PlcRx.Tags TagList =>
+        public global::IoT.Driver.S7PlcRx.Tags TagList =>
             ThrowOnTagListAccess ? throw new InvalidOperationException("Tag list unavailable") : _tagList;
 
         /// <inheritdoc/>
@@ -567,7 +567,7 @@ public sealed class S7PerformanceResidualCoverageTests
         /// <param name="value">The value returned by reads.</param>
         public void AddTag(string name, string? address, object value)
         {
-            _tagList.Add(new Tag(name, address ?? string.Empty, value, value.GetType()) { Address = address });
+            _tagList.Add(new(name, address ?? string.Empty, value, value.GetType()) { Address = address });
             ReadValues[name] = value;
         }
 
@@ -586,8 +586,8 @@ public sealed class S7PerformanceResidualCoverageTests
         /// <inheritdoc/>
         public IObservable<T?> Observe<T>(LogicalTagKey<T> tag) => _updates
             .Where(item => string.Equals(item?.Name, tag.Name, StringComparison.Ordinal))
-            .Where(item => item?.Value is T)
-            .Select(item => (T?)item!.Value);
+            .Where(static item => item?.Value is T)
+            .Select(static item => (T?)item!.Value);
 
         /// <inheritdoc/>
         public Task<T?> ReadAsync<T>(LogicalTagKey<T> tag)

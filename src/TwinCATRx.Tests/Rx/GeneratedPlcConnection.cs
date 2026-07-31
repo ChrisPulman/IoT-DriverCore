@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.TwinCATRx;
+using IoT.Driver.TwinCATRx;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Generated PLC connection test fixture.</summary>
 [TwinCatPlcConnection("1.2.3.4.5.6", 851, SettingsId = "GeneratedSettings")]

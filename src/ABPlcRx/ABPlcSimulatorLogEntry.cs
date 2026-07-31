@@ -3,12 +3,13 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>One deterministic simulator operation record.</summary>
+[System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
 public sealed class ABPlcSimulatorLogEntry
 {
     /// <summary>Initializes a new instance of the <see cref="ABPlcSimulatorLogEntry"/> class.</summary>
@@ -51,6 +52,16 @@ public sealed class ABPlcSimulatorLogEntry
 
     /// <summary>Gets the resulting libplctag-compatible status.</summary>
     public int StatusCode { get; }
+
+    /// <summary>Gets debugger-only type information without affecting the public API.</summary>
+    [System.Diagnostics.DebuggerBrowsable(System.Diagnostics.DebuggerBrowsableState.Never)]
+    private string DebuggerDisplay
+    {
+        get
+        {
+            return ToString();
+        }
+    }
 
     /// <inheritdoc/>
     public override string ToString() =>

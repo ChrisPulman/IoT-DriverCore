@@ -6,7 +6,7 @@ using System.Windows;
 using ReactiveUI.Builder;
 using Splat;
 
-namespace IoT.DriverCore.ModbusRx.Server.UI;
+namespace IoT.Driver.ModbusRx.Server.UI;
 
 /// <summary>Interaction logic for App.xaml.</summary>
 public partial class App

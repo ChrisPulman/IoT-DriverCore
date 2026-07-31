@@ -5,7 +5,7 @@
 using System.ComponentModel;
 using Nuke.Common.Tooling;
 
-namespace IoT.DriverCore.Building;
+namespace IoT.Driver.Building;
 
 /// <summary>Identifies a supported build configuration.</summary>
 [TypeConverter(typeof(TypeConverter<Configuration>))]

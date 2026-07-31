@@ -10,9 +10,9 @@ using CP.Collections;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Reactive;
+namespace IoT.Driver.TwinCATRx.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx;
+namespace IoT.Driver.TwinCATRx;
 #endif
 
 /// <summary>Observable TwinCAT extensions.</summary>
@@ -81,7 +81,7 @@ public static class TwinCatRxExtensions
 
         if (plc.IsPaused)
         {
-            var completion = new TaskCompletionSource<bool>();
+            var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             using var subscription = ObservableBridgeExtensions.SubscribeTo(plc.IsPausedObservable, isPaused =>
             {
                 if (isPaused)
@@ -115,10 +115,14 @@ public static class TwinCatRxExtensions
     /// <returns>An observable when values have been set.</returns>
     public static IObservable<HashTableRx> StructureReady(HashTableRx hashTable)
     {
+#if NET
+        ArgumentNullException.ThrowIfNull(hashTable);
+#else
         if (hashTable is null)
         {
             throw new ArgumentNullException(nameof(hashTable));
         }
+#endif
 
         return hashTable.ObserveAll
             .Where(_ => hashTable.Count > 0)
@@ -133,10 +137,14 @@ public static class TwinCatRxExtensions
     [RequiresUnreferencedCode("May use reflection if the structure contains fields or properties.")]
     public static HashTableRx CreateClone(HashTableRx hashTable)
     {
+#if NET
+        ArgumentNullException.ThrowIfNull(hashTable);
+#else
         if (hashTable is null)
         {
             throw new ArgumentNullException(nameof(hashTable));
         }
+#endif
 
         var clone = new HashTableRx(hashTable.UseUpperCase);
         var structure = hashTable.Structure;

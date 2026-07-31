@@ -5,15 +5,15 @@
 using System.Reactive.Concurrency;
 using System.Reflection;
 using System.Text;
-using ReactiveCodeGenerator = IoT.DriverCore.TwinCATRx.Core.Reactive.CodeGenerator;
-using ReactiveCoreExtensions = IoT.DriverCore.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
-using ReactiveDirectoryExtensions = IoT.DriverCore.TwinCATRx.Core.Reactive.DirectoryInfoExtensions;
-using ReactiveNode = IoT.DriverCore.TwinCATRx.Core.Reactive.INodeEmulator;
-using ReactiveSettings = IoT.DriverCore.TwinCATRx.Core.Reactive.Settings;
-using ReactiveSimpleTypeException = IoT.DriverCore.TwinCATRx.Core.Reactive.SimpleTypeException;
-using ReactiveUnsupportedTypeException = IoT.DriverCore.TwinCATRx.Core.Reactive.UnsuportedTypeException;
+using ReactiveCodeGenerator = IoT.Driver.TwinCATRx.Core.Reactive.CodeGenerator;
+using ReactiveCoreExtensions = IoT.Driver.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
+using ReactiveDirectoryExtensions = IoT.Driver.TwinCATRx.Core.Reactive.DirectoryInfoExtensions;
+using ReactiveNode = IoT.Driver.TwinCATRx.Core.Reactive.INodeEmulator;
+using ReactiveSettings = IoT.Driver.TwinCATRx.Core.Reactive.Settings;
+using ReactiveSimpleTypeException = IoT.Driver.TwinCATRx.Core.Reactive.SimpleTypeException;
+using ReactiveUnsupportedTypeException = IoT.Driver.TwinCATRx.Core.Reactive.UnsuportedTypeException;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Exercises linked source in the Reactive core assembly.</summary>
 public class ReactiveCoreCoverageTests
@@ -76,9 +76,16 @@ public class ReactiveCoreCoverageTests
             retryCount: Three,
             delay: TimeSpan.Zero,
             delaySequencer: ImmediateScheduler.Instance);
-        var result = System.Reactive.Linq.Observable.ToEnumerable(retried).Single();
+        var result = default(int);
+        var resultCount = 0;
+        foreach (var value in System.Reactive.Linq.Observable.ToEnumerable(retried))
+        {
+            result = value;
+            resultCount++;
+        }
 
         await TUnitAssert.That(result).IsEqualTo(RetryValue);
+        await TUnitAssert.That(resultCount).IsEqualTo(1);
         await TUnitAssert.That(attempts).IsEqualTo(Three);
         await TUnitAssert.That(errors).IsEqualTo(Two);
     }
@@ -97,19 +104,19 @@ public class ReactiveCoreCoverageTests
             var nested = directory.CreateSubdirectory("nested");
             await WriteEmptyFileAsync(Path.Combine(nested.FullName, "c.cs"));
 
-            var predicate = ReactiveDirectoryExtensions.GetFilesWhere(directory, file => file.Extension == ".cs");
-            var pattern = ReactiveDirectoryExtensions.GetFilesWhere(directory, "*.txt", _ => true);
+            var predicate = ReactiveDirectoryExtensions.GetFilesWhere(directory, static file => file.Extension == ".cs");
+            var pattern = ReactiveDirectoryExtensions.GetFilesWhere(directory, "*.txt", static _ => true);
             var recursive = ReactiveDirectoryExtensions.GetFilesWhere(
                 directory,
                 "*.cs",
                 SearchOption.AllDirectories,
-                _ => true);
-            var patterns = ReactiveDirectoryExtensions.GetFilesWhere(directory, ["*.cs", "*.txt"], _ => true);
+                static _ => true);
+            var patterns = ReactiveDirectoryExtensions.GetFilesWhere(directory, ["*.cs", "*.txt"], static _ => true);
             var recursivePatterns = ReactiveDirectoryExtensions.GetFilesWhere(
                 directory,
                 ["*.cs"],
                 SearchOption.AllDirectories,
-                _ => true);
+                static _ => true);
 
             await TUnitAssert.That(predicate.Length).IsEqualTo(1);
             await TUnitAssert.That(pattern.Length).IsEqualTo(1);
@@ -179,7 +186,7 @@ public class ReactiveCoreCoverageTests
     public async Task Internal_Language_And_Node_Helpers_Work_Through_ReflectionAsync()
     {
         var assembly = typeof(ReactiveSettings).Assembly;
-        var languageType = assembly.GetType("IoT.DriverCore.TwinCATRx.Core.Reactive.CSharpLanguage")
+        var languageType = assembly.GetType("IoT.Driver.TwinCATRx.Core.Reactive.CSharpLanguage")
             ?? throw new TypeLoadException("CSharpLanguage was not found.");
         var language = Activator.CreateInstance(languageType, nonPublic: true)
             ?? throw new InvalidOperationException("CSharpLanguage could not be created.");
@@ -191,7 +198,7 @@ public class ReactiveCoreCoverageTests
             language,
             ["class ReactiveSample { }", Microsoft.CodeAnalysis.SourceCodeKind.Regular]);
         var compilation = createLibraryCompilation.Invoke(language, ["ReactiveCoverage", true]);
-        var nodeType = assembly.GetType("IoT.DriverCore.TwinCATRx.Core.Reactive.NodeEmulator")
+        var nodeType = assembly.GetType("IoT.Driver.TwinCATRx.Core.Reactive.NodeEmulator")
             ?? throw new TypeLoadException("NodeEmulator was not found.");
         var node = Activator.CreateInstance(nodeType)
             ?? throw new InvalidOperationException("NodeEmulator could not be created.");

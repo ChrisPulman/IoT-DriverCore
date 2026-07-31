@@ -7,12 +7,12 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
-using ReactiveModbusServer = IoT.DriverCore.ModbusRx.Reactive.Device.ModbusServer;
-using ReactiveModbusServerExtensions = IoT.DriverCore.ModbusRx.Reactive.ModbusServerExtensions;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
+using ReactiveModbusServer = IoT.Driver.ModbusRx.Reactive.Device.ModbusServer;
+using ReactiveModbusServerExtensions = IoT.Driver.ModbusRx.Reactive.ModbusServerExtensions;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Unit tests for ModbusServer.</summary>
 public class ModbusServerTests
@@ -219,7 +219,8 @@ public class ModbusServerTests
 
         // Act
         var dataReceived = new TaskCompletionSource<
-            (ushort[] HoldingRegisters, ushort[] InputRegisters, bool[] Coils, bool[] Inputs)>();
+            (ushort[] HoldingRegisters, ushort[] InputRegisters, bool[] Coils, bool[] Inputs)>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         using var subscription = ReactiveModbusServerExtensions.ObserveDataChanges(server, Num.Value50)
             .Subscribe(value => dataReceived.TrySetResult(value));
 
@@ -250,7 +251,7 @@ public class ModbusServerTests
         using var server = new ReactiveModbusServer();
         server.Start();
 
-        var dataReceived = new TaskCompletionSource<bool>();
+        var dataReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var expectedData = new ushort[] { 1, 2, 3, 4, 5 };
         var timeout = GetEnvironmentTimeout(TimeSpan.FromSeconds(Num.Value2));
 
@@ -391,7 +392,7 @@ public class ModbusServerTests
     /// <returns>The available UDP port.</returns>
     private static int GetAvailableUdpPort()
     {
-        using var udpClient = new IoT.DriverCore.Serial.UdpClientRx(0);
+        using var udpClient = new IoT.Driver.Serial.UdpClientRx(0);
         return ((IPEndPoint)udpClient.Client.LocalEndPoint!).Port;
     }
 
@@ -418,7 +419,7 @@ public class ModbusServerTests
     {
         foreach (var value in values)
         {
-            if (value > 0)
+            if (value != 0)
             {
                 return true;
             }

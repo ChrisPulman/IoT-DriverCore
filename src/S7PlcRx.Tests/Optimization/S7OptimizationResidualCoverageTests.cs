@@ -2,12 +2,12 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Optimization;
-using S7CpuType = IoT.DriverCore.S7PlcRx.Enums.CpuType;
-using S7ErrorCode = IoT.DriverCore.S7PlcRx.Enums.ErrorCode;
-using S7Tags = IoT.DriverCore.S7PlcRx.Tags;
+using IoT.Driver.S7PlcRx.Optimization;
+using S7CpuType = IoT.Driver.S7PlcRx.Enums.CpuType;
+using S7ErrorCode = IoT.Driver.S7PlcRx.Enums.ErrorCode;
+using S7Tags = IoT.Driver.S7PlcRx.Tags;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Optimization;
+namespace IoT.Driver.S7PlcRx.Tests.Optimization;
 
 /// <summary>Exercises residual deterministic paths in the S7 optimization implementation.</summary>
 public sealed class S7OptimizationResidualCoverageTests
@@ -103,8 +103,8 @@ public sealed class S7OptimizationResidualCoverageTests
         await TUnit.Assertions.Assert.That(statistics.TotalEntries).IsEqualTo(ExpectedCacheEntryCount);
         await TUnit.Assertions.Assert.That(statistics.TotalHits).IsEqualTo(1L);
         await TUnit.Assertions.Assert.That(statistics.HitRate).IsEqualTo(1D / CacheHitRateDenominator);
-        await TUnit.Assertions.Assert.That(statistics.OldestEntry).IsEqualTo(new DateTimeOffset(2026, 7, 23, 12, 0, 0, TimeSpan.Zero));
-        await TUnit.Assertions.Assert.That(statistics.NewestEntry).IsEqualTo(new DateTimeOffset(2026, 7, 23, 12, 0, 10, TimeSpan.Zero));
+        await TUnit.Assertions.Assert.That(statistics.OldestEntry).IsEqualTo(new(2026, 7, 23, 12, 0, 0, TimeSpan.Zero));
+        await TUnit.Assertions.Assert.That(statistics.NewestEntry).IsEqualTo(new(2026, 7, 23, 12, 0, 10, TimeSpan.Zero));
         await TUnit.Assertions.Assert.That(expired).IsEqualTo(FirstCachedValue);
 
         OptimizationExtensions.ClearCache(plc);
@@ -210,9 +210,13 @@ public sealed class S7OptimizationResidualCoverageTests
             engine.EnqueueRequest(request);
         }
 
-        await Task.WhenAll(requests.Select(request => AsyncCompatibility.WaitAsync(
-            request.CompletionSource!.Task,
-            AsyncCompatibility.TestCompletionTimeout)));
+        foreach (var request in requests)
+        {
+            _ = await AsyncCompatibility.WaitAsync(
+                request.CompletionSource!.Task,
+                AsyncCompatibility.TestCompletionTimeout);
+        }
+
         clock.Advance(TimeSpan.FromMinutes(CacheExpiryAdvanceMinutes));
         engine.ClearExpiredCache(TimeSpan.FromMinutes(1));
 
@@ -247,7 +251,7 @@ public sealed class S7OptimizationResidualCoverageTests
             succeeding.CompletionSource!.Task,
             AsyncCompatibility.TestCompletionTimeout);
 
-        await TUnit.Assertions.Assert.That(completed.CompletionSource.Task.Result).IsFalse();
+        await TUnit.Assertions.Assert.That(await completed.CompletionSource.Task).IsFalse();
         await TUnit.Assertions.Assert.That(cancelled.CompletionSource.Task.IsCanceled).IsTrue();
         await TUnit.Assertions.Assert.That(result).IsTrue();
     }
@@ -363,8 +367,8 @@ public sealed class S7OptimizationResidualCoverageTests
         /// <inheritdoc/>
         public IObservable<T?> Observe<T>(LogicalTagKey<T> tag) => _observedTags
             .Where(observedTag => string.Equals(observedTag?.Name, tag.Name, StringComparison.Ordinal))
-            .Where(observedTag => observedTag?.Value is T)
-            .Select(observedTag => (T?)observedTag!.Value);
+            .Where(static observedTag => observedTag?.Value is T)
+            .Select(static observedTag => (T?)observedTag!.Value);
 
         /// <inheritdoc/>
         public Task<T?> ReadAsync<T>(LogicalTagKey<T> tag) => Task.FromResult(

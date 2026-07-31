@@ -4,11 +4,11 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -22,7 +22,7 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
     {
         if (!raw.IsSucceed || raw.Value is null)
         {
-            return new Responce<byte[]>(raw);
+            return new(raw);
         }
 
         try
@@ -43,7 +43,14 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
                 var length = BitConverter.ToUInt16(raw.Value, 0);
                 var available = Math.Max(0, raw.Value.Length - MitsubishiNumericConstants.Two);
                 var count = Math.Min(length, available);
-                return new Responce<byte[]>(raw, raw.Value.Skip(MitsubishiNumericConstants.Two).Take(count).ToArray());
+                var echoedBytes = new byte[count];
+                Array.Copy(
+                    raw.Value,
+                    MitsubishiNumericConstants.Two,
+                    echoedBytes,
+                    0,
+                    count);
+                return new(raw, echoedBytes);
             }
 
             var ascii = System.Text.Encoding.ASCII.GetString(raw.Value);
@@ -66,7 +73,7 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
                         MitsubishiNumericConstants.Four,
                         Math.Min(lengthValue, ascii.Length - MitsubishiNumericConstants.Four))
                     : string.Empty;
-            return new Responce<byte[]>(raw, System.Text.Encoding.ASCII.GetBytes(echoed));
+            return new(raw, System.Text.Encoding.ASCII.GetBytes(echoed));
         }
         catch (Exception ex)
         {
@@ -82,12 +89,12 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
     {
         if (!raw.IsSucceed || raw.Value is null)
         {
-            return new Responce<ushort[]>(raw);
+            return new(raw);
         }
 
         try
         {
-            return new Responce<ushort[]>(
+            return new(
                 raw,
                 ParseWordPayload(Options, raw.Value, expectedWordCount));
         }
@@ -158,13 +165,22 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         MitsubishiDeviceAddress address,
         IReadOnlyList<ushort> values)
     {
-        return Options.TransportKind == MitsubishiTransportKind.Serial
-            ? MitsubishiSerialProtocolEncoding.EncodeWordWriteRequest(Options, address, values)
-            : MitsubishiProtocolEncoding.EncodeDeviceBatchWrite(
-                Options,
-                address,
-                values.ToArray(),
-                bitUnits: false);
+        if (Options.TransportKind == MitsubishiTransportKind.Serial)
+        {
+            return MitsubishiSerialProtocolEncoding.EncodeWordWriteRequest(Options, address, values);
+        }
+
+        var wordValues = new ushort[values.Count];
+        for (var index = 0; index < values.Count; index++)
+        {
+            wordValues[index] = values[index];
+        }
+
+        return MitsubishiProtocolEncoding.EncodeDeviceBatchWrite(
+            Options,
+            address,
+            wordValues,
+            bitUnits: false);
     }
 
     /// <summary>Executes the EncodeBitReadRequest operation.</summary>
@@ -195,10 +211,16 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
             return MitsubishiSerialProtocolEncoding.EncodeBitWriteRequest(Options, address, values);
         }
 
+        var wordValues = new ushort[values.Count];
+        for (var index = 0; index < values.Count; index++)
+        {
+            wordValues[index] = values[index] ? (ushort)1 : (ushort)0;
+        }
+
         return MitsubishiProtocolEncoding.EncodeDeviceBatchWrite(
             Options,
             address,
-            values.Select(static value => value ? (ushort)1 : (ushort)0).ToArray(),
+            wordValues,
             bitUnits: true);
     }
 

@@ -2,15 +2,15 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 #endif
 
@@ -78,7 +78,7 @@ internal sealed class MitsubishiReactiveCompletionTests
         await Assert.That(wrongType.Quality).IsEqualTo(MitsubishiReactiveQuality.Error);
         await Assert.That(wrongType.Exception).IsNotNull();
 
-        client.TagDatabase.Add(new MitsubishiTagDefinition("MissingLength", "D20", "String"));
+        client.TagDatabase.Add(new("MissingLength", "D20", "String"));
         _ = Assert.Throws<InvalidOperationException>(
             () => client.ObserveReactiveTag(
                 new LogicalTagKey<string>("MissingLength"),
@@ -127,7 +127,7 @@ internal sealed class MitsubishiReactiveCompletionTests
             TagDatabase = CreateGroupDatabase(),
         };
         client.TagDatabase.Add(
-            new MitsubishiTagDefinition(UInt16TagName, "D20", UInt16DataType));
+            new(UInt16TagName, "D20", UInt16DataType));
 
         simulator.EnqueueResponse(MitsubishiSimulatorTransport.CreateErrorResponse(options, 0xC053));
         var protocolError = await ObserveTagOnceAsync<ushort>(
@@ -243,11 +243,11 @@ internal sealed class MitsubishiReactiveCompletionTests
             new MitsubishiTagDefinition("ContiguousA", "D10", UInt16DataType),
             new MitsubishiTagDefinition("ContiguousB", "D11", UInt16DataType),
         ]);
-        database.AddGroup(new MitsubishiTagGroupDefinition("BitGroup", ["Bit"]));
-        database.AddGroup(new MitsubishiTagGroupDefinition("GapGroup", ["GapA", "GapB"]));
-        database.AddGroup(new MitsubishiTagGroupDefinition("MixedGroup", ["MixedA", "MixedB"]));
+        database.AddGroup(new("BitGroup", ["Bit"]));
+        database.AddGroup(new("GapGroup", ["GapA", "GapB"]));
+        database.AddGroup(new("MixedGroup", ["MixedA", "MixedB"]));
         database.AddGroup(
-            new MitsubishiTagGroupDefinition(
+            new(
                 ContiguousGroupName,
                 ["ContiguousA", "ContiguousB"]));
         return database;

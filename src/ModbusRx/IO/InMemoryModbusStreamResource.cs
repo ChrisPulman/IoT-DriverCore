@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Device;
+using IoT.Driver.ModbusRx.Reactive.Device;
 #else
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Device;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.IO;
+namespace IoT.Driver.ModbusRx.Reactive.IO;
 #else
-namespace IoT.DriverCore.ModbusRx.IO;
+namespace IoT.Driver.ModbusRx.IO;
 #endif
 
 /// <summary>Provides a complete in-memory byte-stream connection to a <see cref="ModbusSimulator"/>.</summary>

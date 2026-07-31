@@ -4,7 +4,7 @@
 
 using System.Collections.ObjectModel;
 
-namespace IoT.DriverCore.Core;
+namespace IoT.Driver.Core;
 
 /// <summary>Implements logical-tag contracts over a composed memory image, transfer planner, script, and clock.</summary>
 public sealed class SimulatorLogicalTagClient : ILogicalTagClient
@@ -117,8 +117,14 @@ public sealed class SimulatorLogicalTagClient : ILogicalTagClient
             }
         }
 
-        var plan = Planner.Plan(pending.Select(item =>
-            new TagTransferRequest(item.Binding.Tag.Name, item.Binding.GetAddress(TagTransferAccess.Read))));
+        var requests = new TagTransferRequest[pending.Count];
+        for (var index = 0; index < pending.Count; index++)
+        {
+            var item = pending[index];
+            requests[index] = new(item.Binding.Tag.Name, item.Binding.GetAddress(TagTransferAccess.Read));
+        }
+
+        var plan = Planner.Plan(requests);
         foreach (var range in plan.Ranges)
         {
             var outcome = await Script.NextAsync(SimulatorOperationKind.Read, cancellationToken).ConfigureAwait(false);
@@ -154,7 +160,7 @@ public sealed class SimulatorLogicalTagClient : ILogicalTagClient
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var inputs = values.ToArray();
+        var inputs = MaterializeValues(values);
         var results = new TagOperationResult<LogicalTagValue>?[inputs.Length];
         var pending = new List<PendingWrite>();
         for (var index = 0; index < inputs.Length; index++)
@@ -175,8 +181,7 @@ public sealed class SimulatorLogicalTagClient : ILogicalTagClient
             }
         }
 
-        var plan = Planner.Plan(pending.Select(item =>
-            new TagTransferRequest(item.Binding.Tag.Name, item.Binding.GetAddress(TagTransferAccess.Write))));
+        var plan = CreateWritePlan(Planner, pending);
         foreach (var range in plan.Ranges)
         {
             var outcome = await Script.NextAsync(SimulatorOperationKind.Write, cancellationToken).ConfigureAwait(false);
@@ -249,7 +254,47 @@ public sealed class SimulatorLogicalTagClient : ILogicalTagClient
             throw new ArgumentNullException(parameterName);
         }
 
-        return tagNames.Select(name => LogicalTag.Required(name, parameterName)).ToArray();
+        var names = new string[tagNames.Count];
+        var index = 0;
+        foreach (var tagName in tagNames)
+        {
+            names[index] = LogicalTag.Required(tagName, parameterName);
+            index++;
+        }
+
+        return names;
+    }
+
+    /// <summary>Materializes logical tag values while retaining their input order.</summary>
+    /// <param name="values">The source values.</param>
+    /// <returns>The values in source order.</returns>
+    private static LogicalTagValue[] MaterializeValues(IReadOnlyCollection<LogicalTagValue> values)
+    {
+        var inputs = new LogicalTagValue[values.Count];
+        var index = 0;
+        foreach (var value in values)
+        {
+            inputs[index] = value;
+            index++;
+        }
+
+        return inputs;
+    }
+
+    /// <summary>Creates the transfer plan for pending write operations.</summary>
+    /// <param name="planner">The capability-aware transfer planner.</param>
+    /// <param name="pending">The pending write operations.</param>
+    /// <returns>The capability-aware transfer plan.</returns>
+    private static TagTransferPlan CreateWritePlan(TagTransferPlanner planner, List<PendingWrite> pending)
+    {
+        var requests = new TagTransferRequest[pending.Count];
+        for (var index = 0; index < pending.Count; index++)
+        {
+            var item = pending[index];
+            requests[index] = new(item.Binding.Tag.Name, item.Binding.GetAddress(TagTransferAccess.Write));
+        }
+
+        return planner.Plan(requests);
     }
 
     /// <summary>Creates a consistent logical-tag failure result.</summary>
@@ -264,9 +309,23 @@ public sealed class SimulatorLogicalTagClient : ILogicalTagClient
     /// <returns>The immutable results.</returns>
     private static ReadOnlyCollection<TagOperationResult<LogicalTagValue>> ToReadOnlyResults(
         TagOperationResult<LogicalTagValue>?[] results) =>
-        new ReadOnlyCollection<TagOperationResult<LogicalTagValue>>(
-            results.Select(result => result
-                ?? throw new InvalidOperationException("A simulator operation did not produce a result.")).ToArray());
+        CreateReadOnlyResults(results);
+
+    /// <summary>Validates populated results and returns an immutable collection.</summary>
+    /// <param name="results">The populated result array.</param>
+    /// <returns>The immutable results.</returns>
+    private static ReadOnlyCollection<TagOperationResult<LogicalTagValue>> CreateReadOnlyResults(
+        TagOperationResult<LogicalTagValue>?[] results)
+    {
+        var populated = new TagOperationResult<LogicalTagValue>[results.Length];
+        for (var index = 0; index < results.Length; index++)
+        {
+            populated[index] = results[index]
+                ?? throw new InvalidOperationException("A simulator operation did not produce a result.");
+        }
+
+        return new(populated);
+    }
 
     /// <summary>Reads and decodes one successful logical result.</summary>
     /// <param name="binding">The source binding.</param>

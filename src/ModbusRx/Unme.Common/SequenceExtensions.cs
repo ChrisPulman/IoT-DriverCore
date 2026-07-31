@@ -3,9 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Unme.Common;
+using IoT.Driver.ModbusRx.Reactive.Utility;
 #else
-namespace IoT.DriverCore.ModbusRx.Unme.Common;
+using IoT.Driver.ModbusRx.Utility;
+#endif
+
+#if REACTIVE_SHIM
+namespace IoT.Driver.ModbusRx.Reactive.Unme.Common;
+#else
+namespace IoT.Driver.ModbusRx.Unme.Common;
 #endif
 
 /// <summary>Provides sequence slicing helpers.</summary>
@@ -19,10 +25,7 @@ internal static class SequenceExtensions
     /// <returns>The sliced items.</returns>
     internal static IEnumerable<T> Slice<T>(IEnumerable<T> source, int startIndex, int size)
     {
-        if (source is null)
-        {
-            throw new ArgumentNullException(nameof(source));
-        }
+        source = ModbusGuard.NotNull(source, nameof(source));
 
         var enumerable = (source as T[]) ?? Materialize(source);
         var num = enumerable.Length;
@@ -48,8 +51,6 @@ internal static class SequenceExtensions
     /// <returns>The materialized items.</returns>
     private static T[] Materialize<T>(IEnumerable<T> source)
     {
-        var items = new List<T>();
-        items.AddRange(source);
-        return items.ToArray();
+        return new List<T>(source).ToArray();
     }
 }

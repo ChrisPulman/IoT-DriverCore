@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.ModbusRx.DriverTest;
+namespace IoT.Driver.ModbusRx.DriverTest;
 
 /// <summary>Computes Modbus CRC values.</summary>
 public static class ModbusCrc
@@ -17,11 +17,8 @@ public static class ModbusCrc
     /// <exception cref="ArgumentNullException">data.</exception>
     public static ushort Compute(byte[] data, int length)
     {
+        ArgumentNullException.ThrowIfNull(data);
         ushort crc = 0xFFFF;
-        if (data is null)
-        {
-            throw new ArgumentNullException(nameof(data));
-        }
 
         for (var i = 0; i < length; i++)
         {

@@ -3,18 +3,18 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Core.Channels;
-using IoT.DriverCore.OmronPlcRx.Core.Requests;
-using IoT.DriverCore.OmronPlcRx.Core.Responses;
-using IoT.DriverCore.OmronPlcRx.Core.Results;
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Core.Channels;
+using IoT.Driver.OmronPlcRx.Core.Requests;
+using IoT.Driver.OmronPlcRx.Core.Responses;
+using IoT.Driver.OmronPlcRx.Core.Results;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Tags;
 using TUnit.Core;
-using OmronTcpClient = IoT.DriverCore.OmronPlcRx.Core.TcpClient;
+using OmronTcpClient = IoT.Driver.OmronPlcRx.Core.TcpClient;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Closes reachable defensive and lifecycle branches in the Omron runtime.</summary>
 public sealed class OmronRuntimeResidualBranchCoverageTests
@@ -67,7 +67,7 @@ public sealed class OmronRuntimeResidualBranchCoverageTests
     public async Task LogicalClient_CoversDefensiveBranchesAsync()
     {
         await AssertThrowsAsync<ArgumentNullException>(
-            () => Task.Run(() => _ = new OmronLogicalTagClient(null!)));
+            static () => Task.Run(static () => _ = new OmronLogicalTagClient(null!)));
 
         using var fake = new FakeOmronPlcRx();
         await AssertThrowsAsync<ArgumentNullException>(
@@ -121,17 +121,20 @@ public sealed class OmronRuntimeResidualBranchCoverageTests
             "ApplyBatchResults",
             BindingFlags.Instance);
         var fallbackResults = new TagOperationResult<LogicalTagValue>?[1];
+        var fallbackBatchItems = new List<OmronLogicalBatchItem>
+        {
+            new(0, "Fallback", "D0", typeof(short), null),
+        };
         _ = applyResults.Invoke(
             batchClient,
             [
                 new[] { new OmronLogicalBatchResult(0, false, null, null) },
-                new[] { new OmronLogicalBatchItem(0, "Fallback", "D0", typeof(short), null) },
+                fallbackBatchItems,
                 fallbackResults,
                 null,
             ]);
 
-        await Assert.That(reads.All(static result => !result.Succeeded)).IsTrue();
-        await Assert.That(writes.All(static result => !result.Succeeded)).IsTrue();
+        await AssertBatchOperationsFailedAsync(reads, writes);
         await Assert.That(completed[0].Succeeded).IsFalse();
         await Assert.That(fallbackResults[0]!.Error).Contains("grouped FINS operation failed");
     }
@@ -307,8 +310,8 @@ public sealed class OmronRuntimeResidualBranchCoverageTests
                 null));
 
         await AssertThrowsAsync<ArgumentNullException>(
-            () => Task.Run(
-                () => _ = new OmronTcpClient(null!)));
+            static () => Task.Run(
+                static () => _ = new OmronTcpClient(null!)));
 
         using var tcpChannel = new TCPChannel(RemoteHost, TestPort);
         var receiveTcp = GetPrivateMethod(
@@ -331,11 +334,11 @@ public sealed class OmronRuntimeResidualBranchCoverageTests
         var invalidCommand = new byte[TcpErrorFrameLength];
         invalidCommand[TcpCommandCodeOffset] = TcpErrorCommand;
         await AssertReflectionThrowsAsync<OmronPLCException>(
-            () => throwIfTcpError.Invoke(tcpChannel, [invalidCommand.ToList()]));
+            () => throwIfTcpError.Invoke(tcpChannel, [new List<byte>(invalidCommand)]));
         var explicitError = new byte[TcpErrorFrameLength];
         explicitError[TcpErrorCodeOffset] = 1;
         await AssertReflectionThrowsAsync<OmronPLCException>(
-            () => throwIfTcpError.Invoke(tcpChannel, [explicitError.ToList()]));
+            () => throwIfTcpError.Invoke(tcpChannel, [new List<byte>(explicitError)]));
 
         using var udpChannel = new UDPChannel(RemoteHost, TestPort);
         var receiveUdp = typeof(UDPChannel).GetMethod(
@@ -346,6 +349,38 @@ public sealed class OmronRuntimeResidualBranchCoverageTests
             () => (Task)receiveUdp.Invoke(
                 udpChannel,
                 [TimeoutMilliseconds, CancellationToken.None])!);
+    }
+
+    /// <summary>Verifies all batch operations completed with failed results.</summary>
+    /// <param name="reads">The read results to verify.</param>
+    /// <param name="writes">The write results to verify.</param>
+    /// <returns>A task representing the assertions.</returns>
+    private static async Task AssertBatchOperationsFailedAsync(
+        IEnumerable<TagOperationResult<LogicalTagValue>> reads,
+        IEnumerable<TagOperationResult<LogicalTagValue>> writes)
+    {
+        var allReadsFailed = true;
+        foreach (var result in reads)
+        {
+            if (result.Succeeded)
+            {
+                allReadsFailed = false;
+                break;
+            }
+        }
+
+        var allWritesFailed = true;
+        foreach (var result in writes)
+        {
+            if (result.Succeeded)
+            {
+                allWritesFailed = false;
+                break;
+            }
+        }
+
+        await Assert.That(allReadsFailed).IsTrue();
+        await Assert.That(allWritesFailed).IsTrue();
     }
 
     /// <summary>Creates a deterministic initialized FINS connection.</summary>

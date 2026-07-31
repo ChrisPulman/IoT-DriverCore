@@ -3,17 +3,18 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Data;
+namespace IoT.Driver.ModbusRx.Reactive.Data;
 #else
-namespace IoT.DriverCore.ModbusRx.Data;
+namespace IoT.Driver.ModbusRx.Data;
 #endif
 
 /// <summary>Modbus message containing data.</summary>
 public interface IDataCollection
 {
-    /// <summary>Gets the network bytes.</summary>
-    byte[] NetworkBytes { get; }
-
     /// <summary>Gets the byte count.</summary>
     byte ByteCount { get; }
+
+    /// <summary>Creates the current network-byte representation.</summary>
+    /// <returns>A new byte array in Modbus network order.</returns>
+    byte[] ToNetworkBytes();
 }

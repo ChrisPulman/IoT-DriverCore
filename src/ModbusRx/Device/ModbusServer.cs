@@ -7,20 +7,20 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 #if REACTIVE_SHIM
-using IoT.DriverCore.Serial.Reactive;
+using IoT.Driver.Serial.Reactive;
 #else
-using IoT.DriverCore.Serial;
+using IoT.Driver.Serial;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Data;
+using IoT.Driver.ModbusRx.Reactive.Data;
 #else
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Device;
+namespace IoT.Driver.ModbusRx.Reactive.Device;
 #else
-namespace IoT.DriverCore.ModbusRx.Device;
+namespace IoT.Driver.ModbusRx.Device;
 #endif
 
 /// <summary>
@@ -109,16 +109,18 @@ public sealed class ModbusServer : IDisposable
                 await UpdateDataFromClientAsync(master, slaveAddress).ConfigureAwait(false);
                 return true;
             }))
-            .Subscribe(_ => { });
+            .Subscribe(static _ => { });
 
         _disposables.Add(subscription);
         _disposables.Add(master);
 
-        return Disposable.Create(() =>
-        {
-            _ = _clients.TryRemove(name, out _);
-            master.Dispose();
-        });
+        return Disposable.Create(
+            (Clients: _clients, Name: name, Master: master),
+            static state =>
+            {
+                _ = state.Clients.TryRemove(state.Name, out _);
+                state.Master.Dispose();
+            });
     }
 
     /// <summary>Adds a Modbus UDP client to serve data from.</summary>
@@ -145,16 +147,18 @@ public sealed class ModbusServer : IDisposable
                 await UpdateDataFromClientAsync(master, slaveAddress).ConfigureAwait(false);
                 return true;
             }))
-            .Subscribe(_ => { });
+            .Subscribe(static _ => { });
 
         _disposables.Add(subscription);
         _disposables.Add(master);
 
-        return Disposable.Create(() =>
-        {
-            _ = _clients.TryRemove(name, out _);
-            master.Dispose();
-        });
+        return Disposable.Create(
+            (Clients: _clients, Name: name, Master: master),
+            static state =>
+            {
+                _ = state.Clients.TryRemove(state.Name, out _);
+                state.Master.Dispose();
+            });
     }
 
     /// <summary>Starts a TCP server on the specified port.</summary>
@@ -184,11 +188,13 @@ public sealed class ModbusServer : IDisposable
 
         _disposables.Add(slave);
 
-        return Disposable.Create(() =>
-        {
-            _ = _tcpSlaves.TryRemove(serverKey, out _);
-            slave.Dispose();
-        });
+        return Disposable.Create(
+            (Slaves: _tcpSlaves, ServerKey: serverKey, Slave: slave),
+            static state =>
+            {
+                _ = state.Slaves.TryRemove(state.ServerKey, out _);
+                state.Slave.Dispose();
+            });
     }
 
     /// <summary>Starts a UDP server on the specified port.</summary>
@@ -218,11 +224,13 @@ public sealed class ModbusServer : IDisposable
 
         _disposables.Add(slave);
 
-        return Disposable.Create(() =>
-        {
-            _ = _udpSlaves.TryRemove(serverKey, out _);
-            slave.Dispose();
-        });
+        return Disposable.Create(
+            (Slaves: _udpSlaves, ServerKey: serverKey, Slave: slave),
+            static state =>
+            {
+                _ = state.Slaves.TryRemove(state.ServerKey, out _);
+                state.Slave.Dispose();
+            });
     }
 
     /// <summary>Starts the server with all configured endpoints.</summary>

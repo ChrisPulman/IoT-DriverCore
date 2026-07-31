@@ -8,9 +8,9 @@ using System.Runtime.Versioning;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Reactive;
+namespace IoT.Driver.TwinCATRx.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx;
+namespace IoT.Driver.TwinCATRx;
 #endif
 
 /// <summary>Adapts <see cref="ServiceController"/> to a replaceable service runtime.</summary>

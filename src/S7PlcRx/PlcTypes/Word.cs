@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Core;
+using IoT.Driver.S7PlcRx.Reactive.Core;
 #else
-using IoT.DriverCore.S7PlcRx.Core;
+using IoT.Driver.S7PlcRx.Core;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace IoT.DriverCore.S7PlcRx.PlcTypes;
+namespace IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>
@@ -120,10 +120,7 @@ public static class Word
     /// <returns>A byte array containing the binary representation of the input values.</returns>
     public static byte[] ToByteArray(ushort[] value)
     {
-        if (value is null)
-        {
-            throw new ArgumentNullException(nameof(value), "Input array cannot be null");
-        }
+        Guard.NotNull(value, nameof(value));
 
         return TypeConverter.ToByteArray(value, ToByteArray);
     }

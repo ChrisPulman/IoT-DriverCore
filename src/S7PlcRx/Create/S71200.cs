@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive;
+namespace IoT.Driver.S7PlcRx.Reactive;
 #else
-namespace IoT.DriverCore.S7PlcRx;
+namespace IoT.Driver.S7PlcRx;
 #endif
 
 /// <summary>Creates connections to Siemens S7-1200 PLC devices.</summary>
@@ -18,14 +18,14 @@ public static class S71200
     /// <param name="ip">The PLC IP address.</param>
     /// <returns>The configured PLC connection.</returns>
     public static IRxS7 Create(string ip) =>
-        Create(ip, 0, new S7PollingOptions(), null);
+        Create(ip, 0, new(), null);
 
     /// <summary>Creates an S7-1200 connection for a rack with standard settings.</summary>
     /// <param name="ip">The PLC IP address.</param>
     /// <param name="rack">The PLC rack number.</param>
     /// <returns>The configured PLC connection.</returns>
     public static IRxS7 Create(string ip, short rack) =>
-        Create(ip, rack, new S7PollingOptions(), null);
+        Create(ip, rack, new(), null);
 
     /// <summary>Creates an S7-1200 connection with explicit settings.</summary>
     /// <param name="ip">The PLC IP address.</param>

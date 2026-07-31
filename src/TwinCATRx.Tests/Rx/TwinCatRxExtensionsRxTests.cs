@@ -6,13 +6,13 @@
 using System.Diagnostics.CodeAnalysis;
 #endif
 using CP.Collections;
-using IoT.DriverCore.TwinCATRx;
-using IoT.DriverCore.TwinCATRx.Core;
-using LeanTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.TwinCatRxExtensions;
+using IoT.Driver.TwinCATRx;
+using IoT.Driver.TwinCATRx.Core;
+using LeanTwinCatRxExtensions = IoT.Driver.TwinCATRx.TwinCatRxExtensions;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
-/// <summary>Tests for TwinCatRx extensions in IoT.DriverCore.TwinCATRx.</summary>
+/// <summary>Tests for TwinCatRx extensions in IoT.Driver.TwinCATRx.</summary>
 public class TwinCatRxExtensionsRxTests
 {
     /// <summary>The value attached to the matching test variable.</summary>
@@ -126,7 +126,7 @@ public class TwinCatRxExtensionsRxTests
     {
         var client = new RxFakeClient(Observable.Empty<(string Variable, object? Data, string? Id)>());
         var table = LeanTwinCatRxExtensions.CreateStruct(client, ".Any");
-        var ok = await LeanTwinCatRxExtensions.WriteValuesAsync(table!, _ => { }, TimeSpan.FromMilliseconds(1));
+        var ok = await LeanTwinCatRxExtensions.WriteValuesAsync(table!, static _ => { }, TimeSpan.FromMilliseconds(1));
         await TUnitAssert.That(ok).IsFalse();
     }
 
@@ -135,7 +135,7 @@ public class TwinCatRxExtensionsRxTests
     [Test]
     public async Task StructureReady_Throws_On_NullAsync()
     {
-        await TUnitAssert.That(() => LeanTwinCatRxExtensions.StructureReady((HashTableRx)null!))
+        await TUnitAssert.That(static () => LeanTwinCatRxExtensions.StructureReady((HashTableRx)null!))
             .Throws<ArgumentNullException>();
     }
 

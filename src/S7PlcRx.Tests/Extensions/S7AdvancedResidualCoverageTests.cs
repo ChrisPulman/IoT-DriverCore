@@ -2,17 +2,18 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Advanced;
-using IoT.DriverCore.S7PlcRx.Core;
-using IoT.DriverCore.S7PlcRx.Enterprise;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.Production;
+using IoT.Driver.S7PlcRx.Advanced;
+using IoT.Driver.S7PlcRx.Core;
+using IoT.Driver.S7PlcRx.Enterprise;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Production;
+using IoT.Driver.S7PlcRx.Tests.Testing;
 #if NET8_0_OR_GREATER
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Async;
 #endif
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Extensions;
+namespace IoT.Driver.S7PlcRx.Tests.Extensions;
 
 /// <summary>Exercises the reachable residual branches in the advanced S7 extension surface.</summary>
 [NotInParallel]
@@ -104,7 +105,7 @@ public sealed class S7AdvancedResidualCoverageTests
     public async Task ObserveBatchCoversRegistrationFilteringChangesAndTerminationAsync()
     {
         await TUnit.Assertions.Assert.That(
-            () => AdvancedExtensions.ObserveBatch(null!, 0, FirstTag))
+            static () => AdvancedExtensions.ObserveBatch(null!, 0, FirstTag))
             .Throws<ArgumentNullException>();
 
         using var plc = new DeterministicPlc();
@@ -113,11 +114,11 @@ public sealed class S7AdvancedResidualCoverageTests
             .Subscribe(observer);
 
         plc.Publish(null);
-        plc.Publish(new Tag("Ignored", "DB9.DBW0", typeof(int)) { Value = 1 });
-        plc.Publish(new Tag(FirstTag, FirstTag, typeof(short)) { Value = MismatchedObservedValue });
-        plc.Publish(new Tag(FirstTag, FirstTag, typeof(int)) { Value = FirstObservedValue });
-        plc.Publish(new Tag(FirstTag, FirstTag, typeof(int)) { Value = FirstObservedValue });
-        plc.Publish(new Tag(SecondTag, SecondTag, typeof(int)) { Value = SecondObservedValue });
+        plc.Publish(new("Ignored", "DB9.DBW0", typeof(int)) { Value = 1 });
+        plc.Publish(new(FirstTag, FirstTag, typeof(short)) { Value = MismatchedObservedValue });
+        plc.Publish(new(FirstTag, FirstTag, typeof(int)) { Value = FirstObservedValue });
+        plc.Publish(new(FirstTag, FirstTag, typeof(int)) { Value = FirstObservedValue });
+        plc.Publish(new(SecondTag, SecondTag, typeof(int)) { Value = SecondObservedValue });
         var expectedError = new InvalidOperationException("observable failed");
         plc.FailObservations(expectedError);
 
@@ -141,12 +142,12 @@ public sealed class S7AdvancedResidualCoverageTests
     [Test]
     public async Task BatchWrappersCoverNullAndEmptyGuardsAsync()
     {
-        Func<Task> nullRead = async () =>
+        Func<Task> nullRead = static async () =>
             _ = await AdvancedExtensions.ValueBatchAsync(null!, 0, FirstTag).ConfigureAwait(false);
-        Func<Task> nullWrite = () => AdvancedExtensions.ValueBatchAsync(
+        Func<Task> nullWrite = static () => AdvancedExtensions.ValueBatchAsync(
             null!,
             new Dictionary<string, int> { [FirstTag] = 1 });
-        Func<Task> nullOptimizedWrite = async () =>
+        Func<Task> nullOptimizedWrite = static async () =>
             _ = await AdvancedExtensions.WriteBatchOptimizedAsync(
                 null!,
                 new Dictionary<string, int>(),
@@ -259,7 +260,7 @@ public sealed class S7AdvancedResidualCoverageTests
         for (var index = 0; index < LoadedTagCount; index++)
         {
             var address = index == 0 ? "M0.0" : $"DB{index}.DBW0";
-            loadedPlc.TagList.Add(new Tag($"Tag{index}", address, typeof(int))
+            loadedPlc.TagList.Add(new($"Tag{index}", address, typeof(int))
             {
                 DoNotPoll = index < InactiveTagCount,
             });
@@ -269,7 +270,7 @@ public sealed class S7AdvancedResidualCoverageTests
         var clock = new SequenceTimeProvider(origin, origin, origin.AddMilliseconds(HighLatencyMilliseconds));
         var diagnostics = await AdvancedExtensions.GetDiagnosticsAsync(loadedPlc, clock).ConfigureAwait(false);
 
-        await TUnit.Assertions.Assert.That(failed.Errors.Single()).Contains("diagnostic failure");
+        await TUnit.Assertions.Assert.That(failed.Errors[0]).Contains("diagnostic failure");
         await TUnit.Assertions.Assert.That(otherCpu.CPUInformation.Count).IsEqualTo(0);
         await TUnit.Assertions.Assert.That(diagnostics.ConnectionLatencyMs).IsEqualTo((double)HighLatencyMilliseconds);
         await TUnit.Assertions.Assert.That(diagnostics.TagMetrics.DataBlockDistribution["SYSTEM"]).IsEqualTo(1);
@@ -283,7 +284,7 @@ public sealed class S7AdvancedResidualCoverageTests
     public async Task PerformanceAnalysisTracksOnlyChangesAndCoversZeroDurationAsync()
     {
         await TUnit.Assertions.Assert.That(
-            async () => _ = await AdvancedExtensions.AnalyzePerformanceAsync(
+            static async () => _ = await AdvancedExtensions.AnalyzePerformanceAsync(
                 null!,
                 TimeSpan.Zero,
                 TimeProvider.System).ConfigureAwait(false))
@@ -295,9 +296,9 @@ public sealed class S7AdvancedResidualCoverageTests
             TimeSpan.FromMilliseconds(PerformanceObservationMilliseconds),
             TimeProvider.System);
         plc.Publish(null);
-        plc.Publish(new Tag("Fast", FirstTag, typeof(int)) { Value = 1 });
-        plc.Publish(new Tag("Fast", FirstTag, typeof(int)) { Value = 1 });
-        plc.Publish(new Tag("Fast", FirstTag, typeof(int)) { Value = ExpectedChangeCount });
+        plc.Publish(new("Fast", FirstTag, typeof(int)) { Value = 1 });
+        plc.Publish(new("Fast", FirstTag, typeof(int)) { Value = 1 });
+        plc.Publish(new("Fast", FirstTag, typeof(int)) { Value = ExpectedChangeCount });
         var analysis = await analysisTask.ConfigureAwait(false);
         var zeroDuration = await AdvancedExtensions.AnalyzePerformanceAsync(
             plc,
@@ -308,7 +309,7 @@ public sealed class S7AdvancedResidualCoverageTests
         await TUnit.Assertions.Assert.That(analysis.TotalTagChanges).IsEqualTo(ExpectedChangeCount);
         await TUnit.Assertions.Assert.That(analysis.TagChangeFrequencies["Fast"]).IsEqualTo(ExpectedChangeCount);
         await TUnit.Assertions.Assert.That(analysis.AverageChangesPerTag).IsEqualTo((double)ExpectedChangeCount);
-        await TUnit.Assertions.Assert.That(analysis.Recommendations.Single()).Contains("fast-changing");
+        await TUnit.Assertions.Assert.That(analysis.Recommendations[0]).Contains("fast-changing");
         await TUnit.Assertions.Assert.That(zeroDuration.Recommendations.Count).IsEqualTo(0);
     }
 
@@ -319,7 +320,7 @@ public sealed class S7AdvancedResidualCoverageTests
     {
         using var plc = new DeterministicPlc();
         using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        await AsyncCompatibility.CancelAsync(cancellation).ConfigureAwait(false);
 
         Func<Task> nullName = async () =>
             _ = await AsyncExtensions.ReadValueAsync(plc, 0, null, CancellationToken.None).ConfigureAwait(false);
@@ -365,9 +366,12 @@ public sealed class S7AdvancedResidualCoverageTests
 
         using var slowPlc = new DeterministicPlc();
         var origin = new DateTimeOffset(2026, 7, 23, 13, 0, 0, TimeSpan.Zero);
-        var timestamps = Enumerable.Range(0, ValidationTimestampCount)
-            .Select(index => origin.AddMilliseconds(index * HighLatencyMilliseconds))
-            .ToArray();
+        var timestamps = new DateTimeOffset[ValidationTimestampCount];
+        for (var index = 0; index < timestamps.Length; index++)
+        {
+            timestamps[index] = origin.AddMilliseconds(index * HighLatencyMilliseconds);
+        }
+
         var slowConfig = new ProductionValidationConfig
         {
             MaxAcceptableResponseTime = TimeSpan.FromMilliseconds(1),
@@ -395,7 +399,7 @@ public sealed class S7AdvancedResidualCoverageTests
         await TUnit.Assertions.Assert.That(slowResult.ValidationTests[1].ErrorMessage)
             .Contains("exceeds maximum");
         await TUnit.Assertions.Assert.That(outerFailure.IsProductionReady).IsFalse();
-        await TUnit.Assertions.Assert.That(outerFailure.CriticalErrors.Single()).Contains("clock failure");
+        await TUnit.Assertions.Assert.That(outerFailure.CriticalErrors[0]).Contains("clock failure");
     }
 
     /// <summary>Verifies enterprise default factories and all residual symbol type mappings without connecting.</summary>
@@ -439,7 +443,14 @@ public sealed class S7AdvancedResidualCoverageTests
         await TUnit.Assertions.Assert.That(table.Symbols["BoolValue"].DataType).IsEqualTo("BOOL");
         await TUnit.Assertions.Assert.That(table.Symbols["ArrayValue"].DataType).Contains("ARRAY");
         await TUnit.Assertions.Assert.That(manager.ActivePLC).IsSameReferenceAs(plc);
-        await TUnit.Assertions.Assert.That(pool.AllConnections.Count()).IsEqualTo(1);
+        var connectionCount = 0;
+        foreach (var connection in pool.AllConnections)
+        {
+            _ = connection;
+            connectionCount++;
+        }
+
+        await TUnit.Assertions.Assert.That(connectionCount).IsEqualTo(1);
     }
 
     /// <summary>Verifies timer-driven health checks cover healthy, failed, and recovered failover paths.</summary>
@@ -479,7 +490,7 @@ public sealed class S7AdvancedResidualCoverageTests
         manager.Dispose();
 
         await TUnit.Assertions.Assert.That(manager.ActivePLC).IsSameReferenceAs(connectedBackup);
-        await TUnit.Assertions.Assert.That(observer.Values.Single().Reason).Contains("Health check failed");
+        await TUnit.Assertions.Assert.That(observer.Values[0].Reason).Contains("Health check failed");
     }
 
 #if NET8_0_OR_GREATER
@@ -653,7 +664,7 @@ public sealed class S7AdvancedResidualCoverageTests
         public IObservable<string> Status => Observable.Empty<string>();
 
         /// <inheritdoc />
-        public global::IoT.DriverCore.S7PlcRx.Tags TagList { get; } = [];
+        public global::IoT.Driver.S7PlcRx.Tags TagList { get; } = [];
 
         /// <inheritdoc />
         public bool ShowWatchDogWriting { get; set; }
@@ -696,8 +707,8 @@ public sealed class S7AdvancedResidualCoverageTests
         /// <inheritdoc />
         public IObservable<T?> Observe<T>(LogicalTagKey<T> tag) => ObserveAll
             .Where(candidate => string.Equals(candidate?.Name, tag.Name, StringComparison.InvariantCultureIgnoreCase))
-            .Where(candidate => candidate?.Value is T)
-            .Select(candidate => (T?)candidate!.Value);
+            .Where(static candidate => candidate?.Value is T)
+            .Select(static candidate => (T?)candidate!.Value);
 
         /// <summary>Publishes a deterministic tag update.</summary>
         /// <param name="tag">The tag update to publish.</param>

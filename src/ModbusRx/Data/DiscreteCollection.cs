@@ -6,9 +6,9 @@ using System.Collections.ObjectModel;
 using System.Text;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Data;
+namespace IoT.Driver.ModbusRx.Reactive.Data;
 #else
-namespace IoT.DriverCore.ModbusRx.Data;
+namespace IoT.Driver.ModbusRx.Data;
 #endif
 
 /// <summary>Collection of discrete values.</summary>
@@ -38,10 +38,7 @@ public class DiscreteCollection : Collection<bool>, IDataCollection
     public DiscreteCollection(params byte[] bytes)
         : this()
     {
-        if (bytes is null)
-        {
-            throw new ArgumentNullException(nameof(bytes));
-        }
+        bytes = ArgumentGuard.NotNull(bytes, nameof(bytes));
 
         _discretes.Capacity = bytes.Length * BitsPerByte;
 
@@ -73,27 +70,25 @@ public class DiscreteCollection : Collection<bool>, IDataCollection
         _discretes = bits;
     }
 
-    /// <summary>Gets the network bytes.</summary>
-    public byte[] NetworkBytes
-    {
-        get
-        {
-            var bytes = new byte[ByteCount];
-
-            for (var index = 0; index < _discretes.Count; index++)
-            {
-                if (_discretes[index])
-                {
-                    bytes[index / BitsPerByte] |= (byte)(1 << (index % BitsPerByte));
-                }
-            }
-
-            return bytes;
-        }
-    }
-
     /// <summary>Gets the byte count.</summary>
     public byte ByteCount => (byte)((Count + Seven) / Eight);
+
+    /// <summary>Creates the network-byte representation.</summary>
+    /// <returns>A new byte array in Modbus network order.</returns>
+    public byte[] ToNetworkBytes()
+    {
+        var bytes = new byte[ByteCount];
+
+        for (var index = 0; index < _discretes.Count; index++)
+        {
+            if (_discretes[index])
+            {
+                bytes[index / BitsPerByte] |= (byte)(1 << (index % BitsPerByte));
+            }
+        }
+
+        return bytes;
+    }
 
     /// <summary>Returns a string that represents the current object.</summary>
     /// <returns>

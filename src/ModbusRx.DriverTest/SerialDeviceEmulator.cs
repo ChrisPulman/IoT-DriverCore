@@ -5,9 +5,9 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Ports;
-using IoT.DriverCore.Serial;
+using IoT.Driver.Serial;
 
-namespace IoT.DriverCore.ModbusRx.DriverTest;
+namespace IoT.Driver.ModbusRx.DriverTest;
 
 /// <summary>Tests the SerialDeviceEmulator behavior.</summary>
 public class SerialDeviceEmulator : IDisposable
@@ -62,13 +62,7 @@ public class SerialDeviceEmulator : IDisposable
 
         _port = new(portName, DefaultBaudRate, DefaultDataBits, Parity.None, StopBits.One);
         _ = _port.OpenAsync();
-        _ = _port.IsOpenObservable.Where(x => x).Subscribe(isOpen =>
-        {
-            var timestamp = _timeProvider.GetLocalNow().ToString(TimestampFormat, CultureInfo.InvariantCulture);
-            Debug.WriteLine($"{timestamp} Serial port {portName} opened.");
-            _controller.Update(); // Update once to set initial data
-            _ = Task.Run(ReceiveLoopAsync);
-        });
+        _ = _port.IsOpenObservable.Where(static isOpen => isOpen).Subscribe(OnPortOpened);
     }
 
     /// <summary>Performs resource cleanup.</summary>
@@ -144,5 +138,20 @@ public class SerialDeviceEmulator : IDisposable
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>Handles the serial port opening.</summary>
+    /// <param name="isOpen">A value indicating whether the serial port is open.</param>
+    private void OnPortOpened(bool isOpen)
+    {
+        if (!isOpen)
+        {
+            return;
+        }
+
+        var timestamp = _timeProvider.GetLocalNow().ToString(TimestampFormat, CultureInfo.InvariantCulture);
+        Debug.WriteLine($"{timestamp} Serial port {_port.PortName} opened.");
+        _controller.Update(); // Update once to set initial data
+        _ = Task.Run(ReceiveLoopAsync);
     }
 }

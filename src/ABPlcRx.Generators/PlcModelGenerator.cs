@@ -10,7 +10,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace IoT.DriverCore.ABPlcRx.SourceGenerators;
+namespace IoT.Driver.ABPlcRx.SourceGenerators;
 
 /// <summary>Generates reactive PLC stream models from ABPlcRx source generation attributes.</summary>
 [Generator]
@@ -26,10 +26,10 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
     private const string SourceGenerationNamespaceSuffix = ".SourceGeneration";
 
     /// <summary>The default runtime API namespace.</summary>
-    private const string DefaultApiNamespace = "IoT.DriverCore.ABPlcRx";
+    private const string DefaultApiNamespace = "IoT.Driver.ABPlcRx";
 
     /// <summary>The System.Reactive-flavoured runtime API namespace.</summary>
-    private const string ReactiveApiNamespace = "IoT.DriverCore.ABPlcRx.Reactive";
+    private const string ReactiveApiNamespace = "IoT.Driver.ABPlcRx.Reactive";
 
     /// <summary>The number of constructor arguments expected by class-level PLC tag attributes.</summary>
     private const int ClassTagConstructorArgumentCount = 3;
@@ -74,7 +74,9 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
             .Where(static result => result is not null)
             .Select(static (result, _) => result.GetValueOrDefault());
 
-        context.RegisterSourceOutput(generationResults, EmitGenerationResult);
+        context.RegisterSourceOutput(
+            generationResults,
+            static (productionContext, result) => EmitGenerationResult(in productionContext, result));
     }
 
     /// <summary>Checks whether a syntax node can contain PLC source-generation attributes.</summary>
@@ -99,7 +101,7 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
 
         var apiNamespace = GetApiNamespace(typeSymbol.GetAttributes(), PlcModelAttributeName);
         var tags = CollectTags(typeSymbol, ref apiNamespace);
-        if (tags.Length == 0 && apiNamespace is null)
+        if (tags.IsEmpty && apiNamespace is null)
         {
             return null;
         }
@@ -109,7 +111,7 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
             return GenerationResult.FromDiagnostic(CreatePartialRequiredDiagnostic(declaration, typeSymbol));
         }
 
-        if (tags.Length == 0)
+        if (tags.IsEmpty)
         {
             return null;
         }
@@ -123,7 +125,7 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
     /// <summary>Emits generated source or reports a candidate diagnostic.</summary>
     /// <param name="context">The source production context.</param>
     /// <param name="result">The generation result.</param>
-    private static void EmitGenerationResult(SourceProductionContext context, GenerationResult result)
+    private static void EmitGenerationResult(in SourceProductionContext context, GenerationResult result)
     {
         if (result.Diagnostic is { } diagnostic)
         {
@@ -213,7 +215,7 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
     private static bool TryCreatePropertyTag(IPropertySymbol property, AttributeData attribute, out TagModel tag)
     {
         tag = default;
-        if (attribute.ConstructorArguments.Length == 0 ||
+        if (attribute.ConstructorArguments.IsEmpty ||
             attribute.ConstructorArguments[0].Value is not string tagName ||
             string.IsNullOrWhiteSpace(tagName))
         {
@@ -315,14 +317,14 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
         _ = builder.AppendLine();
         _ = builder.AppendLine(
             "    /// <summary>Gets the shared logical-tag client after streams are attached.</summary>");
-        _ = builder.AppendLine("    public global::IoT.DriverCore.Core.ILogicalTagClient TagClient =>");
+        _ = builder.AppendLine("    public global::IoT.Driver.Core.ILogicalTagClient TagClient =>");
         _ = builder.AppendLine("        _abPlcRxTagClient ?? throw new global::System.InvalidOperationException(");
         _ = builder.AppendLine("            \"Call AttachPlcStreams before using generated PLC helpers.\");");
         _ = builder.AppendLine();
 
         foreach (var tag in tags)
         {
-            AppendTagMembers(builder, tag, apiNamespace);
+            AppendTagMembers(builder, in tag, apiNamespace);
         }
 
         AppendAttachMethod(builder, tags, apiNamespace);
@@ -337,7 +339,7 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
     /// <param name="builder">The target source builder.</param>
     /// <param name="tag">The tag model.</param>
     /// <param name="apiNamespace">The runtime API namespace used by generated controller references.</param>
-    private static void AppendTagMembers(StringBuilder builder, TagModel tag, string apiNamespace)
+    private static void AppendTagMembers(StringBuilder builder, in TagModel tag, string apiNamespace)
     {
         var fieldName = $"_{ToCamelCase(SanitizeIdentifier(tag.PropertyName))}";
         var observableFieldName = $"{fieldName}Observable";
@@ -350,7 +352,7 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
 
         if (tag.GenerateProperty)
         {
-            AppendGeneratedProperty(builder, tag, fieldName);
+            AppendGeneratedProperty(builder, in tag, fieldName);
         }
 
         _ = builder.AppendLine();
@@ -376,23 +378,23 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
         _ = builder.AppendLine("#endif");
         _ = builder.AppendLine();
 
-        AppendLogicalTagReadWriteMembers(builder, tag);
+        AppendLogicalTagReadWriteMembers(builder, in tag);
     }
 
     /// <summary>Appends typed logical-tag read and write helpers for one generated tag.</summary>
     /// <param name="builder">The target source builder.</param>
     /// <param name="tag">The tag model.</param>
-    private static void AppendLogicalTagReadWriteMembers(StringBuilder builder, TagModel tag)
+    private static void AppendLogicalTagReadWriteMembers(StringBuilder builder, in TagModel tag)
     {
         _ = builder.Append("    /// <summary>Reads ")
             .Append(tag.PropertyName)
             .AppendLine(" by logical tag name.</summary>");
-        _ = builder.Append("    public global::System.Threading.Tasks.Task<global::IoT.DriverCore.Core.TagOperationResult<")
+        _ = builder.Append("    public global::System.Threading.Tasks.Task<global::IoT.Driver.Core.TagOperationResult<")
             .Append(tag.ObserveType).Append(">> Read").Append(tag.PropertyName)
             .AppendLine("Async(global::System.Threading.CancellationToken cancellationToken = default) =>");
-        _ = builder.Append("        global::IoT.DriverCore.Core.LogicalTagMixins.ReadAsync<")
+        _ = builder.Append("        global::IoT.Driver.Core.LogicalTagMixins.ReadAsync<")
             .Append(tag.ObserveType)
-            .Append(">(TagClient, new global::IoT.DriverCore.Core.LogicalTagKey<")
+            .Append(">(TagClient, new global::IoT.Driver.Core.LogicalTagKey<")
             .Append(tag.ObserveType)
             .Append(">(")
             .Append(ToLiteral(tag.Variable))
@@ -401,13 +403,13 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
         _ = builder.Append("    /// <summary>Writes ")
             .Append(tag.PropertyName)
             .AppendLine(" by logical tag name.</summary>");
-        _ = builder.Append("    public global::System.Threading.Tasks.Task<global::IoT.DriverCore.Core.TagOperationResult<")
+        _ = builder.Append("    public global::System.Threading.Tasks.Task<global::IoT.Driver.Core.TagOperationResult<")
             .Append(tag.ObserveType).Append(">> Write").Append(tag.PropertyName).Append("Async(")
             .Append(tag.ObserveType)
             .AppendLine(" value, global::System.Threading.CancellationToken cancellationToken = default) =>");
-        _ = builder.Append("        global::IoT.DriverCore.Core.LogicalTagMixins.WriteAsync<")
+        _ = builder.Append("        global::IoT.Driver.Core.LogicalTagMixins.WriteAsync<")
             .Append(tag.ObserveType)
-            .Append(">(TagClient, new global::IoT.DriverCore.Core.LogicalTagKey<")
+            .Append(">(TagClient, new global::IoT.Driver.Core.LogicalTagKey<")
             .Append(tag.ObserveType)
             .Append(">(")
             .Append(ToLiteral(tag.Variable))
@@ -419,7 +421,7 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
     /// <param name="builder">The target source builder.</param>
     /// <param name="tag">The tag model.</param>
     /// <param name="fieldName">The generated backing field name.</param>
-    private static void AppendGeneratedProperty(StringBuilder builder, TagModel tag, string fieldName)
+    private static void AppendGeneratedProperty(StringBuilder builder, in TagModel tag, string fieldName)
     {
         _ = builder.Append("    private ").Append(tag.PropertyType).Append(' ').Append(fieldName).AppendLine(";");
         _ = builder.AppendLine();
@@ -453,7 +455,7 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
 
         foreach (var tag in tags)
         {
-            AppendAttachTag(builder, tag);
+            AppendAttachTag(builder, in tag);
         }
 
         _ = builder.AppendLine();
@@ -466,7 +468,7 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
     /// <summary>Appends registration and subscription statements for one tag.</summary>
     /// <param name="builder">The target source builder.</param>
     /// <param name="tag">The generated tag.</param>
-    private static void AppendAttachTag(StringBuilder builder, TagModel tag)
+    private static void AppendAttachTag(StringBuilder builder, in TagModel tag)
     {
         var observableFieldName = $"_{ToCamelCase(SanitizeIdentifier(tag.PropertyName))}Observable";
         if (tag.RegisterTag)
@@ -478,11 +480,11 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
                 .Append(tag.RegisterType).AppendLine("));");
         }
 
-        _ = builder.Append("        _abPlcRxTagClient.Catalog.Upsert(new global::IoT.DriverCore.Core.LogicalTag(")
+        _ = builder.Append("        _abPlcRxTagClient.Catalog.Upsert(new global::IoT.Driver.Core.LogicalTag(")
             .Append(ToLiteral(tag.Variable)).Append(", ")
             .Append(ToLiteral(tag.TagName)).Append(", ")
             .Append(ToLiteral(tag.ObserveType))
-            .Append(", new global::IoT.DriverCore.Core.LogicalTagOptions { GroupName = ")
+            .Append(", new global::IoT.Driver.Core.LogicalTagOptions { GroupName = ")
             .Append(ToLiteral(tag.Group));
         if (tag.Bit >= 0)
         {

@@ -5,20 +5,20 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 #if REACTIVE_SHIM
-using IoT.DriverCore.TwinCATRx.Core.Reactive;
-using CoreTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
-using RxNotification = IoT.DriverCore.TwinCATRx.Core.Reactive.INotification;
+using IoT.Driver.TwinCATRx.Core.Reactive;
+using CoreTwinCatRxExtensions = IoT.Driver.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
+using RxNotification = IoT.Driver.TwinCATRx.Core.Reactive.INotification;
 #else
-using IoT.DriverCore.TwinCATRx.Core;
-using CoreTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions;
-using RxNotification = IoT.DriverCore.TwinCATRx.Core.INotification;
+using IoT.Driver.TwinCATRx.Core;
+using CoreTwinCatRxExtensions = IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions;
+using RxNotification = IoT.Driver.TwinCATRx.Core.INotification;
 #endif
 using TwinCAT.TypeSystem;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Reactive;
+namespace IoT.Driver.TwinCATRx.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx;
+namespace IoT.Driver.TwinCATRx;
 #endif
 
 /// <summary>Observable TwinCAT ADS Client.</summary>
@@ -30,10 +30,18 @@ public partial class RxTcAdsClient
     /// <summary>Builds the generated data type file prefix.</summary>
     /// <param name="variable">The PLC variable name.</param>
     /// <returns>The generated data type file prefix.</returns>
-    private static string BuildDataTypesFileName(string variable) =>
-        variable.StartsWith(".")
+    private static string BuildDataTypesFileName(string variable)
+    {
+#if NET
+        return variable.StartsWith('.')
             ? $"PLC_{variable.Remove(0, 1)}"
             : $"PLC_{variable}";
+#else
+        return variable.StartsWith(".", StringComparison.Ordinal)
+            ? $"PLC_{variable.Remove(0, 1)}"
+            : $"PLC_{variable}";
+#endif
+    }
 
     /// <summary>Deletes stale generated data type files.</summary>
     /// <param name="dataTypesBaseName">The generated data type file prefix.</param>
@@ -260,9 +268,13 @@ public partial class RxTcAdsClient
             var generatedSource = _codeGenerator.CreateCSharpCodeString(nodeEmulator, isTwinCat3: isTwinCat3);
             generatedCode += $"{identifier}.dll${generatedSource}";
             _code.Add(generatedCode);
-            return CoreTwinCatRxExtensions.GetType(
+            var generatedType = CoreTwinCatRxExtensions.GetType(
                 dataTypesFileName,
-                $"IoT.DriverCore.TwinCATRx.{notificationType}");
+                $"IoT.Driver.TwinCATRx.{notificationType}");
+            if (generatedType is not null)
+            {
+                return generatedType;
+            }
         }
 
         return TryResolvePlcType(notificationType, out var type) ? type : null;

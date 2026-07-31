@@ -4,10 +4,10 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiTagDatabaseReloadTests type.</summary>
@@ -44,7 +44,7 @@ internal sealed class MitsubishiTagDatabaseReloadTests
                 Length: 2,
                 Encoding: "Utf8"),
         ]);
-        database.AddGroup(new MitsubishiTagGroupDefinition("Overview", [MotorSpeedTagName, OperatorMessageTagName]));
+        database.AddGroup(new("Overview", [MotorSpeedTagName, OperatorMessageTagName]));
         database.Save(path);
 
         await using var client = CreateClient(Scheduler.Immediate);
@@ -219,7 +219,7 @@ internal sealed class MitsubishiTagDatabaseReloadTests
             TransportKind: MitsubishiTransportKind.Tcp,
             Route: MitsubishiRoute.Default);
 
-        return new MitsubishiRx(options, null, scheduler);
+        return new(options, null, scheduler);
     }
 
     /// <summary>Executes the CreateDatabase operation.</summary>
@@ -232,7 +232,7 @@ internal sealed class MitsubishiTagDatabaseReloadTests
         [
             new MitsubishiTagDefinition(tagName, address, DataType: "Word", Scale: 0.1, Units: "rpm"),
         ]);
-        database.AddGroup(new MitsubishiTagGroupDefinition("Overview", [tagName]));
+        database.AddGroup(new("Overview", [tagName]));
         return database;
     }
 

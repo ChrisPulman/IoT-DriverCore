@@ -3,13 +3,13 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics;
-using IoT.DriverCore.S7PlcRx.Advanced;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.Optimization;
-using IoT.DriverCore.S7PlcRx.Performance;
-using IoT.DriverCore.S7PlcRx.Production;
+using IoT.Driver.S7PlcRx.Advanced;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Optimization;
+using IoT.Driver.S7PlcRx.Performance;
+using IoT.Driver.S7PlcRx.Production;
 
-namespace IoT.DriverCore.S7PlcRx.Examples;
+namespace IoT.Driver.S7PlcRx.Examples;
 
 /// <summary>
 /// Comprehensive examples demonstrating S7PlcRx optimizations for industrial automation.
@@ -41,10 +41,7 @@ public static class AdvancedExamples
     {
         const int BatchArrayLength = 20;
 
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc), "PLC connection is not initialized");
-        }
+        ArgumentNullException.ThrowIfNull(plc);
 
         Trace.WriteLine("=== BASIC BATCH READ 20 VALUES EXAMPLE ===");
         Stopwatch stopwatch = new();
@@ -203,7 +200,7 @@ public static class AdvancedExamples
         }
 
         // Monitor group changes in real-time
-        var subscription = temperatureGroup.ObserveGroup().Subscribe(groupData =>
+        var subscription = temperatureGroup.ObserveGroup().Subscribe(static groupData =>
         {
             var avgTemp = groupData.Values.Average();
             Trace.WriteLine($"Average Temperature: {avgTemp:F1}°C");
@@ -247,7 +244,7 @@ public static class AdvancedExamples
             "AnalogInput1",
             "AlarmStatus");
 
-        var monitoringSubscription = batchObserver.Subscribe(values =>
+        var monitoringSubscription = batchObserver.Subscribe(static values =>
         {
             Trace.WriteLine($"[{Clock.GetLocalNow():HH':'mm':'ss}] Batch Update:");
             foreach (var kvp in values)
@@ -273,7 +270,7 @@ public static class AdvancedExamples
             changeThreshold: 0.5,
             debounceMs: 100);
 
-        var smartSubscription = smartMonitor.Subscribe(change =>
+        var smartSubscription = smartMonitor.Subscribe(static change =>
         {
             Trace.WriteLine("🔔 Significant Change Detected:");
             Trace.WriteLine($"   Tag: {change.TagName}");
@@ -479,7 +476,7 @@ public static class AdvancedExamples
     /// <param name="alarmGroup">The alarm tag group.</param>
     /// <returns>The alarm subscription.</returns>
     private static IDisposable SubscribeToAlarmGroup(HighPerformanceTagGroup<bool> alarmGroup)
-        => alarmGroup.ObserveGroup().Subscribe(alarmData =>
+        => alarmGroup.ObserveGroup().Subscribe(static alarmData =>
         {
             var activeAlarms = new List<string>();
             foreach (var alarm in alarmData)
@@ -504,7 +501,7 @@ public static class AdvancedExamples
     /// <param name="processGroup">The process tag group.</param>
     /// <returns>The process subscription.</returns>
     private static IDisposable SubscribeToProcessGroup(HighPerformanceTagGroup<float> processGroup)
-        => processGroup.ObserveGroup().Subscribe(processData =>
+        => processGroup.ObserveGroup().Subscribe(static processData =>
         {
             Trace.WriteLine($"   [{Clock.GetLocalNow():HH':'mm':'ss}] Process Values:");
             foreach (var value in processData)

@@ -3,13 +3,12 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.IO;
-using System.Text;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.IO;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.IO;
+using IoT.Driver.ModbusRx.Message;
 using Moq;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.IO;
+namespace IoT.Driver.ModbusRx.UnitTests.IO;
 
 /// <summary>Tests the ModbusAsciiTransportFixture behavior.</summary>
 public class ModbusAsciiTransportFixture
@@ -41,14 +40,14 @@ public class ModbusAsciiTransportFixture
         var stream = mock.Object;
         using var transport = new ModbusAsciiTransport(stream);
         var calls = 0;
-        var bytes = Encoding.ASCII.GetBytes(":110100130025B6\r\n");
+        var bytes = ":110100130025B6\r\n"u8.ToArray();
 
-        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 1), 0, 1).Result)
+        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 1), 0, 1))
             .Returns((byte[] buffer, int offset, int count) =>
             {
                 buffer[offset] = bytes[calls];
                 calls++;
-                return 1;
+                return Task.FromResult(1);
             });
 
         Assert.Equal(
@@ -66,14 +65,14 @@ public class ModbusAsciiTransportFixture
         var stream = mock.Object;
         using var transport = new ModbusAsciiTransport(stream);
         var calls = 0;
-        var bytes = Encoding.ASCII.GetBytes(":10\r\n");
+        var bytes = ":10\r\n"u8.ToArray();
 
-        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 1), 0, 1).Result)
+        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 1), 0, 1))
             .Returns((byte[] buffer, int offset, int count) =>
             {
                 buffer[offset] = bytes[calls];
                 calls++;
-                return 1;
+                return Task.FromResult(1);
             });
 
         await Assert.ThrowsAsync<IOException>(() => transport.ReadRequestResponseAsync());

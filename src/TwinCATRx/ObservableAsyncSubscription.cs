@@ -5,9 +5,9 @@
 using ReactiveUI.Primitives.Async;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Reactive;
+namespace IoT.Driver.TwinCATRx.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx;
+namespace IoT.Driver.TwinCATRx;
 #endif
 
 /// <summary>Coordinates an observable subscription with async observer callbacks.</summary>
@@ -17,8 +17,8 @@ internal sealed class ObservableAsyncSubscription<T> : IObserver<T>, IAsyncDispo
     /// <summary>Stores the cancellation token registration.</summary>
     private readonly CancellationTokenRegistration _registration;
 
-    /// <summary>Serializes async observer calls.</summary>
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    /// <summary>Serializes queued async observer calls.</summary>
+    private readonly Lock _gate = new();
 
     /// <summary>Stores the async observer.</summary>
     private readonly IObserverAsync<T> _observer;
@@ -31,6 +31,9 @@ internal sealed class ObservableAsyncSubscription<T> : IObserver<T>, IAsyncDispo
 
     /// <summary>Stores the upstream observable subscription.</summary>
     private IDisposable? _sourceSubscription;
+
+    /// <summary>Stores the tail of the serialized observer callback queue.</summary>
+    private Task _pendingCallbacks = Task.CompletedTask;
 
     /// <summary>Initializes a new instance of the <see cref="ObservableAsyncSubscription{T}"/> class.</summary>
     /// <param name="observer">The async observer.</param>
@@ -47,15 +50,15 @@ internal sealed class ObservableAsyncSubscription<T> : IObserver<T>, IAsyncDispo
     }
 
     /// <summary>Notifies the async observer that the sequence completed.</summary>
-    public void OnCompleted() => InvokeObserver(() => _observer.OnCompletedAsync(Result.Success));
+    public void OnCompleted() => QueueObserver(() => _observer.OnCompletedAsync(Result.Success));
 
     /// <summary>Notifies the async observer that the sequence failed.</summary>
     /// <param name="error">The observable error.</param>
-    public void OnError(Exception error) => InvokeObserver(() => _observer.OnErrorResumeAsync(error, _source.Token));
+    public void OnError(Exception error) => QueueObserver(() => _observer.OnErrorResumeAsync(error, _source.Token));
 
     /// <summary>Notifies the async observer that the sequence produced a value.</summary>
     /// <param name="value">The observable value.</param>
-    public void OnNext(T value) => InvokeObserver(() => _observer.OnNextAsync(value, _source.Token));
+    public void OnNext(T value) => QueueObserver(() => _observer.OnNextAsync(value, _source.Token));
 
     /// <summary>Disposes the async subscription.</summary>
     /// <returns>The completed disposal operation.</returns>
@@ -89,32 +92,36 @@ internal sealed class ObservableAsyncSubscription<T> : IObserver<T>, IAsyncDispo
         _source.Cancel();
         _sourceSubscription?.Dispose();
         _registration.Dispose();
-        _gate.Dispose();
         _source.Dispose();
     }
 
-    /// <summary>Invokes the async observer callback synchronously under the subscription gate.</summary>
+    /// <summary>Queues an async observer callback under the subscription gate.</summary>
     /// <param name="callback">The observer callback.</param>
-    private void InvokeObserver(Func<ValueTask> callback)
+    private void QueueObserver(Func<ValueTask> callback)
     {
         if (Volatile.Read(ref _disposed) != 0)
         {
             return;
         }
 
+        lock (_gate)
+        {
+            _pendingCallbacks = InvokeObserverAsync(_pendingCallbacks, callback);
+        }
+    }
+
+    /// <summary>Invokes an observer callback after all previously queued callbacks have completed.</summary>
+    /// <param name="previous">The preceding callback task.</param>
+    /// <param name="callback">The observer callback.</param>
+    /// <returns>The callback completion task.</returns>
+    private async Task InvokeObserverAsync(Task previous, Func<ValueTask> callback)
+    {
         try
         {
-            _gate.Wait(_source.Token);
-            try
+            await previous.ConfigureAwait(false);
+            if (!_source.IsCancellationRequested)
             {
-                if (!_source.IsCancellationRequested)
-                {
-                    callback().AsTask().GetAwaiter().GetResult();
-                }
-            }
-            finally
-            {
-                _ = _gate.Release();
+                await callback().ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (_source.IsCancellationRequested)

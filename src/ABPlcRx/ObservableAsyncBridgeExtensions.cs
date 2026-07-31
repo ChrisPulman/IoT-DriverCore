@@ -4,9 +4,9 @@
 using PrimitivesResult = ReactiveUI.Primitives.Result;
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>Bridges synchronous observable streams to ReactiveUI.Primitives async observables.</summary>
@@ -21,10 +21,7 @@ public static class ObservableAsyncBridgeExtensions
 #if NET8_0_OR_GREATER
         ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
 #else
-        if (source is null)
-        {
-            throw new ArgumentNullException(nameof(source));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
 #endif
         return new ObservableAsyncAdapter<T>(source);
     }
@@ -46,7 +43,7 @@ public static class ObservableAsyncBridgeExtensions
             cancellationToken.ThrowIfCancellationRequested();
 
             var subscription = source.Subscribe(new ObserverAsyncAdapter<T>(observer, cancellationToken));
-            return new ValueTask<IAsyncDisposable>(new SubscriptionAsyncDisposable(subscription));
+            return new(new SubscriptionAsyncDisposable(subscription));
         }
     }
 

@@ -7,12 +7,12 @@ using System.Diagnostics.CodeAnalysis;
 #endif
 using System.Reflection;
 using CP.Collections;
-using IoT.DriverCore.TwinCATRx;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx;
+using IoT.Driver.TwinCATRx.Core;
 using ReactiveUI.Primitives.Disposables;
-using LeanTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.TwinCatRxExtensions;
+using LeanTwinCatRxExtensions = IoT.Driver.TwinCATRx.TwinCatRxExtensions;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Deterministic coverage tests for disconnected lean client behavior.</summary>
 public class LeanRxClientCoverageTests
@@ -174,7 +174,7 @@ public class LeanRxClientCoverageTests
     {
         using var client = new RxTcAdsClient();
         var settings = new Settings();
-        IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.AddNotification(
+        IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions.AddNotification(
             settings,
             ArrayVariable,
             cycleTime: 100,
@@ -203,10 +203,10 @@ public class LeanRxClientCoverageTests
 
         var syncResult = LeanTwinCatRxExtensions.WriteValues(
             table,
-            clone => clone.SetStructure(new TestStructure { Value = FirstUpdatedValue }));
+            static clone => clone.SetStructure(new TestStructure { Value = FirstUpdatedValue }));
         var asyncResult = await LeanTwinCatRxExtensions.WriteValuesAsync(
             table,
-            clone => clone.SetStructure(new TestStructure { Value = SecondUpdatedValue }),
+            static clone => clone.SetStructure(new TestStructure { Value = SecondUpdatedValue }),
             TimeSpan.FromHours(1));
 
         await TUnitAssert.That(syncResult).IsTrue();
@@ -230,7 +230,7 @@ public class LeanRxClientCoverageTests
 
         try
         {
-            var writeTask = LeanTwinCatRxExtensions.WriteValuesAsync(table, _ => { }, TimeSpan.Zero);
+            var writeTask = LeanTwinCatRxExtensions.WriteValuesAsync(table, static _ => { }, TimeSpan.Zero);
             await Task.Yield();
             client.Disconnect();
             var result = await writeTask;
@@ -259,12 +259,12 @@ public class LeanRxClientCoverageTests
         var populated = LeanTwinCatRxExtensions.CreateStruct(fake, ScalarVariable);
         var nullClientResult = LeanTwinCatRxExtensions.CreateStruct((IRxTcAdsClient)null!, ScalarVariable);
 
-        await TUnitAssert.That(LeanTwinCatRxExtensions.WriteValues((HashTableRx)null!, _ => { })).IsFalse();
+        await TUnitAssert.That(LeanTwinCatRxExtensions.WriteValues((HashTableRx)null!, static _ => { })).IsFalse();
         await TUnitAssert.That(LeanTwinCatRxExtensions.WriteValues(table, null!)).IsFalse();
-        await TUnitAssert.That(LeanTwinCatRxExtensions.WriteValues(table, _ => { })).IsFalse();
+        await TUnitAssert.That(LeanTwinCatRxExtensions.WriteValues(table, static _ => { })).IsFalse();
         await TUnitAssert.That(await LeanTwinCatRxExtensions.WriteValuesAsync(table, null!, TimeSpan.Zero)).IsFalse();
         await TUnitAssert.That(
-                await LeanTwinCatRxExtensions.WriteValuesAsync(table, _ => { }, TimeSpan.Zero))
+                await LeanTwinCatRxExtensions.WriteValuesAsync(table, static _ => { }, TimeSpan.Zero))
             .IsFalse();
         await TUnitAssert.That(nullClientResult).IsNull();
         await TUnitAssert.That(populated).IsNotNull();

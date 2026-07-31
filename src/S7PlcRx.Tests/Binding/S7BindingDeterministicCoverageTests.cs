@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Binding;
+using IoT.Driver.S7PlcRx.Binding;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Binding;
+namespace IoT.Driver.S7PlcRx.Tests.Binding;
 
 /// <summary>Provides deterministic S7 binding and observable-adapter coverage.</summary>
 public sealed class S7BindingDeterministicCoverageTests
@@ -39,16 +39,16 @@ public sealed class S7BindingDeterministicCoverageTests
 
         await TUnit.Assertions.Assert.That(applied.Count).IsEqualTo(0);
         await TUnit.Assertions.Assert.That(
-                () => S7TagRuntimeBinding.Bind(plc, [new S7TagDefinition("Bad", "MW0", typeof(int), 0, S7TagDirection.ReadWrite, 1)], (_, _) => { }))
+                () => S7TagRuntimeBinding.Bind(plc, [new S7TagDefinition("Bad", "MW0", typeof(int), 0, S7TagDirection.ReadWrite, 1)], static (_, _) => { }))
             .Throws<ArgumentException>();
         await TUnit.Assertions.Assert.That(
-                () => S7TagRuntimeBinding.Bind(null!, definitions, (_, _) => { }))
+                () => S7TagRuntimeBinding.Bind(null!, definitions, static (_, _) => { }))
             .Throws<ArgumentNullException>();
         await TUnit.Assertions.Assert.That(
-                () => S7TagRuntimeBinding.Bind(plc, [new S7TagDefinition("Bit", "DB1.DBX0.8", typeof(bool), 0, S7TagDirection.ReadWrite, 1)], (_, _) => { }))
+                () => S7TagRuntimeBinding.Bind(plc, [new S7TagDefinition("Bit", "DB1.DBX0.8", typeof(bool), 0, S7TagDirection.ReadWrite, 1)], static (_, _) => { }))
             .Throws<ArgumentOutOfRangeException>();
         await TUnit.Assertions.Assert.That(
-                () => S7TagRuntimeBinding.Bind(plc, [new S7TagDefinition(nameof(Type), "DB1.DBQ0", typeof(int), 0, S7TagDirection.ReadWrite, 1)], (_, _) => { }))
+                () => S7TagRuntimeBinding.Bind(plc, [new S7TagDefinition(nameof(Type), "DB1.DBQ0", typeof(int), 0, S7TagDirection.ReadWrite, 1)], static (_, _) => { }))
             .Throws<ArgumentException>();
     }
 
@@ -72,7 +72,7 @@ public sealed class S7BindingDeterministicCoverageTests
         await TUnit.Assertions.Assert.That(completed).IsFalse();
         await TUnit.Assertions.Assert.That(() => canceled.MoveNextAsync().AsTask()).Throws<OperationCanceledException>();
         await TUnit.Assertions.Assert.That(() => failed.MoveNextAsync().AsTask()).Throws<InvalidOperationException>();
-        await TUnit.Assertions.Assert.That(() => S7TagObservableAdapter.ToAsyncEnumerable<ushort>(null!))
+        await TUnit.Assertions.Assert.That(static () => S7TagObservableAdapter.ToAsyncEnumerable<ushort>(null!))
             .Throws<ArgumentNullException>();
     }
 }

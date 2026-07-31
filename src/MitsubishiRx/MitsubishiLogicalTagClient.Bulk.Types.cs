@@ -2,15 +2,15 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -73,13 +73,25 @@ public sealed partial class MitsubishiLogicalTagClient
 
         if (tag.Metadata.TryGetValue("Groups", out var groups))
         {
-            names.AddRange(
-                groups
-                    .Split('|', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(Uri.UnescapeDataString));
+            foreach (var encodedGroup in groups.Split(
+                '|',
+                StringSplitOptions.RemoveEmptyEntries))
+            {
+                names.Add(Uri.UnescapeDataString(encodedGroup));
+            }
         }
 
-        return names.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var uniqueNames = new List<string>(names.Count);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in names)
+        {
+            if (seen.Add(name))
+            {
+                uniqueNames.Add(name);
+            }
+        }
+
+        return [.. uniqueNames];
     }
 
     /// <summary>Gets optional metadata.</summary>

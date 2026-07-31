@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="IoT.DriverCore.Core" />
+    <Using Include="IoT.Driver.Core" />
     <Using Include="ReactiveUI.Primitives" />
   </ItemGroup>
 

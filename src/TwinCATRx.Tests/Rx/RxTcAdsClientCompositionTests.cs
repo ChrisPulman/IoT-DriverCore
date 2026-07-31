@@ -9,16 +9,17 @@ using System.Runtime.Versioning;
 using System.Collections.Concurrent;
 using System.ServiceProcess;
 using System.Text;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx.Core;
 using TwinCAT.Ads;
 using TwinCAT.TypeSystem;
-using CoreNotificationContract = IoT.DriverCore.TwinCATRx.Core.INotification;
-using LeanBridge = IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions;
-using RxNotification = IoT.DriverCore.TwinCATRx.Core.Notification;
+using CoreNotificationContract = IoT.Driver.TwinCATRx.Core.INotification;
+using LeanBridge = IoT.Driver.TwinCATRx.ObservableBridgeExtensions;
+using RxNotification = IoT.Driver.TwinCATRx.Core.Notification;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Exercises the production ADS client through deterministic composed dependencies.</summary>
+[NotInParallel]
 public sealed class RxTcAdsClientCompositionTests
 {
     /// <summary>The expected notification handle count.</summary>
@@ -65,6 +66,12 @@ public sealed class RxTcAdsClientCompositionTests
 
     /// <summary>A deterministic read failure message.</summary>
     private const string ReadFailureMessage = "read failed";
+
+    /// <summary>A deterministic connection failure message.</summary>
+    private const string ConnectFailureMessage = "connect failed";
+
+    /// <summary>A deterministic handle failure message.</summary>
+    private const string HandleFailureMessage = "handle failed";
 
     /// <summary>A deterministic write failure message.</summary>
     private const string WriteFailureMessage = "write failed";
@@ -114,12 +121,12 @@ public sealed class RxTcAdsClientCompositionTests
         await TUnitAssert.That(ads.RemoteConnectCount).IsEqualTo(1);
         await TUnitAssert.That(platform.LoadSymbolsCount).IsEqualTo(1);
         await TUnitAssert.That(client.Connected).IsTrue();
-        await TUnitAssert.That(initialized).Count().IsEqualTo(1);
-        await TUnitAssert.That(client.ReadWriteHandleInfo).Count().IsEqualTo(ExpectedNotificationHandleCount);
-        await TUnitAssert.That(client.WriteHandleInfo).Count().IsEqualTo(1);
+        await TUnitAssert.That(initialized.Count).IsEqualTo(1);
+        await TUnitAssert.That(client.ReadWriteHandleInfo.Count).IsEqualTo(ExpectedNotificationHandleCount);
+        await TUnitAssert.That(client.WriteHandleInfo.Count).IsEqualTo(1);
         await TUnitAssert.That(
-            data.Any(item => item.Variable == ScalarVariable && Equals(item.Data, ScalarPayload))).IsTrue();
-        await TUnitAssert.That(data.Any(item => item.Id == "text" && Equals(item.Data, "hello"))).IsTrue();
+            data.Exists(static item => item.Variable == ScalarVariable && Equals(item.Data, ScalarPayload))).IsTrue();
+        await TUnitAssert.That(data.Exists(static item => item.Id == "text" && Equals(item.Data, "hello"))).IsTrue();
         await TUnitAssert.That(writes).Contains("Success,write");
         await TUnitAssert.That(ads.ValuesByVariable[WriteOnlyVariable]).IsEqualTo(WritePayload);
     }
@@ -143,21 +150,23 @@ public sealed class RxTcAdsClientCompositionTests
         using var client = new RxTcAdsClient(TimeProvider.System, platform);
         var errors = new ConcurrentQueue<Exception>();
         var writes = new ConcurrentQueue<string?>();
+        var initializationPublished = CreatePublicationSource();
         var readFailurePublished = CreatePublicationSource();
         var writeFailurePublished = CreatePublicationSource();
+        using var initializationSubscription = LeanBridge.SubscribeTo(
+            client.InitializeComplete,
+            value => CompletePublication(initializationPublished, value));
         using var errorSubscription = LeanBridge.SubscribeTo(
             client.ErrorReceived,
-            error => RecordErrorPublication(errors, readFailurePublished, error));
+            error => RecordErrorPublication(errors, readFailurePublished, ReadFailureMessage, error));
         using var writeSubscription = LeanBridge.SubscribeTo(
             client.OnWrite,
             write => RecordWritePublication(writes, writeFailurePublished, write));
 
         client.Connect(settings);
-        await TUnitAssert.That(await DriveTicksUntilConnectedAsync(client, platform.Ticks)).IsTrue();
-        ads.ReadAnyError = new IOException(ReadFailureMessage);
-        client.Read(ValueVariable, "read");
-        await TUnitAssert.That(await WaitForPublicationAsync(readFailurePublished.Task)).IsTrue();
-        ads.ReadAnyError = null;
+        await TUnitAssert.That(
+            await DriveTicksUntilPublicationAsync(initializationPublished.Task, platform.Ticks)).IsTrue();
+        await AssertNativeReadFailureAsync(client, ads, readFailurePublished.Task);
         ads.WriteAnyError = new IOException(WriteFailureMessage);
         client.Write(ValueVariable, ExpectedNotificationHandleCount, "write");
         await TUnitAssert.That(await WaitForPublicationAsync(writeFailurePublished.Task)).IsTrue();
@@ -178,11 +187,11 @@ public sealed class RxTcAdsClientCompositionTests
         statePlatform.Ticks.Emit(ExpectedNotificationHandleCount);
 
         await TUnitAssert.That(ads.LocalConnectCount).IsEqualTo(1);
-        await TUnitAssert.That(errors.Any(error => error.Message.Contains(ReadFailureMessage))).IsTrue();
-        await TUnitAssert.That(errors.Any(error => error.Message.Contains(WriteFailureMessage))).IsTrue();
-        await TUnitAssert.That(errors.Any(error => error.Message.Contains("Ads Fault"))).IsTrue();
-        await TUnitAssert.That(errors.Any(error => error.Message.Contains("control failed"))).IsTrue();
-        await TUnitAssert.That(writes.Any(write => write?.Contains(WriteFailureMessage) == true)).IsTrue();
+        await TUnitAssert.That(ContainsError(errors, ReadFailureMessage)).IsTrue();
+        await TUnitAssert.That(ContainsError(errors, WriteFailureMessage)).IsTrue();
+        await TUnitAssert.That(ContainsError(errors, "Ads Fault")).IsTrue();
+        await TUnitAssert.That(ContainsError(errors, "control failed")).IsTrue();
+        await TUnitAssert.That(ContainsWrite(writes, WriteFailureMessage)).IsTrue();
     }
 
     /// <summary>Verifies configuration edge cases and notification length errors.</summary>
@@ -221,8 +230,8 @@ public sealed class RxTcAdsClientCompositionTests
         await TUnitAssert.That(client.ReadWriteHandleInfo.ContainsKey(ArrayVariable)).IsTrue();
         await TUnitAssert.That(client.ReadWriteHandleInfo.ContainsKey(UnsupportedVariable)).IsFalse();
         await TUnitAssert.That(client.WriteHandleInfo.ContainsKey(".Missing")).IsTrue();
-        await TUnitAssert.That(errors.Any(error => error.Message.Contains("String length"))).IsTrue();
-        await TUnitAssert.That(errors.Any(error => error.Message.Contains("Array length"))).IsTrue();
+        await TUnitAssert.That(ContainsError(errors, "String length")).IsTrue();
+        await TUnitAssert.That(ContainsError(errors, "Array length")).IsTrue();
     }
 
     /// <summary>Verifies initialization errors are reported without external ADS infrastructure.</summary>
@@ -234,32 +243,48 @@ public sealed class RxTcAdsClientCompositionTests
 #endif
     public async Task Composed_Runtime_Reports_Connect_And_Handle_FailuresAsync()
     {
-        var connectionAds = new FakeAdsClient { ConnectError = new IOException("connect failed") };
+        var connectionAds = new FakeAdsClient { ConnectError = new IOException(ConnectFailureMessage) };
         using var connectionPlatform = new FakePlatform(connectionAds);
         using var connectionClient = new RxTcAdsClient(TimeProvider.System, connectionPlatform);
-        var connectionErrors = new List<Exception>();
+        var connectionErrors = new ConcurrentQueue<Exception>();
+        var connectionFailurePublished = CreatePublicationSource();
         using var connectionSubscription = LeanBridge.SubscribeTo(
             connectionClient.ErrorReceived,
-            connectionErrors.Add);
+            error => RecordErrorPublication(
+                connectionErrors,
+                connectionFailurePublished,
+                ConnectFailureMessage,
+                error));
         connectionClient.Connect(new Settings());
 
         var handleAds = new FakeAdsClient
         {
             Port = TwinCat3Port,
-            CreateHandleError = new IOException("handle failed"),
+            CreateHandleError = new IOException(HandleFailureMessage),
         };
         using var handlePlatform = new FakePlatform(handleAds);
         handlePlatform.AddSymbol(ValueSymbolName, "DINT", DataTypeCategory.Primitive);
         var handleSettings = new Settings { Port = TwinCat3Port };
         handleSettings.Notifications.Add(new RxNotification(UpdateRate, ValueVariable));
         using var handleClient = new RxTcAdsClient(TimeProvider.System, handlePlatform);
-        var handleErrors = new List<Exception>();
-        using var handleSubscription = LeanBridge.SubscribeTo(handleClient.ErrorReceived, handleErrors.Add);
+        var handleErrors = new ConcurrentQueue<Exception>();
+        var handleFailurePublished = CreatePublicationSource();
+        using var handleSubscription = LeanBridge.SubscribeTo(
+            handleClient.ErrorReceived,
+            error => RecordErrorPublication(
+                handleErrors,
+                handleFailurePublished,
+                HandleFailureMessage,
+                error));
         handleClient.Connect(handleSettings);
-        handlePlatform.Ticks.Emit(0);
+        await TUnitAssert.That(
+            await WaitForPublicationAsync(connectionFailurePublished.Task)).IsTrue();
+        await TUnitAssert.That(
+            await DriveTicksUntilPublicationAsync(handleAds.CreateHandleAttempted.Task, handlePlatform.Ticks)).IsTrue();
+        await TUnitAssert.That(await WaitForPublicationAsync(handleFailurePublished.Task)).IsTrue();
 
-        await TUnitAssert.That(connectionErrors.Any(error => error.Message.Contains("connect failed"))).IsTrue();
-        await TUnitAssert.That(handleErrors.Any(error => error.Message.Contains("handle failed"))).IsTrue();
+        await TUnitAssert.That(ContainsError(connectionErrors, ConnectFailureMessage)).IsTrue();
+        await TUnitAssert.That(ContainsError(handleErrors, HandleFailureMessage)).IsTrue();
         await TUnitAssert.That(handleClient.Connected).IsFalse();
     }
 
@@ -304,7 +329,7 @@ public sealed class RxTcAdsClientCompositionTests
         await TUnitAssert.That(client.Connected).IsFalse();
         await TUnitAssert.That(ignoredService.StartCount).IsEqualTo(0);
         await TUnitAssert.That(twinCatService.StartCount).IsEqualTo(1);
-        await TUnitAssert.That(errors.Any(error => error.Message.Contains("Service Fault"))).IsTrue();
+        await TUnitAssert.That(ContainsError(errors, "Service Fault")).IsTrue();
     }
 
     /// <summary>Verifies null collections and write-handle failures remain deterministic.</summary>
@@ -338,7 +363,7 @@ public sealed class RxTcAdsClientCompositionTests
         writePlatform.Ticks.Emit(0);
 
         await TUnitAssert.That(nullClient.Connected).IsTrue();
-        await TUnitAssert.That(errors.Any(error => error.Message.Contains("write handle failed"))).IsTrue();
+        await TUnitAssert.That(ContainsError(errors, "write handle failed")).IsTrue();
         await TUnitAssert.That(writeClient.Connected).IsFalse();
     }
 
@@ -354,7 +379,18 @@ public sealed class RxTcAdsClientCompositionTests
         var staleFile = Path.Combine(
             AppDomain.CurrentDomain.BaseDirectory,
             $"PLC_Value_Coverage_{Guid.NewGuid():N}.tmp");
-        File.WriteAllText(staleFile, "stale");
+#if NETFRAMEWORK
+        using (var writer = File.CreateText(staleFile))
+        {
+            await writer.WriteAsync("stale");
+        }
+#else
+        await using (var writer = File.CreateText(staleFile))
+        {
+            await writer.WriteAsync("stale");
+        }
+#endif
+
         try
         {
             var ads = new FakeAdsClient { Port = TwinCat3Port };
@@ -380,37 +416,103 @@ public sealed class RxTcAdsClientCompositionTests
     private static TaskCompletionSource<bool> CreatePublicationSource() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    /// <summary>Drives the deterministic interval until the composed client completes initialization.</summary>
-    /// <param name="client">The composed ADS client.</param>
-    /// <param name="ticks">The deterministic interval source.</param>
-    /// <returns>Whether the client connected before the timeout.</returns>
-    private static async Task<bool> DriveTicksUntilConnectedAsync(
+    /// <summary>Verifies a queued read reaches the native runtime and publishes its configured failure.</summary>
+    /// <param name="client">The composed client.</param>
+    /// <param name="ads">The deterministic native runtime.</param>
+    /// <param name="failurePublication">The expected error publication.</param>
+    /// <returns>A task that completes after the native attempt and error publication.</returns>
+    private static async Task AssertNativeReadFailureAsync(
         RxTcAdsClient client,
+        FakeAdsClient ads,
+        Task<bool> failurePublication)
+    {
+        await TUnitAssert.That(client.Connected).IsTrue();
+        await TUnitAssert.That(client.ReadWriteHandleInfo.ContainsKey(ValueVariable)).IsTrue();
+        ads.ReadAnyError = new IOException(ReadFailureMessage);
+        client.Read(ValueVariable, "read");
+        await TUnitAssert.That(await WaitForPublicationAsync(ads.ReadAttempted.Task)).IsTrue();
+        await TUnitAssert.That(await WaitForPublicationAsync(failurePublication)).IsTrue();
+        ads.ReadAnyError = null;
+    }
+
+    /// <summary>Completes a publication barrier after accepting its observed value.</summary>
+    /// <typeparam name="T">The observed value type.</typeparam>
+    /// <param name="publication">The publication barrier.</param>
+    /// <param name="value">The observed value.</param>
+    private static void CompletePublication<T>(TaskCompletionSource<bool> publication, T value)
+    {
+        _ = value;
+        _ = publication.TrySetResult(true);
+    }
+
+    /// <summary>Determines whether an observed error contains the supplied message fragment.</summary>
+    /// <param name="errors">The observed errors.</param>
+    /// <param name="messageFragment">The message fragment to locate.</param>
+    /// <returns><see langword="true"/> when a matching error was observed.</returns>
+    private static bool ContainsError(IEnumerable<Exception> errors, string messageFragment)
+    {
+        foreach (var error in errors)
+        {
+            if (error.Message.Contains(messageFragment))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Determines whether an observed write contains the supplied message fragment.</summary>
+    /// <param name="writes">The observed writes.</param>
+    /// <param name="messageFragment">The message fragment to locate.</param>
+    /// <returns><see langword="true"/> when a matching write was observed.</returns>
+    private static bool ContainsWrite(IEnumerable<string?> writes, string messageFragment)
+    {
+        foreach (var write in writes)
+        {
+            if (write?.Contains(messageFragment) == true)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Drives the deterministic interval until the expected reactive publication arrives.</summary>
+    /// <param name="publication">The expected publication task.</param>
+    /// <param name="ticks">The deterministic interval source.</param>
+    /// <returns>Whether the publication completed before the timeout.</returns>
+    private static async Task<bool> DriveTicksUntilPublicationAsync(
+        Task<bool> publication,
         ManualObservable<long> ticks)
     {
         var timeout = Task.Delay(PublicationTimeout);
         var tick = 0L;
-        while (!client.Connected && !timeout.IsCompleted)
+        while (!publication.IsCompleted && !timeout.IsCompleted)
         {
             ticks.Emit(tick);
             tick++;
             _ = await Task.WhenAny(Task.Delay(TimeSpan.FromMilliseconds(1)), timeout);
         }
 
-        return client.Connected;
+        return publication.Status == TaskStatus.RanToCompletion
+            && await publication.ConfigureAwait(false);
     }
 
-    /// <summary>Records an error and completes a matching read-failure publication.</summary>
+    /// <summary>Records an error and completes a matching error publication.</summary>
     /// <param name="errors">The observed errors.</param>
     /// <param name="publication">The expected publication.</param>
+    /// <param name="expectedMessage">The expected error message fragment.</param>
     /// <param name="error">The published error.</param>
     private static void RecordErrorPublication(
         ConcurrentQueue<Exception> errors,
         TaskCompletionSource<bool> publication,
+        string expectedMessage,
         Exception error)
     {
         errors.Enqueue(error);
-        if (!error.Message.Contains(ReadFailureMessage))
+        if (!error.Message.Contains(expectedMessage))
         {
             return;
         }
@@ -478,23 +580,53 @@ public sealed class RxTcAdsClientCompositionTests
         /// <summary>Gets the control-write count.</summary>
         public int ControlWriteCount { get; private set; }
 
+        /// <summary>Gets the signal for the first attempted native handle creation.</summary>
+        public TaskCompletionSource<bool> CreateHandleAttempted { get; } = CreatePublicationSource();
+
+        /// <summary>Gets the signal for the first attempted native read.</summary>
+        public TaskCompletionSource<bool> ReadAttempted { get; } = CreatePublicationSource();
+
         /// <summary>Gets or sets a connection error.</summary>
-        public Exception? ConnectError { get; set; }
+        public Exception? ConnectError
+        {
+            get => Volatile.Read(ref field);
+            set => Volatile.Write(ref field, value);
+        }
 
         /// <summary>Gets or sets a handle creation error.</summary>
-        public Exception? CreateHandleError { get; set; }
+        public Exception? CreateHandleError
+        {
+            get => Volatile.Read(ref field);
+            set => Volatile.Write(ref field, value);
+        }
 
         /// <summary>Gets or sets a read error.</summary>
-        public Exception? ReadAnyError { get; set; }
+        public Exception? ReadAnyError
+        {
+            get => Volatile.Read(ref field);
+            set => Volatile.Write(ref field, value);
+        }
 
         /// <summary>Gets or sets a state-read error.</summary>
-        public Exception? ReadStateError { get; set; }
+        public Exception? ReadStateError
+        {
+            get => Volatile.Read(ref field);
+            set => Volatile.Write(ref field, value);
+        }
 
         /// <summary>Gets or sets a write error.</summary>
-        public Exception? WriteAnyError { get; set; }
+        public Exception? WriteAnyError
+        {
+            get => Volatile.Read(ref field);
+            set => Volatile.Write(ref field, value);
+        }
 
         /// <summary>Gets or sets a control-write error.</summary>
-        public Exception? WriteControlError { get; set; }
+        public Exception? WriteControlError
+        {
+            get => Volatile.Read(ref field);
+            set => Volatile.Write(ref field, value);
+        }
 
         /// <inheritdoc/>
         public void Connect(int port)
@@ -518,6 +650,7 @@ public sealed class RxTcAdsClientCompositionTests
         /// <inheritdoc/>
         public uint CreateVariableHandle(string variable)
         {
+            _ = CreateHandleAttempted.TrySetResult(true);
             ThrowIfConfigured(CreateHandleError);
             if (_handles.TryGetValue(variable, out var existing))
             {
@@ -537,6 +670,7 @@ public sealed class RxTcAdsClientCompositionTests
         public object ReadAny(uint handle, Type type)
         {
             _ = type;
+            _ = ReadAttempted.TrySetResult(true);
             ThrowIfConfigured(ReadAnyError);
             return ValuesByVariable[_variables[handle]];
         }
@@ -865,18 +999,61 @@ public sealed class RxTcAdsClientCompositionTests
         public ISymbol this[string instancePath] => GetInstance(instancePath);
 
         /// <inheritdoc/>
-        public bool Contains(string instancePath) => this.Any(symbol => symbol.InstancePath == instancePath);
+        public bool Contains(string instancePath)
+        {
+            foreach (var symbol in this)
+            {
+                if (symbol.InstancePath == instancePath)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         /// <inheritdoc/>
-        public bool ContainsName(string instanceName) => this.Any(symbol => symbol.InstanceName == instanceName);
+        public bool ContainsName(string instanceName)
+        {
+            foreach (var symbol in this)
+            {
+                if (symbol.InstanceName == instanceName)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         /// <inheritdoc/>
-        public ISymbol GetInstance(string instancePath) =>
-            this.First(symbol => symbol.InstancePath == instancePath);
+        public ISymbol GetInstance(string instancePath)
+        {
+            foreach (var symbol in this)
+            {
+                if (symbol.InstancePath == instancePath)
+                {
+                    return symbol;
+                }
+            }
+
+            throw new KeyNotFoundException($"No symbol has instance path '{instancePath}'.");
+        }
 
         /// <inheritdoc/>
-        public IList<ISymbol> GetInstanceByName(string instanceName) =>
-            this.Where(symbol => symbol.InstanceName == instanceName).ToList();
+        public IList<ISymbol> GetInstanceByName(string instanceName)
+        {
+            var symbols = new List<ISymbol>();
+            foreach (var symbol in this)
+            {
+                if (symbol.InstanceName == instanceName)
+                {
+                    symbols.Add(symbol);
+                }
+            }
+
+            return symbols;
+        }
 
         /// <inheritdoc/>
 #if NETFRAMEWORK
@@ -885,8 +1062,21 @@ public sealed class RxTcAdsClientCompositionTests
         public bool TryGetInstance(string instancePath, [NotNullWhen(true)] out ISymbol? symbol)
 #endif
         {
-            symbol = this.FirstOrDefault(candidate => candidate.InstancePath == instancePath);
-            return symbol is not null;
+            foreach (var candidate in this)
+            {
+                if (candidate.InstancePath == instancePath)
+                {
+                    symbol = candidate;
+                    return true;
+                }
+            }
+
+#if NETFRAMEWORK
+            symbol = null!;
+#else
+            symbol = null;
+#endif
+            return false;
         }
 
         /// <inheritdoc/>

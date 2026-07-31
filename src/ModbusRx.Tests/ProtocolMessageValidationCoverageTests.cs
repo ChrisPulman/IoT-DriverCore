@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Message;
 using NativeAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Exercises protocol-message validation at public frame boundaries.</summary>
 public sealed class ProtocolMessageValidationCoverageTests
@@ -23,7 +23,7 @@ public sealed class ProtocolMessageValidationCoverageTests
         await NativeAssert.That(request.StartAddress).IsEqualTo((ushort)0x02);
         await NativeAssert.That(request.NumberOfPoints).IsEqualTo((ushort)0x09);
         await NativeAssert.That(request.ByteCount).IsEqualTo((byte)0x02);
-        await NativeAssert.That(request.Data.NetworkBytes).IsEquivalentTo((byte[])[0x55, 0x01]);
+        await NativeAssert.That(request.Data.ToNetworkBytes()).IsEquivalentTo((byte[])[0x55, 0x01]);
         request.ValidateResponse(new WriteMultipleCoilsResponse(1, 0x02, 0x09));
 
         await NativeAssert.That(
@@ -33,7 +33,7 @@ public sealed class ProtocolMessageValidationCoverageTests
                 () => request.ValidateResponse(new WriteMultipleCoilsResponse(1, 0x02, 0x08)))
             .Throws<IOException>();
         await NativeAssert.That(
-                () => ModbusMessageFactory.CreateModbusMessage(
+                static () => ModbusMessageFactory.CreateModbusMessage(
                     new WriteMultipleCoilsRequest(),
                     [1, Modbus.WriteMultipleCoils, 0, 0x02, 0, 0x09, 0x03, 0x55, 0x01]))
             .Throws<FormatException>();
@@ -63,7 +63,7 @@ public sealed class ProtocolMessageValidationCoverageTests
                 () => request.ValidateResponse(new WriteMultipleRegistersResponse(1, 0x02, 0x02)))
             .Throws<IOException>();
         await NativeAssert.That(
-                () => ModbusMessageFactory.CreateModbusMessage(
+                static () => ModbusMessageFactory.CreateModbusMessage(
                     new WriteMultipleRegistersRequest(),
                     [1, Modbus.WriteMultipleRegisters, 0, 0x02, 0, 1, 0x04, 0x12, 0x34]))
             .Throws<FormatException>();
@@ -99,12 +99,12 @@ public sealed class ProtocolMessageValidationCoverageTests
                 () => register.ValidateResponse(new WriteSingleRegisterRequestResponse(1, 0x02, 0x4321)))
             .Throws<IOException>();
         await NativeAssert.That(
-                () => ModbusMessageFactory.CreateModbusMessage(
+                static () => ModbusMessageFactory.CreateModbusMessage(
                     new WriteSingleCoilRequestResponse(),
                     [1, Modbus.WriteSingleCoil, 0, 0x02, 0xff]))
             .Throws<FormatException>();
         await NativeAssert.That(
-                () => ModbusMessageFactory.CreateModbusMessage(
+                static () => ModbusMessageFactory.CreateModbusMessage(
                     new WriteSingleRegisterRequestResponse(),
                     [1, Modbus.WriteSingleRegister, 0, 0x02, 0x12]))
             .Throws<FormatException>();
@@ -139,7 +139,7 @@ public sealed class ProtocolMessageValidationCoverageTests
                         new RegisterCollection(0x2a, 0x2b))))
             .Throws<IOException>();
         await NativeAssert.That(
-                () => ModbusMessageFactory.CreateModbusMessage(
+                static () => ModbusMessageFactory.CreateModbusMessage(
                     new ReadWriteMultipleRegistersRequest(),
                     [1, Modbus.ReadWriteMultipleRegisters, 0, 0x02, 0, 1, 0, 0x04, 0, 1, 0x03, 0, 0x2a]))
             .Throws<FormatException>();
@@ -172,12 +172,12 @@ public sealed class ProtocolMessageValidationCoverageTests
                         new RegisterCollection(1, 0x02))))
             .Throws<IOException>();
         await NativeAssert.That(
-                () => ModbusMessageFactory.CreateModbusMessage(
+                static () => ModbusMessageFactory.CreateModbusMessage(
                     new ReadHoldingInputRegistersResponse(),
                     [1, Modbus.ReadHoldingRegisters, 1, 0]))
             .Throws<FormatException>();
         await NativeAssert.That(
-                () => ModbusMessageFactory.CreateModbusMessage(
+                static () => ModbusMessageFactory.CreateModbusMessage(
                     new ReadHoldingInputRegistersResponse(),
                     [1, Modbus.ReadHoldingRegisters, 0x02, 0]))
             .Throws<FormatException>();
@@ -201,12 +201,12 @@ public sealed class ProtocolMessageValidationCoverageTests
                     new ReadCoilsInputsResponse(Modbus.ReadCoils, 1, 1, new DiscreteCollection(0x55))))
             .Throws<IOException>();
         await NativeAssert.That(
-                () => ModbusMessageFactory.CreateModbusMessage(
+                static () => ModbusMessageFactory.CreateModbusMessage(
                     new ReadCoilsInputsRequest(),
                     [1, Modbus.ReadCoils, 0, 0x02, 0]))
             .Throws<FormatException>();
         await NativeAssert.That(
-                () => ModbusMessageFactory.CreateModbusMessage(
+                static () => ModbusMessageFactory.CreateModbusMessage(
                     new ReadCoilsInputsResponse(),
                     [1, Modbus.ReadCoils, 0x02, 0x55]))
             .Throws<FormatException>();
@@ -229,7 +229,7 @@ public sealed class ProtocolMessageValidationCoverageTests
                 () => ModbusMessageFactory.CreateModbusRequest(noFrame!))
             .Throws<FormatException>();
         await NativeAssert.That(
-                () => ModbusMessageFactory.CreateModbusRequest([1, 0x63, 0]))
+                static () => ModbusMessageFactory.CreateModbusRequest([1, 0x63, 0]))
             .Throws<ArgumentException>();
         await NativeAssert.That(
                 () => new ReadCoilsInputsRequest().Initialize(noFrame!))
@@ -248,12 +248,12 @@ public sealed class ProtocolMessageValidationCoverageTests
         await NativeAssert.That(response.SlaveExceptionCode).IsEqualTo(Modbus.IllegalDataAddress);
         await NativeAssert.That(new SlaveExceptionResponse(1, 0xff, 0xfe).ToString()).Contains("Unknown");
         await NativeAssert.That(
-                () => ModbusMessageFactory.CreateModbusMessage(
+                static () => ModbusMessageFactory.CreateModbusMessage(
                     new SlaveExceptionResponse(),
                     [1, Modbus.ExceptionOffset, Modbus.IllegalFunction]))
             .Throws<FormatException>();
         await NativeAssert.That(
-                () => ModbusMessageFactory.CreateModbusMessage(new SlaveExceptionResponse(), [1, 0x81]))
+                static () => ModbusMessageFactory.CreateModbusMessage(new SlaveExceptionResponse(), [1, 0x81]))
             .Throws<FormatException>();
     }
 }

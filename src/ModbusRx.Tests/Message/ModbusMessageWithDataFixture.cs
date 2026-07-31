@@ -2,10 +2,10 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
+namespace IoT.Driver.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the ModbusMessageWithDataFixture behavior.</summary>
 public class ModbusMessageWithDataFixture
@@ -31,7 +31,7 @@ public class ModbusMessageWithDataFixture
         AbstractModbusMessageWithData<DiscreteCollection> message =
             new ReadCoilsInputsResponse(Modbus.ReadCoils, 1, Num.Value2, new DiscreteCollection(true));
         byte[] expectedResult = { 1, 2, 1 };
-        Assert.Equal(expectedResult, message.ProtocolDataUnit);
+        Assert.Equal(expectedResult, message.ToProtocolDataUnit());
     }
 
     /// <summary>Datas the read coils response.</summary>
@@ -42,6 +42,6 @@ public class ModbusMessageWithDataFixture
         AbstractModbusMessageWithData<DiscreteCollection> message =
             new ReadCoilsInputsResponse(Modbus.ReadCoils, Num.Value11, 1, col);
         Assert.Equal(col.Count, message.Data.Count);
-        Assert.Equal(col.NetworkBytes, message.Data.NetworkBytes);
+        Assert.Equal(col.ToNetworkBytes(), message.Data.ToNetworkBytes());
     }
 }

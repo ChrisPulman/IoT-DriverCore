@@ -5,9 +5,9 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Data;
+namespace IoT.Driver.ModbusRx.UnitTests.Data;
 
 /// <summary>Tests the ModbusDataCollectionFixture behavior.</summary>
 /// <typeparam name="TData">The type of the data.</typeparam>

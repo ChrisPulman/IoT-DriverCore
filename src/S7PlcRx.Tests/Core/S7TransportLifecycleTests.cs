@@ -4,11 +4,11 @@
 
 using System.Net;
 using System.Net.Sockets;
-using IoT.DriverCore.S7PlcRx.Core;
-using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Core;
+using IoT.Driver.S7PlcRx.Enums;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Core;
+namespace IoT.Driver.S7PlcRx.Tests.Core;
 
 /// <summary>Provides deterministic background-lifecycle coverage for the S7 socket transport.</summary>
 public sealed partial class S7TransportCoreDeterministicCoverageTests
@@ -115,14 +115,22 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
         {
             acceptedSocket = await AsyncCompatibility.WaitAsync(listener.AcceptSocketAsync(), LoopbackTimeout);
 
+#if NET6_0_OR_GREATER
+            await lifetime.CancelAsync();
+#else
             lifetime.Cancel();
+#endif
             await TUnitAssert.That(
                 await AsyncCompatibility.WaitAsync(connectTask, LoopbackTimeout)).IsNull();
             _ = await connectTask;
         }
         finally
         {
+#if NET6_0_OR_GREATER
+            await lifetime.CancelAsync();
+#else
             lifetime.Cancel();
+#endif
             try
             {
                 _ = await connectTask;

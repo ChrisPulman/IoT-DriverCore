@@ -6,9 +6,9 @@ using System.Diagnostics;
 using System.Net.Sockets;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Core;
+namespace IoT.Driver.S7PlcRx.Reactive.Core;
 #else
-namespace IoT.DriverCore.S7PlcRx.Core;
+namespace IoT.Driver.S7PlcRx.Core;
 #endif
 
 /// <summary>Provides S7 socket connection functionality.</summary>
@@ -21,15 +21,23 @@ internal partial class S7SocketRx
     /// <returns>A task containing the number of bytes sent.</returns>
     private static Task<int> SendNetStandardAsync(Socket socket, byte[] request) =>
         Task.Factory.FromAsync(
-            (callback, state) => socket.BeginSend(
-                request,
+            static (callback, state) =>
+            {
+                var (registeredSocket, requestBytes) = ((Socket, byte[]))state!;
+                return registeredSocket.BeginSend(
+                requestBytes,
                 0,
-                request.Length,
+                requestBytes.Length,
                 SocketFlags.None,
                 callback,
-                state),
-            socket.EndSend,
-            null);
+                state);
+            },
+            static result =>
+            {
+                var (registeredSocket, _) = ((Socket, byte[]))result.AsyncState!;
+                return registeredSocket.EndSend(result);
+            },
+            (socket, request));
 #endif
 
     /// <summary>Stores the r ec ei ve r a w value.</summary>
@@ -57,21 +65,30 @@ internal partial class S7SocketRx
 
         try
         {
+#if NETFRAMEWORK
             var stopwatch = Stopwatch.StartNew();
+#else
+            var startTimestamp = Stopwatch.GetTimestamp();
+#endif
 
             if (_socket?.Connected == true)
             {
                 var received = _socket.Receive(buffer, offset, size, SocketFlags.None);
 
+#if NETFRAMEWORK
                 stopwatch.Stop();
-                RecordSuccessfulOperation(stopwatch.Elapsed, received, isReceive: true);
+                var elapsed = stopwatch.Elapsed;
+#else
+                var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
+#endif
+                RecordSuccessfulOperation(elapsed, received, isReceive: true);
 
                 if (traceOperation && tag is not null && Debugger.IsAttached)
                 {
                     var result = buffer[S7ResponseReturnCodeOffset] == S7ReturnCodeSuccess ? Success : Failed;
                     Debug.WriteLine(
                         $"{_timeProvider.GetUtcNow().LocalDateTime} Read Tag: {tag.Name} value: {tag.Value} {result} " +
-                        $"({received} bytes, {stopwatch.ElapsedMilliseconds}ms)");
+                        $"({received} bytes, {elapsed.TotalMilliseconds}ms)");
                 }
 
                 return received;
@@ -209,8 +226,17 @@ internal partial class S7SocketRx
         CancellationToken cancellationToken)
     {
         var receiveBuffer = _bufferPool.Rent(HandshakeReceiveBufferSize);
-        using var cancellationRegistration = cancellationToken.Register(
-            () => CloseSocketOptimized(socket, _timeProvider));
+#if NETFRAMEWORK
+        using var cancellationRegistration = RegisterSocketClose(
+            socket,
+            _timeProvider,
+            cancellationToken);
+#else
+        await using var cancellationRegistration = RegisterSocketClose(
+            socket,
+            _timeProvider,
+            cancellationToken);
+#endif
         try
         {
 #if NETFRAMEWORK
@@ -274,16 +300,25 @@ internal partial class S7SocketRx
             var total = 0;
             while (total < size)
             {
+                var receiveState = (socket, buffer, offset: offset + total, size: size - total);
                 var received = await Task.Factory.FromAsync(
-                    (callback, state) => socket.BeginReceive(
-                        buffer,
-                        offset + total,
-                        size - total,
-                        SocketFlags.None,
-                        callback,
-                        state),
-                    socket.EndReceive,
-                    null).ConfigureAwait(false);
+                    static (callback, state) =>
+                    {
+                        var (registeredSocket, receiveBuffer, receiveOffset, receiveSize) = ((Socket, byte[], int, int))state!;
+                        return registeredSocket.BeginReceive(
+                            receiveBuffer,
+                            receiveOffset,
+                            receiveSize,
+                            SocketFlags.None,
+                            callback,
+                            state);
+                    },
+                    static result =>
+                    {
+                        var (registeredSocket, _, _, _) = ((Socket, byte[], int, int))result.AsyncState!;
+                        return registeredSocket.EndReceive(result);
+                    },
+                    receiveState).ConfigureAwait(false);
 
                 if (received <= 0)
                 {

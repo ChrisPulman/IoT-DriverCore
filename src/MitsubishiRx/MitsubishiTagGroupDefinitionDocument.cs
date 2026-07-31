@@ -6,11 +6,11 @@ using System.Text.Json.Serialization;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -28,8 +28,13 @@ internal sealed class MitsubishiTagGroupDefinitionDocument
     /// <summary>Executes the FromModel operation.</summary>
     /// <param name="model">The model parameter.</param>
     /// <returns>The FromModel operation result.</returns>
-    internal static MitsubishiTagGroupDefinitionDocument FromModel(
-        MitsubishiTagGroupDefinition model) => new() { Name = model.Name, TagNames = model.ResolvedTagNames.ToList() };
+    internal static MitsubishiTagGroupDefinitionDocument FromModel(MitsubishiTagGroupDefinition model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        var tagNames = new List<string>(model.ResolvedTagNames);
+
+        return new() { Name = model.Name, TagNames = tagNames };
+    }
 
     /// <summary>Executes the ToModel operation.</summary>
     /// <returns>The ToModel operation result.</returns>

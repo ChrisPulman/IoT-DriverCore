@@ -8,20 +8,20 @@ using System.ServiceProcess;
 using System.Runtime.Versioning;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.TwinCATRx.Core.Reactive;
-using CoreTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
-using RxNotification = IoT.DriverCore.TwinCATRx.Core.Reactive.INotification;
+using IoT.Driver.TwinCATRx.Core.Reactive;
+using CoreTwinCatRxExtensions = IoT.Driver.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
+using RxNotification = IoT.Driver.TwinCATRx.Core.Reactive.INotification;
 #else
-using IoT.DriverCore.TwinCATRx.Core;
-using CoreTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions;
-using RxNotification = IoT.DriverCore.TwinCATRx.Core.INotification;
+using IoT.Driver.TwinCATRx.Core;
+using CoreTwinCatRxExtensions = IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions;
+using RxNotification = IoT.Driver.TwinCATRx.Core.INotification;
 #endif
 using TwinCAT.Ads;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Reactive;
+namespace IoT.Driver.TwinCATRx.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx;
+namespace IoT.Driver.TwinCATRx;
 #endif
 
 /// <summary>Observable TwinCAT ADS Client.</summary>
@@ -75,9 +75,9 @@ public partial class RxTcAdsClient
         ConnectAdsClient(client, codeGenerator, observer);
         MonitorServiceStatus(observer);
         MonitorAdsState(client, observer);
-        MonitorInitialization(client, observer);
         MonitorWrites(client);
         MonitorReads(client);
+        MonitorInitialization(client, observer);
         ScheduleNotifications(client);
         return ConnectionLifetime;
     }
@@ -161,7 +161,7 @@ public partial class RxTcAdsClient
     {
         var statuses = new Dictionary<string, ServiceControllerStatus>(StringComparer.OrdinalIgnoreCase);
         var services = _platform.GetServices()
-            .Where(service => string.Equals(service.ServiceName, "TcSysSrv", StringComparison.OrdinalIgnoreCase))
+            .Where(static service => string.Equals(service.ServiceName, "TcSysSrv", StringComparison.OrdinalIgnoreCase))
             .Retry(int.MaxValue);
         _ = ObservableBridgeExtensions.SubscribeTo(
             services,
@@ -260,7 +260,7 @@ public partial class RxTcAdsClient
     {
         var statuses = _clientState.DistinctUntilChanged().CombineLatest(
             _serviceStatus.DistinctUntilChanged(),
-            (state, service) => (State: state, Service: service));
+            static (state, service) => (State: state, Service: service));
         _ = ObservableBridgeExtensions.SubscribeTo(statuses.Retry(int.MaxValue), status =>
         {
             if (!_initialized && status.Service == ServiceStatus.Running && status.State == AdsState.Run)
@@ -310,7 +310,7 @@ public partial class RxTcAdsClient
     {
         try
         {
-            client.WriteControl(new StateInfo(AdsState.Run, client.ReadState().DeviceState));
+            client.WriteControl(new(AdsState.Run, client.ReadState().DeviceState));
         }
         catch (Exception error)
         {

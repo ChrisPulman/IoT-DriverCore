@@ -7,7 +7,7 @@ using ReactiveUI.Primitives.Async;
 using TUnit.Assertions;
 using TUnit.Core;
 
-namespace IoT.DriverCore.ABPlcRx.Tests;
+namespace IoT.Driver.ABPlcRx.Tests;
 
 /// <summary>Tests synchronous-to-async observable bridge behavior.</summary>
 public sealed class ObservableAsyncBridgeTests
@@ -20,7 +20,7 @@ public sealed class ObservableAsyncBridgeTests
     [Test]
     internal async Task ToAsyncObservableRejectsNullSourceAsync()
     {
-        _ = Assert.Throws<ArgumentNullException>(() => ObservableAsyncBridgeExtensions.ToAsyncObservable<int>(null!));
+        _ = Assert.Throws<ArgumentNullException>(static () => ObservableAsyncBridgeExtensions.ToAsyncObservable<int>(null!));
         await Task.CompletedTask;
     }
 
@@ -32,8 +32,7 @@ public sealed class ObservableAsyncBridgeTests
         var source = new ManualObservable<int>();
         var asyncObservable = ObservableAsyncBridgeExtensions.ToAsyncObservable(source);
 
-        _ = Assert.Throws<ArgumentNullException>(
-            () => asyncObservable.SubscribeAsync(null!).AsTask().GetAwaiter().GetResult());
+        await Assert.That(async () => await asyncObservable.SubscribeAsync(null!)).Throws<ArgumentNullException>();
         await Assert.That(source.SubscriberCount).IsEqualTo(0);
     }
 
@@ -47,12 +46,9 @@ public sealed class ObservableAsyncBridgeTests
         using var cancellation = new CancellationTokenSource();
         await TestCompatibility.CancelAsync(cancellation);
 
-        _ = Assert.Throws<OperationCanceledException>(
-            () => asyncObservable
-                .SubscribeAsync(new RecordingAsyncObserver<int>(), cancellation.Token)
-                .AsTask()
-                .GetAwaiter()
-                .GetResult());
+        await Assert.That(async () => await asyncObservable
+                .SubscribeAsync(new RecordingAsyncObserver<int>(), cancellation.Token))
+            .Throws<OperationCanceledException>();
         await Assert.That(source.SubscriberCount).IsEqualTo(0);
     }
 

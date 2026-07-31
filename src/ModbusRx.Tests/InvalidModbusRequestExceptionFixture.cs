@@ -4,7 +4,7 @@
 
 using System.IO;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Tests the InvalidModbusRequestExceptionFixture behavior.</summary>
 public class InvalidModbusRequestExceptionFixture

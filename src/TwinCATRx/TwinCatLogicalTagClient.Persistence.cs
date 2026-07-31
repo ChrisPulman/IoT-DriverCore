@@ -2,12 +2,12 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Reactive;
+namespace IoT.Driver.TwinCATRx.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx;
+namespace IoT.Driver.TwinCATRx;
 #endif
 
 /// <summary>Maps logical CP.IoT tags onto an event-driven TwinCAT ADS client.</summary>
@@ -175,10 +175,14 @@ public sealed partial class TwinCatLogicalTagClient
     public async Task UpsertTagAsync(LogicalTag tag, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
+#if NET
+        ArgumentNullException.ThrowIfNull(tag);
+#else
         if (tag is null)
         {
             throw new ArgumentNullException(nameof(tag));
         }
+#endif
 
         await RequireStore().UpsertTagAsync(tag, cancellationToken).ConfigureAwait(false);
         Catalog.Upsert(tag);
@@ -196,10 +200,14 @@ public sealed partial class TwinCatLogicalTagClient
     public async Task<bool> EditTagAsync(LogicalTag tag, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
+#if NET
+        ArgumentNullException.ThrowIfNull(tag);
+#else
         if (tag is null)
         {
             throw new ArgumentNullException(nameof(tag));
         }
+#endif
 
         var changed = await RequireStore().EditTagAsync(tag, cancellationToken).ConfigureAwait(false);
         if (changed)

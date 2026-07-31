@@ -3,22 +3,22 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Data;
+using IoT.Driver.ModbusRx.Reactive.Data;
 #else
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Device;
+using IoT.Driver.ModbusRx.Reactive.Device;
 #else
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Device;
 #endif
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Async;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive;
+namespace IoT.Driver.ModbusRx.Reactive;
 #else
-namespace IoT.DriverCore.ModbusRx;
+namespace IoT.Driver.ModbusRx;
 #endif
 
 /// <summary>Async-observable adapters for Modbus reactive operations.</summary>
@@ -743,7 +743,7 @@ public static class ModbusAsyncObservableExtensions
         {
             var subscription = source.Subscribe(new AsyncObserverAdapter<T>(observer, cancellationToken));
 
-            return new ValueTask<IAsyncDisposable>(new AsyncSubscription(subscription));
+            return new(new AsyncSubscription(subscription));
         }
     }
 

@@ -4,14 +4,14 @@
 
 #if SERIAL
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Device;
 
-namespace IoT.DriverCore.ModbusRx.IntegrationTests;
+namespace IoT.Driver.ModbusRx.IntegrationTests;
 
 /// <summary>
 /// ModbusRxSerialRtuMasterDl06SlaveFixture.
 /// </summary>
-/// <seealso cref="IoT.DriverCore.ModbusRx.IntegrationTests.ModbusSerialMasterFixtureBase" />
+/// <seealso cref="IoT.Driver.ModbusRx.IntegrationTests.ModbusSerialMasterFixtureBase" />
 public class ModbusRxSerialRtuMasterDl06SlaveFixture : ModbusSerialMasterFixtureBase
 {
     /// <summary>Gets the serial device addressed by the fixture.</summary>

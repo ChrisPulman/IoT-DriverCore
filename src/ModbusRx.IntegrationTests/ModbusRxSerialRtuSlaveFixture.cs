@@ -4,10 +4,10 @@
 
 using System;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
 
-namespace IoT.DriverCore.ModbusRx.IntegrationTests;
+namespace IoT.Driver.ModbusRx.IntegrationTests;
 
 /// <summary>Tests the ModbusRxSerialRtuSlaveFixture behavior.</summary>
 public class ModbusRxSerialRtuSlaveFixture : NetworkTestBase

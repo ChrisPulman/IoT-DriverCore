@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Data;
+namespace IoT.Driver.ModbusRx.Reactive.Data;
 #else
-namespace IoT.DriverCore.ModbusRx.Data;
+namespace IoT.Driver.ModbusRx.Data;
 #endif
 
 /// <summary>High-performance extensions for DataStore operations using optimized techniques.</summary>
@@ -19,10 +19,7 @@ public static class DataStoreExtensions
     /// <exception cref="ArgumentNullException">Thrown when dataStore is null.</exception>
     public static ushort[] ReadHoldingRegistersOptimized(DataStore dataStore, ushort startAddress, ushort count)
     {
-        if (dataStore is null)
-        {
-            throw new ArgumentNullException(nameof(dataStore));
-        }
+        dataStore = ArgumentGuard.NotNull(dataStore, nameof(dataStore));
 
         var result = new ushort[count];
         var registers = dataStore.HoldingRegisters;
@@ -48,10 +45,7 @@ public static class DataStoreExtensions
     /// <exception cref="ArgumentNullException">Thrown when dataStore is null.</exception>
     public static ushort[] ReadInputRegistersOptimized(DataStore dataStore, ushort startAddress, ushort count)
     {
-        if (dataStore is null)
-        {
-            throw new ArgumentNullException(nameof(dataStore));
-        }
+        dataStore = ArgumentGuard.NotNull(dataStore, nameof(dataStore));
 
         var result = new ushort[count];
         var registers = dataStore.InputRegisters;
@@ -77,10 +71,7 @@ public static class DataStoreExtensions
     /// <exception cref="ArgumentNullException">Thrown when dataStore is null.</exception>
     public static bool[] ReadCoilsOptimized(DataStore dataStore, ushort startAddress, ushort count)
     {
-        if (dataStore is null)
-        {
-            throw new ArgumentNullException(nameof(dataStore));
-        }
+        dataStore = ArgumentGuard.NotNull(dataStore, nameof(dataStore));
 
         var result = new bool[count];
         var coils = dataStore.CoilDiscretes;
@@ -106,10 +97,7 @@ public static class DataStoreExtensions
     /// <exception cref="ArgumentNullException">Thrown when dataStore is null.</exception>
     public static bool[] ReadInputsOptimized(DataStore dataStore, ushort startAddress, ushort count)
     {
-        if (dataStore is null)
-        {
-            throw new ArgumentNullException(nameof(dataStore));
-        }
+        dataStore = ArgumentGuard.NotNull(dataStore, nameof(dataStore));
 
         var result = new bool[count];
         var inputs = dataStore.InputDiscretes;
@@ -134,10 +122,7 @@ public static class DataStoreExtensions
     /// <exception cref="ArgumentNullException">Thrown when dataStore is null.</exception>
     public static void WriteHoldingRegistersOptimized(DataStore dataStore, ushort startAddress, ushort[] values)
     {
-        if (dataStore is null)
-        {
-            throw new ArgumentNullException(nameof(dataStore));
-        }
+        dataStore = ArgumentGuard.NotNull(dataStore, nameof(dataStore));
 
         if (values is null)
         {
@@ -170,10 +155,7 @@ public static class DataStoreExtensions
     /// <exception cref="ArgumentNullException">Thrown when dataStore is null.</exception>
     public static void WriteCoilsOptimized(DataStore dataStore, ushort startAddress, bool[] values)
     {
-        if (dataStore is null)
-        {
-            throw new ArgumentNullException(nameof(dataStore));
-        }
+        dataStore = ArgumentGuard.NotNull(dataStore, nameof(dataStore));
 
         if (values is null)
         {
@@ -211,15 +193,8 @@ public static class DataStoreExtensions
         ushort startAddress,
         ushort count)
     {
-        if (dataStore is null)
-        {
-            throw new ArgumentNullException(nameof(dataStore));
-        }
-
-        if (destinationStore is null)
-        {
-            throw new ArgumentNullException(nameof(destinationStore));
-        }
+        dataStore = ArgumentGuard.NotNull(dataStore, nameof(dataStore));
+        destinationStore = ArgumentGuard.NotNull(destinationStore, nameof(destinationStore));
 
         var data = ReadHoldingRegistersOptimized(dataStore, startAddress, count);
         WriteHoldingRegistersOptimized(destinationStore, startAddress, data);
@@ -237,15 +212,8 @@ public static class DataStoreExtensions
         ushort startAddress,
         ushort count)
     {
-        if (dataStore is null)
-        {
-            throw new ArgumentNullException(nameof(dataStore));
-        }
-
-        if (destinationStore is null)
-        {
-            throw new ArgumentNullException(nameof(destinationStore));
-        }
+        dataStore = ArgumentGuard.NotNull(dataStore, nameof(dataStore));
+        destinationStore = ArgumentGuard.NotNull(destinationStore, nameof(destinationStore));
 
         var data = ReadCoilsOptimized(dataStore, startAddress, count);
         WriteCoilsOptimized(destinationStore, startAddress, data);
@@ -258,10 +226,7 @@ public static class DataStoreExtensions
     /// <exception cref="ArgumentNullException">Thrown when dataStore is null.</exception>
     public static void ClearHoldingRegisters(DataStore dataStore, ushort startAddress, ushort count)
     {
-        if (dataStore is null)
-        {
-            throw new ArgumentNullException(nameof(dataStore));
-        }
+        dataStore = ArgumentGuard.NotNull(dataStore, nameof(dataStore));
 
         var zeros = new ushort[count];
         WriteHoldingRegistersOptimized(dataStore, startAddress, zeros);
@@ -274,10 +239,7 @@ public static class DataStoreExtensions
     /// <exception cref="ArgumentNullException">Thrown when dataStore is null.</exception>
     public static void ClearCoils(DataStore dataStore, ushort startAddress, ushort count)
     {
-        if (dataStore is null)
-        {
-            throw new ArgumentNullException(nameof(dataStore));
-        }
+        dataStore = ArgumentGuard.NotNull(dataStore, nameof(dataStore));
 
         var falses = new bool[count];
         WriteCoilsOptimized(dataStore, startAddress, falses);
@@ -296,15 +258,8 @@ public static class DataStoreExtensions
         ushort startAddress,
         ushort count)
     {
-        if (dataStore is null)
-        {
-            throw new ArgumentNullException(nameof(dataStore));
-        }
-
-        if (store2 is null)
-        {
-            throw new ArgumentNullException(nameof(store2));
-        }
+        dataStore = ArgumentGuard.NotNull(dataStore, nameof(dataStore));
+        store2 = ArgumentGuard.NotNull(store2, nameof(store2));
 
         var data1 = ReadHoldingRegistersOptimized(dataStore, startAddress, count);
         var data2 = ReadHoldingRegistersOptimized(store2, startAddress, count);

@@ -4,14 +4,14 @@
 
 using System.Runtime.InteropServices;
 
-namespace IoT.DriverCore.S7PlcRx.Mock;
+namespace IoT.Driver.S7PlcRx.Mock;
 
 /// <summary>Represents a Snap7 server event payload.</summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public readonly record struct USrvEvent
 {
-    /// <summary>Gets the native event timestamp value.</summary>
-    public nint EvtTime { get; }
+    /// <summary>Gets the native Unix timestamp value.</summary>
+    public long EvtTime { get; }
 
     /// <summary>Gets the event sender identifier.</summary>
     public int EvtSender { get; }

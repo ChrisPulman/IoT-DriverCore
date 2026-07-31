@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Production;
+namespace IoT.Driver.S7PlcRx.Reactive.Production;
 #else
-namespace IoT.DriverCore.S7PlcRx.Production;
+namespace IoT.Driver.S7PlcRx.Production;
 #endif
 
 /// <summary>Provides a thread-safe circuit breaker that prevents repeated failing operations.</summary>
@@ -77,10 +77,7 @@ public sealed class CircuitBreaker(ProductionErrorConfig config, TimeProvider? t
     /// </exception>
     public async Task<T> ExecuteAsync<T>(Func<Task<T>> operation)
     {
-        if (operation is null)
-        {
-            throw new ArgumentNullException(nameof(operation), "Operation cannot be null");
-        }
+        Guard.NotNull(operation, nameof(operation));
 
         lock (_lock)
         {

@@ -4,15 +4,15 @@
 
 using System.Reflection;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Enums;
+using IoT.Driver.S7PlcRx.Reactive.Enums;
 #else
-using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace IoT.DriverCore.S7PlcRx.PlcTypes;
+namespace IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>
@@ -51,10 +51,7 @@ public static class Struct
     /// S7StringAttribute.</exception>
     public static int GetStructSize(Type structType)
     {
-        if (structType is null)
-        {
-            throw new ArgumentNullException(nameof(structType));
-        }
+        Guard.NotNull(structType, nameof(structType));
 
         var numBytes = 0.0;
 
@@ -578,10 +575,10 @@ public static class Struct
         var attribute = GetRequiredStringAttribute(info);
         return attribute.Type == S7StringType.S7String
             ? S7String.ToByteArray(
-                (string?)info.GetValue(structValue),
+                (string?)info.GetValue(structValue)!,
                 attribute.ReservedLength)
             : S7WString.ToByteArray(
-                (string?)info.GetValue(structValue),
+                (string?)info.GetValue(structValue)!,
                 attribute.ReservedLength);
     }
 

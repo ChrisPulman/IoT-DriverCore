@@ -4,8 +4,7 @@
     <TargetFrameworks>net462;net472;net481;net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>S7PlcRx.Reactive</AssemblyName>
-    <RootNamespace>IoT.DriverCore.S7PlcRx.Reactive</RootNamespace>
-    <PackageId>S7PlcRx.Reactive</PackageId>
+    <RootNamespace>IoT.Driver.S7PlcRx.Reactive</RootNamespace>
     <DefineConstants>$(DefineConstants);REACTIVE_SHIM</DefineConstants>
   </PropertyGroup>
 
@@ -31,7 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="IoT.DriverCore.Core" />
+    <Using Include="IoT.Driver.Core" />
     <Using Include="ReactiveUI.Primitives.Signals" />
     <Using Include="ReactiveUI.Primitives.Reactive" />
     <Using Include="ReactiveUI.Primitives.Extensions.Reactive" />
@@ -46,6 +45,6 @@
     <Using Include="System.Reactive.Unit" Alias="Unit" />
   </ItemGroup>
 
-  <Import Project="..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets" Condition="Exists('..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets')" />
+  <Import Project="..\CP.IoT.Core\buildTransitive\IoT-Driver.Core.targets" Condition="Exists('..\CP.IoT.Core\buildTransitive\IoT-Driver.Core.targets')" />
 
 </Project>

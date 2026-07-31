@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Testing;
+namespace IoT.Driver.S7PlcRx.Tests.Testing;
 
 /// <summary>Defines a constraint that can be applied to an actual value.</summary>
 public interface IConstraint
@@ -10,5 +10,6 @@ public interface IConstraint
     /// <summary>Applies the constraint to an actual value.</summary>
     /// <param name="actual">Describes parameter actual for helper member 58.</param>
     /// <param name="message">Describes parameter message for helper member 59.</param>
-    void Apply(object? actual, string? message);
+    /// <returns>A task that completes when the TUnit assertion has been evaluated.</returns>
+    Task Apply(object? actual, string? message);
 }

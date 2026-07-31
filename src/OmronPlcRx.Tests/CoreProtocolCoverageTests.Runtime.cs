@@ -2,20 +2,20 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Core.Requests;
-using IoT.DriverCore.OmronPlcRx.Core.Results;
-using IoT.DriverCore.OmronPlcRx.Core.Types;
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Results;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Core.Requests;
+using IoT.Driver.OmronPlcRx.Core.Results;
+using IoT.Driver.OmronPlcRx.Core.Types;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Results;
+using IoT.Driver.OmronPlcRx.Tags;
 using TUnit.Core;
-using CoreTcpClient = IoT.DriverCore.OmronPlcRx.Core.TcpClient;
-using CoreUdpClient = IoT.DriverCore.OmronPlcRx.Core.UdpClient;
+using CoreTcpClient = IoT.Driver.OmronPlcRx.Core.TcpClient;
+using CoreUdpClient = IoT.Driver.OmronPlcRx.Core.UdpClient;
 using NetTcpListener = System.Net.Sockets.TcpListener;
 using NetUdpClient = System.Net.Sockets.UdpClient;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Tests runtime protocol and transport behavior.</summary>
 public sealed partial class CoreProtocolCoverageTests
@@ -249,32 +249,32 @@ public sealed partial class CoreProtocolCoverageTests
     public async Task SocketClients_ValidateConstructorInputsAsync()
     {
         await Assert.That(
-                CaptureException<ArgumentNullException>(() => _ = CreateTcpClient((string)null!, TcpPort)))
+                CaptureException<ArgumentNullException>(static () => _ = CreateTcpClient((string)null!, TcpPort)))
             .IsNotNull();
         await Assert.That(
-                CaptureException<ArgumentOutOfRangeException>(() => _ = CreateTcpClient(LoopbackHost, -1)))
-            .IsNotNull();
-        await Assert.That(
-                CaptureException<ArgumentNullException>(
-                    () => _ = CreateTcpClient((System.Net.IPAddress)null!, TcpPort)))
-            .IsNotNull();
-        await Assert.That(
-                CaptureException<ArgumentOutOfRangeException>(
-                    () => _ = CreateTcpClient(System.Net.IPAddress.Loopback, InvalidPort)))
-            .IsNotNull();
-        await Assert.That(
-                CaptureException<ArgumentNullException>(() => _ = CreateUdpClient((string)null!, TcpPort)))
-            .IsNotNull();
-        await Assert.That(
-                CaptureException<ArgumentOutOfRangeException>(() => _ = CreateUdpClient(LoopbackHost, -1)))
+                CaptureException<ArgumentOutOfRangeException>(static () => _ = CreateTcpClient(LoopbackHost, -1)))
             .IsNotNull();
         await Assert.That(
                 CaptureException<ArgumentNullException>(
-                    () => _ = CreateUdpClient((System.Net.IPAddress)null!, TcpPort)))
+                    static () => _ = CreateTcpClient((System.Net.IPAddress)null!, TcpPort)))
             .IsNotNull();
         await Assert.That(
                 CaptureException<ArgumentOutOfRangeException>(
-                    () => _ = CreateUdpClient(System.Net.IPAddress.Loopback, InvalidPort)))
+                    static () => _ = CreateTcpClient(System.Net.IPAddress.Loopback, InvalidPort)))
+            .IsNotNull();
+        await Assert.That(
+                CaptureException<ArgumentNullException>(static () => _ = CreateUdpClient((string)null!, TcpPort)))
+            .IsNotNull();
+        await Assert.That(
+                CaptureException<ArgumentOutOfRangeException>(static () => _ = CreateUdpClient(LoopbackHost, -1)))
+            .IsNotNull();
+        await Assert.That(
+                CaptureException<ArgumentNullException>(
+                    static () => _ = CreateUdpClient((System.Net.IPAddress)null!, TcpPort)))
+            .IsNotNull();
+        await Assert.That(
+                CaptureException<ArgumentOutOfRangeException>(
+                    static () => _ = CreateUdpClient(System.Net.IPAddress.Loopback, InvalidPort)))
             .IsNotNull();
     }
 
@@ -387,9 +387,9 @@ public sealed partial class CoreProtocolCoverageTests
         using var channel = new TestChannel();
         using var plc = CreateInjectedConnection(channel);
         using var uninitialized = CreateInjectedConnection(
-            new TestChannel(),
+            new(),
             isInitialized: false);
-        using var seriesPlc = CreateInjectedConnection(new TestChannel(), plcType: PlcType.NX102);
+        using var seriesPlc = CreateInjectedConnection(new(), plcType: PlcType.NX102);
 
         await AssertInvalidReadOperationsAsync(plc, uninitialized);
         await AssertInvalidWriteOperationsAsync(plc);

@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace IoT.DriverCore.S7PlcRx.PlcTypes;
+namespace IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>Provides static methods for manipulating individual bits within a byte value.</summary>

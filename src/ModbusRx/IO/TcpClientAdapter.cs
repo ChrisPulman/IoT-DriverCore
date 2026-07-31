@@ -4,20 +4,20 @@
 
 using System.Diagnostics;
 #if REACTIVE_SHIM
-using IoT.DriverCore.Serial.Reactive;
+using IoT.Driver.Serial.Reactive;
 #else
-using IoT.DriverCore.Serial;
+using IoT.Driver.Serial;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Unme.Common;
+using IoT.Driver.ModbusRx.Reactive.Unme.Common;
 #else
-using IoT.DriverCore.ModbusRx.Unme.Common;
+using IoT.Driver.ModbusRx.Unme.Common;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.IO;
+namespace IoT.Driver.ModbusRx.Reactive.IO;
 #else
-namespace IoT.DriverCore.ModbusRx.IO;
+namespace IoT.Driver.ModbusRx.IO;
 #endif
 
 /// <summary>Concrete Implementor - http://en.wikipedia.org/wiki/Bridge_Pattern.</summary>
@@ -75,7 +75,6 @@ internal sealed class TcpClientAdapter : IStreamResource
     public void Dispose()
     {
         Dispose(true);
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>Executes the Dispose operation.</summary>

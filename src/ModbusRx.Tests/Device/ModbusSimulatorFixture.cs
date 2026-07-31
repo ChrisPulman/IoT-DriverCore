@@ -4,13 +4,13 @@
 
 using System.Diagnostics;
 using System.Threading;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.IO;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx.IO;
+using IoT.Driver.ModbusRx.Message;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Device;
+namespace IoT.Driver.ModbusRx.UnitTests.Device;
 
 /// <summary>Verifies the deterministic Modbus simulator and its framed in-memory transport.</summary>
 public sealed class ModbusSimulatorFixture
@@ -101,8 +101,8 @@ public sealed class ModbusSimulatorFixture
         await TUnitAssert.That(inputRegisters).IsEquivalentTo([InputValue]);
         await TUnitAssert.That(simulator.RequestCount).IsEqualTo(requests.Count);
         await TUnitAssert.That(requests.Count).IsEqualTo(ExpectedRoundTripRequestCount);
-        await TUnitAssert.That(requests.All(static request => request.Response is not null)).IsTrue();
-        await TUnitAssert.That(requests.All(static request => request.Fault is null)).IsTrue();
+        await TUnitAssert.That(requests.TrueForAll(static request => request.Response is not null)).IsTrue();
+        await TUnitAssert.That(requests.TrueForAll(static request => request.Fault is null)).IsTrue();
     }
 
     /// <summary>Verifies that every scripted transport fault is deterministic and recoverable by retry.</summary>
@@ -200,12 +200,12 @@ public sealed class ModbusSimulatorFixture
             ResponseDelay = TimeSpan.FromMilliseconds(ResponseDelayMilliseconds),
         };
         using var master = simulator.CreateMaster();
-        var started = Stopwatch.StartNew();
+        var started = Stopwatch.GetTimestamp();
 
         _ = await master.ReadHoldingRegistersAsync(UnitId, 0, 1);
 
         await TUnitAssert.That(
-                started.Elapsed >= TimeSpan.FromMilliseconds(MinimumMeasuredDelayMilliseconds))
+                Stopwatch.GetElapsedTime(started) >= TimeSpan.FromMilliseconds(MinimumMeasuredDelayMilliseconds))
             .IsTrue();
         await TUnitAssert.That(
                 () => simulator.ResponseDelay = TimeSpan.FromTicks(-1))
@@ -231,7 +231,7 @@ public sealed class ModbusSimulatorFixture
         using var specifiedSimulator = new ModbusSimulator(UnitId);
         await TUnitAssert.That(specifiedSimulator.UnitId).IsEqualTo(UnitId);
         await TUnitAssert.That(
-                () => new ModbusSimulator(UnitId, (DataStore)null!))
+                static () => new ModbusSimulator(UnitId, (DataStore)null!))
             .Throws<ArgumentNullException>();
 
         using var dataStore = CreateDataStore();
@@ -265,7 +265,7 @@ public sealed class ModbusSimulatorFixture
         using var dataStore = CreateDataStore();
         using var simulator = new ModbusSimulator(UnitId, dataStore);
         await TUnitAssert.That(
-                () => new InMemoryModbusStreamResource(null!))
+                static () => new InMemoryModbusStreamResource(null!))
             .Throws<ArgumentNullException>();
 
         var resource = new InMemoryModbusStreamResource(simulator)
@@ -327,14 +327,15 @@ public sealed class ModbusSimulatorFixture
             TransactionId = RequestTransactionId,
         };
         var header = ModbusIpTransport.GetMbapHeader(request);
-        var result = new byte[header.Length + request.ProtocolDataUnit.Length];
+        var protocolDataUnit = request.ToProtocolDataUnit();
+        var result = new byte[header.Length + protocolDataUnit.Length];
         Array.Copy(header, result, header.Length);
         Array.Copy(
-            request.ProtocolDataUnit,
+            protocolDataUnit,
             0,
             result,
             header.Length,
-            request.ProtocolDataUnit.Length);
+            protocolDataUnit.Length);
         return result;
     }
 

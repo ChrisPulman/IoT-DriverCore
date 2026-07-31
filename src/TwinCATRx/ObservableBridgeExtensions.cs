@@ -6,9 +6,9 @@ using System.Runtime.ExceptionServices;
 using ReactiveUI.Primitives.Async;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Reactive;
+namespace IoT.Driver.TwinCATRx.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx;
+namespace IoT.Driver.TwinCATRx;
 #endif
 
 /// <summary>Observable bridge helpers.</summary>
@@ -20,10 +20,14 @@ public static class ObservableBridgeExtensions
     /// <returns>An async observable that subscribes to the source observable.</returns>
     public static IObservableAsync<T> ToAsyncObservable<T>(IObservable<T> source)
     {
+#if NET
+        ArgumentNullException.ThrowIfNull(source);
+#else
         if (source is null)
         {
             throw new ArgumentNullException(nameof(source));
         }
+#endif
 
         return new ObservableAsyncAdapter<T>(source);
     }
@@ -56,6 +60,12 @@ public static class ObservableBridgeExtensions
         Action<Exception> onError,
         Action onCompleted)
     {
+#if NET
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(onNext);
+        ArgumentNullException.ThrowIfNull(onError);
+        ArgumentNullException.ThrowIfNull(onCompleted);
+#else
         if (source is null)
         {
             throw new ArgumentNullException(nameof(source));
@@ -75,6 +85,7 @@ public static class ObservableBridgeExtensions
         {
             throw new ArgumentNullException(nameof(onCompleted));
         }
+#endif
 
         return source.Subscribe(new ActionObserver<T>(onNext, onError, onCompleted));
     }

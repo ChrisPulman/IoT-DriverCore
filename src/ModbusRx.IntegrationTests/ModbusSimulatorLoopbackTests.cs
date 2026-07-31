@@ -5,11 +5,11 @@
 using System;
 using System.Net;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.IntegrationTests;
+namespace IoT.Driver.ModbusRx.IntegrationTests;
 
 /// <summary>Verifies the reusable Modbus simulator through the operating-system TCP loopback stack.</summary>
 public sealed class ModbusSimulatorLoopbackTests

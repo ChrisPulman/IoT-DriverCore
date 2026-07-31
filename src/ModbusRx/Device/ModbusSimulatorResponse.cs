@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Device;
+namespace IoT.Driver.ModbusRx.Reactive.Device;
 #else
-namespace IoT.DriverCore.ModbusRx.Device;
+namespace IoT.Driver.ModbusRx.Device;
 #endif
 
 /// <summary>Contains a response or read failure produced by the simulator.</summary>

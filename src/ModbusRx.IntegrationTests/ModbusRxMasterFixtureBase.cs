@@ -10,14 +10,15 @@ using System.IO;
 using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.IntegrationTests.CustomMessages;
-using IoT.DriverCore.Serial;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx.IntegrationTests.CustomMessages;
+using IoT.Driver.Serial;
 
-namespace IoT.DriverCore.ModbusRx.IntegrationTests;
+namespace IoT.Driver.ModbusRx.IntegrationTests;
 
 /// <summary>Tests the ModbusMasterFixture behavior.</summary>
 /// <seealso cref="System.IDisposable" />
@@ -34,6 +35,17 @@ public abstract class ModbusRxMasterFixtureBase : NetworkTestBase
 
     /// <summary>The default slave serial port name.</summary>
     public static readonly string DefaultSlaveSerialPortName = "COM2";
+
+    /// <summary>The format for invalid average-read duration failures.</summary>
+    private static readonly CompositeFormat InvalidAverageReadTimeFormat =
+        CompositeFormat.Parse("Repeated in-process reads produced an invalid average duration: {0}.");
+
+    /// <summary>The format for the Jamod Java classpath argument.</summary>
+    private static readonly CompositeFormat JamodClasspathFormat =
+        CompositeFormat.Parse(@"-classpath ""{0};{1};{2}""");
+
+    /// <summary>The format for the Jamod process arguments.</summary>
+    private static readonly CompositeFormat JamodProcessArgumentsFormat = CompositeFormat.Parse("{0} {1}");
 
     /// <summary>A value indicating whether this fixture has been disposed.</summary>
     private bool _disposedValue;
@@ -117,12 +129,6 @@ public abstract class ModbusRxMasterFixtureBase : NetworkTestBase
     /// The slave UDP.
     /// </value>
     protected UdpClientRx? SlaveUdp { get; set; }
-
-    /// <summary>Gets or sets the slave task.</summary>
-    /// <value>
-    /// The slave task.
-    /// </value>
-    private Task? SlaveTask { get; set; }
 
     /// <summary>Gets or sets the slave cancellation token source.</summary>
     /// <value>
@@ -327,7 +333,7 @@ public abstract class ModbusRxMasterFixtureBase : NetworkTestBase
             double.IsFinite(actualAverageReadTime) && actualAverageReadTime >= 0,
             string.Format(
                 CultureInfo.InvariantCulture,
-                "Repeated in-process reads produced an invalid average duration: {0}.",
+                InvalidAverageReadTimeFormat,
                 actualAverageReadTime));
     }
 
@@ -445,7 +451,7 @@ public abstract class ModbusRxMasterFixtureBase : NetworkTestBase
         SlaveCancellationTokenSource = new();
         RegisterDisposable(SlaveCancellationTokenSource);
 
-        SlaveTask = Task.Run(
+        _ = Task.Run(
             async () =>
             {
                 try
@@ -485,13 +491,14 @@ public abstract class ModbusRxMasterFixtureBase : NetworkTestBase
             ?? throw new DirectoryNotFoundException("The integration test assembly directory could not be located.");
         var pathToJamod = Path.Combine(assemblyDirectory, "../../../../tools/jamod");
         var classpath = string.Format(
-            @"-classpath ""{0};{1};{2}""",
+            CultureInfo.InvariantCulture,
+            JamodClasspathFormat,
             Path.Combine(pathToJamod, "jamod.jar"),
             Path.Combine(pathToJamod, "comm.jar"),
             Path.Combine(pathToJamod, "."));
         var startInfo = new ProcessStartInfo(
             "java",
-            string.Format(CultureInfo.InvariantCulture, "{0} {1}", classpath, program));
+            string.Format(CultureInfo.InvariantCulture, JamodProcessArgumentsFormat, classpath, program));
         Jamod = Process.Start(startInfo);
 
         var timeout = GetEnvironmentAppropriateTimeout(
@@ -518,7 +525,6 @@ public abstract class ModbusRxMasterFixtureBase : NetworkTestBase
             CancelSlaveOperations();
             StopSlaveTcpListener();
             DisposeSlaveAndMaster();
-            WaitForSlaveTask();
             StopJamodProcess();
             RegisterAdditionalResources();
         }
@@ -583,26 +589,6 @@ public abstract class ModbusRxMasterFixtureBase : NetworkTestBase
     {
         IgnoreExpectedCleanupException(() => Slave?.Dispose());
         IgnoreExpectedCleanupException(() => Master?.Dispose());
-    }
-
-    /// <summary>Waits briefly for the slave task to complete.</summary>
-    private void WaitForSlaveTask()
-    {
-        const int timeoutSeconds = 2;
-        const int continuousIntegrationTimeoutSeconds = 1;
-
-        if (SlaveTask?.IsCompleted != false)
-        {
-            return;
-        }
-
-        IgnoreExpectedCleanupException(() =>
-        {
-            var timeout = GetEnvironmentAppropriateTimeout(
-                TimeSpan.FromSeconds(timeoutSeconds),
-                TimeSpan.FromSeconds(continuousIntegrationTimeoutSeconds));
-            _ = SlaveTask.Wait(timeout);
-        });
     }
 
     /// <summary>Stops the Jamod process during cleanup.</summary>

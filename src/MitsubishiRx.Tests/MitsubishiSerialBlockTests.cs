@@ -7,10 +7,10 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiSerialBlockTests type.</summary>
@@ -21,6 +21,9 @@ internal sealed class MitsubishiSerialBlockTests
 
     /// <summary>Stores the shared bit block values.</summary>
     private static readonly bool[] BlockBitValues = [true, false, true];
+
+    /// <summary>Stores the shared word block values.</summary>
+    private static readonly ushort[] BlockWordValues = [0x1122, 0x3344];
 
     /// <summary>Tests the 3C format 1 block-read request and its raw payload.</summary>
     /// <returns>The ReadBlocksAsyncSerial3CFormat1EncodesExpectedRequestAndReturnsRawPayload operation
@@ -121,7 +124,7 @@ internal sealed class MitsubishiSerialBlockTests
             [
                 new MitsubishiWordBlock(
                     MitsubishiDeviceAddress.Parse("D100", XyAddressNotation.Octal),
-                    new ushort[] { 0x1122, 0x3344 }),
+                    BlockWordValues),
             ],
             BitBlocks:
             [
@@ -218,5 +221,13 @@ internal sealed class MitsubishiSerialBlockTests
     /// <param name="body">The body parameter.</param>
     /// <returns>The ComputeChecksum operation result.</returns>
     private static string ComputeChecksum(string body)
-        => (Encoding.ASCII.GetBytes(body).Aggregate(0, static (sum, value) => sum + value) & 0xFF).ToString("X2");
+    {
+        var sum = 0;
+        foreach (var value in Encoding.ASCII.GetBytes(body))
+        {
+            sum += value;
+        }
+
+        return (sum & 0xFF).ToString("X2");
+    }
 }

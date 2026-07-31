@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.Core;
+namespace IoT.Driver.Core;
 
 /// <summary>Provides deterministic FIFO latency and fault outcomes independently for read and write transfers.</summary>
 public sealed class SimulatorScript

@@ -5,13 +5,13 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.IO;
-using IoT.DriverCore.ModbusRx.Message;
-using IoT.DriverCore.ModbusRx.UnitTests.Message;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.IO;
+using IoT.Driver.ModbusRx.Message;
+using IoT.Driver.ModbusRx.UnitTests.Message;
 using Moq;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.IO;
+namespace IoT.Driver.ModbusRx.UnitTests.IO;
 
 /// <summary>Tests the ModbusTcpTransportFixture behavior.</summary>
 public class ModbusTcpTransportFixture
@@ -71,21 +71,22 @@ public class ModbusTcpTransportFixture
         var mock = new Mock<IStreamResource>(MockBehavior.Strict);
         var request = new ReadCoilsInputsRequest(Modbus.ReadCoils, 1, 1, Num.Value3);
         var calls = 0;
-        var unitAndPdu = new byte[request.ProtocolDataUnit.Length + 1];
+        var protocolDataUnit = request.ToProtocolDataUnit();
+        var unitAndPdu = new byte[protocolDataUnit.Length + 1];
         unitAndPdu[0] = 1;
-        Array.Copy(request.ProtocolDataUnit, 0, unitAndPdu, 1, request.ProtocolDataUnit.Length);
+        Array.Copy(protocolDataUnit, 0, unitAndPdu, 1, protocolDataUnit.Length);
         byte[][] source =
         {
                 new byte[] { Num.Value45, Num.Value63, 0, 0, 0, Num.Value6 },
                 unitAndPdu,
         };
 
-        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 6), 0, Num.Value6).Result)
+        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 6), 0, Num.Value6))
             .Returns((byte[] buf, int offset, int count) =>
             {
                 Array.Copy(source[calls], buf, Num.Value6);
                 calls++;
-                return Num.Value6;
+                return Task.FromResult(Num.Value6);
             });
 
         Assert.Equal(
@@ -101,8 +102,8 @@ public class ModbusTcpTransportFixture
     public async Task ReadRequestResponse_ConnectionAbortedWhileReadingMBAPHeaderAsync()
     {
         var mock = new Mock<IStreamResource>(MockBehavior.Strict);
-        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 6), 0, Num.Value6).Result).Returns(Num.Value3);
-        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 6), Num.Value3, Num.Value3).Result).Returns(0);
+        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 6), 0, Num.Value6)).ReturnsAsync(Num.Value3);
+        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 6), Num.Value3, Num.Value3)).ReturnsAsync(0);
 
         await Assert.ThrowsAsync<IOException>(() => ModbusIpTransport.ReadRequestResponseAsync(mock.Object));
         mock.VerifyAll();
@@ -115,9 +116,9 @@ public class ModbusTcpTransportFixture
     {
         var mock = new Mock<IStreamResource>(MockBehavior.Strict);
 
-        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 6), 0, Num.Value6).Result).Returns(Num.Value6);
-        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 6), 0, Num.Value6).Result).Returns(Num.Value3);
-        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 6), Num.Value3, Num.Value3).Result).Returns(0);
+        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 6), 0, Num.Value6)).ReturnsAsync(Num.Value6);
+        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 6), 0, Num.Value6)).ReturnsAsync(Num.Value3);
+        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 6), Num.Value3, Num.Value3)).ReturnsAsync(0);
 
         await Assert.ThrowsAsync<IOException>(() => ModbusIpTransport.ReadRequestResponseAsync(mock.Object));
         mock.VerifyAll();

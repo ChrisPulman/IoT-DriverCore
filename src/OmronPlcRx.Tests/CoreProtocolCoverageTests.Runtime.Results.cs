@@ -2,10 +2,10 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.OmronPlcRx.Results;
+using IoT.Driver.OmronPlcRx.Results;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Contains result and exception runtime coverage tests.</summary>
 public sealed partial class CoreProtocolCoverageTests
@@ -15,8 +15,8 @@ public sealed partial class CoreProtocolCoverageTests
     [Test]
     public async Task Exceptions_ExposeConstructorValuesAsync()
     {
-        const string finsExceptionMessage = "Exception of type 'IoT.DriverCore.OmronPlcRx.FINSException' was thrown.";
-        const string plcExceptionMessage = "Exception of type 'IoT.DriverCore.OmronPlcRx.OmronPLCException' was thrown.";
+        const string finsExceptionMessage = "Exception of type 'IoT.Driver.OmronPlcRx.FINSException' was thrown.";
+        const string plcExceptionMessage = "Exception of type 'IoT.Driver.OmronPlcRx.OmronPLCException' was thrown.";
         const string finsMessage = "fins";
         const string plcMessage = "plc";
         const string innerExceptionMessage = "inner";
@@ -142,10 +142,10 @@ public sealed partial class CoreProtocolCoverageTests
         await Assert.That(writeBits.Duration + writeWords.Duration + writeClock.Duration)
             .IsEqualTo(combinedResultDuration);
         await Assert.That(
-                CaptureException<ArgumentNullException>(() => _ = CreateTag<int>(null!, dataMemoryAddressText)))
+                CaptureException<ArgumentNullException>(static () => _ = CreateTag<int>(null!, dataMemoryAddressText)))
             .IsNotNull();
         await Assert.That(
-                CaptureException<ArgumentNullException>(() => _ = CreateTag<int>(SpeedTagName, null!)))
+                CaptureException<ArgumentNullException>(static () => _ = CreateTag<int>(SpeedTagName, null!)))
             .IsNotNull();
     }
 }

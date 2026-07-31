@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Collections.Generic;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx.Core;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Core;
+namespace IoT.Driver.TwinCATRx.Tests.Core;
 
 /// <summary>Tests for CodeGenerator static mapping and simple behavior.</summary>
 public class CodeGeneratorTests

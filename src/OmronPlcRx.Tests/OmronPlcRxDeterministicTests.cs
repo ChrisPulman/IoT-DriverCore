@@ -2,15 +2,15 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Core.Types;
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Core.Types;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Tags;
 using ReactiveUI.Primitives;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Exercises the production Omron facade over an injected deterministic FINS channel.</summary>
 public sealed class OmronPlcRxDeterministicTests
@@ -153,35 +153,35 @@ public sealed class OmronPlcRxDeterministicTests
         AddWriteTags(driver);
 
         await driver.WriteValueAsync(
-            new LogicalTagKey<bool>(BoolBitWriteTagName),
+            new(BoolBitWriteTagName),
             true,
             CancellationToken.None);
-        await driver.WriteValueAsync(new LogicalTagKey<bool>("BoolWord"), true, CancellationToken.None);
-        await driver.WriteValueAsync(new LogicalTagKey<byte>(ByteTagName), byte.MaxValue, CancellationToken.None);
-        await driver.WriteValueAsync(new LogicalTagKey<short>("Short"), short.MinValue, CancellationToken.None);
-        await driver.WriteValueAsync(new LogicalTagKey<ushort>("UShort"), ushort.MaxValue, CancellationToken.None);
-        await driver.WriteValueAsync(new LogicalTagKey<int>("Int"), int.MinValue, CancellationToken.None);
-        await driver.WriteValueAsync(new LogicalTagKey<uint>("UInt"), uint.MaxValue, CancellationToken.None);
-        await driver.WriteValueAsync(new LogicalTagKey<float>("Float"), SingleValue, CancellationToken.None);
-        await driver.WriteValueAsync(new LogicalTagKey<double>(DoubleTagName), DoubleValue, CancellationToken.None);
+        await driver.WriteValueAsync(new("BoolWord"), true, CancellationToken.None);
+        await driver.WriteValueAsync(new(ByteTagName), byte.MaxValue, CancellationToken.None);
+        await driver.WriteValueAsync(new("Short"), short.MinValue, CancellationToken.None);
+        await driver.WriteValueAsync(new("UShort"), ushort.MaxValue, CancellationToken.None);
+        await driver.WriteValueAsync(new("Int"), int.MinValue, CancellationToken.None);
+        await driver.WriteValueAsync(new("UInt"), uint.MaxValue, CancellationToken.None);
+        await driver.WriteValueAsync(new("Float"), SingleValue, CancellationToken.None);
+        await driver.WriteValueAsync(new(DoubleTagName), DoubleValue, CancellationToken.None);
         await driver.WriteValueAsync(
-            new LogicalTagKey<string>(StringWriteTagName),
+            new(StringWriteTagName),
             TextValue,
             CancellationToken.None);
         await driver.WriteValueAsync(
-            new LogicalTagKey<Bcd16>(nameof(Bcd16)),
+            new(nameof(Bcd16)),
             new Bcd16(Bcd16Value),
             CancellationToken.None);
         await driver.WriteValueAsync(
-            new LogicalTagKey<BcdU16>(nameof(BcdU16)),
+            new(nameof(BcdU16)),
             new BcdU16(BcdU16Value),
             CancellationToken.None);
         await driver.WriteValueAsync(
-            new LogicalTagKey<Bcd32>(nameof(Bcd32)),
+            new(nameof(Bcd32)),
             new Bcd32(Bcd32Value),
             CancellationToken.None);
         await driver.WriteValueAsync(
-            new LogicalTagKey<BcdU32>(nameof(BcdU32)),
+            new(nameof(BcdU32)),
             new BcdU32(BcdU32Value),
             CancellationToken.None);
 
@@ -212,7 +212,7 @@ public sealed class OmronPlcRxDeterministicTests
         await AssertThrowsAsync<KeyNotFoundException>(
             () => driver.ReadValueAsync(new LogicalTagKey<int>("Missing"), CancellationToken.None));
         await AssertThrowsAsync<KeyNotFoundException>(
-            () => driver.WriteValueAsync(new LogicalTagKey<int>("Missing"), 1, CancellationToken.None));
+            () => driver.WriteValueAsync(new("Missing"), 1, CancellationToken.None));
         await AssertThrowsAsync<ArgumentNullException>(
             () => Task.Run(() => driver.RemoveTagItem(null!)));
         await AssertThrowsAsync<ArgumentException>(
@@ -230,12 +230,12 @@ public sealed class OmronPlcRxDeterministicTests
         driver.Dispose();
         driver.Dispose();
         await Assert.That(driver.IsDisposed).IsTrue();
-        await AssertThrowsAsync<ArgumentNullException>(
-            () => Task.FromResult(new OmronPlcRx(
+        await AssertThrowsSynchronouslyAsync<ArgumentNullException>(
+            static () => new OmronPlcRx(
                 (OmronPLCConnection)null!,
-                TimeSpan.FromSeconds(1))));
-        await AssertThrowsAsync<ArgumentOutOfRangeException>(
-            () => Task.FromResult(new OmronPlcRx(connection, TimeSpan.Zero)));
+                TimeSpan.FromSeconds(1)));
+        await AssertThrowsSynchronouslyAsync<ArgumentOutOfRangeException>(
+            () => new OmronPlcRx(connection, TimeSpan.Zero));
     }
 
     /// <summary>Verifies alternate memory-area aliases and string-length metadata parsing.</summary>
@@ -357,6 +357,26 @@ public sealed class OmronPlcRxDeterministicTests
         try
         {
             await action().ConfigureAwait(false);
+        }
+        catch (TException ex)
+        {
+            await Assert.That(ex).IsNotNull();
+            return;
+        }
+
+        throw new InvalidOperationException($"Expected {nameof(TException)}.");
+    }
+
+    /// <summary>Captures and verifies a synchronous exception.</summary>
+    /// <typeparam name="TException">Expected exception type.</typeparam>
+    /// <param name="action">Driver construction to invoke.</param>
+    /// <returns>A task that represents the asynchronous assertion.</returns>
+    private static async Task AssertThrowsSynchronouslyAsync<TException>(Func<IDisposable> action)
+        where TException : Exception
+    {
+        try
+        {
+            using var unexpectedDriver = action();
         }
         catch (TException ex)
         {

@@ -3,25 +3,25 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Data;
+using IoT.Driver.ModbusRx.Reactive.Data;
 #else
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.IO;
+using IoT.Driver.ModbusRx.Reactive.IO;
 #else
-using IoT.DriverCore.ModbusRx.IO;
+using IoT.Driver.ModbusRx.IO;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Message;
+using IoT.Driver.ModbusRx.Reactive.Message;
 #else
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Message;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Device;
+namespace IoT.Driver.ModbusRx.Reactive.Device;
 #else
-namespace IoT.DriverCore.ModbusRx.Device;
+namespace IoT.Driver.ModbusRx.Device;
 #endif
 
 /// <summary>Modbus master device.</summary>
@@ -204,10 +204,7 @@ public class ModbusMaster : ModbusDevice, IModbusMaster
     public TResponse ExecuteCustomMessage<TResponse>(IModbusMessage request, Func<TResponse> responseFactory)
         where TResponse : IModbusMessage, new()
     {
-        if (responseFactory is null)
-        {
-            throw new ArgumentNullException(nameof(responseFactory));
-        }
+        responseFactory = ArgumentGuard.NotNull(responseFactory, nameof(responseFactory));
 
         return Transport!.UnicastMessage(request, responseFactory);
     }
@@ -219,10 +216,7 @@ public class ModbusMaster : ModbusDevice, IModbusMaster
     /// <param name="maxDataLength">The max Data Length value.</param>
     private static void ValidateData<T>(string argumentName, T[] data, int maxDataLength)
     {
-        if (data is null)
-        {
-            throw new ArgumentNullException(nameof(data));
-        }
+        data = ArgumentGuard.NotNull(data, nameof(data));
 
         if (data.Length != 0 && data.Length <= maxDataLength)
         {
@@ -264,6 +258,23 @@ public class ModbusMaster : ModbusDevice, IModbusMaster
         return result;
     }
 
+    /// <summary>Executes the Run Read Registers Async operation.</summary>
+    /// <typeparam name="TRequest">The request type.</typeparam>
+    /// <param name="request">The request value.</param>
+    /// <param name="action">The action value.</param>
+    /// <returns>The result.</returns>
+    private static Task<ushort[]> RunReadRegistersAsync<TRequest>(TRequest request, Func<TRequest, ushort[]> action) =>
+        Task.Factory.StartNew(
+            static state =>
+            {
+                var (operation, typedRequest) = ((Func<TRequest, ushort[]> Action, TRequest Request))state!;
+                return operation(typedRequest);
+            },
+            (Action: action, Request: request),
+            CancellationToken.None,
+            TaskCreationOptions.DenyChildAttach,
+            TaskScheduler.Default);
+
     /// <summary>Executes the Perform Read Discretes operation.</summary>
     /// <param name="request">The request value.</param>
     /// <returns>The result.</returns>
@@ -278,7 +289,12 @@ public class ModbusMaster : ModbusDevice, IModbusMaster
     /// <returns>The result.</returns>
     private Task<bool[]> PerformReadDiscretesAsync(ReadCoilsInputsRequest request) =>
         Task.Factory.StartNew(
-            () => PerformReadDiscretes(request),
+            static state =>
+            {
+                var (master, readRequest) = ((ModbusMaster Master, ReadCoilsInputsRequest Request))state!;
+                return master.PerformReadDiscretes(readRequest);
+            },
+            (Master: this, Request: request),
             CancellationToken.None,
             TaskCreationOptions.DenyChildAttach,
             TaskScheduler.Default);
@@ -318,26 +334,19 @@ public class ModbusMaster : ModbusDevice, IModbusMaster
         return RunReadRegistersAsync(readWriteRequest, PerformReadRegisters);
     }
 
-    /// <summary>Executes the Run Read Registers Async operation.</summary>
-    /// <typeparam name="TRequest">The request type.</typeparam>
-    /// <param name="request">The request value.</param>
-    /// <param name="action">The action value.</param>
-    /// <returns>The result.</returns>
-    private Task<ushort[]> RunReadRegistersAsync<TRequest>(TRequest request, Func<TRequest, ushort[]> action) =>
-        Task.Factory.StartNew(
-            () => action(request),
-            CancellationToken.None,
-            TaskCreationOptions.DenyChildAttach,
-            TaskScheduler.Default);
-
     /// <summary>Executes the Perform Write Request Async operation.</summary>
     /// <typeparam name="T">The T type.</typeparam>
     /// <param name="request">The request value.</param>
     /// <returns>The result.</returns>
-    private Task PerformWriteRequestAsync<T>(IModbusMessage request)
+    private Task<T> PerformWriteRequestAsync<T>(IModbusMessage request)
         where T : IModbusMessage, new() =>
         Task.Factory.StartNew(
-            () => Transport?.UnicastMessage<T>(request),
+            static state =>
+            {
+                var (master, message) = ((ModbusMaster Master, IModbusMessage Request))state!;
+                return master.Transport!.UnicastMessage<T>(message);
+            },
+            (Master: this, Request: request),
             CancellationToken.None,
             TaskCreationOptions.DenyChildAttach,
             TaskScheduler.Default);

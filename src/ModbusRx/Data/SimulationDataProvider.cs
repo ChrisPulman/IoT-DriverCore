@@ -5,9 +5,9 @@
 using System.Security.Cryptography;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Data;
+namespace IoT.Driver.ModbusRx.Reactive.Data;
 #else
-namespace IoT.DriverCore.ModbusRx.Data;
+namespace IoT.Driver.ModbusRx.Data;
 #endif
 
 /// <summary>Provides simulation data for Modbus testing and development.</summary>
@@ -108,10 +108,7 @@ public sealed class SimulationDataProvider : IDisposable
     /// <param name="simulationType">The type of simulation to run.</param>
     public void Start(DataStore dataStore, TimeSpan interval, SimulationType simulationType)
     {
-        if (dataStore is null)
-        {
-            throw new ArgumentNullException(nameof(dataStore));
-        }
+        dataStore = ArgumentGuard.NotNull(dataStore, nameof(dataStore));
 
         if (_isRunning.Value)
         {
@@ -206,10 +203,7 @@ public sealed class SimulationDataProvider : IDisposable
     public void LoadTestPattern(DataStore dataStore, TestPattern pattern)
     {
         const int dataLength = 1000;
-        if (dataStore is null)
-        {
-            throw new ArgumentNullException(nameof(dataStore), "Data store cannot be null.");
-        }
+        dataStore = ArgumentGuard.NotNull(dataStore, nameof(dataStore));
 
         dataStore.Lock.EnterWriteLock();
         try
@@ -370,7 +364,7 @@ public sealed class SimulationDataProvider : IDisposable
         {
             dataStore.HoldingRegisters[i] = squareData[i - 1]; // Offset for 1-based indexing
             dataStore.InputRegisters[i] = squareData[i - 1];
-            dataStore.CoilDiscretes[i] = squareData[i - 1] > 0;
+            dataStore.CoilDiscretes[i] = squareData[i - 1] != 0;
             dataStore.InputDiscretes[i] = !dataStore.CoilDiscretes[i];
         }
     }

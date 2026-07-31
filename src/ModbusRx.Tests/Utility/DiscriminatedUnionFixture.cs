@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using IoT.DriverCore.ModbusRx.Utility;
+using IoT.Driver.ModbusRx.Utility;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Utility;
+namespace IoT.Driver.ModbusRx.UnitTests.Utility;
 
 /// <summary>Tests the DiscriminatedUnionFixture behavior.</summary>
 public class DiscriminatedUnionFixture

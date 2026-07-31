@@ -6,13 +6,17 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 
+#if NET5_0_OR_GREATER
+using System.Runtime.InteropServices;
+#endif
+
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -132,7 +136,7 @@ public sealed class MitsubishiTagDatabase
         var database = new MitsubishiTagDatabase(tags);
         foreach (var group in groupMembership)
         {
-            database.AddGroup(new MitsubishiTagGroupDefinition(group.Key, group.Value));
+            database.AddGroup(new(group.Key, group.Value));
         }
 
         return database;
@@ -182,42 +186,35 @@ public sealed class MitsubishiTagDatabase
     public MitsubishiTagDatabaseDiff CompareWith(MitsubishiTagDatabase other)
     {
         ArgumentNullException.ThrowIfNull(other);
-        var addedTags = other
-            .Tags.Where(tag => !_tags.ContainsKey(tag.Name))
-            .OrderBy(tag => tag.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        var removedTags = Tags.Where(tag => !other._tags.ContainsKey(tag.Name))
-            .OrderBy(tag => tag.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        var changedTags = Tags.Where(tag =>
-                other._tags.TryGetValue(tag.Name, out var current) && current != tag)
-            .Select(tag => new MitsubishiTagChange(tag.Name, tag, other._tags[tag.Name]))
-            .OrderBy(change => change.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        var addedGroups = other
-            .Groups.Where(group => !_groups.ContainsKey(group.Name))
-            .OrderBy(group => group.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        var removedGroups = Groups
-            .Where(group => !other._groups.ContainsKey(group.Name))
-            .OrderBy(group => group.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        var changedGroups = Groups
-            .Where(group =>
-                other._groups.TryGetValue(group.Name, out var current) && current != group)
-            .Select(group => new MitsubishiTagGroupChange(
-                group.Name,
-                group,
-                other._groups[group.Name]))
-            .OrderBy(change => change.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        return new MitsubishiTagDatabaseDiff(
-            addedTags,
-            removedTags,
-            changedTags,
-            addedGroups,
-            removedGroups,
-            changedGroups);
+        var addedTags = new List<MitsubishiTagDefinition>();
+        var removedTags = new List<MitsubishiTagDefinition>();
+        var changedTags = new List<MitsubishiTagChange>();
+        var addedGroups = new List<MitsubishiTagGroupDefinition>();
+        var removedGroups = new List<MitsubishiTagGroupDefinition>();
+        var changedGroups = new List<MitsubishiTagGroupChange>();
+
+        CompareTags(other, addedTags, removedTags, changedTags);
+        CompareGroups(other, addedGroups, removedGroups, changedGroups);
+
+        addedTags.Sort(static (left, right) =>
+            StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name));
+        removedTags.Sort(static (left, right) =>
+            StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name));
+        changedTags.Sort(static (left, right) =>
+            StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name));
+        addedGroups.Sort(static (left, right) =>
+            StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name));
+        removedGroups.Sort(static (left, right) =>
+            StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name));
+        changedGroups.Sort(static (left, right) =>
+            StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name));
+        return new(
+            [.. addedTags],
+            [.. removedTags],
+            [.. changedTags],
+            [.. addedGroups],
+            [.. removedGroups],
+            [.. changedGroups]);
     }
 
     /// <summary>Executes the Add operation.</summary>
@@ -282,12 +279,18 @@ public sealed class MitsubishiTagDatabase
             throw new ArgumentException("Group must contain at least one tag name.", nameof(group));
         }
 
-        if (group.ResolvedTagNames.Any(string.IsNullOrWhiteSpace))
+        foreach (var tagName in group.ResolvedTagNames)
         {
-            throw new ArgumentException("Group tag names must not be empty.", nameof(group));
+            ArgumentException.ThrowIfNullOrWhiteSpace(tagName);
         }
 
-        _groups[group.Name] = new(group.Name, group.ResolvedTagNames.ToArray());
+        var tagNames = new string[group.ResolvedTagNames.Count];
+        for (var index = 0; index < tagNames.Length; index++)
+        {
+            tagNames[index] = group.ResolvedTagNames[index];
+        }
+
+        _groups[group.Name] = new(group.Name, tagNames);
     }
 
     /// <summary>Executes the TryGetGroup operation.</summary>
@@ -316,6 +319,23 @@ public sealed class MitsubishiTagDatabase
             $"Group '{name}' was not found in the Mitsubishi tag database.");
     }
 
+    /// <summary>Determines whether a tag-name collection contains a name.</summary>
+    /// <param name="tagNames">The tag names to inspect.</param>
+    /// <param name="tagName">The tag name to locate.</param>
+    /// <returns><see langword="true"/> when the tag name is present.</returns>
+    private static bool ContainsTagName(IReadOnlyList<string> tagNames, string tagName)
+    {
+        foreach (var candidate in tagNames)
+        {
+            if (StringComparer.OrdinalIgnoreCase.Compare(candidate, tagName) == 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>Adds tag membership to each named group.</summary>
     /// <param name="groupMembership">The accumulated group membership.</param>
     /// <param name="groupNames">The group names to update.</param>
@@ -327,6 +347,18 @@ public sealed class MitsubishiTagDatabase
     {
         foreach (var groupName in groupNames)
         {
+#if NET5_0_OR_GREATER
+            ref var tagNames = ref CollectionsMarshal.GetValueRefOrAddDefault(
+                groupMembership,
+                groupName,
+                out var exists);
+            if (!exists)
+            {
+                tagNames = [];
+            }
+
+            tagNames!.Add(tagName);
+#else
             if (!groupMembership.TryGetValue(groupName, out var tagNames))
             {
                 tagNames = [];
@@ -334,6 +366,7 @@ public sealed class MitsubishiTagDatabase
             }
 
             tagNames.Add(tagName);
+#endif
         }
     }
 
@@ -357,7 +390,17 @@ public sealed class MitsubishiTagDatabase
         }
 
         var values = ParseCsvLine(line);
-        if (values.All(string.IsNullOrWhiteSpace))
+        var hasValue = false;
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                hasValue = true;
+                break;
+            }
+        }
+
+        if (!hasValue)
         {
             return null;
         }
@@ -368,7 +411,7 @@ public sealed class MitsubishiTagDatabase
         var context = $"CSV row {rowNumber}";
         var name = Read(nameof(MitsubishiTagDefinition.Name), required: true);
         groupNames = DecodeGroupNames(Read(nameof(Groups)));
-        return new MitsubishiTagDefinition(
+        return new(
             Name: name,
             Address: Read(nameof(MitsubishiTagDefinition.Address), required: true),
             DataType: NormalizeDataType(
@@ -612,7 +655,10 @@ public sealed class MitsubishiTagDatabase
             return string.Empty;
         }
 
-        return value.IndexOfAny([',', '"', '\n', '\r']) < 0
+        return value.IndexOf(',') < 0 &&
+               value.IndexOf('"') < 0 &&
+               value.IndexOf('\n') < 0 &&
+               value.IndexOf('\r') < 0
             ? value
             : $"\"{value.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
     }
@@ -620,23 +666,39 @@ public sealed class MitsubishiTagDatabase
     /// <summary>Encodes tag-group membership into one CSV field.</summary>
     /// <param name="groupNames">The group names.</param>
     /// <returns>The encoded group membership.</returns>
-    private static string EncodeGroupNames(IEnumerable<string> groupNames) =>
-        string.Join(
-            "|",
-            groupNames
-                .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
-                .Select(Uri.EscapeDataString));
+    private static string EncodeGroupNames(IEnumerable<string> groupNames)
+    {
+        var names = new List<string>(groupNames);
+
+        names.Sort(StringComparer.OrdinalIgnoreCase);
+        var encodedNames = new string[names.Count];
+        for (var index = 0; index < names.Count; index++)
+        {
+            encodedNames[index] = Uri.EscapeDataString(names[index]);
+        }
+
+        return string.Join("|", encodedNames);
+    }
 
     /// <summary>Decodes tag-group membership from one CSV field.</summary>
     /// <param name="value">The encoded field.</param>
     /// <returns>The decoded group names.</returns>
-    private static string[] DecodeGroupNames(string value) =>
-        string.IsNullOrWhiteSpace(value)
-            ? []
-            : value
-                .Split('|', StringSplitOptions.RemoveEmptyEntries)
-                .Select(Uri.UnescapeDataString)
-                .ToArray();
+    private static string[] DecodeGroupNames(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return [];
+        }
+
+        var encodedNames = value.Split('|', StringSplitOptions.RemoveEmptyEntries);
+        var names = new string[encodedNames.Length];
+        for (var index = 0; index < encodedNames.Length; index++)
+        {
+            names[index] = Uri.UnescapeDataString(encodedNames[index]);
+        }
+
+        return names;
+    }
 
     /// <summary>Executes the NullIfEmpty operation.</summary>
     /// <param name="value">The value parameter.</param>
@@ -665,10 +727,15 @@ public sealed class MitsubishiTagDatabase
             "Name,Address,DataType,Description,Scale,Offset,Length,Encoding,Units,Signed,ByteOrder,Notes,Groups");
         foreach (var tag in _tags.Values)
         {
-            var groupNames = _groups
-                .Values.Where(group =>
-                    group.ResolvedTagNames.Contains(tag.Name, StringComparer.OrdinalIgnoreCase))
-                .Select(static group => group.Name);
+            var groupNames = new List<string>();
+            foreach (var group in _groups.Values)
+            {
+                if (ContainsTagName(group.ResolvedTagNames, tag.Name))
+                {
+                    groupNames.Add(group.Name);
+                }
+            }
+
             _ = builder
                 .Append(EscapeCsv(tag.Name))
                 .Append(',')
@@ -698,5 +765,69 @@ public sealed class MitsubishiTagDatabase
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>Compares tag definitions with another database.</summary>
+    /// <param name="other">The database to compare.</param>
+    /// <param name="addedTags">The added tags.</param>
+    /// <param name="removedTags">The removed tags.</param>
+    /// <param name="changedTags">The changed tags.</param>
+    private void CompareTags(
+        MitsubishiTagDatabase other,
+        List<MitsubishiTagDefinition> addedTags,
+        List<MitsubishiTagDefinition> removedTags,
+        List<MitsubishiTagChange> changedTags)
+    {
+        foreach (var tag in other._tags.Values)
+        {
+            if (!_tags.ContainsKey(tag.Name))
+            {
+                addedTags.Add(tag);
+            }
+        }
+
+        foreach (var tag in _tags.Values)
+        {
+            if (!other._tags.TryGetValue(tag.Name, out var current))
+            {
+                removedTags.Add(tag);
+            }
+            else if (current != tag)
+            {
+                changedTags.Add(new(tag.Name, tag, current));
+            }
+        }
+    }
+
+    /// <summary>Compares tag-group definitions with another database.</summary>
+    /// <param name="other">The database to compare.</param>
+    /// <param name="addedGroups">The added groups.</param>
+    /// <param name="removedGroups">The removed groups.</param>
+    /// <param name="changedGroups">The changed groups.</param>
+    private void CompareGroups(
+        MitsubishiTagDatabase other,
+        List<MitsubishiTagGroupDefinition> addedGroups,
+        List<MitsubishiTagGroupDefinition> removedGroups,
+        List<MitsubishiTagGroupChange> changedGroups)
+    {
+        foreach (var group in other._groups.Values)
+        {
+            if (!_groups.ContainsKey(group.Name))
+            {
+                addedGroups.Add(group);
+            }
+        }
+
+        foreach (var group in _groups.Values)
+        {
+            if (!other._groups.TryGetValue(group.Name, out var current))
+            {
+                removedGroups.Add(group);
+            }
+            else if (current != group)
+            {
+                changedGroups.Add(new(group.Name, group, current));
+            }
+        }
     }
 }

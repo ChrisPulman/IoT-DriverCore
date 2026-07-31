@@ -13,9 +13,9 @@
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="buildTransitive\CP.IoT.Core.targets"
+    <None Include="buildTransitive\IoT-Driver.Core.targets"
           Pack="true"
-          PackagePath="buildTransitive\CP.IoT.Core.targets" />
+          PackagePath="buildTransitive\IoT-Driver.Core.targets" />
     <None Include="..\..\packagereadme\CP.IoT.Core\README.md"
           Pack="true"
           PackagePath="README.md" />

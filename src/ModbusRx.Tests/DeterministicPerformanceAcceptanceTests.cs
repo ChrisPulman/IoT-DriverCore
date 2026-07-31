@@ -4,12 +4,12 @@
 
 using System.Net;
 using System.Net.Sockets;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.IO;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx.IO;
 using NativeAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Deterministic performance acceptance coverage for Modbus range, pooling, observation, and lifecycle work.</summary>
 public sealed class DeterministicPerformanceAcceptanceTests

@@ -5,7 +5,7 @@
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 
-namespace IoT.DriverCore.TwinCATRx.SourceGenerators;
+namespace IoT.Driver.TwinCATRx.SourceGenerators;
 
 /// <summary>Generates TwinCAT reactive stream binding members.</summary>
 public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerator

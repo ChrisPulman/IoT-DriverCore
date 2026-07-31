@@ -4,10 +4,10 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiTagDatabaseTests type.</summary>
@@ -131,7 +131,13 @@ MotorSpeed,D100,Word,Main spindle RPM
         var result = await client.ReadWordsByTagAsync(MotorSpeedTagName, TwoTagReadCount, CancellationToken.None);
 
         await Assert.That(result.IsSucceed).IsTrue();
-        await Assert.That(result.Value!.Select(static value => (int)value).ToArray())
+        var actualValues = new List<int>();
+        foreach (var value in result.Value!)
+        {
+            actualValues.Add(value);
+        }
+
+        await Assert.That(actualValues)
             .IsEquivalentTo([ 0x1234, 0x5678]);
         await Assert.That(transport.Requests.Count).IsEqualTo(1);
         await Assert.That(transport.Requests[0].Description).IsEqualTo("Read words D100");
@@ -295,7 +301,13 @@ RecipeNumber,D300,Word
 
         await Assert.That(baseline.IsSucceed).IsTrue();
         await Assert.That(result.IsSucceed).IsTrue();
-        await Assert.That(result.Value!.Select(static value => (int)value).ToArray()).IsEquivalentTo([ 0x1234]);
+        var actualValues = new List<int>();
+        foreach (var value in result.Value!)
+        {
+            actualValues.Add(value);
+        }
+
+        await Assert.That(actualValues).IsEquivalentTo([ 0x1234]);
         await Assert.That(transport.Requests[0].Payload).IsEquivalentTo(rawTransport.Requests[0].Payload);
     }
 

@@ -5,7 +5,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace IoT.DriverCore.S7PlcRx.SourceGenerators;
+namespace IoT.Driver.S7PlcRx.SourceGenerators;
 
 /// <summary>Provides attribute-discovery helpers for the S7 binding source generator.</summary>
 public sealed partial class S7TagBindingSourceGenerator
@@ -16,18 +16,21 @@ public sealed partial class S7TagBindingSourceGenerator
     /// <returns>True when the declaration is the source of an accepted binding attribute.</returns>
     private static bool HasBindingAttribute(ClassDeclarationSyntax classSyntax, SemanticModel semanticModel)
     {
-        foreach (var attributeSyntax in classSyntax.AttributeLists.SelectMany(static list => list.Attributes))
+        foreach (var attributeList in classSyntax.AttributeLists)
         {
-            if (semanticModel.GetSymbolInfo(attributeSyntax).Symbol is not IMethodSymbol constructor)
+            foreach (var attributeSyntax in attributeList.Attributes)
             {
-                continue;
-            }
+                if (semanticModel.GetSymbolInfo(attributeSyntax).Symbol is not IMethodSymbol constructor)
+                {
+                    continue;
+                }
 
-            var attributeName = constructor.ContainingType.ToDisplayString();
-            if (string.Equals(attributeName, BindingAttributeName, StringComparison.Ordinal) ||
-                string.Equals(attributeName, ReactiveBindingAttributeName, StringComparison.Ordinal))
-            {
-                return true;
+                var attributeName = constructor.ContainingType.ToDisplayString();
+                if (string.Equals(attributeName, BindingAttributeName, StringComparison.Ordinal) ||
+                    string.Equals(attributeName, ReactiveBindingAttributeName, StringComparison.Ordinal))
+                {
+                    return true;
+                }
             }
         }
 

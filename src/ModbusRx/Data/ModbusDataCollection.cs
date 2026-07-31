@@ -5,9 +5,9 @@
 using System.Collections.ObjectModel;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Data;
+namespace IoT.Driver.ModbusRx.Reactive.Data;
 #else
-namespace IoT.DriverCore.ModbusRx.Data;
+namespace IoT.Driver.ModbusRx.Data;
 #endif
 
 /// <summary>A 1 origin collection represetative of the Modbus Data Model.</summary>
@@ -58,11 +58,9 @@ public class ModbusDataCollection<TData> : Collection<TData>
     /// </exception>
     protected override void InsertItem(int index, TData item)
     {
-        if (!_allowZeroElement && index == 0)
+        if (!_allowZeroElement)
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(index),
-                InvalidZeroAddressMessage);
+            ArgumentGuard.ThrowIfZero(index, nameof(index), InvalidZeroAddressMessage);
         }
 
         base.InsertItem(index, item);
@@ -77,12 +75,7 @@ public class ModbusDataCollection<TData> : Collection<TData>
     /// </exception>
     protected override void SetItem(int index, TData item)
     {
-        if (index == 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(index),
-                InvalidZeroAddressMessage);
-        }
+        ArgumentGuard.ThrowIfZero(index, nameof(index), InvalidZeroAddressMessage);
 
         base.SetItem(index, item);
     }
@@ -95,12 +88,7 @@ public class ModbusDataCollection<TData> : Collection<TData>
     /// </exception>
     protected override void RemoveItem(int index)
     {
-        if (index == 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(index),
-                InvalidZeroAddressMessage);
-        }
+        ArgumentGuard.ThrowIfZero(index, nameof(index), InvalidZeroAddressMessage);
 
         base.RemoveItem(index);
     }
@@ -149,10 +137,7 @@ public class ModbusDataCollection<TData> : Collection<TData>
     {
         EnsureSupportedType();
 
-        if (data is null)
-        {
-            throw new ArgumentNullException(nameof(data));
-        }
+        data = ArgumentGuard.NotNull(data, nameof(data));
 
         var preparedData = data.IsReadOnly ? [.. data] : data;
         return AddDefault(preparedData);

@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.S7PlcRx.Tests.SourceGenerators;
+namespace IoT.Driver.S7PlcRx.Tests.SourceGenerators;
 
 /// <summary>Exercises generator metadata normalisation and deterministic source emission.</summary>
 public sealed class S7TagBindingSourceGeneratorAdditionalCoverageTests
@@ -13,7 +13,7 @@ public sealed class S7TagBindingSourceGeneratorAdditionalCoverageTests
     public async Task Generate_NormalisesNamedMetadataAndEscapesAddressesAsync()
     {
         const string source = """
-            using IoT.DriverCore.S7PlcRx.SourceGeneration;
+            using IoT.Driver.S7PlcRx.SourceGeneration;
 
             namespace GeneratorCoverage;
 
@@ -29,7 +29,7 @@ public sealed class S7TagBindingSourceGeneratorAdditionalCoverageTests
 
         await TUnit.Assertions.Assert.That(generated).Contains("DB1.\\\\");
         await TUnit.Assertions.Assert.That(generated).Contains("Quoted");
-        await TUnit.Assertions.Assert.That(generated).Contains("0, global::IoT.DriverCore.S7PlcRx.Binding.S7TagDirection.WriteOnly, 1)");
+        await TUnit.Assertions.Assert.That(generated).Contains("0, global::IoT.Driver.S7PlcRx.Binding.S7TagDirection.WriteOnly, 1)");
         await TUnit.Assertions.Assert.That(generated).Contains("TagOperationResult<int>");
     }
 
@@ -39,7 +39,7 @@ public sealed class S7TagBindingSourceGeneratorAdditionalCoverageTests
     public async Task Generate_PreservesNullableAndArrayPropertyTypesAsync()
     {
         const string source = """
-            using IoT.DriverCore.S7PlcRx.SourceGeneration;
+            using IoT.Driver.S7PlcRx.SourceGeneration;
 
             namespace GeneratorCoverage;
 
@@ -68,7 +68,7 @@ public sealed class S7TagBindingSourceGeneratorAdditionalCoverageTests
     public async Task Generate_IsDeterministicAndKeepsPropertyOrderAsync()
     {
         const string source = """
-            using IoT.DriverCore.S7PlcRx.SourceGeneration;
+            using IoT.Driver.S7PlcRx.SourceGeneration;
 
             namespace GeneratorCoverage;
 
@@ -97,7 +97,7 @@ public sealed class S7TagBindingSourceGeneratorAdditionalCoverageTests
     public async Task Generate_IgnoresUnattributedAndTaglessDeclarationsAsync()
     {
         const string source = """
-            using IoT.DriverCore.S7PlcRx.SourceGeneration;
+            using IoT.Driver.S7PlcRx.SourceGeneration;
 
             namespace GeneratorCoverage;
 

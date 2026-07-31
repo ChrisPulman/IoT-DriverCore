@@ -5,19 +5,19 @@
 using System.Buffers;
 using System.Diagnostics;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Core;
-using IoT.DriverCore.S7PlcRx.Reactive.Enums;
-using IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+using IoT.Driver.S7PlcRx.Reactive.Core;
+using IoT.Driver.S7PlcRx.Reactive.Enums;
+using IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-using IoT.DriverCore.S7PlcRx.Core;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.PlcTypes;
+using IoT.Driver.S7PlcRx.Core;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive;
+namespace IoT.Driver.S7PlcRx.Reactive;
 #else
-namespace IoT.DriverCore.S7PlcRx;
+namespace IoT.Driver.S7PlcRx;
 #endif
 
 /// <summary>Contains value and lifecycle members for <see cref="RxS7"/>.</summary>
@@ -53,14 +53,14 @@ public partial class RxS7
             {
                 var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 #if NET8_0_OR_GREATER
-                await using var reg = cancellationToken.Register(() => tcs.TrySetCanceled());
+                await using var reg = cancellationToken.Register(static state => ((TaskCompletionSource<bool>)state!).TrySetCanceled(), tcs);
 #else
-                using var reg = cancellationToken.Register(() => tcs.TrySetCanceled());
+                using var reg = cancellationToken.Register(static state => ((TaskCompletionSource<bool>)state!).TrySetCanceled(), tcs);
 #endif
                 void SetResult(bool result) => tcs.TrySetResult(result);
                 void SetException(Exception exception) => tcs.TrySetException(exception);
 
-                using var sub = _paused.Where(x => x).Take(1).Subscribe(SetResult, SetException);
+                using var sub = _paused.Where(static x => x).Take(1).Subscribe(SetResult, SetException);
                 var pauseTask = tcs.Task;
                 var completedTask = await Task.WhenAny(
                     pauseTask,
@@ -133,7 +133,7 @@ public partial class RxS7
         Observable.Create<string[]>(obs =>
         {
             var cancellation = new CancellationTokenSource();
-            var subscription = IsConnected.Where(isConnected => isConnected).Take(1).Subscribe(
+            var subscription = IsConnected.Where(static isConnected => isConnected).Take(1).Subscribe(
                 isConnected => _ = PublishCpuInfoAsync(obs, cancellation.Token));
             return new CompositeDisposable(subscription, Disposable.Create(cancellation.Cancel));
         });

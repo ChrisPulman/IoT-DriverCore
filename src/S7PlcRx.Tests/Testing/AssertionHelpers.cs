@@ -4,34 +4,34 @@
 
 using System.Collections;
 using System.Globalization;
+using System.Text;
 using TUnit.Assertions.Extensions;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Testing;
+namespace IoT.Driver.S7PlcRx.Tests.Testing;
 
 /// <summary>Provides value comparison and TUnit assertion helpers for the adapter.</summary>
 internal static class AssertionHelpers
 {
-    /// <summary>Synchronously verifies an assertion through TUnit.</summary>
+    /// <summary>Asynchronously verifies an assertion through TUnit.</summary>
     /// <param name="condition">Describes parameter condition for helper member 21.</param>
     /// <param name="message">Describes parameter message for helper member 22.</param>
-    internal static void AssertTrue(bool condition, string? message) =>
-        AssertTrueAsync(condition, message).GetAwaiter().GetResult();
-
-    /// <summary>Asynchronously verifies an assertion through TUnit.</summary>
-    /// <param name="condition">Describes parameter condition for helper member 23.</param>
-    /// <param name="message">Describes parameter message for helper member 24.</param>
-    /// <returns>The result.</returns>
+    /// <returns>A task that completes after TUnit evaluates the condition.</returns>
     internal static async Task AssertTrueAsync(bool condition, string? message)
     {
-        _ = message;
-        await TUnitAssert.That(condition).IsTrue();
+        if (message is null)
+        {
+            await TUnitAssert.That(condition).IsTrue();
+            return;
+        }
+
+        await TUnitAssert.That(condition).IsTrue().Because(message);
     }
 
     /// <summary>Determines whether two values are equal.</summary>
     /// <param name="actual">Describes parameter actual for helper member 25.</param>
     /// <param name="expected">Describes parameter expected for helper member 26.</param>
-    /// <returns>The result.</returns>
+    /// <returns><see langword="true"/> when the values are equal; otherwise, <see langword="false"/>.</returns>
     internal static bool AreEqual(object? actual, object? expected)
     {
         if (ReferenceEquals(actual, expected))
@@ -63,14 +63,14 @@ internal static class AssertionHelpers
     /// <summary>Creates an equality assertion failure message.</summary>
     /// <param name="actual">Describes parameter actual for helper member 27.</param>
     /// <param name="expected">Describes parameter expected for helper member 28.</param>
-    /// <returns>The result.</returns>
+    /// <returns>A message describing the failed equality assertion.</returns>
     internal static string ExpectedEqualityMessage(object? actual, object? expected) =>
         $"Expected {Format(actual)} to equal {Format(expected)}.";
 
     /// <summary>Creates an exception assertion failure message.</summary>
     /// <param name="exceptionType">Describes parameter exceptionType for helper member 29.</param>
     /// <param name="actual">Describes parameter actual for helper member 30.</param>
-    /// <returns>The result.</returns>
+    /// <returns>A message describing the failed exception assertion.</returns>
     internal static string ExpectedExceptionMessage(Type exceptionType, Exception? actual)
     {
         var expectedName = exceptionType.FullName;
@@ -83,7 +83,7 @@ internal static class AssertionHelpers
     /// <param name="actual">Describes parameter actual for helper member 31.</param>
     /// <param name="expected">Describes parameter expected for helper member 32.</param>
     /// <param name="tolerance">Describes parameter tolerance for helper member 33.</param>
-    /// <returns>The result.</returns>
+    /// <returns><see langword="true"/> when the values are equal within the tolerance; otherwise, <see langword="false"/>.</returns>
     internal static bool AreEqualWithin(object? actual, object? expected, TimeSpan tolerance) =>
         actual switch
         {
@@ -99,7 +99,7 @@ internal static class AssertionHelpers
     /// <summary>Determines whether two enumerable values contain equivalent items.</summary>
     /// <param name="actual">Describes parameter actual for helper member 34.</param>
     /// <param name="expected">Describes parameter expected for helper member 35.</param>
-    /// <returns>The result.</returns>
+    /// <returns><see langword="true"/> when both values contain equivalent items; otherwise, <see langword="false"/>.</returns>
     internal static bool AreEquivalent(object? actual, object? expected)
     {
         if (actual is not IEnumerable actualEnumerable || actual is string ||
@@ -108,10 +108,24 @@ internal static class AssertionHelpers
             return AreEqual(actual, expected);
         }
 
-        var remaining = expectedEnumerable.Cast<object?>().ToList();
-        foreach (var item in actualEnumerable.Cast<object?>())
+        var remaining = new List<object?>();
+        foreach (var expectedItem in expectedEnumerable)
         {
-            var index = remaining.FindIndex(candidate => AreEqual(item, candidate));
+            remaining.Add(expectedItem);
+        }
+
+        foreach (var item in actualEnumerable)
+        {
+            var index = -1;
+            for (var candidateIndex = 0; candidateIndex < remaining.Count; candidateIndex++)
+            {
+                if (AreEqual(item, remaining[candidateIndex]))
+                {
+                    index = candidateIndex;
+                    break;
+                }
+            }
+
             if (index < 0)
             {
                 return false;
@@ -126,19 +140,19 @@ internal static class AssertionHelpers
     /// <summary>Determines whether a value contains the expected item.</summary>
     /// <param name="actual">Describes parameter actual for helper member 36.</param>
     /// <param name="expected">Describes parameter expected for helper member 37.</param>
-    /// <returns>The result.</returns>
+    /// <returns><see langword="true"/> when the expected item is present; otherwise, <see langword="false"/>.</returns>
     internal static bool Contains(object? actual, object? expected) => actual switch
     {
         string text => expected is not null &&
             text.Contains(expected.ToString() ?? string.Empty, StringComparison.Ordinal),
-        IEnumerable enumerable => enumerable.Cast<object?>().Any(item => AreEqual(item, expected)),
+        IEnumerable enumerable => ContainsItem(enumerable, expected),
         _ => false,
     };
 
     /// <summary>Determines whether a dictionary-like value contains a key.</summary>
     /// <param name="actual">Describes parameter actual for helper member 38.</param>
     /// <param name="key">Describes parameter key for helper member 39.</param>
-    /// <returns>The result.</returns>
+    /// <returns><see langword="true"/> when the key is present; otherwise, <see langword="false"/>.</returns>
     internal static bool ContainsKey(object? actual, object? key)
     {
         if (actual is IDictionary dictionary)
@@ -152,20 +166,20 @@ internal static class AssertionHelpers
 
     /// <summary>Determines whether a value is empty.</summary>
     /// <param name="actual">Describes parameter actual for helper member 40.</param>
-    /// <returns>The result.</returns>
+    /// <returns><see langword="true"/> when the value is empty; otherwise, <see langword="false"/>.</returns>
     internal static bool IsEmpty(object? actual) => actual switch
     {
         null => false,
         string text => text.Length == 0,
         _ => TryGetCount(actual, out var count)
             ? count == 0
-            : actual is IEnumerable enumerable && !enumerable.Cast<object?>().Any(),
+            : actual is IEnumerable enumerable && !HasItems(enumerable),
     };
 
     /// <summary>Attempts to obtain an item's count or length.</summary>
     /// <param name="actual">Describes parameter actual for helper member 41.</param>
     /// <param name="count">Describes parameter count for helper member 42.</param>
-    /// <returns>The result.</returns>
+    /// <returns><see langword="true"/> when a count or length is available; otherwise, <see langword="false"/>.</returns>
     internal static bool TryGetCount(object? actual, out int count)
     {
         if (actual is ICollection collection)
@@ -195,7 +209,7 @@ internal static class AssertionHelpers
     /// <summary>Compares two values.</summary>
     /// <param name="actual">Describes parameter actual for helper member 43.</param>
     /// <param name="expected">Describes parameter expected for helper member 44.</param>
-    /// <returns>The result.</returns>
+    /// <returns>A negative, zero, or positive value when <paramref name="actual"/> is respectively less than, equal to, or greater than <paramref name="expected"/>.</returns>
     internal static int Compare(object? actual, object expected)
     {
         if (actual is null)
@@ -215,42 +229,102 @@ internal static class AssertionHelpers
 
     /// <summary>Formats a value for an assertion message.</summary>
     /// <param name="value">Describes parameter value for helper member 45.</param>
-    /// <returns>The result.</returns>
+    /// <returns>The formatted value.</returns>
     internal static string Format(object? value) => value switch
     {
         null => "<null>",
         string text => $"\"{text}\"",
-        IEnumerable enumerable when value is not string =>
-            $"[{string.Join(", ", enumerable.Cast<object?>())}]",
+        IEnumerable enumerable when value is not string => FormatEnumerable(enumerable),
         _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty,
     };
 
     /// <summary>Determines whether a value has a numeric runtime type.</summary>
     /// <param name="value">Describes parameter value for helper member 46.</param>
-    /// <returns>The result.</returns>
+    /// <returns><see langword="true"/> when the value has a numeric runtime type; otherwise, <see langword="false"/>.</returns>
     private static bool IsNumeric(object value)
     {
         var typeCode = Type.GetTypeCode(value.GetType());
         return typeCode is >= TypeCode.SByte and <= TypeCode.Decimal;
     }
 
-    /// <summary>Determines whether two enumerables contain equal items in the same order.</summary>
-    /// <param name="actual">Describes parameter actual for helper member 47.</param>
-    /// <param name="expected">Describes parameter expected for helper member 48.</param>
-    /// <returns>The result.</returns>
-    private static bool SequenceEqual(IEnumerable actual, IEnumerable expected)
+    /// <summary>Determines whether an enumerable contains the expected item.</summary>
+    /// <param name="enumerable">The enumerable to search.</param>
+    /// <param name="expected">The expected item.</param>
+    /// <returns><see langword="true"/> when the expected item is present; otherwise, <see langword="false"/>.</returns>
+    private static bool ContainsItem(IEnumerable enumerable, object? expected)
     {
-        using var actualEnumerator = actual.Cast<object?>().GetEnumerator();
-        using var expectedEnumerator = expected.Cast<object?>().GetEnumerator();
-        while (actualEnumerator.MoveNext())
+        foreach (var item in enumerable)
         {
-            if (!expectedEnumerator.MoveNext() ||
-                !AreEqual(actualEnumerator.Current, expectedEnumerator.Current))
+            if (AreEqual(item, expected))
             {
-                return false;
+                return true;
             }
         }
 
-        return !expectedEnumerator.MoveNext();
+        return false;
+    }
+
+    /// <summary>Determines whether an enumerable contains at least one item.</summary>
+    /// <param name="enumerable">The enumerable to inspect.</param>
+    /// <returns><see langword="true"/> when the enumerable contains an item; otherwise, <see langword="false"/>.</returns>
+    private static bool HasItems(IEnumerable enumerable)
+    {
+        var enumerator = enumerable.GetEnumerator();
+        try
+        {
+            return enumerator.MoveNext();
+        }
+        finally
+        {
+            (enumerator as IDisposable)?.Dispose();
+        }
+    }
+
+    /// <summary>Formats an enumerable value for an assertion message.</summary>
+    /// <param name="enumerable">The enumerable to format.</param>
+    /// <returns>The formatted enumerable value.</returns>
+    private static string FormatEnumerable(IEnumerable enumerable)
+    {
+        var builder = new StringBuilder("[");
+        var hasItem = false;
+        foreach (var item in enumerable)
+        {
+            if (hasItem)
+            {
+                _ = builder.Append(", ");
+            }
+
+            _ = builder.Append(item);
+            hasItem = true;
+        }
+
+        _ = builder.Append(']');
+        return builder.ToString();
+    }
+
+    /// <summary>Determines whether two enumerables contain equal items in the same order.</summary>
+    /// <param name="actual">Describes parameter actual for helper member 47.</param>
+    /// <param name="expected">Describes parameter expected for helper member 48.</param>
+    /// <returns><see langword="true"/> when both enumerables contain equal items in the same order; otherwise, <see langword="false"/>.</returns>
+    private static bool SequenceEqual(IEnumerable actual, IEnumerable expected)
+    {
+        var expectedEnumerator = expected.GetEnumerator();
+        try
+        {
+            foreach (var actualItem in actual)
+            {
+                if (!expectedEnumerator.MoveNext() ||
+                    !AreEqual(actualItem, expectedEnumerator.Current))
+                {
+                    return false;
+                }
+            }
+
+            return !expectedEnumerator.MoveNext();
+        }
+        finally
+        {
+            (expectedEnumerator as IDisposable)?.Dispose();
+        }
     }
 }

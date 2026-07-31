@@ -3,12 +3,12 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.Mock;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Mock;
 using TUnitAssert = TUnit.Assertions.Assert;
-using TagCollection = global::IoT.DriverCore.S7PlcRx.Tags;
+using TagCollection = global::IoT.Driver.S7PlcRx.Tags;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Core;
+namespace IoT.Driver.S7PlcRx.Tests.Core;
 
 /// <summary>Exercises residual tag collection, projection, polling, and watchdog paths against the managed S7 simulator.</summary>
 [NotInParallel]
@@ -168,7 +168,7 @@ public sealed class S7PollingAndTagResidualCoverageTests
             new(WatchdogAddress, WatchdogValue, 1)));
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(OperationTimeoutSeconds));
 
-        _ = await plc.IsConnected.Where(connected => connected).Timeout(TimeSpan.FromSeconds(OperationTimeoutSeconds)).FirstAsync();
+        _ = await plc.IsConnected.Where(static connected => connected).Timeout(TimeSpan.FromSeconds(OperationTimeoutSeconds)).FirstAsync();
         _ = TagOperations.AddUpdateTagItem(plc, typeof(byte), ByteTagName, ByteAddress).SetPolling(false);
         var value = await plc.ReadAsync(new LogicalTagKey<byte>(ByteTagName), cancellation.Token);
 
@@ -229,7 +229,7 @@ public sealed class S7PollingAndTagResidualCoverageTests
                 new(ManualPollingIntervalMilliseconds)));
             var completed = false;
             using var disabledSubscription = InvokeWatchdogObservable(disabled).Subscribe(
-                _ => { },
+                static _ => { },
                 () => completed = true);
             await TUnitAssert.That(completed).IsTrue();
         }
@@ -242,7 +242,7 @@ public sealed class S7PollingAndTagResidualCoverageTests
             new(WatchdogAddress, WatchdogValue, 1)));
         var status = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var statusSubscription = plc.Status
-            .Where(message => message.Contains("WatchDog writing", StringComparison.Ordinal))
+            .Where(static message => message.Contains("WatchDog writing", StringComparison.Ordinal))
             .Subscribe(message => _ = status.TrySetResult(message));
 
         _ = await plc.IsConnected

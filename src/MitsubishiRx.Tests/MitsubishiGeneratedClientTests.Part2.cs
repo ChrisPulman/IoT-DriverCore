@@ -2,14 +2,15 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
+using Microsoft.CodeAnalysis;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides additional Mitsubishi generated-client tests.</summary>
@@ -53,7 +54,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var source = $$"""
-        using IoT.DriverCore.MitsubishiRx;
+        using IoT.Driver.MitsubishiRx;
 
         /// <summary>Provides the SchemaMarker type.</summary>
         [MitsubishiTagClientSchema({{ToLiteral(schema)}})]
@@ -108,7 +109,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var source = $$"""
-        using IoT.DriverCore.MitsubishiRx;
+        using IoT.Driver.MitsubishiRx;
 
         /// <summary>Provides the SchemaMarker type.</summary>
         [MitsubishiTagClientSchema({{ToLiteral(schema)}})]
@@ -116,19 +117,16 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var result = RunGeneratorCompilation(source);
-        var diagnostics = result.Diagnostics.Where(static d => d.Id == "MRTXGEN002").ToArray();
+        var diagnostics = GetDiagnosticsById(result.Diagnostics, "MRTXGEN002");
 
         if (diagnostics.Length == 0)
         {
             throw new InvalidOperationException(
-                string.Join(
-                    Environment.NewLine,
-                    result.Diagnostics.Select(static diagnostic => diagnostic.ToString())));
+                FormatDiagnostics(result.Diagnostics));
         }
 
         await Assert.That(
-                diagnostics.Any(
-                    static d => d.GetMessage().Contains(MotorSpeedTagName, StringComparison.Ordinal)))
+                ContainsDiagnosticMessage(diagnostics, MotorSpeedTagName))
             .IsTrue();
     }
 
@@ -149,7 +147,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var source = $$"""
-        using IoT.DriverCore.MitsubishiRx;
+        using IoT.Driver.MitsubishiRx;
 
         /// <summary>Provides the SchemaMarker type.</summary>
         [MitsubishiTagClientSchema({{ToLiteral(schema)}})]
@@ -157,19 +155,16 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var result = RunGeneratorCompilation(source);
-        var diagnostics = result.Diagnostics.Where(static d => d.Id == "MRTXGEN003").ToArray();
+        var diagnostics = GetDiagnosticsById(result.Diagnostics, "MRTXGEN003");
 
         if (diagnostics.Length == 0)
         {
             throw new InvalidOperationException(
-                string.Join(
-                    Environment.NewLine,
-                    result.Diagnostics.Select(static diagnostic => diagnostic.ToString())));
+                FormatDiagnostics(result.Diagnostics));
         }
 
         await Assert.That(
-                diagnostics.Any(
-                    static d => d.GetMessage().Contains("MissingTag", StringComparison.Ordinal)))
+                ContainsDiagnosticMessage(diagnostics, "MissingTag"))
             .IsTrue();
     }
 
@@ -188,7 +183,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var source = $$"""
-        using IoT.DriverCore.MitsubishiRx;
+        using IoT.Driver.MitsubishiRx;
 
         /// <summary>Provides the SchemaMarker type.</summary>
         [MitsubishiTagClientSchema({{ToLiteral(schema)}})]
@@ -196,19 +191,16 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var result = RunGeneratorCompilation(source);
-        var diagnostics = result.Diagnostics.Where(static d => d.Id == "MRTXGEN004").ToArray();
+        var diagnostics = GetDiagnosticsById(result.Diagnostics, "MRTXGEN004");
 
         if (diagnostics.Length == 0)
         {
             throw new InvalidOperationException(
-                string.Join(
-                    Environment.NewLine,
-                    result.Diagnostics.Select(static diagnostic => diagnostic.ToString())));
+                FormatDiagnostics(result.Diagnostics));
         }
 
         await Assert.That(
-                diagnostics.Any(
-                    static d => d.GetMessage().Contains("Decimal128", StringComparison.Ordinal)))
+                ContainsDiagnosticMessage(diagnostics, "Decimal128"))
             .IsTrue();
     }
 
@@ -228,7 +220,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var source = $$"""
-        using IoT.DriverCore.MitsubishiRx;
+        using IoT.Driver.MitsubishiRx;
 
         /// <summary>Provides the SchemaMarker type.</summary>
         [MitsubishiTagClientSchema({{ToLiteral(schema)}})]
@@ -236,19 +228,16 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var result = RunGeneratorCompilation(source);
-        var diagnostics = result.Diagnostics.Where(static d => d.Id == "MRTXGEN005").ToArray();
+        var diagnostics = GetDiagnosticsById(result.Diagnostics, "MRTXGEN005");
 
         if (diagnostics.Length == 0)
         {
             throw new InvalidOperationException(
-                string.Join(
-                    Environment.NewLine,
-                    result.Diagnostics.Select(static diagnostic => diagnostic.ToString())));
+                FormatDiagnostics(result.Diagnostics));
         }
 
         await Assert.That(
-                diagnostics.Any(
-                    static d => d.GetMessage().Contains(MotorSpeedTagName, StringComparison.Ordinal)))
+                ContainsDiagnosticMessage(diagnostics, MotorSpeedTagName))
             .IsTrue();
     }
 
@@ -267,7 +256,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var source = $$"""
-        using IoT.DriverCore.MitsubishiRx;
+        using IoT.Driver.MitsubishiRx;
 
         /// <summary>Provides the SchemaMarker type.</summary>
         [MitsubishiTagClientSchema({{ToLiteral(schema)}})]
@@ -275,19 +264,16 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var result = RunGeneratorCompilation(source);
-        var diagnostics = result.Diagnostics.Where(static d => d.Id == "MRTXGEN006").ToArray();
+        var diagnostics = GetDiagnosticsById(result.Diagnostics, "MRTXGEN006");
 
         if (diagnostics.Length == 0)
         {
             throw new InvalidOperationException(
-                string.Join(
-                    Environment.NewLine,
-                    result.Diagnostics.Select(static diagnostic => diagnostic.ToString())));
+                FormatDiagnostics(result.Diagnostics));
         }
 
         await Assert.That(
-                diagnostics.Any(
-                    static d => d.GetMessage().Contains("Tag name", StringComparison.Ordinal)))
+                ContainsDiagnosticMessage(diagnostics, "Tag name"))
             .IsTrue();
     }
 
@@ -308,7 +294,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var source = $$"""
-        using IoT.DriverCore.MitsubishiRx;
+        using IoT.Driver.MitsubishiRx;
 
         /// <summary>Provides the SchemaMarker type.</summary>
         [MitsubishiTagClientSchema({{ToLiteral(schema)}})]
@@ -316,19 +302,16 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var result = RunGeneratorCompilation(source);
-        var diagnostics = result.Diagnostics.Where(static d => d.Id == "MRTXGEN007").ToArray();
+        var diagnostics = GetDiagnosticsById(result.Diagnostics, "MRTXGEN007");
 
         if (diagnostics.Length == 0)
         {
             throw new InvalidOperationException(
-                string.Join(
-                    Environment.NewLine,
-                    result.Diagnostics.Select(static diagnostic => diagnostic.ToString())));
+                FormatDiagnostics(result.Diagnostics));
         }
 
         await Assert.That(
-                diagnostics.Any(
-                    static d => d.GetMessage().Contains("Group name", StringComparison.Ordinal)))
+                ContainsDiagnosticMessage(diagnostics, "Group name"))
             .IsTrue();
     }
 
@@ -349,7 +332,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var source = $$"""
-        using IoT.DriverCore.MitsubishiRx;
+        using IoT.Driver.MitsubishiRx;
 
         /// <summary>Provides the SchemaMarker type.</summary>
         [MitsubishiTagClientSchema({{ToLiteral(schema)}})]
@@ -357,19 +340,16 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var result = RunGeneratorCompilation(source);
-        var diagnostics = result.Diagnostics.Where(static d => d.Id == "MRTXGEN008").ToArray();
+        var diagnostics = GetDiagnosticsById(result.Diagnostics, "MRTXGEN008");
 
         if (diagnostics.Length == 0)
         {
             throw new InvalidOperationException(
-                string.Join(
-                    Environment.NewLine,
-                    result.Diagnostics.Select(static diagnostic => diagnostic.ToString())));
+                FormatDiagnostics(result.Diagnostics));
         }
 
         await Assert.That(
-                diagnostics.Any(
-                    static d => d.GetMessage().Contains(Line1GroupName, StringComparison.Ordinal)))
+                ContainsDiagnosticMessage(diagnostics, Line1GroupName))
             .IsTrue();
     }
 
@@ -391,7 +371,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var source = $$"""
-        using IoT.DriverCore.MitsubishiRx;
+        using IoT.Driver.MitsubishiRx;
 
         /// <summary>Provides the SchemaMarker type.</summary>
         [MitsubishiTagClientSchema({{ToLiteral(schema)}})]
@@ -399,19 +379,16 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var result = RunGeneratorCompilation(source);
-        var diagnostics = result.Diagnostics.Where(static d => d.Id == "MRTXGEN009").ToArray();
+        var diagnostics = GetDiagnosticsById(result.Diagnostics, "MRTXGEN009");
 
         if (diagnostics.Length == 0)
         {
             throw new InvalidOperationException(
-                string.Join(
-                    Environment.NewLine,
-                    result.Diagnostics.Select(static diagnostic => diagnostic.ToString())));
+                FormatDiagnostics(result.Diagnostics));
         }
 
         await Assert.That(
-                diagnostics.Any(
-                    static d => d.GetMessage().Contains(Line1GroupName, StringComparison.Ordinal)))
+                ContainsDiagnosticMessage(diagnostics, Line1GroupName))
             .IsTrue();
     }
 
@@ -432,7 +409,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var source = $$"""
-        using IoT.DriverCore.MitsubishiRx;
+        using IoT.Driver.MitsubishiRx;
 
         /// <summary>Provides the SchemaMarker type.</summary>
         [MitsubishiTagClientSchema({{ToLiteral(schema)}})]
@@ -440,19 +417,16 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var result = RunGeneratorCompilation(source);
-        var diagnostics = result.Diagnostics.Where(static d => d.Id == "MRTXGEN010").ToArray();
+        var diagnostics = GetDiagnosticsById(result.Diagnostics, "MRTXGEN010");
 
         if (diagnostics.Length == 0)
         {
             throw new InvalidOperationException(
-                string.Join(
-                    Environment.NewLine,
-                    result.Diagnostics.Select(static diagnostic => diagnostic.ToString())));
+                FormatDiagnostics(result.Diagnostics));
         }
 
         await Assert.That(
-                diagnostics.Any(
-                    static d => d.GetMessage().Contains(Line1GroupName, StringComparison.Ordinal)))
+                ContainsDiagnosticMessage(diagnostics, Line1GroupName))
             .IsTrue();
     }
 
@@ -473,7 +447,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var source = $$"""
-        using IoT.DriverCore.MitsubishiRx;
+        using IoT.Driver.MitsubishiRx;
 
         /// <summary>Provides the SchemaMarker type.</summary>
         [MitsubishiTagClientSchema({{ToLiteral(schema)}})]
@@ -481,19 +455,82 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var result = RunGeneratorCompilation(source);
-        var diagnostics = result.Diagnostics.Where(static d => d.Id == "MRTXGEN011").ToArray();
+        var diagnostics = GetDiagnosticsById(result.Diagnostics, "MRTXGEN011");
 
         if (diagnostics.Length == 0)
         {
             throw new InvalidOperationException(
-                string.Join(
-                    Environment.NewLine,
-                    result.Diagnostics.Select(static diagnostic => diagnostic.ToString())));
+                FormatDiagnostics(result.Diagnostics));
         }
 
         await Assert.That(
-                diagnostics.Any(
-                    static d => d.GetMessage().Contains(MotorSpeedTagName, StringComparison.Ordinal)))
+                ContainsDiagnosticMessage(diagnostics, MotorSpeedTagName))
             .IsTrue();
+    }
+
+    /// <summary>Gets diagnostics with the specified identifier.</summary>
+    /// <param name="diagnostics">The diagnostics to inspect.</param>
+    /// <param name="id">The diagnostic identifier to match.</param>
+    /// <returns>The matching diagnostics.</returns>
+    private static Diagnostic[] GetDiagnosticsById(IReadOnlyList<Diagnostic> diagnostics, string id)
+    {
+        var matches = new List<Diagnostic>();
+        foreach (Diagnostic diagnostic in diagnostics)
+        {
+            if (diagnostic.Id == id)
+            {
+                matches.Add(diagnostic);
+            }
+        }
+
+        return [.. matches];
+    }
+
+    /// <summary>Gets error-severity diagnostics.</summary>
+    /// <param name="diagnostics">The diagnostics to inspect.</param>
+    /// <returns>The error diagnostics.</returns>
+    private static Diagnostic[] GetErrorDiagnostics(IReadOnlyList<Diagnostic> diagnostics)
+    {
+        var errors = new List<Diagnostic>();
+        foreach (Diagnostic diagnostic in diagnostics)
+        {
+            if (diagnostic.Severity == DiagnosticSeverity.Error)
+            {
+                errors.Add(diagnostic);
+            }
+        }
+
+        return [.. errors];
+    }
+
+    /// <summary>Determines whether a diagnostic message contains the expected fragment.</summary>
+    /// <param name="diagnostics">The diagnostics to inspect.</param>
+    /// <param name="expectedFragment">The expected message fragment.</param>
+    /// <returns><see langword="true"/> when a matching diagnostic exists; otherwise, <see langword="false"/>.</returns>
+    private static bool ContainsDiagnosticMessage(IReadOnlyList<Diagnostic> diagnostics, string expectedFragment)
+    {
+        foreach (Diagnostic diagnostic in diagnostics)
+        {
+            if (diagnostic.GetMessage().Contains(expectedFragment, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Formats diagnostics for an exception message.</summary>
+    /// <param name="diagnostics">The diagnostics to format.</param>
+    /// <returns>The newline-delimited diagnostic messages.</returns>
+    private static string FormatDiagnostics(IReadOnlyList<Diagnostic> diagnostics)
+    {
+        var messages = new string[diagnostics.Count];
+        for (var index = 0; index < diagnostics.Count; index++)
+        {
+            messages[index] = diagnostics[index].ToString();
+        }
+
+        return string.Join(Environment.NewLine, messages);
     }
 }

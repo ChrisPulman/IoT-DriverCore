@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.Serial.Reactive;
+namespace IoT.Driver.Serial.Reactive;
 #else
-namespace IoT.DriverCore.Serial;
+namespace IoT.Driver.Serial;
 #endif
 
 /// <summary>Compatibility bridge between classic observables and ReactiveUI.Primitives async observables.</summary>
@@ -30,22 +30,9 @@ public static class ObservableAsyncBridgeExtensions
     {
         ArgumentGuard.ThrowIfNull(source, nameof(source));
 
-        return Observable.Create<T>(observer =>
-        {
-            var cancellation = new CancellationTokenSource();
-            var asyncObserver = new ObserverAsyncAdapter<T>(observer);
-            var subscription = source.SubscribeAsync(asyncObserver, cancellation.Token)
-                .AsTask()
-                .GetAwaiter()
-                .GetResult();
-
-            return Disposable.Create(() =>
-            {
-                cancellation.Cancel();
-                subscription.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                cancellation.Dispose();
-            });
-        });
+        return Observable.CreateWithState<T, IObservableAsync<T>>(
+            source,
+            static (asyncSource, observer) => new AsyncObservableSubscription<T>(asyncSource, observer));
     }
 
     /// <summary>Adapts a classic disposable subscription to an async disposable subscription.</summary>
@@ -81,7 +68,8 @@ public static class ObservableAsyncBridgeExtensions
                 error => Complete(observer.OnErrorResumeAsync(error, cancellationToken)),
                 () => Complete(observer.OnCompletedAsync(Result.Success)));
 
-            return new ValueTask<IAsyncDisposable>(new AsyncSubscription(subscription));
+            IAsyncDisposable asyncSubscription = new AsyncSubscription(subscription);
+            return new(asyncSubscription);
         }
 
         /// <summary>Completes a value task synchronously when required.</summary>
@@ -93,7 +81,95 @@ public static class ObservableAsyncBridgeExtensions
                 return;
             }
 
-            valueTask.AsTask().GetAwaiter().GetResult();
+            _ = CompleteAsync(valueTask);
+        }
+
+        /// <summary>Awaits an asynchronous observer notification without blocking the source callback.</summary>
+        /// <param name="valueTask">The asynchronous observer notification.</param>
+        /// <returns>A task that completes after the notification is processed.</returns>
+        private static async Task CompleteAsync(ValueTask valueTask) =>
+            await valueTask.ConfigureAwait(false);
+    }
+
+    /// <summary>Owns an async subscription exposed through the synchronous observable contract.</summary>
+    /// <typeparam name="T">The observed value type.</typeparam>
+    private sealed class AsyncObservableSubscription<T> : IDisposable
+    {
+        /// <summary>Provides the asynchronous sequence being adapted.</summary>
+        private readonly IObservableAsync<T> _source;
+
+        /// <summary>Receives the synchronous sequence notifications.</summary>
+        private readonly IObserver<T> _observer;
+
+        /// <summary>Cancels the asynchronous subscription when the synchronous subscription ends.</summary>
+        private readonly CancellationTokenSource _cancellation = new();
+
+        /// <summary>Stores the asynchronous subscription after it has been established.</summary>
+        private IAsyncDisposable? _subscription;
+
+        /// <summary>Tracks whether disposal has begun.</summary>
+        private int _disposed;
+
+        /// <summary>Initializes a new instance of the <see cref="AsyncObservableSubscription{T}"/> class.</summary>
+        /// <param name="source">The asynchronous sequence being adapted.</param>
+        /// <param name="observer">The synchronous observer receiving notifications.</param>
+        internal AsyncObservableSubscription(IObservableAsync<T> source, IObserver<T> observer)
+        {
+            _source = source;
+            _observer = observer;
+            _ = SubscribeAsync();
+        }
+
+        /// <summary>Disposes the source subscription without blocking the calling observer.</summary>
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return;
+            }
+
+            _cancellation.Cancel();
+            var subscription = Interlocked.Exchange(ref _subscription, null);
+            if (subscription is not null)
+            {
+                _ = DisposeSubscriptionAsync(subscription);
+            }
+
+            _cancellation.Dispose();
+        }
+
+        /// <summary>Disposes an asynchronous subscription without blocking the caller.</summary>
+        /// <param name="subscription">The subscription to dispose.</param>
+        /// <returns>A task that completes after the subscription is disposed.</returns>
+        private static async Task DisposeSubscriptionAsync(IAsyncDisposable subscription) =>
+            await subscription.DisposeAsync().ConfigureAwait(false);
+
+        /// <summary>Establishes and tracks the asynchronous source subscription.</summary>
+        /// <returns>A task that completes after subscription establishment or failure.</returns>
+        private async Task SubscribeAsync()
+        {
+            try
+            {
+                var subscription = await _source.SubscribeAsync(
+                        new ObserverAsyncAdapter<T>(_observer),
+                        _cancellation.Token)
+                    .ConfigureAwait(false);
+                if (Interlocked.CompareExchange(ref _subscription, subscription, null) is not null ||
+                    Volatile.Read(ref _disposed) != 0)
+                {
+                    await subscription.DisposeAsync().ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+            {
+            }
+            catch (Exception error)
+            {
+                if (Volatile.Read(ref _disposed) == 0)
+                {
+                    _observer.OnError(error);
+                }
+            }
         }
     }
 

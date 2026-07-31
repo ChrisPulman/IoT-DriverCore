@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Advanced;
+using IoT.Driver.S7PlcRx.Advanced;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Extensions;
+namespace IoT.Driver.S7PlcRx.Tests.Extensions;
 
 /// <summary>Provides deterministic coverage for the advanced S7 extension surface.</summary>
 public sealed class S7AdvancedExtensionsDeterministicCoverageTests
@@ -173,8 +173,8 @@ public sealed class S7AdvancedExtensionsDeterministicCoverageTests
     public async Task GetDiagnosticsAsyncCollectsTagMetricsAndRecommendationsAsync()
     {
         using var plc = new S7PlcRxAsyncExtensionsTests.TestPlc();
-        plc.TagList.Add(new Tag(FirstTagName, FirstTagName, typeof(int)) { DoNotPoll = false });
-        plc.TagList.Add(new Tag(SecondTagName, SecondTagName, typeof(int)) { DoNotPoll = true });
+        plc.TagList.Add(new(FirstTagName, FirstTagName, typeof(int)) { DoNotPoll = false });
+        plc.TagList.Add(new(SecondTagName, SecondTagName, typeof(int)) { DoNotPoll = true });
 
         var diagnostics = await AdvancedExtensions.GetDiagnosticsAsync(plc, TimeProvider.System);
 
@@ -210,7 +210,7 @@ public sealed class S7AdvancedExtensionsDeterministicCoverageTests
         using var group = AdvancedExtensions.CreateTagGroup(plc, 0, "Line", FirstTagName);
 
         await TUnit.Assertions.Assert.That(group.GroupName).IsEqualTo("Line");
-        await TUnit.Assertions.Assert.That(() => AdvancedExtensions.CreateTagGroup(null!, 0, "Line", FirstTagName))
+        await TUnit.Assertions.Assert.That(static () => AdvancedExtensions.CreateTagGroup(null!, 0, "Line", FirstTagName))
             .Throws<ArgumentNullException>();
         await TUnit.Assertions.Assert.That(() => AdvancedExtensions.CreateTagGroup(plc, 0, " ", FirstTagName))
             .Throws<ArgumentException>();
@@ -227,12 +227,12 @@ public sealed class S7AdvancedExtensionsDeterministicCoverageTests
         Dictionary<string, int> emptyValues = [];
         var emptyRead = await AdvancedExtensions.ReadBatchOptimizedAsync(plc, 0, [], ReadTimeoutMilliseconds);
         var emptyWrite = await AdvancedExtensions.WriteBatchOptimizedAsync(plc, emptyValues, false, false);
-        Func<Task> nullRead = async () => _ = await AdvancedExtensions.ReadBatchOptimizedAsync(
+        Func<Task> nullRead = static async () => _ = await AdvancedExtensions.ReadBatchOptimizedAsync(
             null!,
             0,
             [],
             ReadTimeoutMilliseconds);
-        Func<Task> nullDiagnostics = async () => _ = await AdvancedExtensions.GetDiagnosticsAsync(null!);
+        Func<Task> nullDiagnostics = static async () => _ = await AdvancedExtensions.GetDiagnosticsAsync(null!);
 
         await TUnit.Assertions.Assert.That(emptyRead.OverallSuccess).IsTrue();
         await TUnit.Assertions.Assert.That(emptyWrite.OverallSuccess).IsTrue();

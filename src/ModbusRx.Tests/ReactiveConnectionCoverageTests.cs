@@ -5,12 +5,12 @@
 using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.Serial;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.Serial;
 using NativeAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Deterministic connection-state coverage using loopback and deliberately absent serial ports.</summary>
 [TUnit.Core.NotInParallel]
@@ -109,7 +109,7 @@ public sealed class ReactiveConnectionCoverageTests
         await NativeAssert.That(ascii.Connected).IsFalse();
         await NativeAssert.That(ascii.Error).IsNotNull();
         await NativeAssert.That(
-                async () => await Create.SerialRtuMaster(
+                static async () => await Create.SerialRtuMaster(
                         string.Empty,
                         BaudRate,
                         DataBits,
@@ -119,7 +119,7 @@ public sealed class ReactiveConnectionCoverageTests
                     .FirstAsync())
             .Throws<ArgumentOutOfRangeException>();
         await NativeAssert.That(
-                async () => await Create.SerialAsciiMaster(
+                static async () => await Create.SerialAsciiMaster(
                         " ",
                         BaudRate,
                         DataBits,
@@ -135,17 +135,17 @@ public sealed class ReactiveConnectionCoverageTests
     [TUnit.Core.Test]
     public async Task SlaveFactories_ValidateProtocolEndpointsAsync()
     {
-        await NativeAssert.That(() => Create.TcpIpSlave(string.Empty, 0, UnitId))
+        await NativeAssert.That(static () => Create.TcpIpSlave(string.Empty, 0, UnitId))
             .Throws<ArgumentOutOfRangeException>();
-        await NativeAssert.That(() => Create.TcpIpSlave(IPAddress.Loopback.ToString(), -1, UnitId))
+        await NativeAssert.That(static () => Create.TcpIpSlave(IPAddress.Loopback.ToString(), -1, UnitId))
             .Throws<ArgumentOutOfRangeException>();
-        await NativeAssert.That(() => Create.TcpIpSlave(IPAddress.Loopback.ToString(), 0, 0))
+        await NativeAssert.That(static () => Create.TcpIpSlave(IPAddress.Loopback.ToString(), 0, 0))
             .Throws<ArgumentOutOfRangeException>();
-        await NativeAssert.That(() => Create.UdpIpSlave(string.Empty, 0, UnitId))
+        await NativeAssert.That(static () => Create.UdpIpSlave(string.Empty, 0, UnitId))
             .Throws<ArgumentOutOfRangeException>();
-        await NativeAssert.That(() => Create.UdpIpSlave(IPAddress.Loopback.ToString(), -1, UnitId))
+        await NativeAssert.That(static () => Create.UdpIpSlave(IPAddress.Loopback.ToString(), -1, UnitId))
             .Throws<ArgumentOutOfRangeException>();
-        await NativeAssert.That(() => Create.UdpIpSlave(IPAddress.Loopback.ToString(), 0, InvalidUnitId))
+        await NativeAssert.That(static () => Create.UdpIpSlave(IPAddress.Loopback.ToString(), 0, InvalidUnitId))
             .Throws<ArgumentOutOfRangeException>();
         await AssertSerialSlaveGuardsAsync(Create.SerialRtuSlave);
         await AssertSerialSlaveGuardsAsync(Create.SerialAsciiSlave);
@@ -317,7 +317,7 @@ public sealed class ReactiveConnectionCoverageTests
             using var rtuMasterPair = new InMemoryPortRxPair(InMemoryPort, "RTU-PEER");
             await AssertSerialMasterConnectsAsync(
                 rtuMasterPair.First,
-                () => Create.SerialRtuMaster(
+                static () => Create.SerialRtuMaster(
                     InMemoryPort,
                     BaudRate,
                     DataBits,
@@ -328,7 +328,7 @@ public sealed class ReactiveConnectionCoverageTests
             using var asciiMasterPair = new InMemoryPortRxPair(InMemoryPort, "ASCII-PEER");
             await AssertSerialMasterConnectsAsync(
                 asciiMasterPair.First,
-                () => Create.SerialAsciiMaster(
+                static () => Create.SerialAsciiMaster(
                     InMemoryPort,
                     BaudRate,
                     DataBits,
@@ -339,7 +339,7 @@ public sealed class ReactiveConnectionCoverageTests
             using var rtuSlavePair = new InMemoryPortRxPair(InMemoryPort, "RTU-SLAVE-PEER");
             await AssertSerialSlaveConnectsAsync(
                 rtuSlavePair.First,
-                () => Create.SerialRtuSlave(
+                static () => Create.SerialRtuSlave(
                     InMemoryPort,
                     UnitId,
                     BaudRate,
@@ -351,7 +351,7 @@ public sealed class ReactiveConnectionCoverageTests
             using var asciiSlavePair = new InMemoryPortRxPair(InMemoryPort, "ASCII-SLAVE-PEER");
             await AssertSerialSlaveConnectsAsync(
                 asciiSlavePair.First,
-                () => Create.SerialAsciiSlave(
+                static () => Create.SerialAsciiSlave(
                     InMemoryPort,
                     UnitId,
                     BaudRate,
@@ -376,8 +376,8 @@ public sealed class ReactiveConnectionCoverageTests
         var originalNames = Create.SerialPortNamesOverride;
         try
         {
-            Create.SerialPortNamesOverride = () => Observable.Return<string[]>([InMemoryPort]);
-            Create.SerialPortFactoryOverride = (_, _, _, _, _, _) =>
+            Create.SerialPortNamesOverride = static () => Observable.Return<string[]>([InMemoryPort]);
+            Create.SerialPortFactoryOverride = static (_, _, _, _, _, _) =>
                 throw new IOException("injected serial factory failure");
 
             var rtu = await Create.SerialRtuMaster(
@@ -406,7 +406,7 @@ public sealed class ReactiveConnectionCoverageTests
             await NativeAssert.That(ascii.Error?.InnerException).IsTypeOf<IOException>();
             await NativeAssert.That(networkFailure.Error?.InnerException).IsNotNull();
 
-            Create.SerialPortNamesOverride = () => Observable.Return<string[]>([]);
+            Create.SerialPortNamesOverride = static () => Observable.Return<string[]>([]);
             var missing = await Create.SerialIpMaster(InMemoryPort, BaudRate).FirstAsync();
             await NativeAssert.That(missing.Connected).IsFalse();
             await NativeAssert.That(missing.Master).IsNull();
@@ -489,7 +489,7 @@ public sealed class ReactiveConnectionCoverageTests
     private static void ConfigureSerialOverrides(SerialPortRx port)
     {
         Create.SerialPortFactoryOverride = (_, _, _, _, _, _) => port;
-        Create.SerialPortNamesOverride = () => Observable.Return<string[]>([InMemoryPort]);
+        Create.SerialPortNamesOverride = static () => Observable.Return<string[]>([InMemoryPort]);
     }
 
     /// <summary>Reserves and releases an available loopback TCP port.</summary>

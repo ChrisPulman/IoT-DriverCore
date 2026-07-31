@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.Serial.Reactive;
+namespace IoT.Driver.Serial.Reactive;
 #else
-namespace IoT.DriverCore.Serial;
+namespace IoT.Driver.Serial;
 #endif
 
 /// <summary>Provides serial port reactive extension methods.</summary>
@@ -370,12 +370,10 @@ public static class SerialPortRxMixins
     /// <param name="serialPort">The source serial port.</param>
     /// <returns>Observable value.</returns>
     public static IObservable<SerialPinChangedEventArgs> PinChangedObserver(SerialPort serialPort) =>
-        Observable.Create<SerialPinChangedEventArgs>(observer =>
-            {
-                SerialPinChangedEventHandler handler = (_, args) => observer.OnNext(args);
-                serialPort.PinChanged += handler;
-                return Disposable.Create(() => serialPort.PinChanged -= handler);
-            });
+        Observable.FromEventPattern<SerialPinChangedEventHandler, SerialPinChangedEventArgs>(
+                handler => serialPort.PinChanged += handler,
+                handler => serialPort.PinChanged -= handler)
+            .Select(static eventPattern => eventPattern.EventArgs);
 #endif
 
     /// <summary>Executes while port is open at the given TimeSpan.</summary>
@@ -386,8 +384,8 @@ public static class SerialPortRxMixins
         Observable.Defer(() => Observable.Create<bool>(obs =>
         {
             var isOpen = Observable.Interval(timespan)
-                .CombineLatest(serialPort.IsOpenObservable, (_, b) => b)
-                .Where(x => x);
+                .CombineLatest(serialPort.IsOpenObservable, static (_, b) => b)
+                .Where(static x => x);
             return isOpen.Subscribe(obs);
         }));
 

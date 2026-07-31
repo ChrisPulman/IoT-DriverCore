@@ -1,9 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>$(LibraryTargetFrameworks)</TargetFrameworks>
-    <RootNamespace>IoT.DriverCore.Serial</RootNamespace>
-    <SerialGeneratorAssemblyPath>..\SerialPortRx.Generators\bin\$(Configuration)\netstandard2.0\SerialPortRx.Generators.dll</SerialGeneratorAssemblyPath>
-    <SerialGeneratorAssemblyPath Condition="'$(UseArtifactsOutput)' == 'true'">$(ArtifactsPath)\bin\SerialPortRx.Generators\$([System.String]::Copy('$(Configuration)').ToLowerInvariant())\SerialPortRx.Generators.dll</SerialGeneratorAssemblyPath>
+    <RootNamespace>IoT.Driver.Serial</RootNamespace>
   </PropertyGroup>
   <PropertyGroup Condition="$(TargetFramework.EndsWith('-windows10.0.19041.0')) or $(TargetFramework.StartsWith('net4'))">
     <DefineConstants>HasWindows</DefineConstants>
@@ -49,12 +47,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SerialPortRx.Generators\SerialPortRx.Generators.csproj"
+                      OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
                       PrivateAssets="all" />
-    <None Include="$(SerialGeneratorAssemblyPath)"
-          Pack="true"
-          PackagePath="analyzers/dotnet/cs/"
-          Visible="false" />
   </ItemGroup>
   
   <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">

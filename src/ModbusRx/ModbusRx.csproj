@@ -29,7 +29,7 @@
     <Using Include="ReactiveUI.Primitives.Signals.Signal" Alias="Observable" />
     <Using Include="ReactiveUI.Primitives.Disposables.MultipleDisposable" Alias="CompositeDisposable" />
     <Using Include="ReactiveUI.Primitives.Disposables.Scope" Alias="Disposable" />
-    <Using Include="IoT.DriverCore.ModbusRx.NumericConstants" Static="true" />
+    <Using Include="IoT.Driver.ModbusRx.NumericConstants" Static="true" />
   </ItemGroup>
 
   <ItemGroup>
@@ -55,6 +55,6 @@
 
   </ItemGroup>
 
-  <Import Project="..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets" Condition="Exists('..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets')" />
+  <Import Project="..\CP.IoT.Core\buildTransitive\IoT-Driver.Core.targets" Condition="Exists('..\CP.IoT.Core\buildTransitive\IoT-Driver.Core.targets')" />
 
 </Project>

@@ -4,7 +4,7 @@
 
 using Microsoft.EntityFrameworkCore;
 
-namespace IoT.DriverCore.ModbusRx.Server.UI.Data;
+namespace IoT.Driver.ModbusRx.Server.UI.Data;
 
 /// <summary>Entity Framework database context for ModbusRx Server configuration.</summary>
 /// <remarks>
@@ -44,29 +44,26 @@ public class ModbusServerContext(DbContextOptions<ModbusServerContext> options) 
     /// <param name="modelBuilder">The builder being used to construct the model for this context.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        if (modelBuilder is null)
-        {
-            throw new ArgumentNullException(nameof(modelBuilder));
-        }
+        ArgumentNullException.ThrowIfNull(modelBuilder);
 
         base.OnModelCreating(modelBuilder);
 
         // Configure ModbusClientConfiguration
-        _ = modelBuilder.Entity<ModbusClientConfiguration>(entity =>
+        _ = modelBuilder.Entity<ModbusClientConfiguration>(static entity =>
         {
-            _ = entity.HasKey(e => e.Id);
-            _ = entity.Property(e => e.Name).IsRequired().HasMaxLength(NameMaximumLength);
-            _ = entity.Property(e => e.ConnectionType).IsRequired().HasMaxLength(ConnectionTypeMaximumLength);
-            _ = entity.Property(e => e.Address).IsRequired().HasMaxLength(AddressMaximumLength);
-            _ = entity.HasIndex(e => e.Name);
+            _ = entity.HasKey(static e => e.Id);
+            _ = entity.Property(static e => e.Name).IsRequired().HasMaxLength(NameMaximumLength);
+            _ = entity.Property(static e => e.ConnectionType).IsRequired().HasMaxLength(ConnectionTypeMaximumLength);
+            _ = entity.Property(static e => e.Address).IsRequired().HasMaxLength(AddressMaximumLength);
+            _ = entity.HasIndex(static e => e.Name);
         });
 
         // Configure ServerConfiguration
-        _ = modelBuilder.Entity<ServerConfiguration>(entity =>
+        _ = modelBuilder.Entity<ServerConfiguration>(static entity =>
         {
-            _ = entity.HasKey(e => e.Id);
-            _ = entity.Property(e => e.Name).IsRequired().HasMaxLength(NameMaximumLength);
-            _ = entity.Property(e => e.SimulationType).HasMaxLength(SimulationTypeMaximumLength);
+            _ = entity.HasKey(static e => e.Id);
+            _ = entity.Property(static e => e.Name).IsRequired().HasMaxLength(NameMaximumLength);
+            _ = entity.Property(static e => e.SimulationType).HasMaxLength(SimulationTypeMaximumLength);
         });
 
         // Seed default server configuration

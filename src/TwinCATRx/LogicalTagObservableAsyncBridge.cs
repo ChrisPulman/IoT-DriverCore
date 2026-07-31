@@ -3,12 +3,12 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Runtime.CompilerServices;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Reactive;
+namespace IoT.Driver.TwinCATRx.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx;
+namespace IoT.Driver.TwinCATRx;
 #endif
 
 /// <summary>Bridges logical-tag observables into async sequences.</summary>

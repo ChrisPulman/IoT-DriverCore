@@ -4,7 +4,7 @@
 
 using System.Collections.ObjectModel;
 
-namespace IoT.DriverCore.Core;
+namespace IoT.Driver.Core;
 
 /// <summary>Represents one coalesced, adapter-compatible transfer range.</summary>
 public sealed class TagTransferRange
@@ -26,8 +26,20 @@ public sealed class TagTransferRange
             length);
         Offset = offset;
         Length = length;
-        Items = new ReadOnlyCollection<TagTransferItem>(items.ToArray());
-        InputIndices = new ReadOnlyCollection<int>(items.Select(static item => item.InputIndex).OrderBy(static index => index).ToArray());
+        var copiedItems = new TagTransferItem[items.Count];
+        var inputIndices = new int[items.Count];
+        for (var index = 0; index < items.Count; index++)
+        {
+            var item = items[index];
+            copiedItems[index] = item;
+            inputIndices[index] = item.InputIndex;
+        }
+
+        Array.Sort(inputIndices);
+        var readOnlyItems = new ReadOnlyCollection<TagTransferItem>(copiedItems);
+        var readOnlyInputIndices = new ReadOnlyCollection<int>(inputIndices);
+        Items = readOnlyItems;
+        InputIndices = readOnlyInputIndices;
     }
 
     /// <summary>Gets the compatibility coordinates and precise span to execute.</summary>

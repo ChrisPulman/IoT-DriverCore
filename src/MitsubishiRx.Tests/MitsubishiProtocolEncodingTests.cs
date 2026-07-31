@@ -4,10 +4,10 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiProtocolEncodingTests type.</summary>
@@ -24,6 +24,32 @@ internal sealed class MitsubishiProtocolEncodingTests
 
     /// <summary>Stores the word count used by memory-read requests.</summary>
     private const int MemoryReadWordCount = 3;
+
+    /// <summary>Stores the expected two-word response.</summary>
+    private static readonly ushort[] ExpectedTwoWords = [0x1234, 0x5678];
+
+    /// <summary>Stores the expected binary three-E read request.</summary>
+    private static readonly byte[] ExpectedBinaryThreeERequest =
+    [
+        0x50, 0x00, 0x00, 0xFF, 0xFF, 0x03, 0x00, 0x0C, 0x00, 0x10, 0x00,
+        0x01, 0x04, 0x00, 0x00, 0x64, 0x00, 0x00, 0xA8, 0x02, 0x00,
+    ];
+
+    /// <summary>Stores the expected binary four-E request.</summary>
+    private static readonly byte[] ExpectedBinaryFourERequest =
+    [
+        0x54, 0x00, 0x34, 0x12, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x03, 0x00,
+        0x06, 0x00, 0x10, 0x00, 0x01, 0x01, 0x00, 0x00,
+    ];
+
+    /// <summary>Stores the expected binary one-E request.</summary>
+    private static readonly byte[] ExpectedBinaryOneERequest =
+    [
+        0x01, 0xFF, 0x10, 0x00, 0x64, 0x00, 0x00, 0x00, 0x20, 0x44, 0x02, 0x00,
+    ];
+
+    /// <summary>Stores the expected memory-read response.</summary>
+    private static readonly ushort[] ExpectedMemoryWords = [0x1234, 0x5678, 0x9ABC];
 
     /// <summary>Executes the ReadWordsAsyncEncodesBinary3ERequest operation.</summary>
     /// <returns>The ReadWordsAsyncEncodesBinary3ERequest operation result.</returns>
@@ -49,13 +75,9 @@ internal sealed class MitsubishiProtocolEncodingTests
         var result = await client.ReadWordsAsync("D100", TwoWordReadCount, CancellationToken.None);
 
         await Assert.That(result.IsSucceed).IsTrue();
-        await Assert.That(result.Value!.Select(static value => (int)value).ToArray()).IsEquivalentTo([0x1234, 0x5678]);
+        await Assert.That(result.Value!).IsEquivalentTo(ExpectedTwoWords);
         await Assert.That(transport.Requests.Count).IsEqualTo(1);
-        await Assert.That(transport.Requests[0].Payload.Select(static value => (int)value).ToArray()).IsEquivalentTo(
-        [
-            0x50, 0x00, 0x00, 0xFF, 0xFF, 0x03, 0x00, 0x0C, 0x00, 0x10, 0x00,
-            0x01, 0x04, 0x00, 0x00, 0x64, 0x00, 0x00, 0xA8, 0x02, 0x00,
-        ]);
+        await Assert.That(transport.Requests[0].Payload).IsEquivalentTo(ExpectedBinaryThreeERequest);
     }
 
     /// <summary>Executes the ExecuteRawAsyncEncodesBinary4ERequestWithSerialNumber operation.</summary>
@@ -78,20 +100,16 @@ internal sealed class MitsubishiProtocolEncodingTests
             TransportKind: MitsubishiTransportKind.Tcp,
             Route: MitsubishiRoute.Default,
             MonitoringTimer: 0x0010,
-            SerialNumberProvider: () => 0x1234);
+            SerialNumberProvider: static () => 0x1234);
 
         await using var client = new MitsubishiRx(options, transport, Scheduler.Immediate);
         var result = await client.ExecuteRawAsync(
-            new MitsubishiRawCommandRequest(0x0101, 0x0000),
+            new(0x0101, 0x0000),
             CancellationToken.None);
 
         await Assert.That(result.IsSucceed).IsTrue();
         await Assert.That(transport.Requests.Count).IsEqualTo(1);
-        await Assert.That(transport.Requests[0].Payload.Select(static value => (int)value).ToArray()).IsEquivalentTo(
-        [
-            0x54, 0x00, 0x34, 0x12, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x03, 0x00,
-            0x06, 0x00, 0x10, 0x00, 0x01, 0x01, 0x00, 0x00,
-        ]);
+        await Assert.That(transport.Requests[0].Payload).IsEquivalentTo(ExpectedBinaryFourERequest);
     }
 
     /// <summary>Executes the ReadWordsAsyncEncodesBinary1ERequest operation.</summary>
@@ -115,12 +133,9 @@ internal sealed class MitsubishiProtocolEncodingTests
         var result = await client.ReadWordsAsync("D100", TwoWordReadCount, CancellationToken.None);
 
         await Assert.That(result.IsSucceed).IsTrue();
-        await Assert.That(result.Value!.Select(static value => (int)value).ToArray()).IsEquivalentTo([0x1234, 0x5678]);
+        await Assert.That(result.Value!).IsEquivalentTo(ExpectedTwoWords);
         await Assert.That(transport.Requests.Count).IsEqualTo(1);
-        await Assert.That(transport.Requests[0].Payload.Select(static value => (int)value).ToArray()).IsEquivalentTo(
-        [
-            0x01, 0xFF, 0x10, 0x00, 0x64, 0x00, 0x00, 0x00, 0x20, 0x44, 0x02, 0x00,
-        ]);
+        await Assert.That(transport.Requests[0].Payload).IsEquivalentTo(ExpectedBinaryOneERequest);
         await Assert.That(transport.Requests[0].ExpectedResponseLength).IsEqualTo(ExpectedOneEResponseLength);
     }
 
@@ -129,7 +144,7 @@ internal sealed class MitsubishiProtocolEncodingTests
     [Test]
     internal async Task ReadWordsAsyncParsesAscii3EResponseAsync()
     {
-        var asciiResponse = System.Text.Encoding.ASCII.GetBytes("D00000FF03FF000006000012345678");
+        var asciiResponse = "D00000FF03FF000006000012345678"u8.ToArray();
         await using var transport = new FakeTransport([asciiResponse]);
         var options = new MitsubishiClientOptions(
             Host: LoopbackHost,
@@ -147,7 +162,7 @@ internal sealed class MitsubishiProtocolEncodingTests
         }
 
         await Assert.That(result.IsSucceed).IsTrue();
-        await Assert.That(result.Value!.Select(static value => (int)value).ToArray()).IsEquivalentTo([0x1234, 0x5678]);
+        await Assert.That(result.Value!).IsEquivalentTo(ExpectedTwoWords);
         await Assert.That(System.Text.Encoding.ASCII.GetString(transport.Requests[0].Payload))
             .IsEqualTo("500000FF03FF000012001004010000000064D*0002");
     }
@@ -178,8 +193,7 @@ internal sealed class MitsubishiProtocolEncodingTests
             CancellationToken.None);
 
         await Assert.That(result.IsSucceed).IsTrue();
-        await Assert.That(result.Value!.Select(static value => (int)value).ToArray())
-            .IsEquivalentTo([0x1234, 0x5678, 0x9ABC]);
+        await Assert.That(result.Value!).IsEquivalentTo(ExpectedMemoryWords);
         await Assert.That(transport.Requests.Count).IsEqualTo(1);
         var payload = transport.Requests[0].Payload;
         await Assert.That(payload[15]).IsEqualTo((byte)0x00);

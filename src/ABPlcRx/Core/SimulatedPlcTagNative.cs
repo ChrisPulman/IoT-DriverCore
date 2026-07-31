@@ -6,9 +6,9 @@ using System.Buffers.Binary;
 using System.Collections.ObjectModel;
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>In-memory implementation of the libplctag adapter contract.</summary>
@@ -18,7 +18,7 @@ internal sealed class SimulatedPlcTagNative : IPlcTagNative, IDisposable
     private const int FirstHandle = 1;
 
     /// <summary>Synchronizes simulator state.</summary>
-    private readonly object _syncRoot = new();
+    private readonly Lock _syncRoot = new();
 
     /// <summary>Physical device buffers keyed by tag name.</summary>
     private readonly Dictionary<string, byte[]> _deviceBuffers = new(StringComparer.OrdinalIgnoreCase);
@@ -101,9 +101,15 @@ internal sealed class SimulatedPlcTagNative : IPlcTagNative, IDisposable
     internal static string? GetAttribute(string url, string name)
     {
         var prefix = $"{name}=";
-        return url.Split('&')
-            .FirstOrDefault(part => part.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            ?.Substring(prefix.Length);
+        foreach (var part in url.Split('&'))
+        {
+            if (part.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return part.Substring(prefix.Length);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>Parses a required positive numeric attribute.</summary>
@@ -235,7 +241,7 @@ internal sealed class SimulatedPlcTagNative : IPlcTagNative, IDisposable
     {
         lock (_syncRoot)
         {
-            return new ABPlcSimulatorOperationMetrics(_operationLog);
+            return new(_operationLog);
         }
     }
 
@@ -306,7 +312,7 @@ internal sealed class SimulatedPlcTagNative : IPlcTagNative, IDisposable
         lock (_syncRoot)
         {
             ThrowIfDisposed();
-            _scriptedResults.Add(new ScriptedResult(operation, statusCode, repeatCount, tagName));
+            _scriptedResults.Add(new(operation, statusCode, repeatCount, tagName));
         }
     }
 
@@ -341,7 +347,15 @@ internal sealed class SimulatedPlcTagNative : IPlcTagNative, IDisposable
         lock (_syncRoot)
         {
             ThrowIfDisposed();
-            _deviceBuffers[tagName] = value.ToArray();
+            var bytes = new byte[value.Count];
+            var index = 0;
+            foreach (var item in value)
+            {
+                bytes[index] = item;
+                index++;
+            }
+
+            _deviceBuffers[tagName] = bytes;
         }
     }
 
@@ -384,7 +398,7 @@ internal sealed class SimulatedPlcTagNative : IPlcTagNative, IDisposable
             var handle = _nextHandle++;
             var working = new byte[byteCount];
             Array.Copy(device, working, Math.Min(device.Length, working.Length));
-            _handles.Add(handle, new HandleState(tagName, working));
+            _handles.Add(handle, new(tagName, working));
             Record(ABPlcSimulatorOperation.Create, tagName, handle, PlcTagStatus.StatusOK);
             return handle;
         }
@@ -577,6 +591,29 @@ internal sealed class SimulatedPlcTagNative : IPlcTagNative, IDisposable
         }
     }
 
+    /// <summary>Compares tag names without exposing partial-match timing information.</summary>
+    /// <param name="expected">The scripted tag name.</param>
+    /// <param name="actual">The tag name supplied by the operation.</param>
+    /// <returns><see langword="true"/> when the names match without regard to case.</returns>
+    private static bool TagNamesMatch(string expected, string? actual)
+    {
+        if (actual is null)
+        {
+            return false;
+        }
+
+        var difference = expected.Length ^ actual.Length;
+        var length = Math.Max(expected.Length, actual.Length);
+        for (var index = 0; index < length; index++)
+        {
+            var expectedCharacter = index < expected.Length ? char.ToUpperInvariant(expected[index]) : '\0';
+            var actualCharacter = index < actual.Length ? char.ToUpperInvariant(actual[index]) : '\0';
+            difference |= expectedCharacter ^ actualCharacter;
+        }
+
+        return difference == 0;
+    }
+
     /// <summary>Runs a status-only handle operation.</summary>
     /// <param name="handle">The simulated handle.</param>
     /// <param name="operation">The operation to run.</param>
@@ -685,8 +722,7 @@ internal sealed class SimulatedPlcTagNative : IPlcTagNative, IDisposable
         {
             var scripted = _scriptedResults[index];
             if (scripted.Operation != operation ||
-                (scripted.TagName is not null &&
-                 !string.Equals(scripted.TagName, tagName, StringComparison.OrdinalIgnoreCase)))
+                (scripted.TagName is not null && !TagNamesMatch(scripted.TagName, tagName)))
             {
                 continue;
             }
@@ -719,7 +755,7 @@ internal sealed class SimulatedPlcTagNative : IPlcTagNative, IDisposable
         var sequence = _nextSequence;
         _nextSequence++;
         _operationLog.Add(
-            new ABPlcSimulatorLogEntry(
+            new(
                 sequence,
                 _timeProvider.GetUtcNow(),
                 operation,

@@ -1,6 +1,6 @@
 ---
 name: mitsubishi-rx
-description: Implement, review, or troubleshoot Mitsubishi MC Protocol and SLMP integrations with MitsubishiRx, including Ethernet and serial frames, device and tag operations, observations, logical tags, simulation, and generation.
+description: Implement, review, or troubleshoot Mitsubishi MC Protocol and SLMP integrations with IoT-Driver.MitsubishiRx, including Ethernet and serial frames, device and tag operations, observations, logical tags, simulation, and generation.
 ---
 
 # MitsubishiRx
@@ -13,17 +13,17 @@ Read the co-packaged `../../README.md`; in a repository checkout use `packagerea
 
 ## Package choice
 
-- Use `MitsubishiRx` with `IoT.DriverCore.MitsubishiRx` by default.
-- Use `MitsubishiRx.Reactive` and its `.Reactive` namespace for System.Reactive applications.
-- Both runtime packages carry an analyzer, but the current generator emits the base namespace and requires the base runtime.
-- Install `MitsubishiRx.Generators` only with the base runtime when independently versioning the analyzer. Never load duplicate analyzers.
+- Use `IoT-Driver.MitsubishiRx` with `IoT.Driver.MitsubishiRx` by default.
+- Use `IoT-Driver.MitsubishiRx.Reactive` and its `.Reactive` namespace for System.Reactive applications.
+- Runtime packages never carry the analyzer. The generator emits the base namespace and requires the base runtime.
+- Install `IoT-Driver.MitsubishiRx.Generators` separately only with the base runtime when generated clients are required.
 
 ## Configure and open
 
 Match `FrameType`, `DataCode`, `TransportKind`, route, monitoring timer, CPU hint, and X/Y notation to the PLC or communication module. For serial, provide validated `MitsubishiSerialOptions`.
 
 ```csharp
-using IoT.DriverCore.MitsubishiRx;
+using IoT.Driver.MitsubishiRx;
 
 var options = new MitsubishiClientOptions(
     Host: "192.168.0.10",

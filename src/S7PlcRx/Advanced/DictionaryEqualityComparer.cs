@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Advanced;
+namespace IoT.Driver.S7PlcRx.Reactive.Advanced;
 #else
-namespace IoT.DriverCore.S7PlcRx.Advanced;
+namespace IoT.Driver.S7PlcRx.Advanced;
 #endif
 
 /// <summary>Compares dictionaries by their key-value pairs.</summary>

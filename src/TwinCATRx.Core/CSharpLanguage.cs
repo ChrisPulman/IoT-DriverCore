@@ -11,9 +11,9 @@ using Microsoft.CodeAnalysis.CSharp;
 using Mono.Cecil;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Core.Reactive;
+namespace IoT.Driver.TwinCATRx.Core.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx.Core;
+namespace IoT.Driver.TwinCATRx.Core;
 #endif
 
 /// <summary>C Sharp Language.</summary>

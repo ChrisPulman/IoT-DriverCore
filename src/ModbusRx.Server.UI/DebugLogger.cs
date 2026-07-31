@@ -5,7 +5,7 @@
 using System.Diagnostics;
 using Splat;
 
-namespace IoT.DriverCore.ModbusRx.Server.UI;
+namespace IoT.Driver.ModbusRx.Server.UI;
 
 /// <summary>Debug logger for ReactiveUI.</summary>
 internal sealed class DebugLogger : ILogger

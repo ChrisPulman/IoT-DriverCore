@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
-using ReactiveBridge = IoT.DriverCore.TwinCATRx.Reactive.ObservableBridgeExtensions;
+using ReactiveBridge = IoT.Driver.TwinCATRx.Reactive.ObservableBridgeExtensions;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Exercises generated Reactive bindings with an in-memory client.</summary>
 public class ReactiveGeneratorCoverageTests
@@ -68,7 +68,7 @@ public class ReactiveGeneratorCoverageTests
         await TUnitAssert.That(client.WriteCalls.Count).IsEqualTo(ExpectedWriteCount);
         await TUnitAssert.That(client.WriteCalls[0].Variable).IsEqualTo(DirectVariable);
         await TUnitAssert.That(generated.TwinCatRxClient).IsSameReferenceAs(client);
-        await TUnitAssert.That(() => new GeneratedReactivePlcConnection().ReadReactiveDirectValue())
+        await TUnitAssert.That(static () => new GeneratedReactivePlcConnection().ReadReactiveDirectValue())
             .Throws<InvalidOperationException>();
         await TUnitAssert.That(() => generated.BindTwinCatRx(null!)).Throws<ArgumentNullException>();
     }

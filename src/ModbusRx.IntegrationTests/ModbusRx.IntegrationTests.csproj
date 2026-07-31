@@ -24,7 +24,7 @@
   <ItemGroup>
     <Compile Include="..\ModbusRx.Testing\ModuleInitializerAttribute.cs" Link="Testing\ModuleInitializerAttribute.cs" />
     <Compile Include="..\ModbusRx.Testing\TUnitAssert.cs" Link="Testing\TUnitAssert.cs" />
-    <Using Include="IoT.DriverCore.ModbusRx.Testing.TUnitAssert" Alias="Assert" />
+    <Using Include="IoT.Driver.ModbusRx.Testing.TUnitAssert" Alias="Assert" />
   </ItemGroup>
 
   <ItemGroup>

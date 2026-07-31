@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.LogicalTags;
+namespace IoT.Driver.ModbusRx.Reactive.LogicalTags;
 #else
-namespace IoT.DriverCore.ModbusRx.LogicalTags;
+namespace IoT.Driver.ModbusRx.LogicalTags;
 #endif
 
 /// <summary>Describes byte and word ordering for register values.</summary>

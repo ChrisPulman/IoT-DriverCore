@@ -7,11 +7,11 @@ using System.Net.Sockets;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -28,7 +28,7 @@ internal sealed class SocketMitsubishiTransport : IMitsubishiTransport
     private MitsubishiClientOptions? _options;
 
     /// <summary>Gets or sets the IsConnected property.</summary>
-    public bool IsConnected => _socket?.Connected ?? false;
+    public bool IsConnected => Volatile.Read(ref _socket)?.Connected ?? false;
 
     /// <summary>Executes the ConnectAsync operation.</summary>
     /// <param name="options">The options parameter.</param>
@@ -85,17 +85,15 @@ internal sealed class SocketMitsubishiTransport : IMitsubishiTransport
         try
         {
             await EnsureConnectedCoreAsync(cancellationToken).ConfigureAwait(false);
-            if (_socket is null)
-            {
-                throw new InvalidOperationException("Socket transport is not connected.");
-            }
+            var socket = Volatile.Read(ref _socket)
+                ?? throw new InvalidOperationException("Socket transport is not connected.");
 
-            await _socket
+            await socket
                 .SendAsync(request.Payload, SocketFlags.None, cancellationToken)
                 .ConfigureAwait(false);
             return _options.TransportKind == MitsubishiTransportKind.Udp
-                ? await ReceiveUdpAsync(_socket, cancellationToken).ConfigureAwait(false)
-                : await ReceiveTcpAsync(_socket, request.ExpectedResponseLength, cancellationToken)
+                ? await ReceiveUdpAsync(socket, cancellationToken).ConfigureAwait(false)
+                : await ReceiveTcpAsync(socket, request.ExpectedResponseLength, cancellationToken)
                     .ConfigureAwait(false);
         }
         finally
@@ -107,8 +105,7 @@ internal sealed class SocketMitsubishiTransport : IMitsubishiTransport
     /// <summary>Executes the Dispose operation.</summary>
     public void Dispose()
     {
-        _socket?.Dispose();
-        _socket = null;
+        Interlocked.Exchange(ref _socket, null)?.Dispose();
         _gate.Dispose();
     }
 
@@ -166,7 +163,7 @@ internal sealed class SocketMitsubishiTransport : IMitsubishiTransport
 
         var payload = await ReceiveExactlyAsync(socket, remainingAsciiChars, cancellationToken)
             .ConfigureAwait(false);
-        return prefix.Concat(payload).ToArray();
+        return TransportHelpers.Combine(prefix, payload);
     }
 
     /// <summary>Executes the ReceiveExactlyAsync operation.</summary>
@@ -252,7 +249,7 @@ internal sealed class SocketMitsubishiTransport : IMitsubishiTransport
 
         var payload = await ReceiveExactlyAsync(socket, remaining, cancellationToken)
             .ConfigureAwait(false);
-        return prefix.Concat(payload).ToArray();
+        return TransportHelpers.Combine(prefix, payload);
     }
 
     /// <summary>Executes the EnsureConnectedCoreAsync operation.</summary>
@@ -279,17 +276,16 @@ internal sealed class SocketMitsubishiTransport : IMitsubishiTransport
             _options.TransportKind == MitsubishiTransportKind.Tcp
                 ? SocketType.Stream
                 : SocketType.Dgram;
-        _socket = new(AddressFamily.InterNetwork, socketType, protocolType)
+        var socket = new Socket(AddressFamily.InterNetwork, socketType, protocolType)
         {
             SendTimeout = (int)_options.ResolvedTimeout.TotalMilliseconds,
             ReceiveTimeout = (int)_options.ResolvedTimeout.TotalMilliseconds,
         };
+        Volatile.Write(ref _socket, socket);
         var addresses = await Dns.GetHostAddressesAsync(_options.Host, cancellationToken)
             .ConfigureAwait(false);
-        var address =
-            addresses.FirstOrDefault(static a => a.AddressFamily == AddressFamily.InterNetwork)
-            ?? IPAddress.Parse(_options.Host);
-        await _socket
+        var address = TransportHelpers.FindIpv4Address(addresses) ?? IPAddress.Parse(_options.Host);
+        await socket
             .ConnectAsync(new IPEndPoint(address, _options.Port), cancellationToken)
             .ConfigureAwait(false);
     }
@@ -307,5 +303,37 @@ internal sealed class SocketMitsubishiTransport : IMitsubishiTransport
         catch (ObjectDisposedException) { }
 
         return ValueTask.CompletedTask;
+    }
+
+    /// <summary>Provides stateless socket transport helpers.</summary>
+    private static class TransportHelpers
+    {
+        /// <summary>Combines response sections into a contiguous buffer.</summary>
+        /// <param name="prefix">The response prefix.</param>
+        /// <param name="payload">The response payload.</param>
+        /// <returns>A buffer containing the prefix followed by the payload.</returns>
+        internal static byte[] Combine(byte[] prefix, byte[] payload)
+        {
+            var result = new byte[prefix.Length + payload.Length];
+            Buffer.BlockCopy(prefix, 0, result, 0, prefix.Length);
+            Buffer.BlockCopy(payload, 0, result, prefix.Length, payload.Length);
+            return result;
+        }
+
+        /// <summary>Finds the first IPv4 address in a resolved address collection.</summary>
+        /// <param name="addresses">The resolved addresses.</param>
+        /// <returns>The first IPv4 address, or <see langword="null"/> when none exists.</returns>
+        internal static IPAddress? FindIpv4Address(IReadOnlyList<IPAddress> addresses)
+        {
+            foreach (var address in addresses)
+            {
+                if (address.AddressFamily == AddressFamily.InterNetwork)
+                {
+                    return address;
+                }
+            }
+
+            return null;
+        }
     }
 }

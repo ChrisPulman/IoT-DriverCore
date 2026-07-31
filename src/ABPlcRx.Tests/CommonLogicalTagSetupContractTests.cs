@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 using TUnit.Assertions;
 using TUnit.Core;
 
-namespace IoT.DriverCore.ABPlcRx.Tests;
+namespace IoT.Driver.ABPlcRx.Tests;
 
 /// <summary>Validates Allen-Bradley adoption of the common logical-tag setup contract.</summary>
 public sealed class CommonLogicalTagSetupContractTests
@@ -49,7 +49,11 @@ public sealed class CommonLogicalTagSetupContractTests
                 "Name;Address;DataType;GroupName;Description;Metadata;AccessMode;ScanIntervalMilliseconds\r\n" +
                 "Enabled;EnabledValue;BOOL;Process;Enabled state;;ReadWrite;\r\n");
             var imported = await concrete.ImportCsvAsync(reader, ';', CancellationToken.None);
+#if NET8_0_OR_GREATER
+            await using var writer = new StringWriter();
+#else
             using var writer = new StringWriter();
+#endif
             await concrete.ExportCsvAsync(writer, ';', CancellationToken.None);
 
             await Assert.That(imported.Count).IsEqualTo(1);

@@ -4,9 +4,8 @@
     <TargetFrameworks>$(CoreTargetFrameworks)</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <PackageId>CP.TwinCATRx.Core.Reactive</PackageId>
     <Title>TwinCATRx.Core.Reactive</Title>
-    <RootNamespace>IoT.DriverCore.TwinCATRx.Core.Reactive</RootNamespace>
+    <RootNamespace>IoT.Driver.TwinCATRx.Core.Reactive</RootNamespace>
     <DefineConstants>$(DefineConstants);REACTIVE_SHIM</DefineConstants>
   </PropertyGroup>
 

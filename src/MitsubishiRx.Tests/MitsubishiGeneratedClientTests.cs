@@ -5,14 +5,13 @@
 #if NET10_0_OR_GREATER
 using System.IO.Compression;
 #endif
-using Microsoft.CodeAnalysis;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiGeneratedClientTests type.</summary>
@@ -46,11 +45,20 @@ internal sealed partial class MitsubishiGeneratedClientTests
     /// <summary>Version shared by every package created for the isolated consumer-package test feed.</summary>
     private const string ConsumerPackageVersion = "1.0.0";
 
+    /// <summary>Stores the runtime package identity.</summary>
+    private const string RuntimePackageId = "IoT-Driver.MitsubishiRx";
+
+    /// <summary>Stores the standalone generator package identity.</summary>
+    private const string GeneratorPackageId = "IoT-Driver.MitsubishiRx.Generators";
+
     /// <summary>Stores the PackagePackGate field.</summary>
     private static readonly SemaphoreSlim PackagePackGate = new(1, 1);
 
     /// <summary>Stores the _cachedPackedPackagePath field.</summary>
     private static string? _cachedPackedPackagePath;
+
+    /// <summary>Stores the _cachedPackedGeneratorPackagePath field.</summary>
+    private static string? _cachedPackedGeneratorPackagePath;
 
     /// <summary>Executes the IncrementalGeneratorEmitsTypedTagAndGroupClientSurface operation.</summary>
     /// <returns>The IncrementalGeneratorEmitsTypedTagAndGroupClientSurface operation result.</returns>
@@ -64,6 +72,24 @@ internal sealed partial class MitsubishiGeneratedClientTests
         await AssertGeneratedGroupObservationSurfaceAsync(generated);
     }
 
+    /// <summary>Verifies runtime packages, rather than the generator, own the marker attribute definitions.</summary>
+    /// <returns>A task that completes when the assertions finish.</returns>
+    [Test]
+    internal async Task IncrementalGeneratorUsesRuntimeMarkerAttributesWithoutEmittingDuplicatesAsync()
+    {
+        var result = RunGeneratorCompilation(CreateSchemaMarkerSource(GeneratedClientSchema));
+
+        ThrowIfGeneratorErrors(result.Diagnostics);
+        await Assert.That(typeof(MitsubishiTagClientSchemaAttribute).Assembly)
+            .IsEqualTo(typeof(MitsubishiRx).Assembly);
+        await Assert.That(result.Generated.Contains("class MitsubishiTagClientSchemaAttribute", StringComparison.Ordinal))
+            .IsFalse();
+        await Assert.That(result.Generated.Contains("class MitsubishiTagClientAttribute", StringComparison.Ordinal))
+            .IsFalse();
+        await Assert.That(result.Generated.Contains("class MitsubishiTagAttribute", StringComparison.Ordinal))
+            .IsFalse();
+    }
+
     /// <summary>Executes the IncrementalGeneratorOutputCompilesAndSupportsGeneratedExtensionUsage operation.</summary>
     /// <returns>The IncrementalGeneratorOutputCompilesAndSupportsGeneratedExtensionUsage operation result.</returns>
     [Test]
@@ -75,7 +101,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         await Assert.That(
             result.Generated.Contains(
                 "public static GeneratedMitsubishiTagClient Generated(this " +
-                "global::IoT.DriverCore.MitsubishiRx.MitsubishiRx owner) => new(owner);"))
+                "global::IoT.Driver.MitsubishiRx.MitsubishiRx owner) => new(owner);"))
             .IsTrue();
     }
 
@@ -85,7 +111,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
     internal async Task IncrementalGeneratorEmitsPropertyBindingHelpersAsync()
     {
         const string source = """
-        using IoT.DriverCore.MitsubishiRx;
+        using IoT.Driver.MitsubishiRx;
 
         namespace Consumer;
 
@@ -100,26 +126,24 @@ internal sealed partial class MitsubishiGeneratedClientTests
         """;
 
         var result = RunGeneratorCompilation(source);
-        var errors = result.Diagnostics
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
+        var errors = GetErrorDiagnostics(result.Diagnostics);
         if (errors.Length > 0)
         {
             throw new InvalidOperationException(
-                string.Join(Environment.NewLine, errors.Select(static diagnostic => diagnostic.ToString())));
+                FormatDiagnostics(errors));
         }
 
         await Assert.That(result.Generated.Contains("partial class Dashboard", StringComparison.Ordinal)).IsTrue();
         await Assert.That(
             result.Generated.Contains(
                 "MotorSpeedObservable => LogicalTags.Observe(" +
-                "new global::IoT.DriverCore.Core.LogicalTagKey<float>(\"Line1.MotorSpeed\"))",
+                "new global::IoT.Driver.Core.LogicalTagKey<float>(\"Line1.MotorSpeed\"))",
                 StringComparison.Ordinal))
             .IsTrue();
         await Assert.That(
             result.Generated.Contains(
                 "MotorSpeedObservableAsync => LogicalTags.ObserveAsync(" +
-                "new global::IoT.DriverCore.Core.LogicalTagKey<float>(\"Line1.MotorSpeed\")",
+                "new global::IoT.Driver.Core.LogicalTagKey<float>(\"Line1.MotorSpeed\")",
                 StringComparison.Ordinal))
             .IsTrue();
         await Assert.That(result.Generated.Contains("ReadMotorSpeedAsync", StringComparison.Ordinal)).IsTrue();
@@ -127,17 +151,17 @@ internal sealed partial class MitsubishiGeneratedClientTests
         await Assert.That(result.Generated.Contains("TagOperationResult<float>", StringComparison.Ordinal)).IsTrue();
     }
 
-    /// <summary>Verifies consumer project package integration.</summary>
+    /// <summary>Verifies consumer project package integration with the standalone generator package.</summary>
     /// <returns>
     /// The
-    /// ConsumerProjectReferencingPackedMitsubishiRxPackageBuildsGeneratedClientSurfaceAutomatically operation result.
+    /// ConsumerProjectReferencingPackedMitsubishiRxAndGeneratorPackagesBuildsGeneratedClientSurface operation result.
     /// </returns>
     [Test]
     internal async Task
-        ConsumerProjectReferencingPackedMitsubishiRxPackageBuildsGeneratedClientSurfaceAutomaticallyAsync()
+        ConsumerProjectReferencingPackedMitsubishiRxAndGeneratorPackagesBuildsGeneratedClientSurfaceAsync()
     {
         string packagePath = await PackMitsubishiRxPackageAsync();
-        string version = Path.GetFileNameWithoutExtension(packagePath)["MitsubishiRx.".Length..];
+        string version = Path.GetFileNameWithoutExtension(packagePath)[(RuntimePackageId.Length + 1)..];
         string tempDirectory = CreateTemporaryDirectory();
 
         try
@@ -182,19 +206,51 @@ internal sealed partial class MitsubishiGeneratedClientTests
     }
 
 #if NET10_0_OR_GREATER
-    /// <summary>Executes the MitsubishiRxPackageShouldContainGeneratorAnalyzerAsset operation.</summary>
-    /// <returns>The MitsubishiRxPackageShouldContainGeneratorAnalyzerAsset operation result.</returns>
+    /// <summary>Verifies the standalone generator package owns the analyzer asset.</summary>
+    /// <returns>A task that completes when the package layout has been verified.</returns>
     [Test]
-    internal async Task MitsubishiRxPackageShouldContainGeneratorAnalyzerAssetAsync()
+    internal async Task StandaloneMitsubishiRxGeneratorPackageOwnsAnalyzerAssetAsync()
     {
-        string packagePath = await PackMitsubishiRxPackageAsync();
+        string runtimePackagePath = await PackMitsubishiRxPackageAsync();
+        string generatorPackagePath = _cachedPackedGeneratorPackagePath
+            ?? throw new InvalidOperationException("Expected MitsubishiRx generator package was not created.");
 
-        await using var package = await ZipFile.OpenReadAsync(packagePath, CancellationToken.None);
-        bool hasAnalyzer = package.Entries.Any(
-            static entry => entry.FullName.EndsWith(
-                "analyzers/dotnet/cs/MitsubishiRx.Generators.dll",
-                StringComparison.OrdinalIgnoreCase));
-        await Assert.That(hasAnalyzer).IsTrue();
+        await using var runtimePackage = await ZipFile.OpenReadAsync(runtimePackagePath, CancellationToken.None);
+        await using var generatorPackage = await ZipFile.OpenReadAsync(generatorPackagePath, CancellationToken.None);
+        const string analyzerPath = "analyzers/dotnet/cs/MitsubishiRx.Generators.dll";
+        var runtimeContainsAnalyzer = false;
+        foreach (ZipArchiveEntry entry in runtimePackage.Entries)
+        {
+            if (entry.FullName.EndsWith(analyzerPath, StringComparison.OrdinalIgnoreCase))
+            {
+                runtimeContainsAnalyzer = true;
+                break;
+            }
+        }
+
+        var generatorContainsAnalyzer = false;
+        foreach (ZipArchiveEntry entry in generatorPackage.Entries)
+        {
+            if (entry.FullName.EndsWith(analyzerPath, StringComparison.OrdinalIgnoreCase))
+            {
+                generatorContainsAnalyzer = true;
+                break;
+            }
+        }
+
+        await Assert.That(runtimeContainsAnalyzer).IsFalse();
+        await Assert.That(generatorContainsAnalyzer).IsTrue();
+        var generatorContainsLibraryAsset = false;
+        foreach (ZipArchiveEntry entry in generatorPackage.Entries)
+        {
+            if (entry.FullName.StartsWith("lib/", StringComparison.OrdinalIgnoreCase))
+            {
+                generatorContainsLibraryAsset = true;
+                break;
+            }
+        }
+
+        await Assert.That(generatorContainsLibraryAsset).IsFalse();
     }
 #endif
 }

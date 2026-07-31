@@ -3,10 +3,10 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Text;
-using IoT.DriverCore.S7PlcRx.Mock;
+using IoT.Driver.S7PlcRx.Mock;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.S7PlcRx.Tests;
+namespace IoT.Driver.S7PlcRx.Tests;
 
 /// <summary>Validates DecodeTagNames logic against deterministic simulated S7 DB memory.</summary>
 [NotInParallel]
@@ -166,7 +166,7 @@ public sealed class S7PlcRxDecodeTagNamesLivePlcTests
         using var plc = S71500.Create(MockServer.Localhost, interval: PollingIntervalMilliseconds);
 
         var connected = await plc.IsConnected
-            .Where(x => x)
+            .Where(static x => x)
             .Take(1)
             .Timeout(TimeSpan.FromSeconds(SimulatorConnectionTimeoutSeconds))
             .FirstAsync();
@@ -191,7 +191,7 @@ public sealed class S7PlcRxDecodeTagNamesLivePlcTests
 
         await AssertTagNameBytesAsync(bytes);
 
-        var tagNames = GetTagNames(bytes, BytesPerTagName, TotalTagNameBytes).ToList();
+        var tagNames = GetTagNames(bytes, BytesPerTagName, TotalTagNameBytes);
 
         await TUnitAssert.That(tagNames.Count).IsEqualTo(ExpectedTagNames.Length);
 
@@ -245,6 +245,11 @@ public sealed class S7PlcRxDecodeTagNamesLivePlcTests
 
             byte[]? bytes = null;
             var count = 0;
+#if NETFRAMEWORK
+            var retryDelay = TimeSpan.FromMilliseconds(TagNameReadRetryDelayMilliseconds);
+#else
+            using var retryTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(TagNameReadRetryDelayMilliseconds));
+#endif
             while (!IsSTX(bytes) || bytes?[FirstTagNameLengthByteIndex] is 0)
             {
                 if (count > MaximumTagNameReadAttempts)
@@ -255,7 +260,11 @@ public sealed class S7PlcRxDecodeTagNamesLivePlcTests
                 count++;
 
                 bytes = await plc.ReadAsync(new LogicalTagKey<byte[]>(TagNames1));
-                await Task.Delay(TagNameReadRetryDelayMilliseconds);
+#if NETFRAMEWORK
+                await Task.Delay(retryDelay);
+#else
+                _ = await retryTimer.WaitForNextTickAsync();
+#endif
             }
 
             if (bytes is null || bytes.Length < TotalTagNameBytes)
@@ -303,18 +312,21 @@ public sealed class S7PlcRxDecodeTagNamesLivePlcTests
     /// <param name="bytesPerTagName">The number of bytes in each tag-name slot.</param>
     /// <param name="noOfBytes">The number of bytes to decode.</param>
     /// <returns>The decoded tag names.</returns>
-    private static IEnumerable<string> GetTagNames(byte[]? bytes, int bytesPerTagName, int? noOfBytes)
+    private static List<string> GetTagNames(byte[]? bytes, int bytesPerTagName, int? noOfBytes)
     {
+        var tagNames = new List<string>();
         if (!(bytes?.Length != 0 && noOfBytes.HasValue && IsSTX(bytes)))
         {
-            yield break;
+            return tagNames;
         }
 
         for (var i = HeaderByteCount; i < noOfBytes; i += bytesPerTagName)
         {
             var itemLen = bytes![i + TagNameLengthOffset];
-            yield return GetItemBytesToString(bytes, i + TagNameDataOffset, itemLen);
+            tagNames.Add(GetItemBytesToString(bytes, i + TagNameDataOffset, itemLen));
         }
+
+        return tagNames;
     }
 
     /// <summary>Decodes a tag name from a byte range.</summary>
@@ -333,7 +345,13 @@ public sealed class S7PlcRxDecodeTagNamesLivePlcTests
         {
             var itemBytes = new byte[length];
             Array.Copy(bytes!, sourceIndex, itemBytes, 0, length);
-            return Encoding.ASCII.GetString(itemBytes.TakeWhile(x => x != 0).ToArray());
+            var textLength = 0;
+            while (textLength < itemBytes.Length && itemBytes[textLength] != 0)
+            {
+                textLength++;
+            }
+
+            return Encoding.ASCII.GetString(itemBytes, 0, textLength);
         }
         catch (Exception)
         {

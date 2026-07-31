@@ -5,12 +5,12 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.Serial;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.Serial;
 using NativeAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Deterministic coverage for synchronizing server data from a loopback Modbus client.</summary>
 [TUnit.Core.NotInParallel]

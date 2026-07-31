@@ -4,7 +4,7 @@
 
 using System.Net.Sockets;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Testing;
+namespace IoT.Driver.S7PlcRx.Tests.Testing;
 
 /// <summary>Composes socket operations that retain .NET Framework-compatible overloads.</summary>
 internal static class NetworkCompatibility

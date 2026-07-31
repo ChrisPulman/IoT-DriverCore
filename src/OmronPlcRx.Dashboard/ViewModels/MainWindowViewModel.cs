@@ -5,15 +5,15 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO.Ports;
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx;
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Tags;
 using ReactiveUI;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Disposables;
 
-namespace IoT.DriverCore.OmronPlcRx.Dashboard.ViewModels;
+namespace IoT.Driver.OmronPlcRx.Dashboard.ViewModels;
 
 /// <summary>Main window view model coordinating connection and tags.</summary>
 public sealed class MainWindowViewModel : ReactiveObject, IDisposable
@@ -129,6 +129,78 @@ public sealed class MainWindowViewModel : ReactiveObject, IDisposable
     {
         Disconnect();
         _disposables.Dispose();
+    }
+
+    /// <summary>Subscribes a tag to the reflected observable returned by the PLC wrapper.</summary>
+    /// <param name="owner">The view model that owns the subscription.</param>
+    /// <param name="tag">The tag definition to update.</param>
+    /// <param name="valueType">The tag value type.</param>
+    /// <param name="observable">The reflected observable instance.</param>
+    private static void SubscribeGeneric(
+        MainWindowViewModel owner,
+        TagDefinition tag,
+        Type valueType,
+        object observable)
+    {
+        switch (Type.GetTypeCode(valueType))
+        {
+            case TypeCode.Boolean:
+            {
+                owner.SubscribeCore<bool>(tag, observable);
+                break;
+            }
+
+            case TypeCode.Byte:
+            {
+                owner.SubscribeCore<byte>(tag, observable);
+                break;
+            }
+
+            case TypeCode.Int16:
+            {
+                owner.SubscribeCore<short>(tag, observable);
+                break;
+            }
+
+            case TypeCode.UInt16:
+            {
+                owner.SubscribeCore<ushort>(tag, observable);
+                break;
+            }
+
+            case TypeCode.Int32:
+            {
+                owner.SubscribeCore<int>(tag, observable);
+                break;
+            }
+
+            case TypeCode.UInt32:
+            {
+                owner.SubscribeCore<uint>(tag, observable);
+                break;
+            }
+
+            case TypeCode.Single:
+            {
+                owner.SubscribeCore<float>(tag, observable);
+                break;
+            }
+
+            case TypeCode.Double:
+            {
+                owner.SubscribeCore<double>(tag, observable);
+                break;
+            }
+
+            case TypeCode.String:
+            {
+                owner.SubscribeCore<string>(tag, observable);
+                break;
+            }
+
+            default:
+                return;
+        }
     }
 
     /// <summary>Connects to the configured PLC.</summary>
@@ -252,79 +324,12 @@ public sealed class MainWindowViewModel : ReactiveObject, IDisposable
                 .Invoke(_plc, [tagKey]);
             if (observable is not null)
             {
-                SubscribeGeneric(tag, valueType, observable);
+                SubscribeGeneric(this, tag, valueType, observable);
             }
         }
         catch (Exception ex)
         {
             Status = $"Add tag failed: {ex.Message}";
-        }
-    }
-
-    /// <summary>Subscribes a tag to the reflected observable returned by the PLC wrapper.</summary>
-    /// <param name="tag">The tag definition to update.</param>
-    /// <param name="valueType">The tag value type.</param>
-    /// <param name="observable">The reflected observable instance.</param>
-    private void SubscribeGeneric(TagDefinition tag, Type valueType, object observable)
-    {
-        switch (Type.GetTypeCode(valueType))
-        {
-            case TypeCode.Boolean:
-            {
-                SubscribeCore<bool>(tag, observable);
-                break;
-            }
-
-            case TypeCode.Byte:
-            {
-                SubscribeCore<byte>(tag, observable);
-                break;
-            }
-
-            case TypeCode.Int16:
-            {
-                SubscribeCore<short>(tag, observable);
-                break;
-            }
-
-            case TypeCode.UInt16:
-            {
-                SubscribeCore<ushort>(tag, observable);
-                break;
-            }
-
-            case TypeCode.Int32:
-            {
-                SubscribeCore<int>(tag, observable);
-                break;
-            }
-
-            case TypeCode.UInt32:
-            {
-                SubscribeCore<uint>(tag, observable);
-                break;
-            }
-
-            case TypeCode.Single:
-            {
-                SubscribeCore<float>(tag, observable);
-                break;
-            }
-
-            case TypeCode.Double:
-            {
-                SubscribeCore<double>(tag, observable);
-                break;
-            }
-
-            case TypeCode.String:
-            {
-                SubscribeCore<string>(tag, observable);
-                break;
-            }
-
-            default:
-                return;
         }
     }
 
@@ -338,13 +343,17 @@ public sealed class MainWindowViewModel : ReactiveObject, IDisposable
     {
         var plc = _plc
             ?? throw new InvalidOperationException("The PLC is not connected.");
-        return plc
-            .GetType()
-            .GetMethods()
-            .Single(method =>
-                method.Name == methodName
-                && method.IsGenericMethodDefinition)
-            .MakeGenericMethod(valueType);
+        foreach (var method in plc.GetType().GetMethods())
+        {
+            if (method.Name == methodName && method.IsGenericMethodDefinition)
+            {
+                return method.MakeGenericMethod(valueType);
+            }
+        }
+
+        throw new MissingMethodException(
+            plc.GetType().FullName,
+            methodName);
     }
 
     /// <summary>Subscribes a strongly typed observable to a dashboard tag.</summary>

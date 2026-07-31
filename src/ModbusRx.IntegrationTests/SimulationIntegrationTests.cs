@@ -7,10 +7,10 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
 
-namespace IoT.DriverCore.ModbusRx.IntegrationTests;
+namespace IoT.Driver.ModbusRx.IntegrationTests;
 
 /// <summary>Integration tests for simulation and data generation.</summary>
 public sealed class SimulationIntegrationTests : IDisposable
@@ -55,7 +55,6 @@ public sealed class SimulationIntegrationTests : IDisposable
     public void Dispose()
     {
         Dispose(true);
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>Tests that simulation generates realistic sine wave data.</summary>
@@ -187,7 +186,7 @@ public sealed class SimulationIntegrationTests : IDisposable
 
         await Task.Delay(InitialSimulationDelayMilliseconds);
 
-        var client = new IoT.DriverCore.Serial.TcpClientRx(LoopbackAddress, tcpPort);
+        var client = new IoT.Driver.Serial.TcpClientRx(LoopbackAddress, tcpPort);
         var master = ModbusIpMaster.CreateIp(client);
         _disposables.Add(master);
 

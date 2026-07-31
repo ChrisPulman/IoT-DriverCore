@@ -6,17 +6,16 @@ using System;
 using System.Collections.Generic;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Converters;
+using IoT.Driver.OmronPlcRx.Reactive.Core;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core.Converters;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core.Converters;
+using IoT.Driver.OmronPlcRx.Core;
+namespace IoT.Driver.OmronPlcRx.Core.Converters;
 #endif
 
 /// <summary>Converts between BCD encoded values and numeric values.</summary>
 public static class BCDConverter
 {
-    /// <summary>Stores the BCD bytes array cannot be null message.</summary>
-    private const string BcdBytesArrayCannotBeNullMessage = "The BCD Bytes Array cannot be null";
-
     /// <summary>Converts to byte.</summary>
     /// <param name="bcdByte">The BCD byte.</param>
     /// <returns>A byte representing the converted value.</returns>
@@ -35,10 +34,7 @@ public static class BCDConverter
     /// </exception>
     public static short ToInt16(byte[] bcdBytes)
     {
-        if (bcdBytes is null)
-        {
-            throw new ArgumentNullException(nameof(bcdBytes), BcdBytesArrayCannotBeNullMessage);
-        }
+        OmronArgumentGuards.ThrowIfNull(bcdBytes, nameof(bcdBytes));
 
         if (bcdBytes.Length != 2)
         {
@@ -64,10 +60,7 @@ public static class BCDConverter
     /// </exception>
     public static ushort ToUInt16(byte[] bcdBytes)
     {
-        if (bcdBytes is null)
-        {
-            throw new ArgumentNullException(nameof(bcdBytes), BcdBytesArrayCannotBeNullMessage);
-        }
+        OmronArgumentGuards.ThrowIfNull(bcdBytes, nameof(bcdBytes));
 
         if (bcdBytes.Length != 2)
         {
@@ -101,10 +94,7 @@ public static class BCDConverter
     /// </exception>
     public static int ToInt32(byte[] bcdBytes)
     {
-        if (bcdBytes is null)
-        {
-            throw new ArgumentNullException(nameof(bcdBytes), BcdBytesArrayCannotBeNullMessage);
-        }
+        OmronArgumentGuards.ThrowIfNull(bcdBytes, nameof(bcdBytes));
 
         if (bcdBytes.Length != 4)
         {
@@ -138,10 +128,7 @@ public static class BCDConverter
     /// </exception>
     public static uint ToUInt32(byte[] bcdBytes)
     {
-        if (bcdBytes is null)
-        {
-            throw new ArgumentNullException(nameof(bcdBytes), BcdBytesArrayCannotBeNullMessage);
-        }
+        OmronArgumentGuards.ThrowIfNull(bcdBytes, nameof(bcdBytes));
 
         if (bcdBytes.Length != 4)
         {

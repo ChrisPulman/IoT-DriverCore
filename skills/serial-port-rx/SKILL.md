@@ -1,6 +1,6 @@
 ---
 name: serial-port-rx
-description: Implement, review, or troubleshoot reactive serial, TCP, and UDP I/O with SerialPortRx, including configuration, receive ownership, framing, request-response coordination, errors, deterministic links, and generation.
+description: Implement, review, or troubleshoot reactive serial, TCP, and UDP I/O with IoT-Driver.SerialPortRx, including configuration, receive ownership, framing, request-response coordination, errors, deterministic links, and generation.
 ---
 
 # SerialPortRx
@@ -13,9 +13,9 @@ Read the co-packaged `../../README.md`; in a repository checkout use `packagerea
 
 ## Package choice
 
-- Use `SerialPortRx` with `IoT.DriverCore.Serial` by default.
-- Use `SerialPortRx.Reactive` and `IoT.DriverCore.Serial.Reactive` for System.Reactive applications.
-- The generator is embedded in both runtimes. There is no standalone `SerialPortRx.Generators` package.
+- Use `IoT-Driver.SerialPortRx` with `IoT.Driver.Serial` by default.
+- Use `IoT-Driver.SerialPortRx.Reactive` and `IoT.Driver.Serial.Reactive` for System.Reactive applications.
+- Runtime packages never embed the generator. Install the standalone `IoT-Driver.SerialPortRx.Generators` package when generated stream models are required.
 - Check the package matrix for target-framework and Windows-only serial features.
 
 ## Serial workflow
@@ -23,7 +23,7 @@ Read the co-packaged `../../README.md`; in a repository checkout use `packagerea
 Set baud rate, data bits, parity, stop bits, handshake, timeouts, encoding, and delimiters before `OpenAsync`. Subscribe to state and errors before opening.
 
 ```csharp
-using IoT.DriverCore.Serial;
+using IoT.Driver.Serial;
 
 using var port = new SerialPortRx("COM3", 115200)
 {

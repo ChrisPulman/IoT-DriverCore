@@ -2,14 +2,14 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiReactiveTagGroupTests type.</summary>
@@ -64,7 +64,7 @@ internal sealed class MitsubishiReactiveTagGroupTests
         [
             new MitsubishiTagDefinition(RecipeNumberTagName, "D300", DataType: UInt16DataType),
         ]);
-        database.AddGroup(new MitsubishiTagGroupDefinition(RecipeTagName, [RecipeNumberTagName]));
+        database.AddGroup(new(RecipeTagName, [RecipeNumberTagName]));
 
         var options = new MitsubishiClientOptions(
             Host: LoopbackHost,
@@ -124,7 +124,7 @@ internal sealed class MitsubishiReactiveTagGroupTests
         [
             new MitsubishiTagDefinition(RecipeNumberTagName, "D300", DataType: UInt16DataType),
         ]);
-        database.AddGroup(new MitsubishiTagGroupDefinition(RecipeTagName, [RecipeNumberTagName]));
+        database.AddGroup(new(RecipeTagName, [RecipeNumberTagName]));
 
         var options = new MitsubishiClientOptions(
             Host: LoopbackHost,
@@ -173,7 +173,7 @@ internal sealed class MitsubishiReactiveTagGroupTests
         [
             new MitsubishiTagDefinition(RecipeNumberTagName, "D300", DataType: UInt16DataType),
         ]);
-        database.AddGroup(new MitsubishiTagGroupDefinition(RecipeTagName, [RecipeNumberTagName]));
+        database.AddGroup(new(RecipeTagName, [RecipeNumberTagName]));
 
         var options = new MitsubishiClientOptions(
             Host: LoopbackHost,

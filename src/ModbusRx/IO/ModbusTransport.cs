@@ -3,22 +3,25 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using SystemTimeProvider = System.TimeProvider;
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Message;
+using IoT.Driver.ModbusRx.Reactive.Message;
+using IoT.Driver.ModbusRx.Reactive.Utility;
 #else
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Utility;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Unme.Common;
+using IoT.Driver.ModbusRx.Reactive.Unme.Common;
 #else
-using IoT.DriverCore.ModbusRx.Unme.Common;
+using IoT.Driver.ModbusRx.Unme.Common;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.IO;
+namespace IoT.Driver.ModbusRx.Reactive.IO;
 #else
-namespace IoT.DriverCore.ModbusRx.IO;
+namespace IoT.Driver.ModbusRx.IO;
 #endif
 
 /// <summary>Modbus transport. Abstraction - http://en.wikipedia.org/wiki/Bridge_Pattern.</summary>
@@ -47,26 +50,26 @@ public abstract class ModbusTransport : IDisposable
         _streamResource = streamResource;
     }
 
-/// <summary>
-/// Gets or sets number of times to retry sending message after encountering a failure such as an IOException,
-/// TimeoutException, or a corrupt message.
-/// </summary>
+    /// <summary>
+    /// Gets or sets number of times to retry sending message after encountering a failure such as an IOException,
+    /// TimeoutException, or a corrupt message.
+    /// </summary>
     public int Retries { get; set; } = Modbus.DefaultRetries;
 
-/// <summary>
-/// Gets or sets whether a second reply is read when the first is behind the sequence number.
-/// request by less than this number.  For example, set this to 3, and if when sending request 5, response 3 is
-/// read, we will attempt to re-read responses.
-/// </summary>
+    /// <summary>
+    /// Gets or sets whether a second reply is read when the first is behind the sequence number.
+    /// request by less than this number.  For example, set this to 3, and if when sending request 5, response 3 is
+    /// read, we will attempt to re-read responses.
+    /// </summary>
     public uint RetryOnOldResponseThreshold { get; set; }
 
-/// <summary>Gets or sets whether a slave-busy exception consumes the retry count.</summary>
+    /// <summary>Gets or sets whether a slave-busy exception consumes the retry count.</summary>
     public bool SlaveBusyUsesRetryCount { get; set; }
 
-/// <summary>
-/// Gets or sets the number of milliseconds the tranport will wait before retrying a message after receiving
-/// an ACKNOWLEGE or SLAVE DEVICE BUSY slave exception response.
-/// </summary>
+    /// <summary>
+    /// Gets or sets the number of milliseconds the tranport will wait before retrying a message after receiving
+    /// an ACKNOWLEGE or SLAVE DEVICE BUSY slave exception response.
+    /// </summary>
     public int WaitToRetryMilliseconds
     {
         get => _waitToRetryMilliseconds;
@@ -280,6 +283,40 @@ public abstract class ModbusTransport : IDisposable
     /// <param name="message">The message value.</param>
     internal abstract void Write(IModbusMessage message);
 
+    /// <summary>Bridges an asynchronous stream implementation to the legacy synchronous transport API.</summary>
+    /// <typeparam name="T">The task result type.</typeparam>
+    /// <param name="task">The task to complete.</param>
+    /// <returns>The completed task result.</returns>
+    /// <remarks>The continuation runs on the default scheduler, avoiding a captured caller context deadlock.</remarks>
+    protected static T WaitForCompletion<T>(Task<T> task)
+    {
+        task = ModbusGuard.NotNull(task, nameof(task));
+
+        T? result = default;
+        ExceptionDispatchInfo? failure = null;
+        using var completion = new ManualResetEventSlim();
+        _ = CompleteAsync();
+        completion.Wait();
+        failure?.Throw();
+        return result!;
+
+        async Task CompleteAsync()
+        {
+            try
+            {
+                result = await task.ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                failure = ExceptionDispatchInfo.Capture(exception);
+            }
+            finally
+            {
+                completion.Set();
+            }
+        }
+    }
+
     /// <summary>Releases unmanaged and - optionally - managed resources.</summary>
     /// <param name="disposing">
     ///     <c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only
@@ -320,7 +357,7 @@ public abstract class ModbusTransport : IDisposable
     {
         while (true)
         {
-            var response = ReadResponseAsync(responseFactory).GetAwaiter().GetResult();
+            var response = WaitForCompletion(ReadResponseAsync(responseFactory));
             if (TryHandleAcknowledgeResponse(response) || ShouldRetryResponse(message, response))
             {
                 continue;
@@ -346,7 +383,7 @@ public abstract class ModbusTransport : IDisposable
         }
 
         Debug.WriteLine($"ACK response received; retrying after {_waitToRetryMilliseconds} ms.");
-        Task.Delay(WaitToRetryMilliseconds).Wait();
+        Thread.Sleep(WaitToRetryMilliseconds);
         return true;
     }
 
@@ -356,7 +393,7 @@ public abstract class ModbusTransport : IDisposable
     private int RetryAfterSlaveBusy(int attempt)
     {
         Debug.WriteLine($"Slave-busy response received; retrying after {_waitToRetryMilliseconds} ms.");
-        Task.Delay(WaitToRetryMilliseconds).Wait();
+        Thread.Sleep(WaitToRetryMilliseconds);
         return SlaveBusyUsesRetryCount ? attempt + 1 : attempt;
     }
 }

@@ -7,10 +7,10 @@ using System.Diagnostics.CodeAnalysis;
 #endif
 using System.Reflection;
 using System.Text;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx.Core;
 using TwinCAT.TypeSystem;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Core;
+namespace IoT.Driver.TwinCATRx.Tests.Core;
 
 /// <summary>Exercises code generation through the composed native symbol runtime.</summary>
 public sealed class CodeGeneratorRuntimeCoverageTests
@@ -290,18 +290,61 @@ public sealed class CodeGeneratorRuntimeCoverageTests
         public ISymbol this[string instancePath] => GetInstance(instancePath);
 
         /// <inheritdoc/>
-        public bool Contains(string instancePath) => this.Any(symbol => symbol.InstancePath == instancePath);
+        public bool Contains(string instancePath)
+        {
+            foreach (var symbol in this)
+            {
+                if (symbol.InstancePath == instancePath)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         /// <inheritdoc/>
-        public bool ContainsName(string instanceName) => this.Any(symbol => symbol.InstanceName == instanceName);
+        public bool ContainsName(string instanceName)
+        {
+            foreach (var symbol in this)
+            {
+                if (symbol.InstanceName == instanceName)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         /// <inheritdoc/>
-        public ISymbol GetInstance(string instancePath) =>
-            this.First(symbol => symbol.InstancePath == instancePath);
+        public ISymbol GetInstance(string instancePath)
+        {
+            foreach (var symbol in this)
+            {
+                if (symbol.InstancePath == instancePath)
+                {
+                    return symbol;
+                }
+            }
+
+            throw new KeyNotFoundException($"No symbol has instance path '{instancePath}'.");
+        }
 
         /// <inheritdoc/>
-        public IList<ISymbol> GetInstanceByName(string instanceName) =>
-            this.Where(symbol => symbol.InstanceName == instanceName).ToList();
+        public IList<ISymbol> GetInstanceByName(string instanceName)
+        {
+            var symbols = new List<ISymbol>();
+            foreach (var symbol in this)
+            {
+                if (symbol.InstanceName == instanceName)
+                {
+                    symbols.Add(symbol);
+                }
+            }
+
+            return symbols;
+        }
 
         /// <inheritdoc/>
 #if NETFRAMEWORK
@@ -310,8 +353,17 @@ public sealed class CodeGeneratorRuntimeCoverageTests
         public bool TryGetInstance(string instancePath, [NotNullWhen(true)] out ISymbol? symbol)
 #endif
         {
-            symbol = this.FirstOrDefault(candidate => candidate.InstancePath == instancePath);
-            return symbol is not null;
+            foreach (var candidate in this)
+            {
+                if (candidate.InstancePath == instancePath)
+                {
+                    symbol = candidate;
+                    return true;
+                }
+            }
+
+            symbol = null!;
+            return false;
         }
 
         /// <inheritdoc/>

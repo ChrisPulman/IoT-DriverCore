@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using Boolean = IoT.DriverCore.S7PlcRx.PlcTypes.Boolean;
+using Boolean = IoT.Driver.S7PlcRx.PlcTypes.Boolean;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Tests.PlcTypes;
 
 /// <summary>Tests Boolean PlcType helpers.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
@@ -27,49 +27,54 @@ public class BooleanTests
     private string DebuggerDisplay => ToString() ?? string.Empty;
 
     /// <summary>Ensures GetValue reads the selected bit.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void GetValue_ShouldReturnExpected()
+    public async Task GetValue_ShouldReturnExpected()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
-        Assert.That(Boolean.GetValue(0b0000_0010, 1), Is.True);
-        Assert.That(Boolean.GetValue(0b0000_0010, 0), Is.False);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(Boolean.GetValue(0b0000_0010, 1), Is.True);
+        await Assert.That(Boolean.GetValue(0b0000_0010, 0), Is.False);
     }
 
     /// <summary>Ensures SetBit sets the specified bit.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void SetBit_ShouldSetBit()
+    public async Task SetBit_ShouldSetBit()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         var value = Boolean.SetBit(0, FirstBitIndex);
-        Assert.That(value, Is.EqualTo(0b0000_0100));
+        await Assert.That(value, Is.EqualTo(0b0000_0100));
     }
 
     /// <summary>Ensures SetBit by ref mutates the input value.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void SetBit_ByRef_ShouldMutate()
+    public async Task SetBit_ByRef_ShouldMutate()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         byte value = 0;
         Boolean.SetBit(ref value, SecondBitIndex);
-        Assert.That(value, Is.EqualTo(0b0001_0000));
+        await Assert.That(value, Is.EqualTo(0b0001_0000));
     }
 
     /// <summary>Ensures ClearBit clears the specified bit.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void ClearBit_ShouldClearBit()
+    public async Task ClearBit_ShouldClearBit()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         var value = Boolean.ClearBit(0b1111_1111, ThirdBitIndex);
-        Assert.That(value, Is.EqualTo(0b0111_1111));
+        await Assert.That(value, Is.EqualTo(0b0111_1111));
     }
 
     /// <summary>Ensures ClearBit by ref mutates the input value.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void ClearBit_ByRef_ShouldMutate()
+    public async Task ClearBit_ByRef_ShouldMutate()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         byte value = 0b0000_1000;
         Boolean.ClearBit(ref value, FourthBitIndex);
-        Assert.That(value, Is.EqualTo(0));
+        await Assert.That(value, Is.EqualTo(0));
     }
 }

@@ -3,10 +3,10 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Buffers;
-using IoT.DriverCore.S7PlcRx.Core;
-using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Core;
+using IoT.Driver.S7PlcRx.Enums;
 
-namespace IoT.DriverCore.S7PlcRx.Tests;
+namespace IoT.Driver.S7PlcRx.Tests;
 
 /// <summary>Tests for S7MultiVar response parsing.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
@@ -51,6 +51,12 @@ public class S7MultiVarResponseParserTests
     /// <summary>Offset of the third write-item return code.</summary>
     private const int ThirdWriteItemOffset = SecondWriteItemOffset + 1;
 
+    /// <summary>Expected data for the first parsed read item.</summary>
+    private static readonly byte[] FirstReadItemData = [0xAA];
+
+    /// <summary>Expected data for the second parsed read item.</summary>
+    private static readonly byte[] SecondReadItemData = [0xBB];
+
     /// <summary>Gets the compact representation displayed by the debugger.</summary>
     [System.Diagnostics.DebuggerBrowsable(System.Diagnostics.DebuggerBrowsableState.Never)]
     private string DebuggerDisplay
@@ -59,22 +65,24 @@ public class S7MultiVarResponseParserTests
     }
 
     /// <summary>Ensures read-var response parsing returns an empty list for short frames.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
-    public void ParseReadVarResponse_WhenTooShort_ShouldReturnEmpty()
+    public async Task ParseReadVarResponse_WhenTooShort_ShouldReturnEmpty()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         var items = new[] { new S7MultiVar.ReadItem(DataType.DataBlock, 1, 0, 1, "T0") };
 
         var result = S7MultiVar.ParseReadVarResponse(ReadOnlySpan<byte>.Empty, items, ArrayPool<byte>.Shared);
 
-        Assert.That(result, Is.EmptyValue);
+        await Assert.That(result, Is.EmptyValue);
     }
 
     /// <summary>Ensures read-var response parsing respects item padding to even byte length.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
-    public void ParseReadVarResponse_WithOddLengthData_ShouldSkipPadByte()
+    public async Task ParseReadVarResponse_WithOddLengthData_ShouldSkipPadByte()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         var items = new[]
         {
             new S7MultiVar.ReadItem(DataType.DataBlock, 1, 0, 1, "T0"),
@@ -112,9 +120,9 @@ public class S7MultiVarResponseParserTests
         var result = S7MultiVar.ParseReadVarResponse(response, items, pool);
         try
         {
-            Assert.That(result.Count, Is.EqualTo(ReadItemCount));
-            Assert.That(result[0].Data.ToArray(), Is.EqualTo(new byte[] { 0xAA }));
-            Assert.That(result[1].Data.ToArray(), Is.EqualTo(new byte[] { 0xBB }));
+            await Assert.That(result.Count, Is.EqualTo(ReadItemCount));
+            await Assert.That(result[0].Data.ToArray(), Is.EqualTo(FirstReadItemData));
+            await Assert.That(result[1].Data.ToArray(), Is.EqualTo(SecondReadItemData));
         }
         finally
         {
@@ -129,10 +137,11 @@ public class S7MultiVarResponseParserTests
     }
 
     /// <summary>Ensures write-var response parsing reads per-item return codes.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
-    public void ParseWriteVarResponse_ShouldReturnPerItemCodes()
+    public async Task ParseWriteVarResponse_ShouldReturnPerItemCodes()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         var response = new byte[ResponseHeaderLength + WriteItemCount];
         response[13] = 0x00;
         response[14] = 0x02;
@@ -143,9 +152,9 @@ public class S7MultiVarResponseParserTests
 
         var result = S7MultiVar.ParseWriteVarResponse(response, WriteItemCount);
 
-        Assert.That(result.Count, Is.EqualTo(WriteItemCount));
-        Assert.That(result[0].ReturnCode, Is.EqualTo(0xFF));
-        Assert.That(result[1].ReturnCode, Is.EqualTo(0x0A));
-        Assert.That(result[2].ReturnCode, Is.EqualTo(0xFF));
+        await Assert.That(result.Count, Is.EqualTo(WriteItemCount));
+        await Assert.That(result[0].ReturnCode, Is.EqualTo(0xFF));
+        await Assert.That(result[1].ReturnCode, Is.EqualTo(0x0A));
+        await Assert.That(result[2].ReturnCode, Is.EqualTo(0xFF));
     }
 }

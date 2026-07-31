@@ -7,10 +7,10 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiSerialRandomTests type.</summary>
@@ -39,7 +39,13 @@ internal sealed class MitsubishiSerialRandomTests
         var result = await client.RandomReadWordsAsync(["D100", "D300"], CancellationToken.None);
 
         await Assert.That(result.IsSucceed).IsTrue();
-        await Assert.That(result.Value!.Select(static value => (int)value).ToArray()).IsEquivalentTo([ 0x1234, 0x5678]);
+        var values = new List<int>();
+        foreach (var value in result.Value!)
+        {
+            values.Add(value);
+        }
+
+        await Assert.That(values).IsEquivalentTo([ 0x1234, 0x5678]);
         await Assert.That(transport.Requests.Count).IsEqualTo(1);
         await Assert.That(Encoding.ASCII.GetString(transport.Requests[0].Payload))
             .IsEqualTo("\u0005F90000FF000403000000020000000064D*00012CD*70");
@@ -88,7 +94,13 @@ internal sealed class MitsubishiSerialRandomTests
         var result = await client.RandomReadWordsAsync(["D100", "D300"], CancellationToken.None);
 
         await Assert.That(result.IsSucceed).IsTrue();
-        await Assert.That(result.Value!.Select(static value => (int)value).ToArray()).IsEquivalentTo([ 0x1234, 0x5678]);
+        var values = new List<int>();
+        foreach (var value in result.Value!)
+        {
+            values.Add(value);
+        }
+
+        await Assert.That(values).IsEquivalentTo([ 0x1234, 0x5678]);
         await Assert.That(transport.Requests.Count).IsEqualTo(1);
         await Assert.That(Convert.ToHexString(transport.Requests[0].Payload))
             .IsEqualTo("10021800F80000FFFF0300000304000002000000640000A82C0100A810034642");
@@ -208,5 +220,13 @@ internal sealed class MitsubishiSerialRandomTests
     /// <param name="body">The body parameter.</param>
     /// <returns>The ComputeChecksum operation result.</returns>
     private static string ComputeChecksum(string body)
-        => (Encoding.ASCII.GetBytes(body).Aggregate(0, static (sum, value) => sum + value) & 0xFF).ToString("X2");
+    {
+        var sum = 0;
+        foreach (var value in Encoding.ASCII.GetBytes(body))
+        {
+            sum += value;
+        }
+
+        return (sum & 0xFF).ToString("X2");
+    }
 }

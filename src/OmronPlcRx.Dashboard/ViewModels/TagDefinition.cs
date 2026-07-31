@@ -5,7 +5,7 @@
 using System;
 using ReactiveUI;
 
-namespace IoT.DriverCore.OmronPlcRx.Dashboard.ViewModels;
+namespace IoT.Driver.OmronPlcRx.Dashboard.ViewModels;
 
 /// <summary>Represents a PLC tag definition and its current value.</summary>
 /// <param name="name">The tag name.</param>

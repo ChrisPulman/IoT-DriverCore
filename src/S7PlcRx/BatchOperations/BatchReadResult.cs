@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.BatchOperations;
+namespace IoT.Driver.S7PlcRx.Reactive.BatchOperations;
 #else
-namespace IoT.DriverCore.S7PlcRx.BatchOperations;
+namespace IoT.Driver.S7PlcRx.BatchOperations;
 #endif
 
 /// <summary>

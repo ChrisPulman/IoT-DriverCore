@@ -5,10 +5,10 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using IoT.DriverCore.S7PlcRx.Mock;
+using IoT.Driver.S7PlcRx.Mock;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.S7PlcRx.Tests;
+namespace IoT.Driver.S7PlcRx.Tests;
 
 /// <summary>Tests deterministic managed S7 memory, lifecycle, framing, and fault behavior.</summary>
 [NotInParallel]
@@ -59,6 +59,9 @@ public sealed class ManagedS7ServerTests
 
     /// <summary>The wait timeout in seconds.</summary>
     private const int OperationTimeoutSeconds = 5;
+
+    /// <summary>The number of milliseconds in one second.</summary>
+    private const double MillisecondsPerSecond = 1000D;
 
     /// <summary>The scripted S7 error return code.</summary>
     private const byte ScriptedErrorCode = 0x05;
@@ -371,12 +374,13 @@ public sealed class ManagedS7ServerTests
                 S7ServerOperation.Read,
                 TimeSpan.FromMilliseconds(FaultDelayMilliseconds),
                 ScriptedErrorCode));
-            var stopwatch = Stopwatch.StartNew();
+            var startTimestamp = Stopwatch.GetTimestamp();
             var delayed = await SendAndReceiveAsync(client.GetStream(), ReadDb1ByteRequest);
-            stopwatch.Stop();
+            var elapsedMilliseconds =
+                (long)((Stopwatch.GetTimestamp() - startTimestamp) * MillisecondsPerSecond / Stopwatch.Frequency);
 
             await TUnitAssert.That(delayed[ReadReturnCodeOffset]).IsEqualTo((byte)0xff);
-            await TUnitAssert.That(stopwatch.ElapsedMilliseconds)
+            await TUnitAssert.That(elapsedMilliseconds)
                 .IsGreaterThanOrEqualTo(MinimumObservedDelayMilliseconds);
 
             managed.EnqueueFault(new(
@@ -572,17 +576,15 @@ public sealed class ManagedS7ServerTests
         await TUnitAssert.That(missingDbResponse[ReadReturnCodeOffset])
             .IsEqualTo(ScriptedErrorCode);
 
-        var missingWriteHeader = WriteDb1ByteRequest
-            .Take(WriteWithoutDataHeaderLength)
-            .ToArray();
+        var missingWriteHeader = new byte[WriteWithoutDataHeaderLength];
+        Array.Copy(WriteDb1ByteRequest, missingWriteHeader, missingWriteHeader.Length);
         SetTpktLength(missingWriteHeader);
         var missingHeaderResponse = await SendAndReceiveAsync(stream, missingWriteHeader);
         await TUnitAssert.That(missingHeaderResponse[WriteReturnCodeOffset])
             .IsEqualTo(ScriptedErrorCode);
 
-        var missingWriteValue = WriteDb1ByteRequest
-            .Take(WriteWithoutValueLength)
-            .ToArray();
+        var missingWriteValue = new byte[WriteWithoutValueLength];
+        Array.Copy(WriteDb1ByteRequest, missingWriteValue, missingWriteValue.Length);
         SetTpktLength(missingWriteValue);
         var missingValueResponse = await SendAndReceiveAsync(stream, missingWriteValue);
         await TUnitAssert.That(missingValueResponse[WriteReturnCodeOffset])
@@ -705,8 +707,8 @@ public sealed class ManagedS7ServerTests
     /// <summary>Reads the end-of-stream result after a deterministic server disconnect.</summary>
     /// <param name="stream">The client stream.</param>
     /// <returns>The zero-byte read result.</returns>
-    private static async Task<int> ReadClosedStreamAsync(NetworkStream stream) =>
-        await AsyncCompatibility.WaitAsync(
+    private static Task<int> ReadClosedStreamAsync(NetworkStream stream) =>
+        AsyncCompatibility.WaitAsync(
             NetworkCompatibility.ReadAsync(stream, new byte[1]),
             TimeSpan.FromSeconds(OperationTimeoutSeconds));
 

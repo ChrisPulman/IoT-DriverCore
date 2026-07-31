@@ -2,10 +2,10 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
+namespace IoT.Driver.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the ReadCoilsInputsResponseFixture behavior.</summary>
 public class ReadCoilsInputsResponseFixture
@@ -23,7 +23,7 @@ public class ReadCoilsInputsResponseFixture
         Assert.Equal(Num.Value5, response.SlaveAddress);
         Assert.Equal(Num.Value2, response.ByteCount);
         var col = new DiscreteCollection(true, true, true, true, true, true, false, false, true, true, false);
-        Assert.Equal(col.NetworkBytes, response.Data.NetworkBytes);
+        Assert.Equal(col.ToNetworkBytes(), response.Data.ToNetworkBytes());
     }
 
     /// <summary>Creates the read inputs response.</summary>
@@ -39,7 +39,7 @@ public class ReadCoilsInputsResponseFixture
         Assert.Equal(Num.Value5, response.SlaveAddress);
         Assert.Equal(Num.Value2, response.ByteCount);
         var col = new DiscreteCollection(true, true, true, true, true, true, false, false, true, true, false);
-        Assert.Equal(col.NetworkBytes, response.Data.NetworkBytes);
+        Assert.Equal(col.ToNetworkBytes(), response.Data.ToNetworkBytes());
     }
 
     /// <summary>Converts to string_coils.</summary>

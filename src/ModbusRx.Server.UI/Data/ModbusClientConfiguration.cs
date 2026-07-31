@@ -4,7 +4,7 @@
 
 using System.ComponentModel.DataAnnotations;
 
-namespace IoT.DriverCore.ModbusRx.Server.UI.Data;
+namespace IoT.Driver.ModbusRx.Server.UI.Data;
 
 /// <summary>Entity representing a Modbus client configuration.</summary>
 public sealed class ModbusClientConfiguration

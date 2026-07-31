@@ -5,12 +5,12 @@
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.Mock;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Mock;
 using TUnit.Assertions.Extensions;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.S7PlcRx.Tests;
+namespace IoT.Driver.S7PlcRx.Tests;
 
 /// <summary>Regression tests for connection readiness and watchdog behavior.</summary>
 [NotInParallel]
@@ -152,7 +152,7 @@ public sealed class S7PlcRxConnectionRegressionTests
 
         await TUnitAssert.That(cpuInfo).IsNotNull();
         await TUnitAssert.That(cpuInfo.Length).IsGreaterThanOrEqualTo(MinimumCpuInfoFieldCount);
-        await TUnitAssert.That(cpuInfo.Any(static value => !string.IsNullOrWhiteSpace(value))).IsTrue();
+        await TUnitAssert.That(Array.Exists(cpuInfo, static value => !string.IsNullOrWhiteSpace(value))).IsTrue();
         await TUnitAssert.That(cpuInfo[CpuIdentityFieldIndex]).IsNotNull();
         await TUnitAssert.That(cpuInfo[CpuIdentityFieldIndex].Trim()).IsNotEmpty();
     }
@@ -409,15 +409,15 @@ public sealed class S7PlcRxConnectionRegressionTests
         /// <param name="buffer">The frame to write.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>A task representing the asynchronous write operation.</returns>
-        private static async Task WriteFrameAsync(
+        private static Task WriteFrameAsync(
             NetworkStream stream,
             byte[] buffer,
             CancellationToken cancellationToken)
         {
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
-            await stream.WriteAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false);
+            return stream.WriteAsync(buffer.AsMemory(), cancellationToken).AsTask();
 #else
-            await stream.WriteAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
+            return stream.WriteAsync(buffer, 0, buffer.Length, cancellationToken);
 #endif
         }
 

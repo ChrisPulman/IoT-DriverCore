@@ -4,18 +4,18 @@
 
 using System.IO.Ports;
 #if REACTIVE_SHIM
-using PortRx = IoT.DriverCore.Serial.Reactive.SerialPortRx;
+using PortRx = IoT.Driver.Serial.Reactive.SerialPortRx;
 #else
-using PortRx = IoT.DriverCore.Serial.SerialPortRx;
+using PortRx = IoT.Driver.Serial.SerialPortRx;
 #endif
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -103,7 +103,9 @@ internal sealed class ReactiveSerialPortAdapter : IDisposable
     {
         ArgumentNullException.ThrowIfNull(buffer);
         _serialPort.Write(buffer, 0, buffer.Length);
-        _writes.OnNext(buffer.ToArray());
+        var copy = new byte[buffer.Length];
+        Array.Copy(buffer, copy, buffer.Length);
+        _writes.OnNext(copy);
     }
 
     /// <summary>Executes the ReadAsync operation.</summary>

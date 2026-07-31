@@ -1,6 +1,6 @@
 ---
 name: ab-plc-rx
-description: Implement, review, or troubleshoot Allen-Bradley PLC access with ABPlcRx, including libplctag registration, scanning, typed reads and writes, observables, logical tags, simulation, and generated models.
+description: Implement, review, or troubleshoot Allen-Bradley PLC access with IoT-Driver.ABPlcRx, including libplctag registration, scanning, typed reads and writes, observables, logical tags, simulation, and generated models.
 ---
 
 # ABPlcRx
@@ -13,16 +13,16 @@ Read the co-packaged `../../README.md` first. In a repository checkout use `pack
 
 ## Package choice
 
-- Use `ABPlcRx` and `IoT.DriverCore.ABPlcRx` for the ReactiveUI.Primitives surface.
-- Use `ABPlcRx.Reactive` and its `.Reactive` namespace only for the System.Reactive-oriented surface.
-- Both runtime packages embed the generator. Install `ABPlcRx.Generators` only to version the analyzer independently, and never load a duplicate generator version.
+- Use `IoT-Driver.ABPlcRx` and `IoT.Driver.ABPlcRx` for the ReactiveUI.Primitives surface.
+- Use `IoT-Driver.ABPlcRx.Reactive` and its `.Reactive` namespace only for the System.Reactive-oriented surface.
+- Runtime packages never embed the generator. Install `IoT-Driver.ABPlcRx.Generators` separately only when generated models are required.
 
 ## Connection and registration
 
 Construct `ABPlcRx` with `PlcType`, IP address, scan interval, and optional timeout/path. Choose `LGX`, `SLC`, or `PLC5` deliberately and verify the Logix route such as `"1,0"` where required.
 
 ```csharp
-using IoT.DriverCore.ABPlcRx;
+using IoT.Driver.ABPlcRx;
 
 using var plc = new ABPlcRx(
     PlcType.LGX,
@@ -64,7 +64,7 @@ Use `ScanEnabled` to control registered scans. Start with a conservative interva
 
 ## Logical tags
 
-Use `LogicalTagKey<T>` from `IoT.DriverCore.Core` to keep application names typed. The AB adapter owns libplctag addresses and conversions. Use its catalogue, access policy, CSV, SQLite, and bulk logical-tag surfaces instead of duplicating protocol logic.
+Use `LogicalTagKey<T>` from `IoT.Driver.Core` to keep application names typed. The AB adapter owns libplctag addresses and conversions. Use its catalogue, access policy, CSV, SQLite, and bulk logical-tag surfaces instead of duplicating protocol logic.
 
 ## Simulator and generated models
 

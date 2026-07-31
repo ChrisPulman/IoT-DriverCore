@@ -4,10 +4,10 @@
 #if NET8_0_OR_GREATER
 using System;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Reactive.Device;
-using ReactiveAsyncExtensions = IoT.DriverCore.ModbusRx.Reactive.ModbusAsyncObservableExtensions;
+using IoT.Driver.ModbusRx.Reactive.Device;
+using ReactiveAsyncExtensions = IoT.Driver.ModbusRx.Reactive.ModbusAsyncObservableExtensions;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Tests for async observable adapters.</summary>
 public class ReactiveAsyncObservableTests

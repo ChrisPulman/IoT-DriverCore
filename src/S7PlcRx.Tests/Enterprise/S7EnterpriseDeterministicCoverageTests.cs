@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Core;
-using IoT.DriverCore.S7PlcRx.Enterprise;
-using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Core;
+using IoT.Driver.S7PlcRx.Enterprise;
+using IoT.Driver.S7PlcRx.Enums;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Enterprise;
+namespace IoT.Driver.S7PlcRx.Tests.Enterprise;
 
 /// <summary>Provides deterministic coverage for S7 enterprise extensions.</summary>
 public sealed class S7EnterpriseDeterministicCoverageTests
@@ -77,7 +77,7 @@ public sealed class S7EnterpriseDeterministicCoverageTests
                 () => EnterpriseExtensions.CreateConnectionPool(null!, poolConfig))
             .Throws<ArgumentNullException>();
         await TUnit.Assertions.Assert.That(
-                () => EnterpriseExtensions.CreateConnectionPool(
+                static () => EnterpriseExtensions.CreateConnectionPool(
                     [new PlcConnectionConfig { PLCType = CpuType.S71500, IPAddress = "127.0.0.1", Rack = 0, Slot = 1 }],
                     null!))
             .Throws<ArgumentNullException>();

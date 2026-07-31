@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace IoT.DriverCore.OmronPlcRx.SourceGenerators;
+namespace IoT.Driver.OmronPlcRx.SourceGenerators;
 
 /// <summary>Generates PLC tag binding members for attributed fields and properties.</summary>
 [Generator]
@@ -18,15 +18,15 @@ public sealed partial class PlcTagSourceGenerator : IIncrementalGenerator
     /// <summary>Metadata names for supported PLC tag attributes.</summary>
     private static readonly string[] TagAttributeNames =
     [
-        "IoT.DriverCore.OmronPlcRx.PlcTagAttribute",
-        "IoT.DriverCore.OmronPlcRx.Reactive.PlcTagAttribute",
+        "IoT.Driver.OmronPlcRx.PlcTagAttribute",
+        "IoT.Driver.OmronPlcRx.Reactive.PlcTagAttribute",
     ];
 
     /// <summary>Metadata names for supported binding-container attributes.</summary>
     private static readonly string[] BindingAttributeNames =
     [
-        "IoT.DriverCore.OmronPlcRx.PlcTagBindingAttribute",
-        "IoT.DriverCore.OmronPlcRx.Reactive.PlcTagBindingAttribute",
+        "IoT.Driver.OmronPlcRx.PlcTagBindingAttribute",
+        "IoT.Driver.OmronPlcRx.Reactive.PlcTagBindingAttribute",
     ];
 
     /// <summary>Special types supported by the logical Omron adapter.</summary>
@@ -112,7 +112,7 @@ public sealed partial class PlcTagSourceGenerator : IIncrementalGenerator
     /// <param name="compilation">Current compilation.</param>
     /// <param name="candidates">Attributed syntax candidates.</param>
     private static void Execute(
-        SourceProductionContext context,
+        in SourceProductionContext context,
         Compilation compilation,
         ImmutableArray<SyntaxNode> candidates)
     {
@@ -129,12 +129,12 @@ public sealed partial class PlcTagSourceGenerator : IIncrementalGenerator
         {
             if (declaration is FieldDeclarationSyntax field)
             {
-                CollectFields(context, compilation, field, tagAttributes, targets);
+                CollectFields(in context, compilation, field, tagAttributes, targets);
             }
             else if (declaration is PropertyDeclarationSyntax property)
             {
                 CollectProperty(
-                    context,
+                    in context,
                     compilation,
                     property,
                     tagAttributes,
@@ -155,7 +155,7 @@ public sealed partial class PlcTagSourceGenerator : IIncrementalGenerator
     /// <param name="message">Diagnostic message format.</param>
     /// <returns>The configured diagnostic descriptor.</returns>
     private static DiagnosticDescriptor CreateRule(string id, string title, string message) =>
-        new(id, title, message, "IoT.DriverCore.OmronPlcRx.SourceGeneration", DiagnosticSeverity.Error, true);
+        new(id, title, message, "IoT.Driver.OmronPlcRx.SourceGeneration", DiagnosticSeverity.Error, true);
 
     /// <summary>Resolves available attributes by metadata name.</summary>
     /// <param name="compilation">Current compilation.</param>
@@ -184,7 +184,7 @@ public sealed partial class PlcTagSourceGenerator : IIncrementalGenerator
     /// <param name="tagAttributes">Resolved tag attributes.</param>
     /// <param name="targets">Target map to populate.</param>
     private static void CollectFields(
-        SourceProductionContext context,
+        in SourceProductionContext context,
         Compilation compilation,
         FieldDeclarationSyntax declaration,
         IReadOnlyCollection<INamedTypeSymbol> tagAttributes,
@@ -230,7 +230,7 @@ public sealed partial class PlcTagSourceGenerator : IIncrementalGenerator
     /// <param name="bindingAttributes">Resolved binding attributes.</param>
     /// <param name="targets">Target map to populate.</param>
     private static void CollectProperty(
-        SourceProductionContext context,
+        in SourceProductionContext context,
         Compilation compilation,
         PropertyDeclarationSyntax declaration,
         IReadOnlyCollection<INamedTypeSymbol> tagAttributes,
@@ -296,7 +296,7 @@ public sealed partial class PlcTagSourceGenerator : IIncrementalGenerator
 
         return
             SyntaxFacts.IsValidIdentifier(propertyName)
-            && field.ContainingType.GetMembers(propertyName).Length == 0
+            && field.ContainingType.GetMembers(propertyName).IsEmpty
                 ? null
                 : Diagnostic.Create(
                 CollisionRule,
@@ -466,7 +466,7 @@ public sealed partial class PlcTagSourceGenerator : IIncrementalGenerator
     /// <param name="attribute">PLC tag attribute.</param>
     /// <returns>The configured address.</returns>
     private static string GetAddress(AttributeData attribute) =>
-        attribute.ConstructorArguments.Length > 0
+        !attribute.ConstructorArguments.IsEmpty
             ? attribute.ConstructorArguments[0].Value as string ?? string.Empty
             : string.Empty;
 

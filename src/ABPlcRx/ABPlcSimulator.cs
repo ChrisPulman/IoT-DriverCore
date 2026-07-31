@@ -7,12 +7,12 @@ using SignalFactory = ReactiveUI.Primitives.Reactive.Signals.Signal;
 #else
 using SignalFactory = ReactiveUI.Primitives.Signals.Signal;
 #endif
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>Deterministic, in-memory Allen-Bradley controller simulator.</summary>
@@ -22,6 +22,7 @@ namespace IoT.DriverCore.ABPlcRx;
 /// its own staged handle buffer. Reads copy device memory to the handle and successful writes
 /// commit the staged buffer back to device memory.
 /// </remarks>
+[System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
 public sealed class ABPlcSimulator : IABPlcRx
 {
     /// <summary>Default ControlLogix backplane path.</summary>
@@ -133,12 +134,16 @@ public sealed class ABPlcSimulator : IABPlcRx
         set => _controller.AutoWriteValue = value;
     }
 
+    /// <summary>Gets debugger-only type information without affecting the public API.</summary>
+    [System.Diagnostics.DebuggerBrowsable(System.Diagnostics.DebuggerBrowsableState.Never)]
+    private string DebuggerDisplay => ToString() ?? GetType().Name;
+
     /// <summary>Creates a logical-tag client over this simulator.</summary>
     /// <returns>A logical-tag client that does not require physical hardware.</returns>
     public ABLogicalTagClient CreateLogicalTagClient()
     {
         ThrowIfDisposed();
-        return new ABLogicalTagClient(this);
+        return new(this);
     }
 
     /// <summary>Disconnects simulated communications with <see cref="PlcTagStatus.ErrBadConnection"/>.</summary>

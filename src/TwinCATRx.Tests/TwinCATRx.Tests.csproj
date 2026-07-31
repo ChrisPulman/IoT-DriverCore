@@ -41,7 +41,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="IoT.DriverCore.TwinCATRx" />
+    <Using Include="IoT.Driver.TwinCATRx" />
     <Using Include="ReactiveUI.Primitives" />
     <Using Include="ReactiveUI.Primitives.Async" />
     <Using Include="ReactiveUI.Primitives.Extensions" />

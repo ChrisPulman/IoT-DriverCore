@@ -2,16 +2,16 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Core.Channels;
-using IoT.DriverCore.OmronPlcRx.Core.Converters;
-using IoT.DriverCore.OmronPlcRx.Core.Requests;
-using IoT.DriverCore.OmronPlcRx.Core.Responses;
-using IoT.DriverCore.OmronPlcRx.Core.Types;
-using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Core.Channels;
+using IoT.Driver.OmronPlcRx.Core.Converters;
+using IoT.Driver.OmronPlcRx.Core.Requests;
+using IoT.Driver.OmronPlcRx.Core.Responses;
+using IoT.Driver.OmronPlcRx.Core.Types;
+using IoT.Driver.OmronPlcRx.Enums;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Tests deterministic protocol, conversion and validation paths.</summary>
 public sealed partial class CoreProtocolCoverageTests
@@ -74,17 +74,17 @@ public sealed partial class CoreProtocolCoverageTests
         var invalidInt32Input = new byte[] { 0x12, 0x34 };
         var invalidUInt32Input = new byte[] { 0x12, 0x34, 0x56 };
         var oversizedUInt32Input = new byte[] { 0x12, 0x34, 0x56, 0x78, 0x90 };
-        await Assert.That(CaptureException<ArgumentNullException>(() => BCDConverter.ToInt16(null!))).IsNotNull();
-        await Assert.That(CaptureException<ArgumentOutOfRangeException>(() => BCDConverter.ToInt16([]))).IsNotNull();
-        await Assert.That(CaptureException<ArgumentNullException>(() => BCDConverter.ToUInt16(null!))).IsNotNull();
+        await Assert.That(CaptureException<ArgumentNullException>(static () => BCDConverter.ToInt16(null!))).IsNotNull();
+        await Assert.That(CaptureException<ArgumentOutOfRangeException>(static () => BCDConverter.ToInt16([]))).IsNotNull();
+        await Assert.That(CaptureException<ArgumentNullException>(static () => BCDConverter.ToUInt16(null!))).IsNotNull();
         var invalidUInt16Exception =
             CaptureException<ArgumentOutOfRangeException>(() => BCDConverter.ToUInt16(invalidInt16Input));
         await Assert.That(invalidUInt16Exception).IsNotNull();
-        await Assert.That(CaptureException<ArgumentNullException>(() => BCDConverter.ToInt32(null!))).IsNotNull();
+        await Assert.That(CaptureException<ArgumentNullException>(static () => BCDConverter.ToInt32(null!))).IsNotNull();
         var invalidInt32Exception =
             CaptureException<ArgumentOutOfRangeException>(() => BCDConverter.ToInt32(invalidInt32Input));
         await Assert.That(invalidInt32Exception).IsNotNull();
-        await Assert.That(CaptureException<ArgumentNullException>(() => BCDConverter.ToUInt32(null!))).IsNotNull();
+        await Assert.That(CaptureException<ArgumentNullException>(static () => BCDConverter.ToUInt32(null!))).IsNotNull();
         var invalidUInt32Exception =
             CaptureException<ArgumentOutOfRangeException>(() => BCDConverter.ToUInt32(invalidUInt32Input));
         var oversizedUInt32Exception =
@@ -175,9 +175,9 @@ public sealed partial class CoreProtocolCoverageTests
         await Assert.That(PlcTagValueCodec.GetReadWordCount(typeof(double))).IsEqualTo(expectedDoubleWordCount);
         await Assert.That(PlcTagValueCodec.GetReadWordCount(typeof(string))).IsEqualTo(0);
         var bitIndexedStringException = CaptureException<NotSupportedException>(
-            () => PlcTagValueCodec.ThrowIfBitIndexedString(expectedShortWordCount));
+            static () => PlcTagValueCodec.ThrowIfBitIndexedString(expectedShortWordCount));
         var unsupportedDecimalException = CaptureException<NotSupportedException>(
-            () => PlcTagValueCodec.ConvertReadWords(typeof(decimal), [expectedShortWordCount]));
+            static () => PlcTagValueCodec.ConvertReadWords(typeof(decimal), [expectedShortWordCount]));
 
         await Assert.That(bitIndexedStringException).IsNotNull();
         await Assert.That(unsupportedDecimalException).IsNotNull();
@@ -220,7 +220,7 @@ public sealed partial class CoreProtocolCoverageTests
             [true, false, true]);
         var writeClock = WriteClockRequest.CreateNew(
             plc,
-            new DateTime(2026, 6, 30, 14, 25, 59, DateTimeKind.Utc),
+            new(2026, 6, 30, 14, 25, 59, DateTimeKind.Utc),
             weekday);
 
         await Assert.That(ToHex(readWords.BuildMessage(0x44))).IsEqualTo("800002000200000100440101820064000002");
@@ -284,7 +284,7 @@ public sealed partial class CoreProtocolCoverageTests
         await Assert.That(Convert.ToHexString(ToBigEndianBytes(extractedWords))).IsEqualTo("1234FFFE");
         await Assert.That(ToBitText(ReadMemoryAreaBitResponse.ExtractValues(readBits, bitResponse))).IsEqualTo("1,0,1");
         await Assert.That(clock.ClockDateTime).IsEqualTo(
-            new DateTime(2026, 6, 30, 14, 25, 59, DateTimeKind.Utc));
+            new(2026, 6, 30, 14, 25, 59, DateTimeKind.Utc));
         await Assert.That(clock.DayOfWeek).IsEqualTo(expectedWeekday);
         await Assert.That(cycle.AverageCycleTime).IsEqualTo(expectedAverageCycleTime);
         await Assert.That(cycle.MaximumCycleTime).IsEqualTo(expectedMaximumCycleTime);
@@ -409,7 +409,7 @@ public sealed partial class CoreProtocolCoverageTests
             [true]);
         var writeClock = WriteClockRequest.CreateNew(
             plc,
-            new DateTime(2026, 6, 30, 0, 0, 0, DateTimeKind.Utc),
+            new(2026, 6, 30, 0, 0, 0, DateTimeKind.Utc),
             weekday);
         var response = CreateResponse(writeWords, []);
 
@@ -445,9 +445,9 @@ public sealed partial class CoreProtocolCoverageTests
         await Assert.That(codec.EncodeRequest(fins)).IsEqualTo(frame);
         var decodedResponse = codec.DecodeResponse(responseFrame).ToArray();
         await Assert.That(Convert.ToHexString(decodedResponse)).IsEqualTo(Convert.ToHexString(fins));
-        await Assert.That(CaptureException<ArgumentNullException>(() => _ = CreateHostLinkCodec(null!))).IsNotNull();
+        await Assert.That(CaptureException<ArgumentNullException>(static () => _ = CreateHostLinkCodec(null!))).IsNotNull();
         var nullFcsException = CaptureException<ArgumentNullException>(
-            () => HostLinkFinsFrameCodec.CalculateFcs(null!));
+            static () => HostLinkFinsFrameCodec.CalculateFcs(null!));
         await Assert.That(nullFcsException).IsNotNull();
         await Assert.That(CaptureException<ArgumentException>(() => codec.EncodeRequest(new byte[11]))).IsNotNull();
         await Assert.That(CaptureException<ArgumentNullException>(() => codec.DecodeResponse(null!))).IsNotNull();
@@ -489,7 +489,7 @@ public sealed partial class CoreProtocolCoverageTests
         const int validDestinationNode = 2;
         const int nodeIdentifierMaximum = 255;
 
-        await Assert.That(CaptureException<ArgumentException>(() => _ = CreateSerialOptions(" "))).IsNotNull();
+        await Assert.That(CaptureException<ArgumentException>(static () => _ = CreateSerialOptions(" "))).IsNotNull();
         var invalidProtocolOptions = new OmronSerialOptions("COM1")
         {
             Protocol = (OmronSerialProtocol)invalidProtocolValue,
@@ -505,7 +505,7 @@ public sealed partial class CoreProtocolCoverageTests
         var invalidResponseWaitException = CaptureException<ArgumentOutOfRangeException>(
             invalidResponseWaitOptions.Validate);
         var invalidBaudRateException = CaptureException<ArgumentOutOfRangeException>(
-            () => new OmronSerialOptions("COM1") { BaudRate = 0 }.Validate());
+            static () => new OmronSerialOptions("COM1") { BaudRate = 0 }.Validate());
         var invalidLowDataBitsException = CaptureException<ArgumentOutOfRangeException>(
             invalidLowDataBitsOptions.Validate);
         var invalidHighDataBitsException = CaptureException<ArgumentOutOfRangeException>(
@@ -513,19 +513,19 @@ public sealed partial class CoreProtocolCoverageTests
         var invalidFrameLengthException = CaptureException<ArgumentOutOfRangeException>(
             invalidFrameLengthOptions.Validate);
         var missingSourceNodeException = CaptureException<ArgumentOutOfRangeException>(
-            () => OmronPLCConnectionMetadata.ValidateNodeIdentifiers(0, validDestinationNode, ConnectionMethod.UDP));
+            static () => OmronPLCConnectionMetadata.ValidateNodeIdentifiers(0, validDestinationNode, ConnectionMethod.UDP));
         var missingDestinationNodeException = CaptureException<ArgumentOutOfRangeException>(
-            () => OmronPLCConnectionMetadata.ValidateNodeIdentifiers(1, 0, ConnectionMethod.UDP));
+            static () => OmronPLCConnectionMetadata.ValidateNodeIdentifiers(1, 0, ConnectionMethod.UDP));
         var oversizedNodeException = CaptureException<ArgumentOutOfRangeException>(
-            () => OmronPLCConnectionMetadata.ValidateNodeIdentifiers(1, nodeIdentifierMaximum, ConnectionMethod.UDP));
+            static () => OmronPLCConnectionMetadata.ValidateNodeIdentifiers(1, nodeIdentifierMaximum, ConnectionMethod.UDP));
         var equalNodeException = CaptureException<ArgumentException>(
-            () => OmronPLCConnectionMetadata.ValidateNodeIdentifiers(1, 1, ConnectionMethod.UDP));
+            static () => OmronPLCConnectionMetadata.ValidateNodeIdentifiers(1, 1, ConnectionMethod.UDP));
         var nullRemoteHostException = CaptureException<ArgumentNullException>(
-            () => OmronPLCConnectionMetadata.ValidateRemoteHost(null!));
+            static () => OmronPLCConnectionMetadata.ValidateRemoteHost(null!));
         var emptyRemoteHostException = CaptureException<ArgumentException>(
-            () => OmronPLCConnectionMetadata.ValidateRemoteHost(string.Empty));
+            static () => OmronPLCConnectionMetadata.ValidateRemoteHost(string.Empty));
         var invalidUdpPortException = CaptureException<ArgumentOutOfRangeException>(
-            () => OmronPLCConnectionMetadata.ValidatePort(ConnectionMethod.UDP, 0));
+            static () => OmronPLCConnectionMetadata.ValidatePort(ConnectionMethod.UDP, 0));
 
         await Assert.That(invalidResponseWaitException).IsNotNull();
         await Assert.That(invalidBaudRateException).IsNotNull();

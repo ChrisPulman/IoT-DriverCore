@@ -5,9 +5,9 @@
 using TimeSpan = System.TimeSpan;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Core;
+namespace IoT.Driver.S7PlcRx.Reactive.Core;
 #else
-namespace IoT.DriverCore.S7PlcRx.Core;
+namespace IoT.Driver.S7PlcRx.Core;
 #endif
 
 /// <summary>
@@ -41,16 +41,16 @@ internal class ConnectionMetrics
     private long _operationCount;
 
     /// <summary>Gets the total number of bytes sent over the connection.</summary>
-    internal long BytesSent => _bytesSent;
+    internal long BytesSent => Volatile.Read(ref _bytesSent);
 
     /// <summary>Gets the total number of bytes received.</summary>
-    internal long BytesReceived => _bytesReceived;
+    internal long BytesReceived => Volatile.Read(ref _bytesReceived);
 
     /// <summary>Gets the total number of errors that have occurred.</summary>
-    internal long ErrorCount => _errorCount;
+    internal long ErrorCount => Volatile.Read(ref _errorCount);
 
     /// <summary>Gets the total number of operations that have been performed.</summary>
-    internal long OperationCount => _operationCount;
+    internal long OperationCount => Volatile.Read(ref _operationCount);
 
     /// <summary>Gets the average time taken to send messages.</summary>
     /// <remarks>Returns a value of TimeSpan.Zero if no send operations have been recorded.</remarks>
@@ -60,9 +60,7 @@ internal class ConnectionMetrics
         {
             lock (_lock)
             {
-                return _sendTimes.Count > 0
-                    ? TimeSpan.FromTicks((long)_sendTimes.Average(t => t.Ticks))
-                    : TimeSpan.Zero;
+                return GetAverageTime(_sendTimes);
             }
         }
     }
@@ -75,9 +73,7 @@ internal class ConnectionMetrics
         {
             lock (_lock)
             {
-                return _receiveTimes.Count > 0
-                    ? TimeSpan.FromTicks((long)_receiveTimes.Average(t => t.Ticks))
-                    : TimeSpan.Zero;
+                return GetAverageTime(_receiveTimes);
             }
         }
     }
@@ -144,13 +140,11 @@ internal class ConnectionMetrics
     /// returned object is independent of future changes to the original metrics.</returns>
     internal ConnectionMetrics GetSnapshot()
     {
-        var snapshot = new ConnectionMetrics
-        {
-            _bytesSent = BytesSent,
-            _bytesReceived = BytesReceived,
-            _errorCount = ErrorCount,
-            _operationCount = OperationCount,
-        };
+        var snapshot = new ConnectionMetrics();
+        Volatile.Write(ref snapshot._bytesSent, BytesSent);
+        Volatile.Write(ref snapshot._bytesReceived, BytesReceived);
+        Volatile.Write(ref snapshot._errorCount, ErrorCount);
+        Volatile.Write(ref snapshot._operationCount, OperationCount);
 
         lock (_lock)
         {
@@ -166,5 +160,21 @@ internal class ConnectionMetrics
         }
 
         return snapshot;
+    }
+
+    /// <summary>Calculates the average duration in a timing queue.</summary>
+    /// <param name="times">The durations to average.</param>
+    /// <returns>The average duration, or <see cref="TimeSpan.Zero"/> when no durations are supplied.</returns>
+    private static TimeSpan GetAverageTime(IEnumerable<TimeSpan> times)
+    {
+        long ticks = 0;
+        var count = 0;
+        foreach (var time in times)
+        {
+            ticks += time.Ticks;
+            count++;
+        }
+
+        return count == 0 ? TimeSpan.Zero : TimeSpan.FromTicks(ticks / count);
     }
 }

@@ -43,7 +43,7 @@
     <Using Include="ReactiveUI.Primitives.Reactive" />
     <Using Include="ReactiveUI.Primitives.Async.Reactive" />
     <Using Include="ReactiveUI.Primitives.Reactive.Signals.Signal" Alias="Observable" />
-    <Using Include="IoT.DriverCore.ModbusRx.UnitTests.Testing.Assert" Alias="Assert" />
+    <Using Include="IoT.Driver.ModbusRx.UnitTests.Testing.Assert" Alias="Assert" />
     <Using Include="TUnit.Assertions.Extensions" />
   </ItemGroup>
 

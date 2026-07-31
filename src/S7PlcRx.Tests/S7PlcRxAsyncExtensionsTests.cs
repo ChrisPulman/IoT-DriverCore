@@ -3,11 +3,11 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Buffers.Binary;
-using IoT.DriverCore.S7PlcRx.Advanced;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.Mock;
+using IoT.Driver.S7PlcRx.Advanced;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Mock;
 
-namespace IoT.DriverCore.S7PlcRx.Tests;
+namespace IoT.Driver.S7PlcRx.Tests;
 
 /// <summary>Tests the async extension surface added on top of <see cref="IRxS7"/>.</summary>
 [NotInParallel]
@@ -120,25 +120,26 @@ public class S7PlcRxAsyncExtensionsTests
     {
         _ = DebuggerDisplay;
         using var plc = new TestPlc();
-        plc.TagList.Add(new Tag("Cached", DatabaseWordZeroAddress, typeof(ushort)) { Value = CachedValue });
+        plc.TagList.Add(new("Cached", DatabaseWordZeroAddress, typeof(ushort)) { Value = CachedValue });
 
         var valueTask = AsyncExtensions.ReadValueAsync(plc, CachedValue, "Cached", CancellationToken.None);
 
-        Assert.That(valueTask.IsCompleted, Is.True);
-        Assert.That(await valueTask.AsTask().ConfigureAwait(false), Is.EqualTo(CachedValue));
-        Assert.That(plc.SyncReadCount, Is.EqualTo(NoReads));
+        await Assert.That(valueTask.IsCompleted, Is.True);
+        await Assert.That(await valueTask.AsTask().ConfigureAwait(false), Is.EqualTo(CachedValue));
+        await Assert.That(plc.SyncReadCount, Is.EqualTo(NoReads));
     }
 
     /// <summary>Verifies canceled reads surface an operation canceled exception.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
-    public void ReadValueAsync_WhenCanceled_ThrowsOperationCanceledException()
+    public async Task ReadValueAsync_WhenCanceled_ThrowsOperationCanceledException()
     {
         _ = DebuggerDisplay;
         using var plc = new TestPlc();
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await AsyncCompatibility.CancelAsync(cts);
 
-        Assert.That(
+        await Assert.That(
             async () => await AsyncExtensions.ReadValueAsync(plc, CachedValue, "Canceled", cts.Token)
                 .AsTask()
                 .ConfigureAwait(false),
@@ -158,8 +159,8 @@ public class S7PlcRxAsyncExtensionsTests
             .AsTask()
             .ConfigureAwait(false);
 
-        Assert.That(value, Is.EqualTo(LiveValue));
-        Assert.That(plc.SyncReadCount, Is.EqualTo(OneRead));
+        await Assert.That(value, Is.EqualTo(LiveValue));
+        await Assert.That(plc.SyncReadCount, Is.EqualTo(OneRead));
     }
 
     /// <summary>Verifies empty batch reads return an empty dictionary.</summary>
@@ -174,7 +175,7 @@ public class S7PlcRxAsyncExtensionsTests
             .AsTask()
             .ConfigureAwait(false);
 
-        Assert.That(values, Is.EmptyValue);
+        await Assert.That(values, Is.EmptyValue);
     }
 
     /// <summary>Verifies cached batch reads complete synchronously.</summary>
@@ -184,8 +185,8 @@ public class S7PlcRxAsyncExtensionsTests
     {
         _ = DebuggerDisplay;
         using var plc = new TestPlc();
-        plc.TagList.Add(new Tag("A", DatabaseWordZeroAddress, typeof(ushort)) { Value = FirstCachedBatchValue });
-        plc.TagList.Add(new Tag("B", DatabaseWordTwoAddress, typeof(ushort)) { Value = SecondCachedBatchValue });
+        plc.TagList.Add(new("A", DatabaseWordZeroAddress, typeof(ushort)) { Value = FirstCachedBatchValue });
+        plc.TagList.Add(new("B", DatabaseWordTwoAddress, typeof(ushort)) { Value = SecondCachedBatchValue });
 
         var valueTask = AsyncExtensions.ReadValuesAsync(
             plc,
@@ -194,10 +195,10 @@ public class S7PlcRxAsyncExtensionsTests
             CancellationToken.None);
         var values = await valueTask.AsTask().ConfigureAwait(false);
 
-        Assert.That(valueTask.IsCompleted, Is.True);
-        Assert.That(values["A"], Is.EqualTo(FirstCachedBatchValue));
-        Assert.That(values["B"], Is.EqualTo(SecondCachedBatchValue));
-        Assert.That(plc.SyncReadCount, Is.EqualTo(NoReads));
+        await Assert.That(valueTask.IsCompleted, Is.True);
+        await Assert.That(values["A"], Is.EqualTo(FirstCachedBatchValue));
+        await Assert.That(values["B"], Is.EqualTo(SecondCachedBatchValue));
+        await Assert.That(plc.SyncReadCount, Is.EqualTo(NoReads));
     }
 
     /// <summary>Verifies cancellable batch reads use the async read path.</summary>
@@ -215,9 +216,9 @@ public class S7PlcRxAsyncExtensionsTests
             .AsTask()
             .ConfigureAwait(false);
 
-        Assert.That(values["A"], Is.EqualTo(FirstAsyncBatchValue));
-        Assert.That(values["B"], Is.EqualTo(SecondAsyncBatchValue));
-        Assert.That(plc.AsyncReadCount, Is.EqualTo(TwoReads));
+        await Assert.That(values["A"], Is.EqualTo(FirstAsyncBatchValue));
+        await Assert.That(values["B"], Is.EqualTo(SecondAsyncBatchValue));
+        await Assert.That(plc.AsyncReadCount, Is.EqualTo(TwoReads));
     }
 
     /// <summary>Verifies deferred async batch reads are awaited to completion.</summary>
@@ -247,12 +248,12 @@ public class S7PlcRxAsyncExtensionsTests
         using var cts = new CancellationTokenSource();
         var valueTask = AsyncExtensions.ReadValuesAsync(plc, CachedValue, ["A"], cts.Token);
 
-        Assert.That(valueTask.IsCompleted, Is.False);
+        await Assert.That(valueTask.IsCompleted, Is.False);
 
         _ = completion.TrySetResult(DeferredBatchValue);
         var values = await valueTask.AsTask().ConfigureAwait(false);
 
-        Assert.That(values["A"], Is.EqualTo(DeferredBatchValue));
+        await Assert.That(values["A"], Is.EqualTo(DeferredBatchValue));
     }
 
     /// <summary>Verifies the optimized RxS7 multi-variable read path is used when available.</summary>
@@ -262,7 +263,7 @@ public class S7PlcRxAsyncExtensionsTests
     {
         _ = DebuggerDisplay;
         using var server = new MockServer { DefaultDb1Size = DatabaseSize };
-        Assert.That(server.Start(), Is.EqualTo(NoReads));
+        await Assert.That(server.Start(), Is.EqualTo(NoReads));
 
         BinaryPrimitives.WriteUInt16BigEndian(
             server.DefaultDb1!.AsSpan(InitialDatabaseOffset, sizeof(ushort)),
@@ -276,7 +277,7 @@ public class S7PlcRxAsyncExtensionsTests
         _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "B", DatabaseWordTwoAddress).SetPolling(false);
 
         await plc.IsConnected
-            .Where(connected => connected)
+            .Where(static connected => connected)
             .Timeout(TimeSpan.FromSeconds(ConnectionTimeoutSeconds))
             .FirstAsync()
             .ConfigureAwait(false);
@@ -284,8 +285,8 @@ public class S7PlcRxAsyncExtensionsTests
             .AsTask()
             .ConfigureAwait(false);
 
-        Assert.That(values["A"], Is.EqualTo(FirstServerValue));
-        Assert.That(values["B"], Is.EqualTo(SecondServerValue));
+        await Assert.That(values["A"], Is.EqualTo(FirstServerValue));
+        await Assert.That(values["B"], Is.EqualTo(SecondServerValue));
     }
 
     /// <summary>Verifies cached values with incorrect runtime types fall back to a read.</summary>
@@ -295,25 +296,26 @@ public class S7PlcRxAsyncExtensionsTests
     {
         _ = DebuggerDisplay;
         using var plc = new TestPlc();
-        plc.TagList.Add(new Tag("A", DatabaseWordZeroAddress, typeof(ushort)) { Value = IncorrectRuntimeValue });
+        plc.TagList.Add(new("A", DatabaseWordZeroAddress, typeof(ushort)) { Value = IncorrectRuntimeValue });
         plc.SetSyncValue("A", FallbackReadValue);
 
         var value = await AsyncExtensions.ReadValueAsync(plc, CachedValue, "A", CancellationToken.None)
             .AsTask()
             .ConfigureAwait(false);
 
-        Assert.That(value, Is.EqualTo(FallbackReadValue));
-        Assert.That(plc.SyncReadCount, Is.EqualTo(OneRead));
+        await Assert.That(value, Is.EqualTo(FallbackReadValue));
+        await Assert.That(plc.SyncReadCount, Is.EqualTo(OneRead));
     }
 
     /// <summary>Verifies blank variable names are rejected.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
-    public void ReadValuesAsync_WhenVariableNameIsBlank_ThrowsArgumentNullException()
+    public async Task ReadValuesAsync_WhenVariableNameIsBlank_ThrowsArgumentNullException()
     {
         _ = DebuggerDisplay;
         using var plc = new TestPlc();
 
-        Assert.That(
+        await Assert.That(
             async () => await AsyncExtensions.ReadValuesAsync(plc, CachedValue, [string.Empty], CancellationToken.None)
                 .AsTask()
                 .ConfigureAwait(false),
@@ -336,21 +338,22 @@ public class S7PlcRxAsyncExtensionsTests
         var valueTask = AsyncExtensions.WriteValuesAsync(plc, values, CancellationToken.None);
         await valueTask.AsTask().ConfigureAwait(false);
 
-        Assert.That(valueTask.IsCompleted, Is.True);
-        Assert.That(plc.WrittenValues["A"], Is.EqualTo(FirstWriteValue));
-        Assert.That(plc.WrittenValues["B"], Is.EqualTo(SecondWriteValue));
+        await Assert.That(valueTask.IsCompleted, Is.True);
+        await Assert.That(plc.WrittenValues["A"], Is.EqualTo(FirstWriteValue));
+        await Assert.That(plc.WrittenValues["B"], Is.EqualTo(SecondWriteValue));
     }
 
     /// <summary>Verifies canceled writes stop before dispatch.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
-    public void WriteValuesAsync_WhenCanceled_ThrowsOperationCanceledException()
+    public async Task WriteValuesAsync_WhenCanceled_ThrowsOperationCanceledException()
     {
         _ = DebuggerDisplay;
         using var plc = new TestPlc();
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await AsyncCompatibility.CancelAsync(cts);
 
-        Assert.That(
+        await Assert.That(
             async () => await AsyncExtensions.WriteValuesAsync(
                     plc,
                     new Dictionary<string, ushort> { ["A"] = FirstWriteValue },
@@ -367,14 +370,14 @@ public class S7PlcRxAsyncExtensionsTests
     {
         _ = DebuggerDisplay;
         using var server = new MockServer { DefaultDb1Size = DatabaseSize };
-        Assert.That(server.Start(), Is.EqualTo(NoReads));
+        await Assert.That(server.Start(), Is.EqualTo(NoReads));
 
         using var plc = new RxS7(new(new(CpuType.S71500, MockServer.Localhost, RackNumber, SlotNumber)));
         _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "A", DatabaseWordZeroAddress).SetPolling(false);
         _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "B", DatabaseWordTwoAddress).SetPolling(false);
 
         await plc.IsConnected
-            .Where(connected => connected)
+            .Where(static connected => connected)
             .Timeout(TimeSpan.FromSeconds(ConnectionTimeoutSeconds))
             .FirstAsync()
             .ConfigureAwait(false);
@@ -390,11 +393,11 @@ public class S7PlcRxAsyncExtensionsTests
             .ConfigureAwait(false);
         await Task.Delay(WritePropagationDelayMilliseconds).ConfigureAwait(false);
 
-        Assert.That(
+        await Assert.That(
             BinaryPrimitives.ReadUInt16BigEndian(
                 server.DefaultDb1!.AsSpan(InitialDatabaseOffset, sizeof(ushort))),
             Is.EqualTo(FirstServerWriteValue));
-        Assert.That(
+        await Assert.That(
             BinaryPrimitives.ReadUInt16BigEndian(server.DefaultDb1.AsSpan(sizeof(ushort), sizeof(ushort))),
             Is.EqualTo(SecondServerWriteValue));
     }
@@ -406,11 +409,11 @@ public class S7PlcRxAsyncExtensionsTests
     {
         _ = DebuggerDisplay;
         using var plc = new TestPlc();
-        plc.TagList.Add(new Tag("A", DatabaseWordZeroAddress, typeof(ushort)) { Value = ValueBatchReadValue });
+        plc.TagList.Add(new("A", DatabaseWordZeroAddress, typeof(ushort)) { Value = ValueBatchReadValue });
 
         var values = await AdvancedExtensions.ValueBatchAsync(plc, CachedValue, "A").ConfigureAwait(false);
 
-        Assert.That(values["A"], Is.EqualTo(ValueBatchReadValue));
+        await Assert.That(values["A"], Is.EqualTo(ValueBatchReadValue));
     }
 
     /// <summary>Verifies the existing batch write helper routes through the async write extensions.</summary>
@@ -426,7 +429,7 @@ public class S7PlcRxAsyncExtensionsTests
                 new Dictionary<string, ushort> { ["A"] = ValueBatchWriteValue })
             .ConfigureAwait(false);
 
-        Assert.That(plc.WrittenValues["A"], Is.EqualTo(ValueBatchWriteValue));
+        await Assert.That(plc.WrittenValues["A"], Is.EqualTo(ValueBatchWriteValue));
     }
 
 #if NET8_0_OR_GREATER
@@ -437,7 +440,7 @@ public class S7PlcRxAsyncExtensionsTests
     {
         _ = DebuggerDisplay;
         using var plc = new TestPlc();
-        plc.TagList.Add(new Tag("A", DatabaseWordZeroAddress, typeof(ushort)));
+        plc.TagList.Add(new("A", DatabaseWordZeroAddress, typeof(ushort)));
 
         var completion = new TaskCompletionSource<ushort>(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var observer = new DelegatingObserverAsync<ushort>((value, cancellationToken) =>
@@ -458,17 +461,18 @@ public class S7PlcRxAsyncExtensionsTests
 
         var result = await completion.Task.WaitAsync(ObservableTimeout).ConfigureAwait(false);
 
-        Assert.That(result, Is.EqualTo(ObservedValue));
+        await Assert.That(result, Is.EqualTo(ObservedValue));
     }
 
     /// <summary>Verifies async observable single-value wrappers reject blank variable names.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
-    public void ObserveValue_WhenVariableBlank_ThrowsArgumentNullException()
+    public async Task ObserveValue_WhenVariableBlank_ThrowsArgumentNullException()
     {
         _ = DebuggerDisplay;
         using var plc = new TestPlc();
 
-        _ = Assert.Throws<ArgumentNullException>(
+        _ = await Assert.Throws<ArgumentNullException>(
             () => _ = AsyncExtensions.ObserveValue(plc, CachedValue, string.Empty));
     }
 
@@ -479,7 +483,7 @@ public class S7PlcRxAsyncExtensionsTests
     {
         _ = DebuggerDisplay;
         using var plc = new TestPlc();
-        plc.TagList.Add(new Tag("A", DatabaseWordZeroAddress, typeof(ushort)));
+        plc.TagList.Add(new("A", DatabaseWordZeroAddress, typeof(ushort)));
 
         var completion = new TaskCompletionSource<Dictionary<string, ushort>>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -502,27 +506,29 @@ public class S7PlcRxAsyncExtensionsTests
 
         var values = await completion.Task.WaitAsync(ObservableTimeout).ConfigureAwait(false);
 
-        Assert.That(values["A"], Is.EqualTo(ObservedBatchValue));
+        await Assert.That(values["A"], Is.EqualTo(ObservedBatchValue));
     }
 
     /// <summary>Verifies async observable batch wrappers reject empty variable lists.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
-    public void ObserveValues_WhenVariablesEmpty_ThrowsArgumentException()
+    public async Task ObserveValues_WhenVariablesEmpty_ThrowsArgumentException()
     {
         _ = DebuggerDisplay;
         using var plc = new TestPlc();
 
-        _ = Assert.Throws<ArgumentException>(() => _ = AsyncExtensions.ObserveValues(plc, CachedValue));
+        _ = await Assert.Throws<ArgumentException>(() => _ = AsyncExtensions.ObserveValues(plc, CachedValue));
     }
 
     /// <summary>Verifies async observable batch wrappers reject null variable arrays.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
-    public void ObserveValues_WhenVariablesNull_ThrowsArgumentNullException()
+    public async Task ObserveValues_WhenVariablesNull_ThrowsArgumentNullException()
     {
         _ = DebuggerDisplay;
         using var plc = new TestPlc();
 
-        _ = Assert.Throws<ArgumentNullException>(
+        _ = await Assert.Throws<ArgumentNullException>(
             () => _ = AsyncExtensions.ObserveValues(plc, CachedValue, null!));
     }
 
@@ -623,7 +629,7 @@ public class S7PlcRxAsyncExtensionsTests
         public IObservable<string> Status => Observable.Empty<string>();
 
         /// <summary>Gets the tags registered with the test PLC.</summary>
-        public global::IoT.DriverCore.S7PlcRx.Tags TagList { get; } = [];
+        public global::IoT.Driver.S7PlcRx.Tags TagList { get; } = [];
 
         /// <summary>Gets or sets a value indicating whether watchdog writes are shown.</summary>
         public bool ShowWatchDogWriting { get; set; }
@@ -658,8 +664,8 @@ public class S7PlcRxAsyncExtensionsTests
         public IObservable<T?> Observe<T>(LogicalTagKey<T> tag) => ObserveAllSubject
             .Where(observedTag =>
                 string.Equals(observedTag?.Name, tag.Name, StringComparison.InvariantCultureIgnoreCase))
-            .Where(observedTag => observedTag?.Value is T)
-            .Select(observedTag => (T?)observedTag!.Value);
+            .Where(static observedTag => observedTag?.Value is T)
+            .Select(static observedTag => (T?)observedTag!.Value);
 
         /// <summary>Reads a value using the typed logical tag overload.</summary>
         /// <typeparam name="T">The expected value type.</typeparam>

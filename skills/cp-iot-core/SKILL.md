@@ -1,9 +1,9 @@
 ---
 name: cp-iot-core
-description: Design, implement, review, or test protocol-neutral logical-tag workflows with CP.IoT.Core, including catalogues, typed keys, operation results, observation, persistence, batching, and simulation.
+description: Design, implement, review, or test protocol-neutral logical-tag workflows with IoT-Driver.Core, including catalogues, typed keys, operation results, observation, persistence, batching, and simulation.
 ---
 
-# CP.IoT.Core
+# IoT-Driver.Core
 
 ## Use this skill when
 
@@ -13,8 +13,8 @@ Read the co-packaged `../../README.md` for examples. In a repository checkout, u
 
 ## Package and namespace
 
-- Install `CP.IoT.Core`.
-- Import `IoT.DriverCore.Core`.
+- Install `IoT-Driver.Core`.
+- Import `IoT.Driver.Core`.
 - Protocol runtime packages reference these contracts and expose or compose `ILogicalTagClient`.
 - Keep protocol address parsing, byte order, conversion, and transport retries in the protocol adapter.
 
@@ -27,7 +27,7 @@ Use `LogicalTagOptions` for `GroupName`, `Description`, `Metadata`, `AccessMode`
 Use `LogicalTagKey<T>` whenever the application knows the expected CLR type:
 
 ```csharp
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 var definition = new LogicalTag(
     "Line.Speed",

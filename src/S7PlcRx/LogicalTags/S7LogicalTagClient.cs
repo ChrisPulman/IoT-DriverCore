@@ -2,16 +2,16 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Binding;
+using IoT.Driver.S7PlcRx.Reactive.Binding;
 
-namespace IoT.DriverCore.S7PlcRx.Reactive.LogicalTags;
+namespace IoT.Driver.S7PlcRx.Reactive.LogicalTags;
 
 #else
-using IoT.DriverCore.S7PlcRx.Binding;
+using IoT.Driver.S7PlcRx.Binding;
 
-namespace IoT.DriverCore.S7PlcRx.LogicalTags;
+namespace IoT.Driver.S7PlcRx.LogicalTags;
 
 #endif
 
@@ -462,12 +462,16 @@ public sealed partial class S7LogicalTagClient : IManagedLogicalTagClient, IDisp
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        if (tagNames is null)
+        Guard.NotNull(tagNames, nameof(tagNames));
+
+        var names = new string[tagNames.Count];
+        var nameIndex = 0;
+        foreach (var tagName in tagNames)
         {
-            throw new ArgumentNullException(nameof(tagNames));
+            names[nameIndex] = tagName;
+            nameIndex++;
         }
 
-        var names = tagNames.ToArray();
         var results = new TagOperationResult<LogicalTagValue>[names.Length];
         var pending = CreatePendingReads(names, results);
 
@@ -484,10 +488,7 @@ public sealed partial class S7LogicalTagClient : IManagedLogicalTagClient, IDisp
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        if (value is null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
+        Guard.NotNull(value, nameof(value));
 
         if (
             !TryGetTag(
@@ -540,12 +541,16 @@ public sealed partial class S7LogicalTagClient : IManagedLogicalTagClient, IDisp
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        if (values is null)
+        Guard.NotNull(values, nameof(values));
+
+        var materialized = new LogicalTagValue[values.Count];
+        var valueIndex = 0;
+        foreach (var value in values)
         {
-            throw new ArgumentNullException(nameof(values));
+            materialized[valueIndex] = value;
+            valueIndex++;
         }
 
-        var materialized = values.ToArray();
         var results = new TagOperationResult<LogicalTagValue>[materialized.Length];
         var pending = CreatePendingWrites(materialized, results, nameof(values));
 
@@ -563,14 +568,14 @@ public sealed partial class S7LogicalTagClient : IManagedLogicalTagClient, IDisp
     public IObservable<LogicalTagValue> ObserveMany(IReadOnlyCollection<string> tagNames)
     {
         ThrowIfDisposed();
-        if (tagNames is null)
+        Guard.NotNull(tagNames, nameof(tagNames));
+
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var tagName in tagNames)
         {
-            throw new ArgumentNullException(nameof(tagNames));
+            _ = names.Add(Required(tagName, nameof(tagNames)));
         }
 
-        var names = new HashSet<string>(
-            tagNames.Select(name => Required(name, nameof(tagNames))),
-            StringComparer.Ordinal);
         foreach (var name in names)
         {
             if (!Catalog.TryGet(name, out var tag) || tag!.AccessMode == LogicalTagAccessMode.Write)

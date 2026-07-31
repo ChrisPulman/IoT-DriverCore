@@ -3,10 +3,10 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Binding;
+namespace IoT.Driver.S7PlcRx.Reactive.Binding;
 
 #else
-namespace IoT.DriverCore.S7PlcRx.Binding;
+namespace IoT.Driver.S7PlcRx.Binding;
 
 #endif
 
@@ -29,10 +29,7 @@ public sealed class S7TagValueObservable<T> : IObservable<T>
     /// <inheritdoc />
     public IDisposable Subscribe(IObserver<T> observer)
     {
-        if (observer is null)
-        {
-            throw new ArgumentNullException(nameof(observer));
-        }
+        Guard.NotNull(observer, nameof(observer));
 
         T? value;
         bool hasValue;

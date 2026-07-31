@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.ABPlcRx.Tests;
+namespace IoT.Driver.ABPlcRx.Tests;
 
 /// <summary>Provides deterministic test operations across the declared test target frameworks.</summary>
 internal static class TestCompatibility

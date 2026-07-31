@@ -5,14 +5,14 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Core.Channels;
-using IoT.DriverCore.OmronPlcRx.Core.Requests;
-using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Core.Channels;
+using IoT.Driver.OmronPlcRx.Core.Requests;
+using IoT.Driver.OmronPlcRx.Enums;
 using TUnit.Core;
 using NetUdpClient = System.Net.Sockets.UdpClient;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Exercises FINS TCP and UDP channels against deterministic loopback PLC peers.</summary>
 public sealed class OmronTransportLoopbackTests
@@ -106,6 +106,9 @@ public sealed class OmronTransportLoopbackTests
 
     /// <summary>Gets the shift for the third byte of a 32-bit integer.</summary>
     private const int ThirdByteShift = 8;
+
+    /// <summary>Gets the surplus TCP bytes appended after a valid FINS response.</summary>
+    private static readonly byte[] SurplusTcpBytes = [LocalNode, RemoteNode, ReservedErrorCode];
 
     /// <summary>Verifies TCP negotiation and FINS request framing over a real loopback socket.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
@@ -636,7 +639,7 @@ public sealed class OmronTransportLoopbackTests
                 FinsFrameCommand,
                 CreateFinsResponse(fins.Payload)));
         await stream.WriteAsync(
-            new byte[] { LocalNode, RemoteNode, ReservedErrorCode },
+            SurplusTcpBytes,
             CancellationToken.None);
         await stream.FlushAsync(CancellationToken.None);
         await Task.Delay(PeerHoldMilliseconds);

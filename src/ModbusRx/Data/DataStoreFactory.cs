@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Data;
+namespace IoT.Driver.ModbusRx.Reactive.Data;
 #else
-namespace IoT.DriverCore.ModbusRx.Data;
+namespace IoT.Driver.ModbusRx.Data;
 #endif
 
 /// <summary>Data story factory.</summary>
@@ -33,7 +33,7 @@ public static class DataStoreFactory
         var holdingRegs = new ushort[holdingRegistersCount];
         var inputRegs = new ushort[inputRegistersCount];
 
-        return new DataStore(coils, inputs, holdingRegs, inputRegs);
+        return new(coils, inputs, holdingRegs, inputRegs);
     }
 
     /// <summary>Factory method for test data store.</summary>

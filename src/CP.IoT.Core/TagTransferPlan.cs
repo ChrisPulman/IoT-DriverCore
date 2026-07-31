@@ -4,7 +4,7 @@
 
 using System.Collections.ObjectModel;
 
-namespace IoT.DriverCore.Core;
+namespace IoT.Driver.Core;
 
 /// <summary>Contains a deterministic set of coalesced transport ranges.</summary>
 public sealed class TagTransferPlan
@@ -15,7 +15,13 @@ public sealed class TagTransferPlan
     internal TagTransferPlan(int inputCount, IReadOnlyList<TagTransferRange> ranges)
     {
         InputCount = inputCount;
-        Ranges = new ReadOnlyCollection<TagTransferRange>(ranges.ToArray());
+        var copiedRanges = new TagTransferRange[ranges.Count];
+        for (var index = 0; index < copiedRanges.Length; index++)
+        {
+            copiedRanges[index] = ranges[index];
+        }
+
+        Ranges = new ReadOnlyCollection<TagTransferRange>(copiedRanges);
     }
 
     /// <summary>Gets the number of source requests used to create this plan.</summary>

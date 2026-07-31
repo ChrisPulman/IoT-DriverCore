@@ -6,9 +6,9 @@ using System.Collections;
 using System.Reflection;
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>Helper Tag.</summary>
@@ -41,10 +41,7 @@ public static class TagHelper
 #if NET8_0_OR_GREATER
         ArgumentExceptionHelper.ThrowIfNull(tag, nameof(tag));
 #else
-        if (tag is null)
-        {
-            throw new ArgumentNullException(nameof(tag));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(tag, nameof(tag));
 #endif
 
         return TagMixins.ScaleLinear(tag, minRaw, maxRaw, minScale, maxScale);
@@ -62,10 +59,7 @@ public static class TagHelper
 #if NET8_0_OR_GREATER
         ArgumentExceptionHelper.ThrowIfNull(tag, nameof(tag));
 #else
-        if (tag is null)
-        {
-            throw new ArgumentNullException(nameof(tag));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(tag, nameof(tag));
 #endif
 
         return TagMixins.ScaleSquareRoot(tag, minRaw, maxRaw, minScale, maxScale);
@@ -84,10 +78,7 @@ public static class TagHelper
 #if NET8_0_OR_GREATER
         ArgumentExceptionHelper.ThrowIfNull(bits, nameof(bits));
 #else
-        if (bits is null)
-        {
-            throw new ArgumentNullException(nameof(bits));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(bits, nameof(bits));
 #endif
 
         var result = new int[1];
@@ -98,9 +89,16 @@ public static class TagHelper
     /// <summary>Gets public instance properties that can be assigned.</summary>
     /// <param name="type">The type to inspect.</param>
     /// <returns>The assignable properties.</returns>
-    internal static IEnumerable<PropertyInfo> GetAccessableProperties(Type type) =>
-        type.GetProperties(BindingFlags.SetProperty | BindingFlags.Instance | BindingFlags.Public)
-                   .Where(p => p.GetSetMethod() is not null);
+    internal static IEnumerable<PropertyInfo> GetAccessableProperties(Type type)
+    {
+        foreach (var property in type.GetProperties(BindingFlags.SetProperty | BindingFlags.Instance | BindingFlags.Public))
+        {
+            if (property.GetSetMethod() is not null)
+            {
+                yield return property;
+            }
+        }
+    }
 
     /// <summary>Gets an array value and verifies it has a fixed size.</summary>
     /// <param name="value">The array candidate.</param>

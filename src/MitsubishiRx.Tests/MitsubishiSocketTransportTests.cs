@@ -4,15 +4,14 @@
 
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 #endif
 
@@ -85,7 +84,7 @@ internal sealed class MitsubishiSocketTransportTests
     [Test]
     internal async Task AsciiTcpAndUdpRoundTripAgainstLoopbackPeersAsync()
     {
-        var threeEAscii = Encoding.ASCII.GetBytes("D00000FF03FF00000400001234");
+        var threeEAscii = "D00000FF03FF00000400001234"u8.ToArray();
         var threeEResult = await ExchangeTcpAsync(
             MitsubishiFrameType.ThreeE,
             CommunicationDataCode.Ascii,
@@ -93,7 +92,7 @@ internal sealed class MitsubishiSocketTransportTests
             null);
         await Assert.That(threeEResult).IsEquivalentTo(threeEAscii);
 
-        var fourEAscii = Encoding.ASCII.GetBytes("D4001234000000FF03FF0000020000");
+        var fourEAscii = "D4001234000000FF03FF0000020000"u8.ToArray();
         var fourEResult = await ExchangeTcpAsync(
             MitsubishiFrameType.FourE,
             CommunicationDataCode.Ascii,
@@ -119,7 +118,7 @@ internal sealed class MitsubishiSocketTransportTests
         await using var transport = new SocketMitsubishiTransport();
         await transport.ConnectAsync(options, CancellationToken.None);
         var result = await transport.ExchangeAsync(
-            new MitsubishiTransportRequest([0xAA], null, "UDP loopback"),
+            new([0xAA], null, "UDP loopback"),
             CancellationToken.None);
         await serverTask;
 
@@ -133,10 +132,9 @@ internal sealed class MitsubishiSocketTransportTests
     internal async Task SocketFailuresAndLifecycleAreDeterministicAsync()
     {
         var unconfigured = new SocketMitsubishiTransport();
-        _ = Assert.Throws<InvalidOperationException>(
-            () => unconfigured.ExchangeAsync(
-                new MitsubishiTransportRequest([1], 1, "Unconfigured"),
-                CancellationToken.None).AsTask().GetAwaiter().GetResult());
+        _ = await Assert.ThrowsAsync<InvalidOperationException>(async () => await unconfigured.ExchangeAsync(
+            new([1], 1, "Unconfigured"),
+            CancellationToken.None));
         unconfigured.Dispose();
 
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -162,23 +160,18 @@ internal sealed class MitsubishiSocketTransportTests
         await using var transport = new SocketMitsubishiTransport();
         await transport.ConnectAsync(options, CancellationToken.None);
         await transport.ConnectAsync(options, CancellationToken.None);
-        _ = Assert.Throws<IOException>(
-            () => transport.ExchangeAsync(
-                new MitsubishiTransportRequest(
+        _ = await Assert.ThrowsAsync<IOException>(async () => await transport.ExchangeAsync(
+                new(
                     [1],
                     DroppedResponseLength,
                     "Dropped TCP response"),
-                CancellationToken.None).AsTask().GetAwaiter().GetResult());
+                CancellationToken.None));
         await serverTask;
         await transport.DisconnectAsync(CancellationToken.None);
 
         await Assert.That(transport.IsConnected).IsFalse();
-        _ = Assert.Throws<ArgumentNullException>(
-            () => transport.ConnectAsync(null!, CancellationToken.None)
-                .AsTask().GetAwaiter().GetResult());
-        _ = Assert.Throws<ArgumentNullException>(
-            () => transport.ExchangeAsync(null!, CancellationToken.None)
-                .AsTask().GetAwaiter().GetResult());
+        _ = await Assert.ThrowsAsync<ArgumentNullException>(async () => await transport.ConnectAsync(null!, CancellationToken.None));
+        _ = await Assert.ThrowsAsync<ArgumentNullException>(async () => await transport.ExchangeAsync(null!, CancellationToken.None));
     }
 
     /// <summary>Runs one TCP exchange against a local deterministic peer.</summary>
@@ -217,7 +210,7 @@ internal sealed class MitsubishiSocketTransportTests
         await using var transport = new SocketMitsubishiTransport();
         await transport.ConnectAsync(options, CancellationToken.None);
         var result = await transport.ExchangeAsync(
-            new MitsubishiTransportRequest([0x01, 0x02], expectedResponseLength, "TCP loopback"),
+            new([0x01, 0x02], expectedResponseLength, "TCP loopback"),
             CancellationToken.None);
         await serverTask;
         await transport.DisconnectAsync(CancellationToken.None);

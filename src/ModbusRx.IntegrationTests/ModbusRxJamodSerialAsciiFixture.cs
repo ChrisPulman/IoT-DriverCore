@@ -4,9 +4,9 @@
 
 #if JAMOD
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Device;
 
-namespace IoT.DriverCore.ModbusRx.IntegrationTests;
+namespace IoT.Driver.ModbusRx.IntegrationTests;
 
 /// <summary>Provides ModbusRx serial ASCII master tests against a Jamod serial ASCII slave.</summary>
 /// <seealso cref="ModbusRxMasterFixtureBase" />

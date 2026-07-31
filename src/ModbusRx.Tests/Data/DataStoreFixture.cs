@@ -3,13 +3,19 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Collections.Generic;
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Data;
+namespace IoT.Driver.ModbusRx.UnitTests.Data;
 
 /// <summary>Tests the DataStoreFixture behavior.</summary>
 public class DataStoreFixture
 {
+    /// <summary>Stores the single false source value used by write tests.</summary>
+    private static readonly bool[] FalseSourceValue = [false];
+
+    /// <summary>Stores the single true source value used by write tests.</summary>
+    private static readonly bool[] TrueSourceValue = [true];
+
     /// <summary>Reads the data.</summary>
     [TUnit.Core.Test]
     public void ReadData()
@@ -23,45 +29,45 @@ public class DataStoreFixture
             Num.Value5,
             Num.Value6);
         var result = DataStore.ReadData<RegisterCollection, ushort>(
-            new DataStore(),
+            new(),
             slaveCol,
             1,
             Num.Value3,
-            new object());
+            new());
         Assert.Equal<IEnumerable<ushort>>([1, Num.Value2, Num.Value3], result);
     }
 
     /// <summary>Reads the data start address too large.</summary>
     [TUnit.Core.Test]
     public void ReadDataStartAddressTooLarge() =>
-        Assert.Throws<InvalidModbusRequestException>(() =>
+        Assert.Throws<InvalidModbusRequestException>(static () =>
             DataStore.ReadData<DiscreteCollection, bool>(
-                new DataStore(),
-                new ModbusDataCollection<bool>(),
+                new(),
+                new(),
                 Num.Value3,
                 Num.Value2,
-                new object()));
+                new()));
 
     /// <summary>Reads the data count too large.</summary>
     [TUnit.Core.Test]
     public void ReadDataCountTooLarge() =>
-        Assert.Throws<InvalidModbusRequestException>(() =>
+        Assert.Throws<InvalidModbusRequestException>(static () =>
             DataStore.ReadData<DiscreteCollection, bool>(
-                new DataStore(),
-                new ModbusDataCollection<bool>(true, false, true, true),
+                new(),
+                new(true, false, true, true),
                 1,
                 Num.Value5,
-                new object()));
+                new()));
 
     /// <summary>Reads the data start address zero.</summary>
     [TUnit.Core.Test]
     public void ReadDataStartAddressZero() =>
         DataStore.ReadData<DiscreteCollection, bool>(
-            new DataStore(),
-            new ModbusDataCollection<bool>(true, false, true, true, true, true),
+            new(),
+            new(true, false, true, true, true, true),
             0,
             Num.Value5,
-            new object());
+            new());
 
     /// <summary>Writes the data single.</summary>
     [TUnit.Core.Test]
@@ -69,7 +75,7 @@ public class DataStoreFixture
     {
         var destination = new ModbusDataCollection<bool>(true, true);
         var newValues = new DiscreteCollection(false);
-        DataStore.WriteData(new DataStore(), newValues, destination, 0, new object());
+        DataStore.WriteData(new(), newValues, destination, 0, new());
         Assert.False(destination[1]);
     }
 
@@ -79,7 +85,7 @@ public class DataStoreFixture
     {
         var destination = new ModbusDataCollection<bool>(false, false, false, false, false, false, true);
         var newValues = new DiscreteCollection(true, true, true, true);
-        DataStore.WriteData(new DataStore(), newValues, destination, 0, new object());
+        DataStore.WriteData(new(), newValues, destination, 0, new());
         Assert.Equal<IEnumerable<bool>>([false, true, true, true, true, false, false, true], destination);
     }
 
@@ -90,29 +96,29 @@ public class DataStoreFixture
         var slaveCol = new ModbusDataCollection<bool>(true);
         var newValues = new DiscreteCollection(false, false);
         _ = Assert.Throws<InvalidModbusRequestException>(() =>
-            DataStore.WriteData(new DataStore(), newValues, slaveCol, 1, new object()));
+            DataStore.WriteData(new(), newValues, slaveCol, 1, new()));
     }
 
     /// <summary>Writes the data start address zero.</summary>
     [TUnit.Core.Test]
     public void WriteDataStartAddressZero() =>
         DataStore.WriteData(
-            new DataStore(),
-            new DiscreteCollection(false),
-            new ModbusDataCollection<bool>(true, true),
+            new(),
+            FalseSourceValue,
+            new(true, true),
             0,
-            new object());
+            new());
 
     /// <summary>Writes the data start address too large.</summary>
     [TUnit.Core.Test]
     public void WriteDataStartAddressTooLarge() =>
-        Assert.Throws<InvalidModbusRequestException>(() =>
+        Assert.Throws<InvalidModbusRequestException>(static () =>
             DataStore.WriteData(
-                new DataStore(),
-                new DiscreteCollection(true),
-                new ModbusDataCollection<bool>(true),
+                new(),
+                TrueSourceValue,
+                new(true),
                 Num.Value2,
-                new object()));
+                new()));
 
     /// <summary>
     /// Modbus application protocol reference: http://modbus.org/docs/Modbus_Application_Protocol_V1_1b.pdf.
@@ -134,7 +140,7 @@ public class DataStoreFixture
                 dataStore.HoldingRegisters,
                 0,
                 1,
-                new object())[0]);
+                new())[0]);
         Assert.Equal(
             Num.Value42,
             DataStore.ReadData<RegisterCollection, ushort>(
@@ -142,7 +148,7 @@ public class DataStoreFixture
                 dataStore.HoldingRegisters,
                 1,
                 1,
-                new object())[0]);
+                new())[0]);
     }
 
     /// <summary>Datas the store read from event read holding registers.</summary>
@@ -169,7 +175,7 @@ public class DataStoreFixture
             dataStore.HoldingRegisters,
             Num.Value3,
             Num.Value3,
-            new object());
+            new());
         Assert.True(readFromEventFired);
         Assert.False(writtenToEventFired);
     }
@@ -198,7 +204,7 @@ public class DataStoreFixture
             dataStore.InputRegisters,
             Num.Value4,
             0,
-            new object());
+            new());
         Assert.True(readFromEventFired);
         Assert.False(writtenToEventFired);
     }
@@ -227,7 +233,7 @@ public class DataStoreFixture
             dataStore.InputDiscretes,
             Num.Value4,
             1,
-            new object());
+            new());
         Assert.True(readFromEventFired);
         Assert.False(writtenToEventFired);
     }
@@ -257,7 +263,7 @@ public class DataStoreFixture
             new DiscreteCollection(true, false, true),
             dataStore.CoilDiscretes,
             Num.Value4,
-            new object());
+            new());
         Assert.False(readFromEventFired);
         Assert.True(writtenToEventFired);
     }
@@ -287,7 +293,7 @@ public class DataStoreFixture
             new RegisterCollection(Num.Value5, Num.Value6, Num.Value7),
             dataStore.HoldingRegisters,
             0,
-            new object());
+            new());
         Assert.False(readFromEventFired);
         Assert.True(writtenToEventFired);
     }

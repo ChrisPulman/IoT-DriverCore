@@ -8,7 +8,7 @@ using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Disposables;
 using ReactiveUI.Primitives.Signals;
 
-namespace IoT.DriverCore.ABPlcRx.TestApp;
+namespace IoT.Driver.ABPlcRx.TestApp;
 
 /// <summary>Console sample application entry point.</summary>
 internal static class Program
@@ -29,11 +29,11 @@ internal static class Program
         new ConsoleMenu(args, level: 0)
            .Add(nameof(MicroLogix), MicroLogix)
            .Add("Close", ConsoleMenu.Close)
-           .Configure(config =>
+           .Configure(static config =>
            {
                config.Title = "MicroLogix ABPlcRx Example";
                config.EnableWriteTitle = true;
-               config.WriteHeaderAction = () => Console.Out.WriteLine("Please select a mode:");
+               config.WriteHeaderAction = static () => Console.Out.WriteLine("Please select a mode:");
            })
            .Show();
     }
@@ -62,7 +62,7 @@ internal static class Program
             // Subscribe to tag updates.
             _disposables.Add(
                 microLogix.Observe<bool>(SampleVariableName, default, 0)
-                    .Subscribe(value => Console.Out.WriteLine($"B3:3/0 = {value}")));
+                    .Subscribe(static value => Console.Out.WriteLine($"B3:3/0 = {value}")));
 
             _disposables.Add(Signal.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(1)).Subscribe(writeTick =>
             {

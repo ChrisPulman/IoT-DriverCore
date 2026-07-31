@@ -4,10 +4,10 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiTagSchemaFileIoTests type.</summary>
@@ -131,7 +131,7 @@ internal sealed class MitsubishiTagSchemaFileIoTests
         ]);
 
         database.AddGroup(
-            new MitsubishiTagGroupDefinition(OverviewGroupName, [ MotorSpeedTagName, OperatorMessageTagName]));
+            new(OverviewGroupName, [ MotorSpeedTagName, OperatorMessageTagName]));
         var path = CreateTempPath("csv");
 
         try
@@ -200,7 +200,7 @@ internal sealed class MitsubishiTagSchemaFileIoTests
         ]);
 
         database.AddGroup(
-            new MitsubishiTagGroupDefinition(
+            new(
                 OverviewGroupName,
                 [ SignedTempTagName, TotalCountTagName, OperatorMessageTagName]));
         return database;

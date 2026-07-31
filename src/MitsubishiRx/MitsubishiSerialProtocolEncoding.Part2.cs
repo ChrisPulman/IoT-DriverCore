@@ -5,15 +5,15 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-using static IoT.DriverCore.MitsubishiRx.Reactive.MitsubishiNumericConstants;
+using static IoT.Driver.MitsubishiRx.Reactive.MitsubishiNumericConstants;
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-using static IoT.DriverCore.MitsubishiRx.MitsubishiNumericConstants;
+using static IoT.Driver.MitsubishiRx.MitsubishiNumericConstants;
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -354,7 +354,7 @@ internal static partial class MitsubishiSerialProtocolEncoding
         var prefix = new List<byte> { Dle, Stx };
         AppendUInt16LittleEndian(prefix, numberOfDataBytes);
         prefix.AddRange(buffer);
-        var checksum = ComputeChecksum(prefix.Skip(Two).Take(Two + numberOfDataBytes));
+        var checksum = ComputeChecksum(prefix, Two, Two + numberOfDataBytes);
         prefix.AddRange(Encoding.ASCII.GetBytes(checksum));
         return prefix.ToArray();
     }
@@ -370,8 +370,7 @@ internal static partial class MitsubishiSerialProtocolEncoding
         EnsureAscii(options);
         var serial = options.ResolvedSerial;
         var header = Format3CAsciiHeader(serial);
-        var deviceAddresses = string.Concat(addresses.Select(static address =>
-            FormatDeviceAddressModern(address, address.Descriptor)));
+        var deviceAddresses = FormatDeviceAddresses(addresses);
         var body =
             $"{header}04030000{FormatAsciiUInt16(checked((ushort)addresses.Count))}0000{deviceAddresses}";
         return WrapAscii(body, serial.MessageFormat);

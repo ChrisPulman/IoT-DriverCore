@@ -3,17 +3,18 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Core.Channels;
-using IoT.DriverCore.OmronPlcRx.Core.Responses;
-using IoT.DriverCore.OmronPlcRx.Core.Results;
-using IoT.DriverCore.OmronPlcRx.Core.Types;
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using System.Text;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Core.Channels;
+using IoT.Driver.OmronPlcRx.Core.Responses;
+using IoT.Driver.OmronPlcRx.Core.Results;
+using IoT.Driver.OmronPlcRx.Core.Types;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Tags;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Verifies grouped logical writes dispatch every supported runtime payload type.</summary>
 public sealed class OmronLogicalBatchTypeCoverageTests
@@ -239,10 +240,14 @@ public sealed class OmronLogicalBatchTypeCoverageTests
             CancellationToken.None);
 
         await Assert.That(results.Count).IsEqualTo(SupportedItemCount);
-        await Assert.That(results.All(static result => result.Succeeded)).IsTrue();
+        await Assert.That(AllSucceeded(results)).IsTrue();
         await Assert.That(channel.SendCount).IsEqualTo(ExpectedNativeTransfers);
-        await Assert.That(driver.GetValue(new LogicalTagKey<Bcd16>(Bcd16Tag))).IsEqualTo(new Bcd16(Bcd16Value));
-        await Assert.That(driver.GetValue(new LogicalTagKey<BcdU32>(BcdU32Tag))).IsEqualTo(new BcdU32(BcdU32Value));
+        LogicalTagKey<Bcd16> bcd16Key = new(Bcd16Tag);
+        LogicalTagKey<BcdU32> bcdU32Key = new(BcdU32Tag);
+        Bcd16 expectedBcd16 = new(Bcd16Value);
+        BcdU32 expectedBcdU32 = new(BcdU32Value);
+        await Assert.That(driver.GetValue(bcd16Key)).IsEqualTo(expectedBcd16);
+        await Assert.That(driver.GetValue(bcdU32Key)).IsEqualTo(expectedBcdU32);
     }
 
     /// <summary>Verifies grouped writes accept alternate logical type names and retain an unsupported item failure.</summary>
@@ -269,14 +274,25 @@ public sealed class OmronLogicalBatchTypeCoverageTests
             new LogicalTagValue(IntegerAliasTag, IntegerValue, timestamp),
             new LogicalTagValue(UnsignedIntegerAliasTag, UnsignedIntegerValue, timestamp),
             new LogicalTagValue(SingleAliasTag, SingleValue, timestamp),
-            new LogicalTagValue(UnsupportedAliasTag, decimal.Zero, timestamp),
+            new(UnsupportedAliasTag, decimal.Zero, timestamp),
         ],
             CancellationToken.None);
 
         await Assert.That(results.Count).IsEqualTo(AliasItemCount);
-        await Assert.That(results.Take(SupportedAliasItemCount).All(static result => result.Succeeded)).IsTrue();
-        await Assert.That(results.Last().Succeeded).IsFalse();
-        await Assert.That(results.Last().Error).Contains("not supported");
+        var supportedAliasesSucceeded = true;
+        for (var index = 0; index < SupportedAliasItemCount; index++)
+        {
+            if (!results[index].Succeeded)
+            {
+                supportedAliasesSucceeded = false;
+                break;
+            }
+        }
+
+        var unsupportedResult = results[results.Count - 1];
+        await Assert.That(supportedAliasesSucceeded).IsTrue();
+        await Assert.That(unsupportedResult.Succeeded).IsFalse();
+        await Assert.That(unsupportedResult.Error).Contains("not supported");
         await Assert.That(channel.SendCount).IsEqualTo(ExpectedNativeTransfers);
 
         var writes = await WriteAliasValuesAsync(client, timestamp);
@@ -289,11 +305,11 @@ public sealed class OmronLogicalBatchTypeCoverageTests
         _ = client.Observe(SingleAliasTag);
         var unsupportedRead = await client.ReadAsync(UnsupportedAliasTag, CancellationToken.None);
         var unsupportedWrite = await client.WriteAsync(
-            new LogicalTagValue(UnsupportedAliasTag, decimal.Zero, timestamp),
+            new(UnsupportedAliasTag, decimal.Zero, timestamp),
             CancellationToken.None);
 
-        await Assert.That(writes.All(static result => result.Succeeded)).IsTrue();
-        await Assert.That(reads.All(static result => !result.Succeeded)).IsTrue();
+        await Assert.That(AllSucceeded(writes)).IsTrue();
+        await Assert.That(AllFailed(reads)).IsTrue();
         await Assert.That(unsupportedRead.Succeeded).IsFalse();
         await Assert.That(unsupportedWrite.Succeeded).IsFalse();
         await AssertThrowsAsync<NotSupportedException>(
@@ -317,7 +333,7 @@ public sealed class OmronLogicalBatchTypeCoverageTests
         foreach (var item in cases)
         {
             client.RegisterTag(
-                new LogicalTag(
+                new(
                     item.Name,
                     item.Address,
                     item.DataType));
@@ -327,21 +343,24 @@ public sealed class OmronLogicalBatchTypeCoverageTests
         {
             _ = await client.ReadAsync(item.Name, CancellationToken.None);
             _ = await client.WriteAsync(
-                new LogicalTagValue(item.Name, item.Value, Epoch),
+                new(item.Name, item.Value, Epoch),
                 CancellationToken.None);
             _ = client.Observe(item.Name);
         }
 
-        var reads = await client.ReadManyAsync(
-            cases.Select(static item => item.Name).ToArray(),
-            CancellationToken.None);
-        var writes = await client.WriteManyAsync(
-            cases
-                .Select(static item => new LogicalTagValue(item.Name, item.Value, Epoch))
-                .ToArray(),
-            CancellationToken.None);
+        var names = new string[cases.Length];
+        var values = new LogicalTagValue[cases.Length];
+        for (var index = 0; index < cases.Length; index++)
+        {
+            var item = cases[index];
+            names[index] = item.Name;
+            values[index] = new(item.Name, item.Value, Epoch);
+        }
+
+        var reads = await client.ReadManyAsync(names, CancellationToken.None);
+        var writes = await client.WriteManyAsync(values, CancellationToken.None);
         var nullWrite = await client.WriteAsync(
-            new LogicalTagValue("CanonicalString", null, Epoch),
+            new("CanonicalString", null, Epoch),
             CancellationToken.None);
 
         await Assert.That(cases.Length).IsEqualTo(CanonicalTypeCount);
@@ -377,7 +396,7 @@ public sealed class OmronLogicalBatchTypeCoverageTests
 
             var read = await client.ReadAsync(tag.Name, CancellationToken.None);
             var write = await client.WriteAsync(
-                new LogicalTagValue(tag.Name, decimal.Zero, Epoch),
+                new(tag.Name, decimal.Zero, Epoch),
                 CancellationToken.None);
             await AssertThrowsAsync<NotSupportedException>(
                 () => Task.Run(() => client.Observe(tag.Name)));
@@ -416,46 +435,44 @@ public sealed class OmronLogicalBatchTypeCoverageTests
         {
             var tagName = $"Area{areas[index]}";
             client.RegisterTag(
-                new LogicalTag(
+                new(
                     tagName,
                     $"{areas[index]}{AreaBaseAddress + index}.0",
                     typeof(bool).FullName!));
             results.Add(
                 await client.WriteAsync(
-                    new LogicalTagValue(tagName, true, Epoch),
+                    new(tagName, true, Epoch),
                     CancellationToken.None));
         }
 
         client.RegisterTag(
-            new LogicalTag("StringDefault", "D500", typeof(string).FullName!));
+            new("StringDefault", "D500", typeof(string).FullName!));
         client.RegisterTag(
-            new LogicalTag("StringInvalidLength", "D520[0]", typeof(string).FullName!));
+            new("StringInvalidLength", "D520[0]", typeof(string).FullName!));
         results.Add(
             await client.WriteAsync(
-                new LogicalTagValue("StringDefault", "AB", Epoch),
+                new("StringDefault", "AB", Epoch),
                 CancellationToken.None));
         results.Add(
             await client.WriteAsync(
-                new LogicalTagValue("StringInvalidLength", "CD", Epoch),
+                new("StringInvalidLength", "CD", Epoch),
                 CancellationToken.None));
-        var grouped = await client.WriteManyAsync(
-            areas
-                .Select(
-                    static area => new LogicalTagValue(
-                        $"Area{area}",
-                        true,
-                        Epoch))
-                .ToArray(),
-            CancellationToken.None);
+        var groupedValues = new LogicalTagValue[areas.Length];
+        for (var index = 0; index < areas.Length; index++)
+        {
+            groupedValues[index] = new($"Area{areas[index]}", true, Epoch);
+        }
+
+        var grouped = await client.WriteManyAsync(groupedValues, CancellationToken.None);
 
         client.RegisterTag(
-            new LogicalTag("UnsupportedArea", "Z600.0", typeof(bool).FullName!));
+            new("UnsupportedArea", "Z600.0", typeof(bool).FullName!));
         var unsupported = await client.WriteAsync(
-            new LogicalTagValue("UnsupportedArea", true, Epoch),
+            new("UnsupportedArea", true, Epoch),
             CancellationToken.None);
 
-        await Assert.That(results.All(static result => result.Succeeded)).IsTrue();
-        await Assert.That(grouped.All(static result => result.Succeeded)).IsTrue();
+        await Assert.That(AllSucceeded(results)).IsTrue();
+        await Assert.That(AllSucceeded(grouped)).IsTrue();
         await Assert.That(unsupported.Succeeded).IsFalse();
     }
 
@@ -509,6 +526,38 @@ public sealed class OmronLogicalBatchTypeCoverageTests
         return results.ToArray();
     }
 
+    /// <summary>Determines whether every operation result succeeded.</summary>
+    /// <param name="results">Operation results to inspect.</param>
+    /// <returns><see langword="true"/> when all operations succeeded; otherwise, <see langword="false"/>.</returns>
+    private static bool AllSucceeded(IReadOnlyList<TagOperationResult<LogicalTagValue>> results)
+    {
+        foreach (var result in results)
+        {
+            if (!result.Succeeded)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Determines whether every operation result failed.</summary>
+    /// <param name="results">Operation results to inspect.</param>
+    /// <returns><see langword="true"/> when no operation succeeded; otherwise, <see langword="false"/>.</returns>
+    private static bool AllFailed(IReadOnlyList<TagOperationResult<LogicalTagValue>> results)
+    {
+        foreach (var result in results)
+        {
+            if (result.Succeeded)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /// <summary>Captures and verifies an asynchronous exception.</summary>
     /// <typeparam name="TException">Expected exception type.</typeparam>
     /// <param name="action">Action to invoke.</param>
@@ -553,13 +602,13 @@ public sealed class OmronLogicalBatchTypeCoverageTests
     /// <param name="catalog">Shared logical catalog used to retain the unsupported definition.</param>
     private static void RegisterAliasTags(OmronLogicalTagClient client, LogicalTagCatalog catalog)
     {
-        client.RegisterTag(new LogicalTag(BooleanAliasTag, "D130.0", BooleanAliasDataType));
-        client.RegisterTag(new LogicalTag(ShortAliasTag, "D131", ShortAliasDataType));
-        client.RegisterTag(new LogicalTag(UnsignedShortAliasTag, "D132", UnsignedShortAliasDataType));
-        client.RegisterTag(new LogicalTag(IntegerAliasTag, "D133", IntegerAliasDataType));
-        client.RegisterTag(new LogicalTag(UnsignedIntegerAliasTag, "D135", UnsignedIntegerAliasDataType));
-        client.RegisterTag(new LogicalTag(SingleAliasTag, "D137", SingleAliasDataType));
-        catalog.Upsert(new LogicalTag(UnsupportedAliasTag, "D139", UnsupportedDataType));
+        client.RegisterTag(new(BooleanAliasTag, "D130.0", BooleanAliasDataType));
+        client.RegisterTag(new(ShortAliasTag, "D131", ShortAliasDataType));
+        client.RegisterTag(new(UnsignedShortAliasTag, "D132", UnsignedShortAliasDataType));
+        client.RegisterTag(new(IntegerAliasTag, "D133", IntegerAliasDataType));
+        client.RegisterTag(new(UnsignedIntegerAliasTag, "D135", UnsignedIntegerAliasDataType));
+        client.RegisterTag(new(SingleAliasTag, "D137", SingleAliasDataType));
+        catalog.Upsert(new(UnsupportedAliasTag, "D139", UnsupportedDataType));
     }
 
     /// <summary>Creates one deterministic case for every canonical logical type.</summary>
@@ -590,13 +639,15 @@ public sealed class OmronLogicalBatchTypeCoverageTests
         {
             for (var index = 0; index < supported.Length; index++)
             {
-                var characters = supported.ToCharArray();
+                var characters = new StringBuilder(supported);
                 characters[index] = characters[index] == 'Z' ? 'Y' : 'Z';
-                _ = probes.Add(new string(characters));
+                _ = probes.Add(characters.ToString());
             }
         }
 
-        return probes.ToArray();
+        var result = new string[probes.Count];
+        probes.CopyTo(result);
+        return result;
     }
 
     /// <summary>Invokes a private batch helper and returns its semantic exception.</summary>

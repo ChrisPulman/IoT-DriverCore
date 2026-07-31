@@ -8,9 +8,9 @@ using System.Runtime.Versioning;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Reactive;
+namespace IoT.Driver.TwinCATRx.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx;
+namespace IoT.Driver.TwinCATRx;
 #endif
 
 /// <summary>Enumerates service controllers through the Windows service manager.</summary>
@@ -23,6 +23,11 @@ internal sealed class ServiceControllerSource : IServiceControllerSource
     internal static ServiceControllerSource Instance { get; } = new();
 
     /// <inheritdoc/>
-    public IEnumerable<IServiceControllerRuntime> GetServices() =>
-        ServiceController.GetServices().Select(static service => new ServiceControllerRuntime(service));
+    public IEnumerable<IServiceControllerRuntime> GetServices()
+    {
+        foreach (var service in ServiceController.GetServices())
+        {
+            yield return new ServiceControllerRuntime(service);
+        }
+    }
 }

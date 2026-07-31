@@ -3,20 +3,20 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.Serial.Reactive;
+using IoT.Driver.Serial.Reactive;
 #else
-using IoT.DriverCore.Serial;
+using IoT.Driver.Serial;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.IO;
+using IoT.Driver.ModbusRx.Reactive.IO;
 #else
-using IoT.DriverCore.ModbusRx.IO;
+using IoT.Driver.ModbusRx.IO;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Device;
+namespace IoT.Driver.ModbusRx.Reactive.Device;
 #else
-namespace IoT.DriverCore.ModbusRx.Device;
+namespace IoT.Driver.ModbusRx.Device;
 #endif
 
 /// <summary>Modbus IP master device.</summary>
@@ -37,10 +37,7 @@ public sealed class ModbusIpMaster : ModbusMaster
     /// </returns>
     public static ModbusIpMaster CreateIp(TcpClientRx tcpClient)
     {
-        if (tcpClient is null)
-        {
-            throw new ArgumentNullException(nameof(tcpClient));
-        }
+        tcpClient = ArgumentGuard.NotNull(tcpClient, nameof(tcpClient));
 
         return CreateIp(new TcpClientAdapter(tcpClient));
     }
@@ -53,10 +50,7 @@ public sealed class ModbusIpMaster : ModbusMaster
     /// </returns>
     public static ModbusIpMaster CreateIp(UdpClientRx udpClient)
     {
-        if (udpClient is null)
-        {
-            throw new ArgumentNullException(nameof(udpClient));
-        }
+        udpClient = ArgumentGuard.NotNull(udpClient, nameof(udpClient));
 
         if (!udpClient.Client.Connected)
         {
@@ -74,10 +68,7 @@ public sealed class ModbusIpMaster : ModbusMaster
     /// </returns>
     public static ModbusIpMaster CreateIp(SerialPortRx serialPort)
     {
-        if (serialPort is null)
-        {
-            throw new ArgumentNullException(nameof(serialPort));
-        }
+        serialPort = ArgumentGuard.NotNull(serialPort, nameof(serialPort));
 
         return CreateIp(new SerialPortAdapter(serialPort));
     }
@@ -90,12 +81,9 @@ public sealed class ModbusIpMaster : ModbusMaster
     /// </returns>
     public static ModbusIpMaster CreateIp(IStreamResource streamResource)
     {
-        if (streamResource is null)
-        {
-            throw new ArgumentNullException(nameof(streamResource));
-        }
+        streamResource = ArgumentGuard.NotNull(streamResource, nameof(streamResource));
 
-        return new ModbusIpMaster(new ModbusIpTransport(streamResource));
+        return new(new ModbusIpTransport(streamResource));
     }
 
     /// <summary>Asynchronously reads from 1 to 2000 contiguous coils status.</summary>

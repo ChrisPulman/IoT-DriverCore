@@ -3,11 +3,11 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.IO.Ports;
-using IoT.DriverCore.OmronPlcRx;
-using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx;
+using IoT.Driver.OmronPlcRx.Enums;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Tests serial Host Link FINS and Toolbus framing behavior.</summary>
 public sealed class SerialHostLinkFinsTests
@@ -328,8 +328,7 @@ public sealed class SerialHostLinkFinsTests
             ResponseWaitTime = 0,
         };
         var codec = new HostLinkFinsFrameCodec(options);
-        const string payload = "40000001010100001234";
-        var body = $"@00FA00{payload}";
+        const string body = "@00FA0040000001010100001234";
         var frame = $"{body}{HostLinkFinsFrameCodec.CalculateFcs(body)}*\r";
 
         var decoded = codec.DecodeResponse(frame);

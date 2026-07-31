@@ -6,9 +6,9 @@ using System.Buffers.Binary;
 using System.Text;
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>Encodes supported public simulator values using libplctag byte layout.</summary>
@@ -57,7 +57,7 @@ internal static class ABPlcSimulatorValueCodec
                 bytes => BinaryPrimitives.WriteInt64LittleEndian(bytes, BitConverterCompatibility.DoubleToInt64Bits(item))),
             string item => EncodeString(item),
             _ => throw new NotSupportedException(
-                $"Simulator scalar type '{value.GetType().FullName}' is not supported. Use SetTagBytes for structured values."),
+                $"Simulator scalar type '{typeof(T).FullName}' is not supported. Use SetTagBytes for structured values."),
         };
     }
 
@@ -71,9 +71,9 @@ internal static class ABPlcSimulatorValueCodec
         var type = typeof(T);
         object value = Type.GetTypeCode(type) switch
         {
-            TypeCode.Boolean => Read(bytes, sizeof(byte), data => data[0] != 0),
-            TypeCode.Byte => Read(bytes, sizeof(byte), data => data[0]),
-            TypeCode.SByte => Read(bytes, sizeof(byte), data => unchecked((sbyte)data[0])),
+            TypeCode.Boolean => Read(bytes, sizeof(byte), static data => data[0] != 0),
+            TypeCode.Byte => Read(bytes, sizeof(byte), static data => data[0]),
+            TypeCode.SByte => Read(bytes, sizeof(byte), static data => unchecked((sbyte)data[0])),
             TypeCode.Int16 => Read(bytes, sizeof(short), BinaryPrimitives.ReadInt16LittleEndian),
             TypeCode.UInt16 => Read(bytes, sizeof(ushort), BinaryPrimitives.ReadUInt16LittleEndian),
             TypeCode.Int32 => Read(bytes, sizeof(int), BinaryPrimitives.ReadInt32LittleEndian),

@@ -4,17 +4,17 @@
 
 using System.Buffers;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Enums;
-using IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+using IoT.Driver.S7PlcRx.Reactive.Enums;
+using IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.PlcTypes;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Core;
+namespace IoT.Driver.S7PlcRx.Reactive.Core;
 #else
-namespace IoT.DriverCore.S7PlcRx.Core;
+namespace IoT.Driver.S7PlcRx.Core;
 #endif
 
 /// <summary>
@@ -112,10 +112,7 @@ internal static class S7MultiVar
     /// <returns>The resulting value.</returns>
     internal static byte[] BuildReadVarRequest(IReadOnlyList<ReadItem> items)
     {
-        if (items is null)
-        {
-            throw new ArgumentNullException(nameof(items));
-        }
+        Guard.NotNull(items, nameof(items));
 
         if (items.Count == 0)
         {
@@ -162,7 +159,7 @@ internal static class S7MultiVar
             package.Add(BuildVarSpec(item.DataType, item.Db, item.StartByteAdr, item.Count));
         }
 
-        return package.Array;
+        return package.ToArray();
     }
 
     /// <summary>Parses a PLC 'Read Var' response frame and returns the results for each requested item.</summary>
@@ -186,15 +183,8 @@ internal static class S7MultiVar
         IReadOnlyList<ReadItem> items,
         ArrayPool<byte> pool)
     {
-        if (items is null)
-        {
-            throw new ArgumentNullException(nameof(items));
-        }
-
-        if (pool is null)
-        {
-            throw new ArgumentNullException(nameof(pool));
-        }
+        Guard.NotNull(items, nameof(items));
+        Guard.NotNull(pool, nameof(pool));
 
         if (items.Count == 0 || response.Length < ResponseDataBaseOffset)
         {
@@ -242,10 +232,7 @@ internal static class S7MultiVar
     /// elements.</exception>
     internal static byte[] BuildWriteVarRequest(IReadOnlyList<WriteItem> items)
     {
-        if (items is null)
-        {
-            throw new ArgumentNullException(nameof(items));
-        }
+        Guard.NotNull(items, nameof(items));
 
         if (items.Count == 0)
         {
@@ -314,7 +301,7 @@ internal static class S7MultiVar
             }
         }
 
-        return package.Array;
+        return package.ToArray();
     }
 
     /// <summary>Parses write results from an S7 WriteVar response.</summary>
@@ -356,7 +343,7 @@ internal static class S7MultiVar
                 break;
             }
 
-            results.Add(new WriteResult(i, response[offset]));
+            results.Add(new(i, response[offset]));
             offset++;
         }
 
@@ -426,7 +413,7 @@ internal static class S7MultiVar
                 }
         }
 
-        return package.Array;
+        return package.ToArray();
     }
 
     /// <summary>Attempts to parse a single read result from the response.</summary>
@@ -490,7 +477,27 @@ internal static class S7MultiVar
     {
         var rented = pool.Rent(byteLen);
         response.Slice(offset, byteLen).CopyTo(rented.AsSpan(0, byteLen));
-        return new ReadResult(tagName, returnCode, transportSize, rented, byteLen);
+        return new(tagName, returnCode, transportSize, rented, byteLen);
+    }
+
+    /// <summary>Compares tag names without short-circuiting individual character comparisons.</summary>
+    /// <param name="left">The first tag name.</param>
+    /// <param name="right">The second tag name.</param>
+    /// <returns><see langword="true"/> when the tag names are equal.</returns>
+    private static bool TagNamesEqual(string left, string right)
+    {
+        if (left.Length != right.Length)
+        {
+            return false;
+        }
+
+        var difference = 0;
+        for (var index = 0; index < left.Length; index++)
+        {
+            difference |= left[index] ^ right[index];
+        }
+
+        return difference == 0;
     }
 
     /// <summary>Represents a request to read a specific range of data from a PLC data block or memory area.</summary>
@@ -503,7 +510,7 @@ internal static class S7MultiVar
     /// <param name="count">The number of elements or bytes to read, depending on the data type.</param>
     /// <param name="tagName">The symbolic tag name associated with the read operation. Can be used for identification
     /// or logging purposes.</param>
-    internal readonly struct ReadItem(DataType dataType, int db, int startByteAdr, int count, string tagName)
+    internal readonly struct ReadItem(DataType dataType, int db, int startByteAdr, int count, string tagName) : IEquatable<ReadItem>
     {
         /// <summary>Gets the data type value.</summary>
         internal DataType DataType { get; } = dataType;
@@ -519,6 +526,27 @@ internal static class S7MultiVar
 
         /// <summary>Gets the t ag na m e value.</summary>
         internal string TagName { get; } = tagName;
+
+        /// <inheritdoc/>
+        public bool Equals(ReadItem other) =>
+            DataType == other.DataType && Db == other.Db && StartByteAdr == other.StartByteAdr &&
+            Count == other.Count && TagNamesEqual(TagName, other.TagName);
+
+        /// <inheritdoc/>
+        public override bool Equals(object? obj) => obj is ReadItem other && Equals(other);
+
+        /// <inheritdoc/>
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = (int)DataType;
+                hash = (hash * 397) ^ Db;
+                hash = (hash * 397) ^ StartByteAdr;
+                hash = (hash * 397) ^ Count;
+                return (hash * 397) ^ (TagName?.GetHashCode() ?? 0);
+            }
+        }
     }
 
     /// <summary>
@@ -537,7 +565,7 @@ internal static class S7MultiVar
         byte returnCode,
         byte transportSize,
         byte[]? rentedBuffer,
-        int length)
+        int length) : IEquatable<ReadResult>
     {
         /// <summary>Gets the t ag na m e value.</summary>
         internal string TagName { get; } = tagName;
@@ -558,6 +586,27 @@ internal static class S7MultiVar
         internal ReadOnlyMemory<byte> Data => RentedBuffer is null || Length <= 0
             ? ReadOnlyMemory<byte>.Empty
             : RentedBuffer.AsMemory(0, Length);
+
+        /// <inheritdoc/>
+        public bool Equals(ReadResult other) =>
+            ReturnCode == other.ReturnCode && TransportSize == other.TransportSize && Length == other.Length &&
+            TagNamesEqual(TagName, other.TagName) && ReferenceEquals(RentedBuffer, other.RentedBuffer);
+
+        /// <inheritdoc/>
+        public override bool Equals(object? obj) => obj is ReadResult other && Equals(other);
+
+        /// <inheritdoc/>
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = TagName?.GetHashCode() ?? 0;
+                hash = (hash * 397) ^ ReturnCode;
+                hash = (hash * 397) ^ TransportSize;
+                hash = (hash * 397) ^ (RentedBuffer?.GetHashCode() ?? 0);
+                return (hash * 397) ^ Length;
+            }
+        }
     }
 
     /// <summary>Represents PLC data to write, including its address and buffer.</summary>
@@ -578,7 +627,7 @@ internal static class S7MultiVar
         int count,
         byte transportSize,
         byte[] data,
-        string tagName)
+        string tagName) : IEquatable<WriteItem>
     {
         /// <summary>Gets the data type value.</summary>
         internal DataType DataType { get; } = dataType;
@@ -600,17 +649,50 @@ internal static class S7MultiVar
 
         /// <summary>Gets the t ag na m e value.</summary>
         internal string TagName { get; } = tagName;
+
+        /// <inheritdoc/>
+        public bool Equals(WriteItem other) =>
+            DataType == other.DataType && Db == other.Db && StartByteAdr == other.StartByteAdr &&
+            Count == other.Count && TransportSize == other.TransportSize && ReferenceEquals(Data, other.Data) &&
+            TagNamesEqual(TagName, other.TagName);
+
+        /// <inheritdoc/>
+        public override bool Equals(object? obj) => obj is WriteItem other && Equals(other);
+
+        /// <inheritdoc/>
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = (int)DataType;
+                hash = (hash * 397) ^ Db;
+                hash = (hash * 397) ^ StartByteAdr;
+                hash = (hash * 397) ^ Count;
+                hash = (hash * 397) ^ TransportSize;
+                hash = (hash * 397) ^ (Data?.GetHashCode() ?? 0);
+                return (hash * 397) ^ (TagName?.GetHashCode() ?? 0);
+            }
+        }
     }
 
     /// <summary>Represents the result of a write operation, including the operation index and return code.</summary>
     /// <param name="index">The zero-based index associated with the write operation result.</param>
     /// <param name="returnCode">The return code indicating the outcome of the write operation.</param>
-    internal readonly struct WriteResult(int index, byte returnCode)
+    internal readonly struct WriteResult(int index, byte returnCode) : IEquatable<WriteResult>
     {
         /// <summary>Gets the i nd e x value.</summary>
         internal int Index { get; } = index;
 
         /// <summary>Gets the r et ur nc o d e value.</summary>
         internal byte ReturnCode { get; } = returnCode;
+
+        /// <inheritdoc/>
+        public bool Equals(WriteResult other) => Index == other.Index && ReturnCode == other.ReturnCode;
+
+        /// <inheritdoc/>
+        public override bool Equals(object? obj) => obj is WriteResult other && Equals(other);
+
+        /// <inheritdoc/>
+        public override int GetHashCode() => (Index * 397) ^ ReturnCode;
     }
 }

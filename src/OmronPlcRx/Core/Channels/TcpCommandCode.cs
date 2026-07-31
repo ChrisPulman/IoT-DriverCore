@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Channels;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core.Channels;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core.Channels;
+namespace IoT.Driver.OmronPlcRx.Core.Channels;
 #endif
 
 /// <summary>Represents the TCP command code enumeration.</summary>

@@ -5,7 +5,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace IoT.DriverCore.S7PlcRx.Mock;
+namespace IoT.Driver.S7PlcRx.Mock;
 
 /// <summary>Provides the Snap7 native interop used by <see cref="MockServer"/>.</summary>
 internal static class NativeMethods
@@ -160,10 +160,14 @@ internal static class NativeMethods
     /// <returns>The Snap7 result code.</returns>
     internal static int Srv_StartTo(nint server, string address)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(address);
+#else
         if (address is null)
         {
             throw new ArgumentNullException(nameof(address));
         }
+#endif
 
         var addressBytes = Encoding.ASCII.GetBytes(address + '\0');
         return GetExport<SrvStartToDelegate>(nameof(Srv_StartTo))(server, addressBytes);

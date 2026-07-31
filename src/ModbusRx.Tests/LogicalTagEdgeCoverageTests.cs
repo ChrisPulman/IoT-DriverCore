@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.ModbusRx.LogicalTags;
+using IoT.Driver.Core;
+using IoT.Driver.ModbusRx.LogicalTags;
 using NativeAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Exercises logical-tag catalog, validation, conversion, and persistence edge paths.</summary>
 public sealed class LogicalTagEdgeCoverageTests
@@ -39,20 +39,26 @@ public sealed class LogicalTagEdgeCoverageTests
         await NativeAssert.That(catalog.TryAdd(tag)).IsTrue();
         await NativeAssert.That(catalog.TryAdd(tag)).IsFalse();
         catalog.Upsert(CreateTag(UpdatedAddress));
-        await NativeAssert.That(catalog.List().Single().Address).IsEqualTo(UpdatedAddress);
+        var listedTags = catalog.List();
+        await NativeAssert.That(listedTags.Count).IsEqualTo(1);
+        await NativeAssert.That(listedTags[0].Address).IsEqualTo(UpdatedAddress);
         await NativeAssert.That(catalog.TryRemove(TagName, out var removed)).IsTrue();
         await NativeAssert.That(removed?.Name).IsEqualTo(TagName);
         await NativeAssert.That(catalog.TryRemove(MissingName, out var absent)).IsFalse();
         await NativeAssert.That(absent).IsNull();
         await NativeAssert.That(() => catalog.TryAdd(null!)).Throws<ArgumentNullException>();
         await NativeAssert.That(() => catalog.Upsert(null!)).Throws<ArgumentNullException>();
-        await NativeAssert.That(() => new ModbusTagCatalog(null!)).Throws<ArgumentNullException>();
+        await NativeAssert.That(static () => new ModbusTagCatalog(null!)).Throws<ArgumentNullException>();
         await NativeAssert.That(
                 async () => await catalog.LoadFromSqliteAsync(null!, CancellationToken.None))
             .Throws<ArgumentNullException>();
 
         catalog.Upsert(tag);
+#if NET8_0_OR_GREATER
+        await using var writer = new StringWriter();
+#else
         using var writer = new StringWriter();
+#endif
         await catalog.ExportCsvAsync(writer, CancellationToken.None);
         using var imported = new ModbusTagCatalog();
         var count = await imported.ImportCsvAsync(new StringReader(writer.ToString()), CancellationToken.None);
@@ -108,21 +114,21 @@ public sealed class LogicalTagEdgeCoverageTests
         var roundTrip = ModbusLogicalTag.FromLogicalTag(common);
 
         await NativeAssert.That(roundTrip.Metadata[MetadataKey]).IsEqualTo(MetadataValue);
-        await NativeAssert.That(() => new ModbusLogicalTag(null!)).Throws<ArgumentNullException>();
-        await NativeAssert.That(() => ModbusLogicalTag.FromLogicalTag(null!)).Throws<ArgumentNullException>();
-        await NativeAssert.That(() => CreateTag(metadata: new Dictionary<string, string> { [" "] = "x" }))
+        await NativeAssert.That(static () => new ModbusLogicalTag(null!)).Throws<ArgumentNullException>();
+        await NativeAssert.That(static () => ModbusLogicalTag.FromLogicalTag(null!)).Throws<ArgumentNullException>();
+        await NativeAssert.That(static () => CreateTag(metadata: new Dictionary<string, string> { [" "] = "x" }))
             .Throws<ArgumentException>();
         await NativeAssert.That(
-                () => CreateTag(metadata: new Dictionary<string, string> { ["modbus.unitId"] = "x" }))
+                static () => CreateTag(metadata: new Dictionary<string, string> { ["modbus.unitId"] = "x" }))
             .Throws<ArgumentException>();
-        await NativeAssert.That(() => CreateTag(dataArea: (ModbusDataArea)int.MaxValue))
+        await NativeAssert.That(static () => CreateTag(dataArea: (ModbusDataArea)int.MaxValue))
             .Throws<ArgumentOutOfRangeException>();
-        await NativeAssert.That(() => CreateTag(byteOrder: (ModbusByteOrder)int.MaxValue))
+        await NativeAssert.That(static () => CreateTag(byteOrder: (ModbusByteOrder)int.MaxValue))
             .Throws<ArgumentOutOfRangeException>();
         await NativeAssert.That(
-                () => CreateTag(dataArea: ModbusDataArea.InputRegister))
+                static () => CreateTag(dataArea: ModbusDataArea.InputRegister))
             .Throws<ArgumentException>();
-        await NativeAssert.That(() => CreateTag(scanInterval: TimeSpan.Zero))
+        await NativeAssert.That(static () => CreateTag(scanInterval: TimeSpan.Zero))
             .Throws<ArgumentOutOfRangeException>();
     }
 

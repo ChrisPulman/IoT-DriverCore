@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFrameworks>net481;net8.0;net9.0;net10.0;net9.0-windows10.0.19041.0</TargetFrameworks>
-    <RootNamespace>IoT.DriverCore.Serial.Tests</RootNamespace>
+    <RootNamespace>IoT.Driver.Serial.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <TestTfmsInParallel>false</TestTfmsInParallel>
@@ -35,8 +35,8 @@
     <Using Include="System.Text" />
     <Using Include="System.Threading" />
     <Using Include="System.Threading.Tasks" />
-    <Using Include="IoT.DriverCore.Serial.SourceGeneration" />
-    <Using Include="IoT.DriverCore.Serial.SourceGenerators" />
+    <Using Include="IoT.Driver.Serial.SourceGeneration" />
+    <Using Include="IoT.Driver.Serial.SourceGenerators" />
     <Using Include="Microsoft.CodeAnalysis" />
     <Using Include="Microsoft.CodeAnalysis.CSharp" />
     <Using Include="ReactiveUI.Primitives" />

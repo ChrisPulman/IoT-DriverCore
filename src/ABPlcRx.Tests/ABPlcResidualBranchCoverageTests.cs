@@ -3,12 +3,12 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 using Microsoft.CodeAnalysis;
 using TUnit.Assertions;
 using TUnit.Core;
 
-namespace IoT.DriverCore.ABPlcRx.Tests;
+namespace IoT.Driver.ABPlcRx.Tests;
 
 /// <summary>Exercises deterministic residual branches in the AB simulator and native wrappers.</summary>
 public sealed class ABPlcResidualBranchCoverageTests
@@ -108,15 +108,15 @@ public sealed class ABPlcResidualBranchCoverageTests
         using var plc = new ABPlc(LoopbackAddress, PlcType.SLC, null, native);
         using var tags = plc.CreateTagList("PrimitiveBits", TimeSpan.FromMinutes(1));
 
-        await AssertBitSetAsync(tags.CreateTagType<bool>(BooleanTagName, BooleanTagName), wrapper => wrapper.SetBool(true, 0));
-        await AssertBitSetAsync(tags.CreateTagType<byte>(ByteTagName, ByteTagName), wrapper => wrapper.SetUInt8(1, 0));
-        await AssertBitSetAsync(tags.CreateTagType<sbyte>(SByteTagName, SByteTagName), wrapper => wrapper.SetInt8(1, 0));
-        await AssertBitSetAsync(tags.CreateTagType<ushort>(UInt16TagName, UInt16TagName), wrapper => wrapper.SetUInt16(1, 0));
-        await AssertBitSetAsync(tags.CreateTagType<short>(Int16TagName, Int16TagName), wrapper => wrapper.SetInt16(1, 0));
-        await AssertBitSetAsync(tags.CreateTagType<uint>(UInt32TagName, UInt32TagName), wrapper => wrapper.SetUInt32(1, 0));
-        await AssertBitSetAsync(tags.CreateTagType<int>(Int32TagName, Int32TagName), wrapper => wrapper.SetInt32(1, 0));
-        await AssertBitSetAsync(tags.CreateTagType<ulong>(UInt64TagName, UInt64TagName), wrapper => wrapper.SetUInt64(1, 0));
-        await AssertBitSetAsync(tags.CreateTagType<long>(Int64TagName, Int64TagName), wrapper => wrapper.SetInt64(1, 0));
+        await AssertBitSetAsync(tags.CreateTagType<bool>(BooleanTagName, BooleanTagName), static wrapper => wrapper.SetBool(true, 0));
+        await AssertBitSetAsync(tags.CreateTagType<byte>(ByteTagName, ByteTagName), static wrapper => wrapper.SetUInt8(1, 0));
+        await AssertBitSetAsync(tags.CreateTagType<sbyte>(SByteTagName, SByteTagName), static wrapper => wrapper.SetInt8(1, 0));
+        await AssertBitSetAsync(tags.CreateTagType<ushort>(UInt16TagName, UInt16TagName), static wrapper => wrapper.SetUInt16(1, 0));
+        await AssertBitSetAsync(tags.CreateTagType<short>(Int16TagName, Int16TagName), static wrapper => wrapper.SetInt16(1, 0));
+        await AssertBitSetAsync(tags.CreateTagType<uint>(UInt32TagName, UInt32TagName), static wrapper => wrapper.SetUInt32(1, 0));
+        await AssertBitSetAsync(tags.CreateTagType<int>(Int32TagName, Int32TagName), static wrapper => wrapper.SetInt32(1, 0));
+        await AssertBitSetAsync(tags.CreateTagType<ulong>(UInt64TagName, UInt64TagName), static wrapper => wrapper.SetUInt64(1, 0));
+        await AssertBitSetAsync(tags.CreateTagType<long>(Int64TagName, Int64TagName), static wrapper => wrapper.SetInt64(1, 0));
 
         await AssertPrimitiveRoundTripAsync(tags.CreateTagType<bool>(BooleanTagName, BooleanTagName), false);
         await AssertPrimitiveRoundTripAsync(tags.CreateTagType<byte>(ByteTagName, ByteTagName), default(byte));
@@ -234,7 +234,7 @@ public sealed class ABPlcResidualBranchCoverageTests
     internal async Task GeneratorHandlesGlobalModelsAndUnresolvedAttributesAsync()
     {
         const string globalSource = """
-            using IoT.DriverCore.ABPlcRx.SourceGeneration;
+            using IoT.Driver.ABPlcRx.SourceGeneration;
 
             [PlcModel]
             public partial class GlobalModel
@@ -276,7 +276,7 @@ public sealed class ABPlcResidualBranchCoverageTests
         _ = Assert.Throws<InvalidOperationException>(
             () => TagMixins.ScaleSquareRoot(nullTag, 0D, 1D, 0D, 1D));
         _ = Assert.Throws<InvalidOperationException>(
-            () => TagHelper.CreateObject<int?>(null, 1));
+            static () => TagHelper.CreateObject<int?>(null, 1));
         var fixStringMethod = typeof(TagHelper).GetMethod(
             "FixStringNullToEmpty",
             BindingFlags.Static | BindingFlags.NonPublic)
@@ -318,10 +318,10 @@ public sealed class ABPlcResidualBranchCoverageTests
         try
         {
             var store = new LogicalTagSqliteStore($"Data Source={databasePath};Pooling=False");
-            _ = Assert.Throws<ArgumentNullException>(
-                () => client.InitializeStoreAsync(null!, CancellationToken.None).GetAwaiter().GetResult());
-            _ = Assert.Throws<InvalidOperationException>(
-                () => client.ListTagsAsync(CancellationToken.None).GetAwaiter().GetResult());
+            await Assert.That(async () => await client.InitializeStoreAsync(null!, CancellationToken.None))
+                .Throws<ArgumentNullException>();
+            await Assert.That(async () => await client.ListTagsAsync(CancellationToken.None))
+                .Throws<InvalidOperationException>();
             _ = Assert.Throws<InvalidOperationException>(() => client.Observe(MissingPersistentTagName));
             await client.InitializeStoreAsync(store, CancellationToken.None);
             var original = client.CreateTag("Editable", "N7:10", "int");
@@ -331,7 +331,7 @@ public sealed class ABPlcResidualBranchCoverageTests
             options.Description = EditedDescription;
             var edited = await client.EditTagAsync(original.WithOptions(options), CancellationToken.None);
             var missing = await client.EditTagAsync(
-                new LogicalTag(MissingPersistentTagName, "N7:99", "int"),
+                new(MissingPersistentTagName, "N7:99", "int"),
                 CancellationToken.None);
             var stored = await client.GetTagAsync(original.Name, CancellationToken.None);
             var catalogContainsEdited = client.Catalog.TryGet(original.Name, out var live);
@@ -359,19 +359,15 @@ public sealed class ABPlcResidualBranchCoverageTests
     {
         using var simulator = new ABPlcSimulator(PlcType.SLC);
         using var client = simulator.CreateLogicalTagClient();
-        client.RegisterTag(
-            new LogicalTag(
-                "Flag",
-                "N7:20",
-                "bool",
-                new LogicalTagOptions
-                {
-                    Metadata = new Dictionary<string, string>(StringComparer.Ordinal) { ["Bit"] = "0" },
-                }));
+        var options = new LogicalTagOptions
+        {
+            Metadata = new Dictionary<string, string>(StringComparer.Ordinal) { ["Bit"] = "0" },
+        };
+        client.RegisterTag(new("Flag", "N7:20", "bool", options));
 
         var result = await client.WriteManyAsync(
         [
-            new LogicalTagValue("Flag", true, TimeProvider.System.GetUtcNow()),
+            new("Flag", true, TimeProvider.System.GetUtcNow()),
         ]);
         var read = await client.ReadAsync("Flag");
 

@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Data;
+using IoT.Driver.ModbusRx.Reactive.Data;
 #else
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Message;
+namespace IoT.Driver.ModbusRx.Reactive.Message;
 #else
-namespace IoT.DriverCore.ModbusRx.Message;
+namespace IoT.Driver.ModbusRx.Message;
 #endif
 
 /// <summary>Provides ReadHoldingInputRegistersResponse functionality.</summary>
@@ -31,10 +31,7 @@ public class ReadHoldingInputRegistersResponse : AbstractModbusMessageWithData<R
     public ReadHoldingInputRegistersResponse(byte functionCode, byte slaveAddress, RegisterCollection data)
         : base(slaveAddress, functionCode)
     {
-        if (data is null)
-        {
-            throw new ArgumentNullException(nameof(data));
-        }
+        data = ArgumentGuard.NotNull(data, nameof(data));
 
         ByteCount = data.ByteCount;
         Data = data;

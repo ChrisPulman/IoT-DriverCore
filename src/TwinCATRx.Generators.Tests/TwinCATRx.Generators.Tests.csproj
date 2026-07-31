@@ -21,6 +21,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TwinCATRx.Generators\TwinCATRx.Generators.csproj" />
+    <ProjectReference Include="..\TwinCATRx\TwinCATRx.csproj" />
+    <ProjectReference Include="..\TwinCATRx.Reactive\TwinCATRx.Reactive.csproj" />
   </ItemGroup>
 
   <ItemGroup>

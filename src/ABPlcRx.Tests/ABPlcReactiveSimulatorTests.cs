@@ -2,15 +2,15 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 using TUnit.Assertions;
 using TUnit.Core;
-using ReactiveOperation = IoT.DriverCore.ABPlcRx.Reactive.ABPlcSimulatorOperation;
-using ReactivePlcType = IoT.DriverCore.ABPlcRx.Reactive.PlcType;
-using ReactiveSimulator = IoT.DriverCore.ABPlcRx.Reactive.ABPlcSimulator;
-using ReactiveStatus = IoT.DriverCore.ABPlcRx.Reactive.PlcTagStatus;
+using ReactiveOperation = IoT.Driver.ABPlcRx.Reactive.ABPlcSimulatorOperation;
+using ReactivePlcType = IoT.Driver.ABPlcRx.Reactive.PlcType;
+using ReactiveSimulator = IoT.Driver.ABPlcRx.Reactive.ABPlcSimulator;
+using ReactiveStatus = IoT.Driver.ABPlcRx.Reactive.PlcTagStatus;
 
-namespace IoT.DriverCore.ABPlcRx.Tests;
+namespace IoT.Driver.ABPlcRx.Tests;
 
 /// <summary>Verifies the simulator is production-ready in the Reactive compatibility assembly.</summary>
 public sealed class ABPlcReactiveSimulatorTests
@@ -51,7 +51,7 @@ public sealed class ABPlcReactiveSimulatorTests
 
         var initial = await client.ReadAsync(TagName);
         var write = await client.WriteAsync(
-            new LogicalTagValue(TagName, UpdatedValue, TimeProvider.System.GetUtcNow()));
+            new(TagName, UpdatedValue, TimeProvider.System.GetUtcNow()));
         simulator.QueueFault(ReactiveOperation.Read, ReactiveStatus.ErrRead, 1, PhysicalTagName);
         var fault = await client.ReadAsync(TagName);
         simulator.Disconnect();

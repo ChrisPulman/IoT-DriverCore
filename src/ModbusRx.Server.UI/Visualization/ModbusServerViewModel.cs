@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Collections.ObjectModel;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.Server.UI.Data;
-using IoT.DriverCore.ModbusRx.Server.UI.Services;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Server.UI.Data;
+using IoT.Driver.ModbusRx.Server.UI.Services;
 using ReactiveUI;
 using ReactiveUI.SourceGenerators;
-using MainModbusServerExtensions = global::IoT.DriverCore.ModbusRx.ModbusServerExtensions;
+using MainModbusServerExtensions = global::IoT.Driver.ModbusRx.ModbusServerExtensions;
 
-namespace IoT.DriverCore.ModbusRx.Server.UI.Visualization;
+namespace IoT.Driver.ModbusRx.Server.UI.Visualization;
 
 /// <summary>ViewModel for Modbus server visualization using ReactiveUI.</summary>
 public partial class ModbusServerViewModel : ReactiveObject, IDisposable
@@ -51,7 +51,7 @@ public partial class ModbusServerViewModel : ReactiveObject, IDisposable
 
     /// <summary>The selected simulation data generator.</summary>
     [Reactive]
-    private SimulationType _selectedSimulationType = SimulationType.Random;
+    private SimulationType _selectedSimulationType;
 
     /// <summary>The active server configuration.</summary>
     [Reactive]
@@ -267,11 +267,11 @@ public partial class ModbusServerViewModel : ReactiveObject, IDisposable
     /// <summary>Creates and wires the reactive commands.</summary>
     private void SetupCommands()
     {
-        var canStart = this.WhenAnyValue(x => x.IsServerRunning).Select(running => !running);
-        var canStop = this.WhenAnyValue(x => x.IsServerRunning);
-        var hasSelectedClient = this.WhenAnyValue(x => x.SelectedClientConfiguration).Select(c => c is not null);
-        var canAddClient = this.WhenAnyValue(x => x.NewClientName, x => x.NewClientAddress)
-            .Select(x => !string.IsNullOrWhiteSpace(x.Value1) && !string.IsNullOrWhiteSpace(x.Value2));
+        var canStart = this.WhenAnyValue(static x => x.IsServerRunning).Select(static running => !running);
+        var canStop = this.WhenAnyValue(static x => x.IsServerRunning);
+        var hasSelectedClient = this.WhenAnyValue(static x => x.SelectedClientConfiguration).Select(static c => c is not null);
+        var canAddClient = this.WhenAnyValue(static x => x.NewClientName, static x => x.NewClientAddress)
+            .Select(static x => !string.IsNullOrWhiteSpace(x.Value1) && !string.IsNullOrWhiteSpace(x.Value2));
 
         StartServerCommand = CreateCommand(StartServerAsync, canStart);
         StopServerCommand = CreateCommand(StopServerAsync, canStop);

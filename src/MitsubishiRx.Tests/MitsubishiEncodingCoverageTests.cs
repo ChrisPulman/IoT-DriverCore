@@ -3,15 +3,14 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.IO.Ports;
-using System.Text;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 #endif
 
@@ -47,15 +46,21 @@ internal sealed class MitsubishiEncodingCoverageTests
     private static readonly MitsubishiDeviceAddress BitAddress =
         MitsubishiDeviceAddress.Parse("M10", XyAddressNotation.Octal);
 
+    /// <summary>Stores the representative block word values.</summary>
+    private static readonly ushort[] BlockWordValues = [0x1234, 0x5678];
+
+    /// <summary>Stores the representative block bit values.</summary>
+    private static readonly bool[] BlockBitValues = [true, false];
+
     /// <summary>Stores a request containing word and bit blocks.</summary>
     private static readonly MitsubishiBlockRequest Blocks = new(
         [
             new MitsubishiWordBlock(
                 WordAddress,
-                new ushort[] { 0x1234, 0x5678 }),
+                BlockWordValues),
         ],
         [
-            new MitsubishiBitBlock(BitAddress, new bool[] { true, false }),
+            new MitsubishiBitBlock(BitAddress, BlockBitValues),
         ]);
 
     /// <summary>Exercises every serial entry point for 1C and the remaining 4C ASCII reads.</summary>
@@ -106,7 +111,7 @@ internal sealed class MitsubishiEncodingCoverageTests
                 [(ushort)0x1234]),
             MitsubishiSerialProtocolEncoding.EncodeRawRequest(
                 oneC,
-                new MitsubishiRawCommandRequest(0x0001, 0x0000, [0x31])),
+                new(0x0001, 0x0000, [0x31])),
             MitsubishiSerialProtocolEncoding.EncodeWordReadRequest(
                 fourCAscii,
                 WordAddress,
@@ -346,7 +351,7 @@ internal sealed class MitsubishiEncodingCoverageTests
         _ = Assert.Throws<ArgumentOutOfRangeException>(
             () => MitsubishiProtocolEncoding.Encode(
                 invalid,
-                new MitsubishiRawCommandRequest(1, 0)));
+                new(1, 0)));
         _ = Assert.Throws<ArgumentOutOfRangeException>(
             () => MitsubishiProtocolEncoding.Decode(invalid, request, []));
 
@@ -386,8 +391,8 @@ internal sealed class MitsubishiEncodingCoverageTests
         {
             MitsubishiProtocolEncoding.Decode(oneEBinary, request, [0x81]),
             MitsubishiProtocolEncoding.Decode(oneEBinary, request, [0x81, 0x5B]),
-            MitsubishiProtocolEncoding.Decode(oneEAscii, request, Encoding.ASCII.GetBytes("81")),
-            MitsubishiProtocolEncoding.Decode(oneEAscii, request, Encoding.ASCII.GetBytes("815B")),
+            MitsubishiProtocolEncoding.Decode(oneEAscii, request, "81"u8.ToArray()),
+            MitsubishiProtocolEncoding.Decode(oneEAscii, request, "815B"u8.ToArray()),
             MitsubishiProtocolEncoding.Decode(threeEBinary, request, [0xD0, 0x00]),
             MitsubishiProtocolEncoding.Decode(
                 threeEBinary,
@@ -400,11 +405,11 @@ internal sealed class MitsubishiEncodingCoverageTests
             MitsubishiProtocolEncoding.Decode(
                 threeEAscii,
                 request,
-                Encoding.ASCII.GetBytes("D000")),
+                "D000"u8.ToArray()),
             MitsubishiProtocolEncoding.Decode(
                 threeEAscii,
                 request,
-                Encoding.ASCII.GetBytes("D00000FF03FF000004000012")),
+                "D00000FF03FF000004000012"u8.ToArray()),
         };
         foreach (var result in decodeResults)
         {

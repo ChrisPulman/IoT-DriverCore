@@ -3,10 +3,10 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Binding;
+namespace IoT.Driver.S7PlcRx.Reactive.Binding;
 
 #else
-namespace IoT.DriverCore.S7PlcRx.Binding;
+namespace IoT.Driver.S7PlcRx.Binding;
 
 #endif
 
@@ -19,10 +19,7 @@ public static class S7TagObservableAdapter
     /// <returns>An async sequence.</returns>
     public static IAsyncEnumerable<T> ToAsyncEnumerable<T>(IObservable<T> source)
     {
-        if (source is null)
-        {
-            throw new ArgumentNullException(nameof(source));
-        }
+        Guard.NotNull(source, nameof(source));
 
         return new ObservableAsyncEnumerable<T>(source);
     }

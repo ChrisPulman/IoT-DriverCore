@@ -4,19 +4,35 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive;
+namespace IoT.Driver.OmronPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.OmronPlcRx;
+namespace IoT.Driver.OmronPlcRx;
 #endif
 
 /// <summary>Contains grouped FINS operations for the logical-tag client.</summary>
 public sealed partial class OmronLogicalTagClient
 {
+    /// <summary>Copies a read-only collection to a compact array without LINQ allocation.</summary>
+    /// <typeparam name="T">Collection item type.</typeparam>
+    /// <param name="source">Source collection.</param>
+    /// <returns>A caller-owned array containing the source values in enumeration order.</returns>
+    private static T[] CopyToArray<T>(IReadOnlyCollection<T> source)
+    {
+        var copied = new T[source.Count];
+        var index = 0;
+        foreach (var item in source)
+        {
+            copied[index] = item;
+            index++;
+        }
+
+        return copied;
+    }
+
     /// <summary>Reads a caller-ordered logical-tag collection through grouped operations when available.</summary>
     /// <param name="tagNames">Logical tag names in caller order.</param>
     /// <param name="cancellationToken">Token used to cancel protocol operations.</param>
@@ -25,10 +41,15 @@ public sealed partial class OmronLogicalTagClient
         IReadOnlyCollection<string> tagNames,
         CancellationToken cancellationToken)
     {
-        var names = tagNames.ToArray();
+        var names = CopyToArray(tagNames);
         if (_batchOperations is null || names.Length < 2)
         {
-            var tasks = names.Select(name => ReadAsync(name, cancellationToken)).ToArray();
+            var tasks = new Task<TagOperationResult<LogicalTagValue>>[names.Length];
+            for (var index = 0; index < names.Length; index++)
+            {
+                tasks[index] = ReadAsync(names[index], cancellationToken);
+            }
+
             return await Task.WhenAll(tasks).ConfigureAwait(false);
         }
 
@@ -44,7 +65,7 @@ public sealed partial class OmronLogicalTagClient
             }
 
             batchItems.Add(
-                new OmronLogicalBatchItem(
+                new(
                     index,
                     tag!.Name,
                     tag.Address,
@@ -82,10 +103,15 @@ public sealed partial class OmronLogicalTagClient
         IReadOnlyCollection<LogicalTagValue> values,
         CancellationToken cancellationToken)
     {
-        var source = values.ToArray();
+        var source = CopyToArray(values);
         if (_batchOperations is null || source.Length < 2)
         {
-            var tasks = source.Select(value => WriteAsync(value, cancellationToken)).ToArray();
+            var tasks = new Task<TagOperationResult<LogicalTagValue>>[source.Length];
+            for (var index = 0; index < source.Length; index++)
+            {
+                tasks[index] = WriteAsync(source[index], cancellationToken);
+            }
+
             return await Task.WhenAll(tasks).ConfigureAwait(false);
         }
 
@@ -141,7 +167,7 @@ public sealed partial class OmronLogicalTagClient
             try
             {
                 batchItems.Add(
-                    new OmronLogicalBatchItem(
+                    new(
                         index,
                         tag!.Name,
                         tag.Address,
@@ -164,13 +190,16 @@ public sealed partial class OmronLogicalTagClient
     /// <param name="writes">Original write values, or <see langword="null"/> for reads.</param>
     private void ApplyBatchResults(
         IReadOnlyList<OmronLogicalBatchResult> batchResults,
-        IReadOnlyList<OmronLogicalBatchItem> batchItems,
+        List<OmronLogicalBatchItem> batchItems,
         TagOperationResult<LogicalTagValue>?[] results,
         LogicalTagValue[]? writes)
     {
-        var tagNames = batchItems.ToDictionary(
-            static item => item.InputIndex,
-            static item => item.TagName);
+        var tagNames = new Dictionary<int, string>(batchItems.Count);
+        foreach (var item in batchItems)
+        {
+            tagNames.Add(item.InputIndex, item.TagName);
+        }
+
         foreach (var batchResult in batchResults)
         {
             if ((uint)batchResult.InputIndex >= (uint)results.Length
@@ -195,7 +224,7 @@ public sealed partial class OmronLogicalTagClient
             var quality = writes?[batchResult.InputIndex].Quality;
             results[batchResult.InputIndex] =
                 TagOperationResult<LogicalTagValue>.Success(
-                    new LogicalTagValue(
+                    new(
                         tagName,
                         batchResult.Value,
                         _timeProvider.GetUtcNow(),

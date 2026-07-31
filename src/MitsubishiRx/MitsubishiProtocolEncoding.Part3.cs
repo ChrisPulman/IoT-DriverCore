@@ -6,11 +6,11 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -70,8 +70,7 @@ internal static partial class MitsubishiProtocolEncoding
         MitsubishiClientOptions options,
         bool bitUnits)
     {
-        var buffer = new List<byte>();
-        buffer.AddRange(Encode3EDeviceBody(address, values.Length, options));
+        var buffer = new List<byte>(Encode3EDeviceBody(address, values.Length, options));
         Append3EWriteValues(buffer, values, options, bitUnits);
         return buffer.ToArray();
     }
@@ -351,7 +350,10 @@ internal static partial class MitsubishiProtocolEncoding
         }
         else
         {
-            buffer.AddRange(Encoding.ASCII.GetBytes("5000"));
+            buffer.Add((byte)'5');
+            buffer.Add((byte)'0');
+            buffer.Add((byte)'0');
+            buffer.Add((byte)'0');
         }
     }
 

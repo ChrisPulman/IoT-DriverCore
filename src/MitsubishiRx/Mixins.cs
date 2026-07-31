@@ -6,11 +6,11 @@ using System.Net.Sockets;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -29,12 +29,7 @@ internal static class Mixins
                 {
                     socket.Shutdown(SocketShutdown.Both);
                 }
-            }
-            catch (SocketException) { }
-            catch (ObjectDisposedException) { }
 
-            try
-            {
                 socket?.Close();
             }
             catch (SocketException) { }

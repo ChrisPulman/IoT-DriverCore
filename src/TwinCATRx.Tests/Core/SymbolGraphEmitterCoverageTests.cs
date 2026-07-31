@@ -8,16 +8,19 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text;
 using TwinCAT.TypeSystem;
-using LeanCodeGenerator = IoT.DriverCore.TwinCATRx.Core.CodeGenerator;
-using ReactiveCodeGenerator = IoT.DriverCore.TwinCATRx.Core.Reactive.CodeGenerator;
+using LeanCodeGenerator = IoT.Driver.TwinCATRx.Core.CodeGenerator;
+using ReactiveCodeGenerator = IoT.Driver.TwinCATRx.Core.Reactive.CodeGenerator;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Core;
+namespace IoT.Driver.TwinCATRx.Tests.Core;
 
 /// <summary>Exercises symbol graph traversal and C# emission without loading live ADS symbols.</summary>
 public class SymbolGraphEmitterCoverageTests
 {
     /// <summary>The number of members in the deterministic root structure.</summary>
     private const int ExpectedRootChildCount = 6;
+
+    /// <summary>The reflected source-generation method name.</summary>
+    private const string CreateCSharpCodeStringMethodName = "CreateCSharpCodeString";
 
     /// <summary>Verifies complete graph emission in both Core package variants.</summary>
     /// <param name="reactive">Whether to use the System.Reactive package variant.</param>
@@ -32,8 +35,21 @@ public class SymbolGraphEmitterCoverageTests
         var rootSymbol = CreateSymbolGraph();
         var rootNode = CreateNodeGraph(generatorType.Assembly, rootSymbol);
 
-        var createSource = generatorType.GetMethods()
-            .Single(method => method.Name == "CreateCSharpCodeString" && method.GetParameters().Length == 3);
+        MethodInfo? createSource = null;
+        foreach (var method in generatorType.GetMethods())
+        {
+            if (method.Name == CreateCSharpCodeStringMethodName && method.GetParameters().Length == 3)
+            {
+                createSource = method;
+                break;
+            }
+        }
+
+        if (createSource is null)
+        {
+            throw new MissingMethodException(generatorType.FullName, CreateCSharpCodeStringMethodName);
+        }
+
         var source = Required<string>(createSource.Invoke(generator, [rootNode, false, "Generated.Symbols"]));
 
         await TUnitAssert.That(source).Contains("namespace Generated.Symbols");
@@ -85,8 +101,21 @@ public class SymbolGraphEmitterCoverageTests
         await TUnitAssert.That(next).IsNotNull();
         await TUnitAssert.That(Required<PropertyInfo>(nodeType.GetProperty("Text")).GetValue(next)).IsEqualTo("Nested");
 
-        var createSource = generatorType.GetMethods()
-            .Single(method => method.Name == "CreateCSharpCodeString" && method.GetParameters().Length == 3);
+        MethodInfo? createSource = null;
+        foreach (var candidate in generatorType.GetMethods())
+        {
+            if (candidate.Name == CreateCSharpCodeStringMethodName && candidate.GetParameters().Length == 3)
+            {
+                createSource = candidate;
+                break;
+            }
+        }
+
+        if (createSource is null)
+        {
+            throw new MissingMethodException(generatorType.FullName, CreateCSharpCodeStringMethodName);
+        }
+
         _ = createSource
             .Invoke(generator, [generatedRoot, true, "Generated.Traversal"]);
         await TUnitAssert.That(findNext.Invoke(generator, [generatedRoot])).IsNull();
@@ -131,7 +160,7 @@ public class SymbolGraphEmitterCoverageTests
             "NestedType",
             DataTypeCategory.Struct,
             new FakeSymbol("Value", "DINT", DataTypeCategory.Primitive));
-        return new FakeSymbol(
+        return new(
             "Root",
             "RootType",
             DataTypeCategory.Struct,
@@ -150,8 +179,8 @@ public class SymbolGraphEmitterCoverageTests
     private static object CreateNodeGraph(Assembly assembly, ISymbol symbol)
     {
         var nodeType = Required<Type>(assembly.GetType(assembly == typeof(LeanCodeGenerator).Assembly
-            ? "IoT.DriverCore.TwinCATRx.Core.NodeEmulator"
-            : "IoT.DriverCore.TwinCATRx.Core.Reactive.NodeEmulator"));
+            ? "IoT.Driver.TwinCATRx.Core.NodeEmulator"
+            : "IoT.Driver.TwinCATRx.Core.Reactive.NodeEmulator"));
         var node = Required<object>(Activator.CreateInstance(nodeType));
         Required<PropertyInfo>(nodeType.GetProperty("Text")).SetValue(node, symbol.InstanceName);
         Required<PropertyInfo>(nodeType.GetProperty("Tag")).SetValue(node, symbol);
@@ -284,17 +313,61 @@ public class SymbolGraphEmitterCoverageTests
         public ISymbol this[string instancePath] => GetInstance(instancePath);
 
         /// <inheritdoc/>
-        public bool Contains(string instancePath) => this.Any(symbol => symbol.InstancePath == instancePath);
+        public bool Contains(string instancePath)
+        {
+            foreach (var symbol in this)
+            {
+                if (symbol.InstancePath == instancePath)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         /// <inheritdoc/>
-        public bool ContainsName(string instanceName) => this.Any(symbol => symbol.InstanceName == instanceName);
+        public bool ContainsName(string instanceName)
+        {
+            foreach (var symbol in this)
+            {
+                if (symbol.InstanceName == instanceName)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         /// <inheritdoc/>
-        public ISymbol GetInstance(string instancePath) => this.First(symbol => symbol.InstancePath == instancePath);
+        public ISymbol GetInstance(string instancePath)
+        {
+            foreach (var symbol in this)
+            {
+                if (symbol.InstancePath == instancePath)
+                {
+                    return symbol;
+                }
+            }
+
+            throw new KeyNotFoundException($"No symbol has instance path '{instancePath}'.");
+        }
 
         /// <inheritdoc/>
-        public IList<ISymbol> GetInstanceByName(string instanceName) =>
-            this.Where(symbol => symbol.InstanceName == instanceName).ToList();
+        public IList<ISymbol> GetInstanceByName(string instanceName)
+        {
+            var symbols = new List<ISymbol>();
+            foreach (var symbol in this)
+            {
+                if (symbol.InstanceName == instanceName)
+                {
+                    symbols.Add(symbol);
+                }
+            }
+
+            return symbols;
+        }
 
         /// <inheritdoc/>
 #if NETFRAMEWORK
@@ -303,8 +376,17 @@ public class SymbolGraphEmitterCoverageTests
         public bool TryGetInstance(string instancePath, [NotNullWhen(true)] out ISymbol? symbol)
 #endif
         {
-            symbol = this.FirstOrDefault(candidate => candidate.InstancePath == instancePath);
-            return symbol is not null;
+            foreach (var candidate in this)
+            {
+                if (candidate.InstancePath == instancePath)
+                {
+                    symbol = candidate;
+                    return true;
+                }
+            }
+
+            symbol = null!;
+            return false;
         }
 
         /// <inheritdoc/>

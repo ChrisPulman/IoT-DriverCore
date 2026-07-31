@@ -5,9 +5,9 @@
 using System.Xml.Serialization;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Core.Reactive;
+namespace IoT.Driver.TwinCATRx.Core.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx.Core;
+namespace IoT.Driver.TwinCATRx.Core;
 #endif
 
 /// <summary>Base settings for Engine Settings file.</summary>

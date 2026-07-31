@@ -3,12 +3,13 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>Immutable, deterministic native-operation counts captured by an <see cref="ABPlcSimulator"/>.</summary>
+[System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
 public sealed class ABPlcSimulatorOperationMetrics
 {
     /// <summary>Initializes a new instance of the <see cref="ABPlcSimulatorOperationMetrics"/> class.</summary>
@@ -87,4 +88,8 @@ public sealed class ABPlcSimulatorOperationMetrics
 
     /// <summary>Gets the number of non-success native operations.</summary>
     public long FailedOperations { get; }
+
+    /// <summary>Gets debugger-only type information without affecting the public API.</summary>
+    [System.Diagnostics.DebuggerBrowsable(System.Diagnostics.DebuggerBrowsableState.Never)]
+    private string DebuggerDisplay => ToString() ?? GetType().Name;
 }

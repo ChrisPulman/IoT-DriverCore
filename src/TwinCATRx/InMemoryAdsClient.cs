@@ -4,16 +4,19 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+#if NET
+using System.Runtime.InteropServices;
+#endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.TwinCATRx.Core.Reactive;
+using IoT.Driver.TwinCATRx.Core.Reactive;
 #else
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx.Core;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Reactive;
+namespace IoT.Driver.TwinCATRx.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx;
+namespace IoT.Driver.TwinCATRx;
 #endif
 
 /// <summary>
@@ -44,7 +47,7 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
     private readonly Signal<string?> _writes = new();
 
     /// <summary>Synchronizes symbol, fault, and lifecycle state.</summary>
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
 
     /// <summary>Stores queued deterministic failures by operation.</summary>
     private readonly Dictionary<InMemoryAdsOperation, Queue<Exception>> _faults = [];
@@ -144,17 +147,8 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
             Interlocked.Read(ref _writeOperations),
             Interlocked.Read(ref _notificationPublications));
 
-    /// <summary>Gets a snapshot of all registered symbols.</summary>
-    public IReadOnlyCollection<InMemoryAdsSymbol> Symbols
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _symbols.Values.ToArray();
-            }
-        }
-    }
+    /// <summary>Gets the read-only view of all registered symbols.</summary>
+    public IReadOnlyCollection<InMemoryAdsSymbol> Symbols => _symbols.Values;
 
     /// <inheritdoc/>
     public IDictionary<string, (uint? Handle, int ArrayLength)> WriteHandleInfo { get; } =
@@ -165,10 +159,14 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
     [RequiresDynamicCode("Maintains compatibility with IRxTcAdsClient; the simulator itself does not emit code.")]
     public void Connect(ISettings settings)
     {
+#if NET
+        ArgumentNullException.ThrowIfNull(settings);
+#else
         if (settings is null)
         {
             throw new ArgumentNullException(nameof(settings));
         }
+#endif
 
         ThrowIfDisposed();
         Settings = settings;
@@ -292,21 +290,35 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
     /// <returns>This simulator for fluent setup.</returns>
     public InMemoryAdsClient QueueFault(InMemoryAdsOperation operation, Exception error)
     {
+#if NET
+        ArgumentNullException.ThrowIfNull(error);
+#else
         if (error is null)
         {
             throw new ArgumentNullException(nameof(error));
         }
+#endif
 
         ThrowIfDisposed();
         lock (_gate)
         {
+#if NET
+            ref var faults = ref CollectionsMarshal.GetValueRefOrAddDefault(_faults, operation, out var exists);
+            if (!exists)
+            {
+                faults = new();
+            }
+
+            faults!.Enqueue(error);
+#else
             if (!_faults.TryGetValue(operation, out var faults))
             {
                 faults = new();
-                _faults.Add(operation, faults);
+                _faults[operation] = faults;
             }
 
             faults.Enqueue(error);
+#endif
         }
 
         return this;
@@ -394,10 +406,14 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
     /// <param name="correlationPrefix">The correlation prefix.</param>
     public void ReadMany(IEnumerable<string> variables, string? correlationPrefix)
     {
+#if NET
+        ArgumentNullException.ThrowIfNull(variables);
+#else
         if (variables is null)
         {
             throw new ArgumentNullException(nameof(variables));
         }
+#endif
 
         var index = 0;
         foreach (var variable in variables)
@@ -483,10 +499,14 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
         bool isWritable)
         where T : class
     {
+#if NET
+        ArgumentNullException.ThrowIfNull(value);
+#else
         if (value is null)
         {
             throw new ArgumentNullException(nameof(value));
         }
+#endif
 
         return RegisterSymbol(name, value, typeof(T), -1, isReadable, isWritable);
     }
@@ -614,10 +634,14 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
     /// <param name="correlationPrefix">The correlation prefix.</param>
     public void WriteMany(IEnumerable<KeyValuePair<string, object>> values, string? correlationPrefix)
     {
+#if NET
+        ArgumentNullException.ThrowIfNull(values);
+#else
         if (values is null)
         {
             throw new ArgumentNullException(nameof(values));
         }
+#endif
 
         var index = 0;
         foreach (var value in values)
@@ -636,17 +660,109 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
         _ = Interlocked.Exchange(ref _notificationPublications, 0);
     }
 
+    /// <summary>Clones array values to keep simulator storage isolated from callers.</summary>
+    /// <param name="value">The value to clone when needed.</param>
+    /// <returns>The stored value.</returns>
+    private static object CloneValue(object value) => value is Array array ? array.Clone() : value;
+
+    /// <summary>Clones nullable array values before publishing them.</summary>
+    /// <param name="value">The symbol value.</param>
+    /// <returns>The published value.</returns>
+    private static object? CloneValueOrNull(object? value) => value is null ? null : CloneValue(value);
+
+    /// <summary>Formats a correlated error result.</summary>
+    /// <param name="error">The failure.</param>
+    /// <param name="id">The optional correlation identifier.</param>
+    /// <returns>The write result.</returns>
+    private static string ErrorResult(Exception error, string? id) =>
+        string.IsNullOrWhiteSpace(id)
+            ? $"Error:{error.Message}"
+            : $"Error:{error.Message},{id}";
+
+    /// <summary>Formats a correlated success result.</summary>
+    /// <param name="id">The optional correlation identifier.</param>
+    /// <returns>The write result.</returns>
+    private static string SuccessResult(string? id) =>
+        string.IsNullOrWhiteSpace(id) ? "Success" : $"Success,{id}";
+
+    /// <summary>Validates and normalizes required text.</summary>
+    /// <param name="value">The text.</param>
+    /// <param name="parameterName">The parameter name.</param>
+    /// <returns>The normalized text.</returns>
+    private static string Required(string value, string parameterName)
+    {
+#if NET
+        ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
+#else
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException("The value cannot be null or whitespace.", parameterName);
+        }
+#endif
+
+        return value.Trim();
+    }
+
+    /// <summary>Slices known ADS primitive arrays without runtime code generation.</summary>
+    /// <param name="array">The source array.</param>
+    /// <param name="length">The requested length.</param>
+    /// <returns>The sliced values.</returns>
+    private static object?[] SliceArray(Array array, int length)
+    {
+        var values = new object?[length];
+        for (var index = 0; index < length; index++)
+        {
+            values[index] = array.GetValue(index);
+        }
+
+        return values;
+    }
+
+    /// <summary>Slices array and string reads when an explicit ADS length is supplied.</summary>
+    /// <param name="value">The symbol value.</param>
+    /// <param name="requestedLength">The requested length.</param>
+    /// <returns>The published value.</returns>
+    private static object? SliceValue(object? value, int? requestedLength)
+    {
+        if (requestedLength is null)
+        {
+            return CloneValueOrNull(value);
+        }
+
+        if (requestedLength <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(requestedLength),
+                requestedLength,
+                "An explicit ADS array or string length must be positive.");
+        }
+
+        if (value is string text)
+        {
+            return text.Substring(0, Math.Min(text.Length, requestedLength.Value));
+        }
+
+        return value is Array array
+            ? SliceArray(array, Math.Min(array.Length, requestedLength.Value))
+            : CloneValueOrNull(value);
+    }
+
     /// <summary>Creates deterministic symbol descriptions for the existing code stream.</summary>
     /// <returns>The symbol descriptions.</returns>
     private string[] CreateSymbolDescriptions()
     {
         lock (_gate)
         {
-            return _symbols.Values
-                .OrderBy(static symbol => symbol.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(static symbol =>
-                    $"{symbol.Name}:{symbol.DataType.FullName ?? symbol.DataType.Name}:{symbol.ArrayLength}")
-                .ToArray();
+            var symbols = new List<InMemoryAdsSymbol>(_symbols.Values);
+            symbols.Sort(static (left, right) => StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name));
+            var descriptions = new string[symbols.Count];
+            for (var index = 0; index < symbols.Count; index++)
+            {
+                var symbol = symbols[index];
+                descriptions[index] = $"{symbol.Name}:{symbol.DataType.FullName ?? symbol.DataType.Name}:{symbol.ArrayLength}";
+            }
+
+            return descriptions;
         }
     }
 
@@ -689,44 +805,6 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
                 $"Value for ADS symbol '{symbol.Name}' cannot be converted to {symbol.DataType.FullName}.",
                 error);
         }
-    }
-
-    /// <summary>Clones array values to keep simulator storage isolated from callers.</summary>
-    /// <param name="value">The value to clone when needed.</param>
-    /// <returns>The stored value.</returns>
-    private object CloneValue(object value) => value is Array array ? array.Clone() : value;
-
-    /// <summary>Formats a correlated error result.</summary>
-    /// <param name="error">The failure.</param>
-    /// <param name="id">The optional correlation identifier.</param>
-    /// <returns>The write result.</returns>
-    private string ErrorResult(Exception error, string? id) =>
-        string.IsNullOrWhiteSpace(id)
-            ? $"Error:{error.Message}"
-            : $"Error:{error.Message},{id}";
-
-    /// <summary>Formats a correlated success result.</summary>
-    /// <param name="id">The optional correlation identifier.</param>
-    /// <returns>The write result.</returns>
-    private string SuccessResult(string? id) =>
-        string.IsNullOrWhiteSpace(id) ? "Success" : $"Success,{id}";
-
-    /// <summary>Validates and normalizes required text.</summary>
-    /// <param name="value">The text.</param>
-    /// <param name="parameterName">The parameter name.</param>
-    /// <returns>The normalized text.</returns>
-    private string Required(string value, string parameterName)
-    {
-#if NET
-        ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
-#else
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException("The value cannot be null or whitespace.", parameterName);
-        }
-#endif
-
-        return value.Trim();
     }
 
     /// <summary>Creates configured handles after validating all configured symbol names.</summary>
@@ -799,15 +877,13 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
     {
         lock (_gate)
         {
-            if ((Settings?.Notifications ?? []).Any(
-                item => string.Equals(item.Variable, variable, StringComparison.OrdinalIgnoreCase)) &&
-                !ReadWriteHandleInfo.ContainsKey(variable))
+            if (IsConfiguredNotification(variable) && !ReadWriteHandleInfo.ContainsKey(variable))
             {
                 ReadWriteHandleInfo[variable] = GetNextHandle();
             }
 
-            var writeVariable = (Settings?.WriteVariables ?? []).FirstOrDefault(
-                item => string.Equals(item.Variable, variable, StringComparison.OrdinalIgnoreCase));
+            var writeVariable = FindConfiguredWriteVariable(variable);
+
             if (writeVariable is not null && !WriteHandleInfo.ContainsKey(variable))
             {
                 var handle = ReadWriteHandleInfo.TryGetValue(variable, out var existing)
@@ -816,6 +892,22 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
                 WriteHandleInfo[variable] = (handle, writeVariable.ArraySize);
             }
         }
+    }
+
+    /// <summary>Finds the configured write variable for a symbol.</summary>
+    /// <param name="variable">The symbol name.</param>
+    /// <returns>The matching configured write variable, or null.</returns>
+    private IWriteVariable? FindConfiguredWriteVariable(string variable)
+    {
+        foreach (var item in Settings?.WriteVariables ?? [])
+        {
+            if (string.Equals(item.Variable, variable, StringComparison.OrdinalIgnoreCase))
+            {
+                return item;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>Gets the next nonzero deterministic handle.</summary>
@@ -833,9 +925,18 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
     /// <summary>Gets whether a variable is a configured notification.</summary>
     /// <param name="variable">The variable.</param>
     /// <returns>Whether notifications are configured.</returns>
-    private bool IsConfiguredNotification(string variable) =>
-        (Settings?.Notifications ?? []).Any(
-            notification => string.Equals(notification.Variable, variable, StringComparison.OrdinalIgnoreCase));
+    private bool IsConfiguredNotification(string variable)
+    {
+        foreach (var notification in Settings?.Notifications ?? [])
+        {
+            if (string.Equals(notification.Variable, variable, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>Publishes a configured notification.</summary>
     /// <param name="variable">The configured variable.</param>
@@ -875,11 +976,6 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
 
         _dataReceived.OnNext((symbol.Name, CloneValueOrNull(symbol.Value), null));
     }
-
-    /// <summary>Clones nullable array values before publishing them.</summary>
-    /// <param name="value">The symbol value.</param>
-    /// <returns>The published value.</returns>
-    private object? CloneValueOrNull(object? value) => value is null ? null : CloneValue(value);
 
     /// <summary>Publishes a read failure without terminating the shared observable stream.</summary>
     /// <param name="variable">The requested variable.</param>
@@ -963,39 +1059,6 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
         return false;
     }
 
-    /// <summary>Slices array and string reads when an explicit ADS length is supplied.</summary>
-    /// <param name="value">The symbol value.</param>
-    /// <param name="requestedLength">The requested length.</param>
-    /// <returns>The published value.</returns>
-    private object? SliceValue(object? value, int? requestedLength)
-    {
-        if (requestedLength is null)
-        {
-            return CloneValueOrNull(value);
-        }
-
-        if (requestedLength <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(requestedLength),
-                requestedLength,
-                "An explicit ADS array or string length must be positive.");
-        }
-
-        if (value is string text)
-        {
-            return text.Substring(0, Math.Min(text.Length, requestedLength.Value));
-        }
-
-        if (value is not Array array)
-        {
-            return CloneValueOrNull(value);
-        }
-
-        var length = Math.Min(array.Length, requestedLength.Value);
-        return SliceArray(array, length);
-    }
-
     /// <summary>Throws when the simulator has been disposed.</summary>
     private void ThrowIfDisposed()
     {
@@ -1048,10 +1111,4 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
                 variable));
         return false;
     }
-
-    /// <summary>Slices known ADS primitive arrays without runtime code generation.</summary>
-    /// <param name="array">The source array.</param>
-    /// <param name="length">The requested length.</param>
-    /// <returns>The sliced values.</returns>
-    private object?[] SliceArray(Array array, int length) => array.Cast<object?>().Take(length).ToArray();
 }

@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 using ReactiveUI;
 using ReactiveUI.Primitives;
 
-namespace IoT.DriverCore.OmronPlcRx.Dashboard.ViewModels;
+namespace IoT.Driver.OmronPlcRx.Dashboard.ViewModels;
 
 /// <summary>View model for Add Tag wizard/dialog.</summary>
 public sealed partial class AddTagViewModel : ReactiveObject

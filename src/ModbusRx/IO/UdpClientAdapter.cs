@@ -3,55 +3,47 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.Serial.Reactive;
+using IoT.Driver.ModbusRx.Reactive.Utility;
+using IoT.Driver.Serial.Reactive;
 #else
-using IoT.DriverCore.Serial;
-#endif
-#if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Unme.Common;
-#else
-using IoT.DriverCore.ModbusRx.Unme.Common;
+using IoT.Driver.ModbusRx.Utility;
+using IoT.Driver.Serial;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.IO;
+namespace IoT.Driver.ModbusRx.Reactive.IO;
 #else
-namespace IoT.DriverCore.ModbusRx.IO;
+namespace IoT.Driver.ModbusRx.IO;
 #endif
 
 /// <summary>Concrete Implementor - http://en.wikipedia.org/wiki/Bridge_Pattern.</summary>
 internal sealed class UdpClientAdapter : IStreamResource
 {
     /// <summary>Stores the udp Client value.</summary>
-    private UdpClientRx? _udpClient;
+    private readonly UdpClientRx _udpClient;
 
     /// <summary>Initializes a new instance of the Udp Client Adapter class.</summary>
     /// <param name="udpClient">The udp Client value.</param>
     public UdpClientAdapter(UdpClientRx udpClient)
     {
-        if (udpClient is null)
-        {
-            throw new ArgumentNullException(nameof(udpClient));
-        }
-
-        _udpClient = udpClient;
+        _udpClient = ModbusGuard.NotNull(udpClient, nameof(udpClient));
     }
 
     /// <summary>Gets or sets the Infinite Timeout value.</summary>
-    public int InfiniteTimeout => _udpClient!.InfiniteTimeout;
+    public int InfiniteTimeout => _udpClient.InfiniteTimeout;
 
     /// <summary>Gets or sets the Read Timeout value.</summary>
     public int ReadTimeout
     {
-        get => _udpClient!.ReadTimeout;
-        set => _udpClient!.ReadTimeout = value;
+        get => _udpClient.ReadTimeout;
+        set => _udpClient.ReadTimeout = value;
     }
 
     /// <summary>Gets or sets the Write Timeout value.</summary>
     public int WriteTimeout
     {
-        get => _udpClient!.WriteTimeout;
-        set => _udpClient!.WriteTimeout = value;
+        get => _udpClient.WriteTimeout;
+        set => _udpClient.WriteTimeout = value;
     }
 
     /// <summary>Executes the Discard In Buffer operation.</summary>
@@ -66,20 +58,19 @@ internal sealed class UdpClientAdapter : IStreamResource
     /// <param name="count">The count value.</param>
     /// <returns>The result.</returns>
     public Task<int> ReadAsync(byte[] buffer, int offset, int count) =>
-        _udpClient!.ReadAsync(buffer, offset, count);
+        _udpClient.ReadAsync(buffer, offset, count);
 
     /// <summary>Executes the Write operation.</summary>
     /// <param name="buffer">The buffer value.</param>
     /// <param name="offset">The offset value.</param>
     /// <param name="count">The count value.</param>
     public void Write(byte[] buffer, int offset, int count) =>
-        _udpClient?.Write(buffer, offset, count);
+        _udpClient.Write(buffer, offset, count);
 
     /// <summary>Executes the Dispose operation.</summary>
     public void Dispose()
     {
         Dispose(true);
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>Executes the Dispose operation.</summary>
@@ -91,6 +82,6 @@ internal sealed class UdpClientAdapter : IStreamResource
             return;
         }
 
-        DisposableUtility.Dispose(ref _udpClient);
+        _udpClient.Dispose();
     }
 }

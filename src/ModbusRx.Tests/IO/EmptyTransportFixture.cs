@@ -4,11 +4,11 @@
 
 using System;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.IO;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.IO;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.IO;
+namespace IoT.Driver.ModbusRx.UnitTests.IO;
 
 /// <summary>Tests empty transport behavior.</summary>
 public class EmptyTransportFixture
@@ -29,7 +29,7 @@ public class EmptyTransportFixture
         var request = new ReadCoilsInputsRequest(Modbus.ReadCoils, 1, 0, 1);
         var response = new ReadCoilsInputsResponse(Modbus.ReadCoils, 1, 1, new DiscreteCollection(SingleTrueCoil));
 
-        Assert.Equal(request.MessageFrame, transport.BuildMessageFrame(request));
+        Assert.Equal(request.ToMessageFrame(), transport.BuildMessageFrame(request));
         transport.Write(request);
         transport.OnValidateResponse(request, response);
     }

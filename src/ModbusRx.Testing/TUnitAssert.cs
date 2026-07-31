@@ -9,7 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TUnitAssertions = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.Testing;
+namespace IoT.Driver.ModbusRx.Testing;
 
 /// <summary>Provides xUnit-style assertion helpers backed by TUnit assertions.</summary>
 internal static class TUnitAssert
@@ -140,10 +140,7 @@ internal static class TUnitAssert
     /// <param name="values">The sequence to inspect.</param>
     internal static void Empty(IEnumerable values)
     {
-        if (values is null)
-        {
-            throw new ArgumentNullException(nameof(values));
-        }
+        ArgumentNullException.ThrowIfNull(values);
 
         var enumerator = values.GetEnumerator();
         try
@@ -165,10 +162,7 @@ internal static class TUnitAssert
     /// <param name="values">The sequence to inspect.</param>
     internal static void NotEmpty(IEnumerable values)
     {
-        if (values is null)
-        {
-            throw new ArgumentNullException(nameof(values));
-        }
+        ArgumentNullException.ThrowIfNull(values);
 
         var enumerator = values.GetEnumerator();
         try
@@ -192,10 +186,7 @@ internal static class TUnitAssert
     /// <returns>The single item from the sequence.</returns>
     internal static T Single<T>(IEnumerable<T> values)
     {
-        if (values is null)
-        {
-            throw new ArgumentNullException(nameof(values));
-        }
+        ArgumentNullException.ThrowIfNull(values);
 
         using var enumerator = values.GetEnumerator();
         if (!enumerator.MoveNext())
@@ -216,10 +207,7 @@ internal static class TUnitAssert
     /// <param name="values">The sequence to inspect.</param>
     internal static void Single(IEnumerable values)
     {
-        if (values is null)
-        {
-            throw new ArgumentNullException(nameof(values));
-        }
+        ArgumentNullException.ThrowIfNull(values);
 
         var enumerator = values.GetEnumerator();
         try
@@ -261,10 +249,7 @@ internal static class TUnitAssert
     /// <param name="values">The sequence to inspect.</param>
     internal static void Contains<T>(T expected, IEnumerable<T> values)
     {
-        if (values is null)
-        {
-            throw new ArgumentNullException(nameof(values));
-        }
+        ArgumentNullException.ThrowIfNull(values);
 
         var comparer = EqualityComparer<T>.Default;
         foreach (var value in values)
@@ -284,15 +269,8 @@ internal static class TUnitAssert
     /// <param name="predicate">The match predicate.</param>
     internal static void Contains<T>(IEnumerable<T> values, Predicate<T> predicate)
     {
-        if (values is null)
-        {
-            throw new ArgumentNullException(nameof(values));
-        }
-
-        if (predicate is null)
-        {
-            throw new ArgumentNullException(nameof(predicate));
-        }
+        ArgumentNullException.ThrowIfNull(values);
+        ArgumentNullException.ThrowIfNull(predicate);
 
         foreach (var value in values)
         {
@@ -310,10 +288,7 @@ internal static class TUnitAssert
     /// <param name="actualString">The string to inspect.</param>
     internal static void Contains(string expectedSubstring, string actualString)
     {
-        if (expectedSubstring is null)
-        {
-            throw new ArgumentNullException(nameof(expectedSubstring));
-        }
+        ArgumentNullException.ThrowIfNull(expectedSubstring);
 
         if (actualString?.Contains(expectedSubstring, StringComparison.Ordinal) == true)
         {
@@ -329,10 +304,7 @@ internal static class TUnitAssert
     /// <param name="values">The sequence to inspect.</param>
     internal static void DoesNotContain<T>(T expected, IEnumerable<T> values)
     {
-        if (values is null)
-        {
-            throw new ArgumentNullException(nameof(values));
-        }
+        ArgumentNullException.ThrowIfNull(values);
 
         var comparer = EqualityComparer<T>.Default;
         foreach (var value in values)
@@ -366,15 +338,8 @@ internal static class TUnitAssert
     /// <param name="assertion">The assertion to apply.</param>
     internal static void All<T>(IEnumerable<T> values, Action<T> assertion)
     {
-        if (values is null)
-        {
-            throw new ArgumentNullException(nameof(values));
-        }
-
-        if (assertion is null)
-        {
-            throw new ArgumentNullException(nameof(assertion));
-        }
+        ArgumentNullException.ThrowIfNull(values);
+        ArgumentNullException.ThrowIfNull(assertion);
 
         foreach (var value in values)
         {

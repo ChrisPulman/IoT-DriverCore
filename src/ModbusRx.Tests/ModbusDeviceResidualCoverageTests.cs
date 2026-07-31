@@ -3,13 +3,13 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Net;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.Message;
-using IoT.DriverCore.Serial;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Message;
+using IoT.Driver.Serial;
 using NativeAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Exercises residual Modbus TCP device lifecycles and nullable request validation paths.</summary>
 [TUnit.Core.NotInParallel]

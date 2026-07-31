@@ -6,15 +6,15 @@ using System.Collections.ObjectModel;
 using System.Net;
 using System.Text;
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Utility;
+using IoT.Driver.ModbusRx.Reactive.Utility;
 #else
-using IoT.DriverCore.ModbusRx.Utility;
+using IoT.Driver.ModbusRx.Utility;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Data;
+namespace IoT.Driver.ModbusRx.Reactive.Data;
 #else
-namespace IoT.DriverCore.ModbusRx.Data;
+namespace IoT.Driver.ModbusRx.Data;
 #endif
 
 /// <summary>Collection of 16 bit registers.</summary>
@@ -46,25 +46,23 @@ public class RegisterCollection : Collection<ushort>, IDataCollection
     {
     }
 
-    /// <summary>Gets the network bytes.</summary>
-    public byte[] NetworkBytes
-    {
-        get
-        {
-            using var bytes = new MemoryStream(ByteCount);
-
-            foreach (var register in this)
-            {
-                var b = BitConverter.GetBytes((ushort)IPAddress.HostToNetworkOrder((short)register));
-                bytes.Write(b, 0, b.Length);
-            }
-
-            return bytes.ToArray();
-        }
-    }
-
     /// <summary>Gets the byte count.</summary>
     public byte ByteCount => (byte)(Count * Two);
+
+    /// <summary>Creates the network-byte representation.</summary>
+    /// <returns>A new byte array in Modbus network order.</returns>
+    public byte[] ToNetworkBytes()
+    {
+        using var bytes = new MemoryStream(ByteCount);
+
+        foreach (var register in this)
+        {
+            var b = BitConverter.GetBytes((ushort)IPAddress.HostToNetworkOrder((short)register));
+            bytes.Write(b, 0, b.Length);
+        }
+
+        return bytes.ToArray();
+    }
 
     /// <summary>Returns a string that represents the current object.</summary>
     /// <returns>
@@ -92,10 +90,7 @@ public class RegisterCollection : Collection<ushort>, IDataCollection
     /// <returns>A writable register list.</returns>
     private static IList<ushort> PrepareRegisters(IList<ushort> registers)
     {
-        if (registers is null)
-        {
-            throw new ArgumentNullException(nameof(registers));
-        }
+        registers = ArgumentGuard.NotNull(registers, nameof(registers));
 
         return registers.IsReadOnly ? [.. registers] : registers;
     }

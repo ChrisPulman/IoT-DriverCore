@@ -4,10 +4,10 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiTagSchemaSerializationTests type.</summary>
@@ -89,7 +89,7 @@ internal sealed class MitsubishiTagSchemaSerializationTests
     internal async Task ToCsvAndFromCsvRoundTripPreservesGroupMembershipAsync()
     {
         var database = CreateSchemaDatabase();
-        database.AddGroup(new MitsubishiTagGroupDefinition("Operator|View", [OperatorMessageTagName]));
+        database.AddGroup(new("Operator|View", [OperatorMessageTagName]));
 
         var csv = database.ToCsv();
         var roundTripped = MitsubishiTagDatabase.FromCsv(csv);
@@ -160,7 +160,7 @@ internal sealed class MitsubishiTagSchemaSerializationTests
         ]);
 
         database.AddGroup(
-            new MitsubishiTagGroupDefinition(
+            new(
                 OverviewGroupName,
                 [ SignedTempTagName, TotalCountTagName, OperatorMessageTagName]));
         return database;

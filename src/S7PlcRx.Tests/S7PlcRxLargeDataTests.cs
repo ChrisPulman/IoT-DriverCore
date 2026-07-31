@@ -3,12 +3,12 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Globalization;
-using IoT.DriverCore.S7PlcRx.Mock;
-using IoT.DriverCore.S7PlcRx.PlcTypes;
+using IoT.Driver.S7PlcRx.Mock;
+using IoT.Driver.S7PlcRx.PlcTypes;
 using BclTimeSpan = System.TimeSpan;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.S7PlcRx.Tests;
+namespace IoT.Driver.S7PlcRx.Tests;
 
 /// <summary>
 /// Tests that large byte[] reads and writes work correctly across all payload sizes,
@@ -104,7 +104,7 @@ public class S7PlcRxLargeDataTests
         };
         await TUnitAssert.That(server.Start()).IsEqualTo(0);
 
-        using var plc = new RxS7(new(new(IoT.DriverCore.S7PlcRx.Enums.CpuType.S71500, MockServer.Localhost, 0, 1)));
+        using var plc = new RxS7(new(new(IoT.Driver.S7PlcRx.Enums.CpuType.S71500, MockServer.Localhost, 0, 1)));
         _ = TagOperations.AddUpdateTagItem(
             plc,
             typeof(byte[]),
@@ -184,6 +184,11 @@ public class S7PlcRxLargeDataTests
         var tp = timeProvider ?? TimeProvider.System;
         var deadline = tp.GetUtcNow().UtcDateTime + BclTimeSpan.FromSeconds(ConnectionTimeoutSeconds);
         byte[]? latest = null;
+#if NETFRAMEWORK
+        var pollingDelay = BclTimeSpan.FromMilliseconds(PollingDelayMilliseconds);
+#else
+        using var pollingTimer = new PeriodicTimer(BclTimeSpan.FromMilliseconds(PollingDelayMilliseconds));
+#endif
 
         while (tp.GetUtcNow().UtcDateTime < deadline)
         {
@@ -195,7 +200,11 @@ public class S7PlcRxLargeDataTests
                 return latest;
             }
 
-            await Task.Delay(PollingDelayMilliseconds);
+#if NETFRAMEWORK
+            await Task.Delay(pollingDelay);
+#else
+            _ = await pollingTimer.WaitForNextTickAsync();
+#endif
         }
 
         return latest ?? Array.Empty<byte>();

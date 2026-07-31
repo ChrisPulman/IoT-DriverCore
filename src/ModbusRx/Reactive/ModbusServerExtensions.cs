@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive;
+namespace IoT.Driver.ModbusRx.Reactive;
 #else
-namespace IoT.DriverCore.ModbusRx;
+namespace IoT.Driver.ModbusRx;
 #endif
 
 /// <summary>Reactive extensions for ModbusServer.</summary>
@@ -18,14 +18,16 @@ public static class ModbusServerExtensions
     public static IObservable<(ushort[] HoldingRegisters, ushort[] InputRegisters, bool[] Coils, bool[] Inputs)>
         ObserveDataChanges(Device.ModbusServer server, double interval)
     {
-        return Observable.Create<(ushort[], ushort[], bool[], bool[])>(observer =>
+        return Observable.CreateWithState<
+            (ushort[] HoldingRegisters, ushort[] InputRegisters, bool[] Coils, bool[] Inputs),
+            (Device.ModbusServer server, double interval)>((server, interval), static (state, observer) =>
         {
-            var timer = Observable.Interval(TimeSpan.FromMilliseconds(interval))
+            var timer = Observable.Interval(TimeSpan.FromMilliseconds(state.interval))
                 .Subscribe(_ =>
                 {
                     try
                     {
-                        var data = server.GetCurrentData();
+                        var data = state.server.GetCurrentData();
                         observer.OnNext(data);
                     }
                     catch (Exception ex)
@@ -34,7 +36,7 @@ public static class ModbusServerExtensions
                     }
                 });
 
-            return Disposable.Create(() => timer.Dispose());
+            return Disposable.Create(timer.Dispose);
         });
     }
 
@@ -112,7 +114,9 @@ public static class ModbusServerExtensions
     public static IObservable<Device.ModbusServer> CreateReactiveServer(
         Action<Device.ModbusServer> configureServer)
     {
-        return Observable.Create<Device.ModbusServer>(observer =>
+        return Observable.CreateWithState<Device.ModbusServer, Action<Device.ModbusServer>>(
+            configureServer,
+            static (configureServer, observer) =>
         {
             var server = new Device.ModbusServer();
 
@@ -129,11 +133,7 @@ public static class ModbusServerExtensions
                 return EmptyDisposable.Instance;
             }
 
-            return Disposable.Create(() =>
-            {
-                server.Stop();
-                server.Dispose();
-            });
+            return new ServerSubscription(server);
         });
     }
 
@@ -155,5 +155,28 @@ public static class ModbusServerExtensions
         var result = new T[length];
         Array.Copy(source, start, result, 0, length);
         return result;
+    }
+
+    /// <summary>Stops and disposes a server when an owning subscription ends.</summary>
+    /// <param name="server">The server owned by the subscription.</param>
+    private sealed class ServerSubscription(Device.ModbusServer server) : IDisposable
+    {
+        /// <summary>Stores the server until it is disposed.</summary>
+        private readonly Device.ModbusServer _server = server;
+
+        /// <summary>Tracks whether disposal has already occurred.</summary>
+        private int _disposed;
+
+        /// <summary>Stops and disposes the server exactly once.</summary>
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return;
+            }
+
+            _server.Stop();
+            _server.Dispose();
+        }
     }
 }

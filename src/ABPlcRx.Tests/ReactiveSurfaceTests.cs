@@ -5,13 +5,13 @@
 using ReactiveUI.Primitives.Async;
 using TUnit.Assertions;
 using TUnit.Core;
-using PlcController = IoT.DriverCore.ABPlcRx.ABPlcRx;
-using ReactiveIPlcTag = IoT.DriverCore.ABPlcRx.Reactive.IPlcTag;
-using ReactivePlcController = IoT.DriverCore.ABPlcRx.Reactive.ABPlcRx;
-using ReactivePlcTagResult = IoT.DriverCore.ABPlcRx.Reactive.PlcTagResult;
-using ReactivePlcType = IoT.DriverCore.ABPlcRx.Reactive.PlcType;
+using PlcController = IoT.Driver.ABPlcRx.ABPlcRx;
+using ReactiveIPlcTag = IoT.Driver.ABPlcRx.Reactive.IPlcTag;
+using ReactivePlcController = IoT.Driver.ABPlcRx.Reactive.ABPlcRx;
+using ReactivePlcTagResult = IoT.Driver.ABPlcRx.Reactive.PlcTagResult;
+using ReactivePlcType = IoT.Driver.ABPlcRx.Reactive.PlcType;
 
-namespace IoT.DriverCore.ABPlcRx.Tests;
+namespace IoT.Driver.ABPlcRx.Tests;
 
 /// <summary>Tests the high-level reactive PLC facade.</summary>
 public sealed class ReactiveSurfaceTests
@@ -49,7 +49,7 @@ public sealed class ReactiveSurfaceTests
             PlcType.SLC,
             LoopbackAddress,
             TimeSpan.FromMilliseconds(TestScanIntervalMilliseconds));
-        var completion = new TaskCompletionSource<IReadOnlyDictionary<string, object?>>();
+        var completion = new TaskCompletionSource<IReadOnlyDictionary<string, object?>>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var subscription = plc.ObserveMany().Subscribe(
             new CaptureObserver<IReadOnlyDictionary<string, object?>>(completion.SetResult));
@@ -148,7 +148,7 @@ public sealed class ReactiveSurfaceTests
             ReactivePlcType.SLC,
             LoopbackAddress,
             TimeSpan.FromMilliseconds(TestScanIntervalMilliseconds));
-        var completion = new TaskCompletionSource<IReadOnlyDictionary<string, object?>>();
+        var completion = new TaskCompletionSource<IReadOnlyDictionary<string, object?>>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var subscription = plc.ObserveMany().Subscribe(
             new CaptureObserver<IReadOnlyDictionary<string, object?>>(completion.SetResult));

@@ -3,17 +3,17 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Runtime.CompilerServices;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Device;
+using IoT.Driver.ModbusRx.Reactive.Device;
 #else
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Device;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.LogicalTags;
+namespace IoT.Driver.ModbusRx.Reactive.LogicalTags;
 #else
-namespace IoT.DriverCore.ModbusRx.LogicalTags;
+namespace IoT.Driver.ModbusRx.LogicalTags;
 #endif
 
 /// <summary>Composes a raw Modbus master with logical-name catalog, persistence, and observation APIs.</summary>
@@ -213,7 +213,7 @@ public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, I
             var data = await ReadRawAsync(tag.UnitId, tag.DataArea, tag.Address, tag.Count).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             return TagOperationResult<LogicalTagValue>.Success(
-                new LogicalTagValue(tag.Name, ModbusTagCodec.Decode(tag, data, 0), _timeProvider.GetUtcNow(), "Good"));
+                new(tag.Name, ModbusTagCodec.Decode(tag, data, 0), _timeProvider.GetUtcNow(), "Good"));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -235,12 +235,15 @@ public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, I
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(tagNames);
+#else
         if (tagNames is null)
         {
             throw new ArgumentNullException(nameof(tagNames));
         }
-
-        var names = tagNames.ToArray();
+#endif
+        var names = CopyValues(tagNames);
         var results = new TagOperationResult<LogicalTagValue>[names.Length];
         var requests = ResolveReadRequests(names, results);
         await _masterGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -262,10 +265,14 @@ public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, I
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(value);
+#else
         if (value is null)
         {
             throw new ArgumentNullException(nameof(value));
         }
+#endif
 
         if (!Catalog.TryGet(value.TagName, out var tag) || tag is null)
         {
@@ -292,7 +299,7 @@ public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, I
             }
 
             return TagOperationResult<LogicalTagValue>.Success(
-                new LogicalTagValue(tag.Name, value.Value, _timeProvider.GetUtcNow(), "Good"));
+                new(tag.Name, value.Value, _timeProvider.GetUtcNow(), "Good"));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -310,12 +317,15 @@ public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, I
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(values);
+#else
         if (values is null)
         {
             throw new ArgumentNullException(nameof(values));
         }
-
-        var materialized = values.ToArray();
+#endif
+        var materialized = CopyValues(values);
         var results = new TagOperationResult<LogicalTagValue>[materialized.Length];
         var requests = ResolveWriteRequests(materialized, results);
         if (requests.Count == 0)
@@ -364,27 +374,19 @@ public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, I
     }
 
     /// <inheritdoc/>
-    public async IAsyncEnumerable<LogicalTagValue> ObserveManyAsync(
+    public IAsyncEnumerable<LogicalTagValue> ObserveManyAsync(
         IReadOnlyCollection<string> tagNames,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
     {
-        var names = (tagNames ?? throw new ArgumentNullException(nameof(tagNames))).ToArray();
-        while (true)
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(tagNames);
+#else
+        if (tagNames is null)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var results = await ReadManyAsync(names, cancellationToken).ConfigureAwait(false);
-            foreach (var result in results)
-            {
-                if (!result.Succeeded || result.Value is null)
-                {
-                    throw new InvalidOperationException(result.Error);
-                }
-
-                yield return result.Value;
-            }
-
-            await Task.Delay(GetScanInterval(names), cancellationToken).ConfigureAwait(false);
+            throw new ArgumentNullException(nameof(tagNames));
         }
+#endif
+        return ObserveManyCoreAsync(CopyValues(tagNames), cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -402,6 +404,133 @@ public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, I
         }
 
         Catalog.Dispose();
+    }
+
+    /// <summary>Groups read requests by their unit and data area while retaining first-seen group order.</summary>
+    /// <param name="requests">The requests to group.</param>
+    /// <returns>The grouped requests.</returns>
+    private static List<List<ReadRequest>> GroupReadRequests(IEnumerable<ReadRequest> requests)
+    {
+        var groups = new List<List<ReadRequest>>();
+        foreach (var request in requests)
+        {
+            List<ReadRequest>? matchingGroup = null;
+            foreach (var group in groups)
+            {
+                var representative = group[0].Tag;
+                if (representative.UnitId == request.Tag.UnitId && representative.DataArea == request.Tag.DataArea)
+                {
+                    matchingGroup = group;
+                    break;
+                }
+            }
+
+            if (matchingGroup is null)
+            {
+                matchingGroup = new();
+                groups.Add(matchingGroup);
+            }
+
+            matchingGroup.Add(request);
+        }
+
+        return groups;
+    }
+
+    /// <summary>Groups write requests by their unit and data area while retaining first-seen group order.</summary>
+    /// <param name="requests">The requests to group.</param>
+    /// <returns>The grouped requests.</returns>
+    private static List<List<ModbusLogicalWritePlanner.Request>> GroupWriteRequests(
+        IEnumerable<ModbusLogicalWritePlanner.Request> requests)
+    {
+        var groups = new List<List<ModbusLogicalWritePlanner.Request>>();
+        foreach (var request in requests)
+        {
+            List<ModbusLogicalWritePlanner.Request>? matchingGroup = null;
+            foreach (var group in groups)
+            {
+                var representative = group[0].Tag;
+                if (representative.UnitId == request.Tag.UnitId && representative.DataArea == request.Tag.DataArea)
+                {
+                    matchingGroup = group;
+                    break;
+                }
+            }
+
+            if (matchingGroup is null)
+            {
+                matchingGroup = new();
+                groups.Add(matchingGroup);
+            }
+
+            matchingGroup.Add(request);
+        }
+
+        return groups;
+    }
+
+    /// <summary>Groups scheduled writes by wave in ascending wave order.</summary>
+    /// <param name="scheduled">The scheduled writes.</param>
+    /// <returns>The write waves.</returns>
+    private static List<List<ModbusLogicalWritePlanner.ScheduledRequest>> CreateWriteWaves(
+        List<ModbusLogicalWritePlanner.ScheduledRequest> scheduled)
+    {
+        var waves = new List<List<ModbusLogicalWritePlanner.ScheduledRequest>>();
+        for (var index = 0; index < scheduled.Count; index++)
+        {
+            var request = scheduled[index];
+            while (waves.Count <= request.Wave)
+            {
+                waves.Add(new());
+            }
+
+            waves[request.Wave].Add(request);
+        }
+
+        return waves;
+    }
+
+    /// <summary>Copies a collection into an array without LINQ enumeration.</summary>
+    /// <typeparam name="T">The item type.</typeparam>
+    /// <param name="values">The values to copy.</param>
+    /// <returns>The copied values.</returns>
+    private static T[] CopyValues<T>(IReadOnlyCollection<T> values)
+    {
+        var result = new T[values.Count];
+        var index = 0;
+        foreach (var value in values)
+        {
+            result[index] = value;
+            index++;
+        }
+
+        return result;
+    }
+
+    /// <summary>Produces observations after argument validation has completed.</summary>
+    /// <param name="tagNames">The copied logical tag names.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The asynchronous observation sequence.</returns>
+    private async IAsyncEnumerable<LogicalTagValue> ObserveManyCoreAsync(
+        string[] tagNames,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var results = await ReadManyAsync(tagNames, cancellationToken).ConfigureAwait(false);
+            foreach (var result in results)
+            {
+                if (!result.Succeeded || result.Value is null)
+                {
+                    throw new InvalidOperationException(result.Error);
+                }
+
+                yield return result.Value;
+            }
+
+            await Task.Delay(GetScanInterval(tagNames), cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>Resolves readable requests and records expected lookup failures.</summary>
@@ -427,7 +556,7 @@ public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, I
             }
             else
             {
-                requests.Add(new ReadRequest(index, tag));
+                requests.Add(new(index, tag));
             }
         }
 
@@ -462,7 +591,7 @@ public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, I
                 try
                 {
                     requests.Add(
-                        new ModbusLogicalWritePlanner.Request(
+                        new(
                             index,
                             tag,
                             value,
@@ -512,14 +641,14 @@ public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, I
             return (endIndex, rawEnd);
         }
 
-        foreach (var group in requests.GroupBy(static request => (request.Tag.UnitId, request.Tag.DataArea)))
+        foreach (var group in GroupReadRequests(requests))
         {
-            var ordered = group.OrderBy(static request => request.Tag.Address).ToArray();
+            group.Sort(static (left, right) => left.Tag.Address.CompareTo(right.Tag.Address));
             var start = 0;
-            while (start < ordered.Length)
+            while (start < group.Count)
             {
-                var (end, rangeEnd) = FindRangeEnd(ordered, start);
-                await ReadRangeAsync(ordered, start, end, rangeEnd, results, cancellationToken).ConfigureAwait(false);
+                var (end, rangeEnd) = FindRangeEnd(group, start);
+                await ReadRangeAsync(group, start, end, rangeEnd, results, cancellationToken).ConfigureAwait(false);
                 start = end;
             }
         }
@@ -535,16 +664,23 @@ public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, I
         TagOperationResult<LogicalTagValue>[] results,
         CancellationToken cancellationToken)
     {
-        foreach (var group in requests.GroupBy(static request => (request.Tag.UnitId, request.Tag.DataArea)))
+        foreach (var group in GroupWriteRequests(requests))
         {
-            var scheduled = ModbusLogicalWritePlanner.Schedule(group);
-            foreach (var wave in scheduled.GroupBy(static request => request.Wave).OrderBy(static wave => wave.Key))
+            foreach (var wave in CreateWriteWaves(ModbusLogicalWritePlanner.Schedule(group)))
             {
-                var ordered = wave
-                    .OrderBy(static request => request.Request.Tag.Address)
-                    .ThenBy(static request => request.Request.Index)
-                    .Select(static request => request.Request)
-                    .ToArray();
+                wave.Sort(static (left, right) =>
+                {
+                    var addressComparison = left.Request.Tag.Address.CompareTo(right.Request.Tag.Address);
+                    return addressComparison != 0
+                        ? addressComparison
+                        : left.Request.Index.CompareTo(right.Request.Index);
+                });
+                var ordered = new ModbusLogicalWritePlanner.Request[wave.Count];
+                for (var index = 0; index < wave.Count; index++)
+                {
+                    ordered[index] = wave[index].Request;
+                }
+
                 var start = 0;
                 while (start < ordered.Length)
                 {
@@ -598,7 +734,7 @@ public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, I
             {
                 var request = requests[index];
                 results[request.Index] = TagOperationResult<LogicalTagValue>.Success(
-                    new LogicalTagValue(
+                    new(
                         request.Tag.Name,
                         request.Requested.Value,
                         _timeProvider.GetUtcNow(),
@@ -650,7 +786,7 @@ public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, I
                 {
                     var value = ModbusTagCodec.Decode(request.Tag, data, request.Tag.Address - first.Address);
                     results[request.Index] = TagOperationResult<LogicalTagValue>.Success(
-                        new LogicalTagValue(request.Tag.Name, value, _timeProvider.GetUtcNow(), "Good"));
+                        new(request.Tag.Name, value, _timeProvider.GetUtcNow(), "Good"));
                 }
                 catch (Exception exception)
                 {
@@ -797,10 +933,14 @@ public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, I
         /// <inheritdoc/>
         public IDisposable Subscribe(IObserver<T> observer)
         {
+#if NET8_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(observer);
+#else
             if (observer is null)
             {
                 throw new ArgumentNullException(nameof(observer));
             }
+#endif
 
             var cancellation = new CancellationTokenSource();
             _ = RunAsync(observer, cancellation.Token);

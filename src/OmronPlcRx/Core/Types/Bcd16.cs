@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Types;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core.Types;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core.Types;
+namespace IoT.Driver.OmronPlcRx.Core.Types;
 #endif
 
 /// <summary>Signed 16-bit BCD numeric wrapper.</summary>

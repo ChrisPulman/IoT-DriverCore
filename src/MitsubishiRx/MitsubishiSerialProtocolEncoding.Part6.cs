@@ -2,19 +2,20 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 
 #if REACTIVE_SHIM
 
-using static IoT.DriverCore.MitsubishiRx.Reactive.MitsubishiNumericConstants;
+using static IoT.Driver.MitsubishiRx.Reactive.MitsubishiNumericConstants;
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-using static IoT.DriverCore.MitsubishiRx.MitsubishiNumericConstants;
+using static IoT.Driver.MitsubishiRx.MitsubishiNumericConstants;
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -46,9 +47,10 @@ internal static partial class MitsubishiSerialProtocolEncoding
             _ = builder.Append(FormatAsciiUInt16(checked((ushort)block.Values.Length)));
             if (includeValues)
             {
-                _ = builder.Append(
-                    string.Concat(
-                        block.Values.ToArray().Select(static value => value ? "10" : "00")));
+                foreach (var value in block.Values.Span)
+                {
+                    _ = builder.Append(value ? "10" : "00");
+                }
             }
         }
 
@@ -201,7 +203,7 @@ internal static partial class MitsubishiSerialProtocolEncoding
     {
         var trimmed =
             format == MitsubishiSerialMessageFormat.Format4
-                ? response.Where(static value => value is not Cr and not Lf).ToArray()
+                ? RemoveCarriageReturnsAndLineFeeds(response)
                 : response;
         if (trimmed.Length < 3)
         {
@@ -229,10 +231,10 @@ internal static partial class MitsubishiSerialProtocolEncoding
             return false;
         }
 
-        var body = normalized.AsSpan(0, normalized.Length - Two);
-        var expectedChecksum = ComputeChecksum(body.ToArray());
-        var actualChecksum = Encoding.ASCII.GetString(normalized.AsSpan(normalized.Length - Two));
-        return string.Equals(expectedChecksum, actualChecksum, StringComparison.OrdinalIgnoreCase);
+        var expectedChecksum = Encoding.ASCII.GetBytes(
+            ComputeChecksum(normalized, 0, normalized.Length - Two));
+        var actualChecksum = normalized.AsSpan(normalized.Length - Two);
+        return CryptographicOperations.FixedTimeEquals(expectedChecksum, actualChecksum);
     }
 
     /// <summary>Normalizes a complete format 1 or format 4 ASCII frame.</summary>
@@ -261,10 +263,7 @@ internal static partial class MitsubishiSerialProtocolEncoding
             return false;
         }
 
-        normalized = buffer
-            .ToArray()
-            .Where(static value => value is not Cr and not Lf)
-            .ToArray();
+        normalized = RemoveCarriageReturnsAndLineFeeds(buffer);
         return true;
     }
 
@@ -288,7 +287,29 @@ internal static partial class MitsubishiSerialProtocolEncoding
     /// <returns>The ComputeChecksum operation result.</returns>
     private static string ComputeChecksum(IEnumerable<byte> bytes)
     {
-        var sum = bytes.Aggregate(0, static (current, value) => current + value);
+        var sum = 0;
+        foreach (var value in bytes)
+        {
+            sum += value;
+        }
+
+        return (sum & 0xFF).ToString("X2", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>Computes a checksum over a contiguous region of a byte list.</summary>
+    /// <param name="bytes">The bytes to checksum.</param>
+    /// <param name="offset">The zero-based offset of the region.</param>
+    /// <param name="count">The number of bytes in the region.</param>
+    /// <returns>The ASCII checksum representation.</returns>
+    private static string ComputeChecksum(IReadOnlyList<byte> bytes, int offset, int count)
+    {
+        var sum = 0;
+        var end = offset + count;
+        for (var index = offset; index < end; index++)
+        {
+            sum += bytes[index];
+        }
+
         return (sum & 0xFF).ToString("X2", CultureInfo.InvariantCulture);
     }
 
@@ -381,7 +402,7 @@ internal static partial class MitsubishiSerialProtocolEncoding
         var prefix = new List<byte> { Dle, Stx };
         AppendUInt16LittleEndian(prefix, numberOfDataBytes);
         prefix.AddRange(buffer);
-        var checksum = ComputeChecksum(prefix.Skip(Two).Take(Two + numberOfDataBytes));
+        var checksum = ComputeChecksum(prefix, Two, Two + numberOfDataBytes);
         prefix.AddRange(Encoding.ASCII.GetBytes(checksum));
         return prefix.ToArray();
     }
@@ -395,5 +416,65 @@ internal static partial class MitsubishiSerialProtocolEncoding
         {
             buffer.Add(value ? (byte)0x10 : (byte)0x00);
         }
+    }
+
+    /// <summary>Formats a sequence of device addresses for an ASCII request.</summary>
+    /// <param name="addresses">The addresses to format.</param>
+    /// <returns>The concatenated device addresses.</returns>
+    private static string FormatDeviceAddresses(IReadOnlyList<MitsubishiDeviceAddress> addresses)
+    {
+        var builder = new StringBuilder();
+        foreach (var address in addresses)
+        {
+            _ = builder.Append(FormatDeviceAddressModern(address, address.Descriptor));
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>Formats a sequence of device values for an ASCII request.</summary>
+    /// <param name="values">The values to format.</param>
+    /// <returns>The concatenated device values.</returns>
+    private static string FormatDeviceValues(IReadOnlyList<MitsubishiDeviceValue> values)
+    {
+        var builder = new StringBuilder();
+        foreach (var value in values)
+        {
+            _ = builder.Append(FormatDeviceAddressModern(value.Address, value.Address.Descriptor));
+            _ = builder.Append(value.Value.ToString("X4", CultureInfo.InvariantCulture));
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>Copies a byte list to an array without LINQ enumeration.</summary>
+    /// <param name="values">The source byte list.</param>
+    /// <returns>A byte array containing the source values.</returns>
+    private static byte[] ToByteArray(IReadOnlyList<byte> values)
+    {
+        var result = new byte[values.Count];
+        for (var index = 0; index < values.Count; index++)
+        {
+            result[index] = values[index];
+        }
+
+        return result;
+    }
+
+    /// <summary>Removes CR and LF framing bytes from a buffer.</summary>
+    /// <param name="values">The framed bytes.</param>
+    /// <returns>The bytes without CR and LF values.</returns>
+    private static byte[] RemoveCarriageReturnsAndLineFeeds(ReadOnlySpan<byte> values)
+    {
+        var result = new List<byte>(values.Length);
+        foreach (var value in values)
+        {
+            if (value is not Cr and not Lf)
+            {
+                result.Add(value);
+            }
+        }
+
+        return result.ToArray();
     }
 }

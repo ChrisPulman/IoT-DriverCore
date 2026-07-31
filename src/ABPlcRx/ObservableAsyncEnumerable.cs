@@ -5,9 +5,9 @@
 using System.Runtime.CompilerServices;
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>Converts classic observables to cancellation-aware asynchronous sequences.</summary>
@@ -43,7 +43,7 @@ internal static class ObservableAsyncEnumerable
         private readonly SemaphoreSlim _signal = new(0);
 
         /// <summary>Synchronizes buffer state.</summary>
-        private readonly object _syncRoot = new();
+        private readonly Lock _syncRoot = new();
 
         /// <summary>The source subscription.</summary>
         private readonly MultipleDisposable _subscription = [];
@@ -120,10 +120,7 @@ internal static class ObservableAsyncEnumerable
 
         /// <summary>Completes a terminal wait or rethrows the source error.</summary>
         /// <returns>False when the source completed successfully.</returns>
-        private bool CompleteWait()
-        {
-            return _error is null ? false : throw _error;
-        }
+        private bool CompleteWait() => _error is null ? false : throw _error;
 
         /// <summary>Records a terminal notification.</summary>
         /// <param name="error">The optional source error.</param>

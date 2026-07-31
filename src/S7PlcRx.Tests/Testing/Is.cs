@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Testing;
+namespace IoT.Driver.S7PlcRx.Tests.Testing;
 
 /// <summary>Creates value constraints.</summary>
 public static class Is
@@ -65,7 +65,7 @@ public static class Is
     public static IConstraint InstanceOf<T>(params T[] typeMarker)
     {
         _ = typeMarker;
-        return new Constraint(actual => actual is T, $"instance of {typeof(T).FullName}");
+        return new Constraint(static actual => actual is T, $"instance of {typeof(T).FullName}");
     }
 
     /// <summary>Gets a constraint for a value assignable to the supplied type.</summary>
@@ -75,7 +75,7 @@ public static class Is
     public static IConstraint AssignableTo<T>(params T[] typeMarker)
     {
         _ = typeMarker;
-        return new Constraint(actual => actual is T, $"assignable to {typeof(T).FullName}");
+        return new Constraint(static actual => actual is T, $"assignable to {typeof(T).FullName}");
     }
 
     /// <summary>Gets a constraint for a value whose runtime type matches the supplied type.</summary>
@@ -85,7 +85,7 @@ public static class Is
     public static IConstraint TypeOf<T>(params T[] typeMarker)
     {
         _ = typeMarker;
-        return new Constraint(actual => actual?.GetType() == typeof(T), $"type {typeof(T).FullName}");
+        return new Constraint(static actual => actual?.GetType() == typeof(T), $"type {typeof(T).FullName}");
     }
 
     /// <summary>Gets a constraint for equivalent sequences.</summary>
@@ -117,7 +117,7 @@ public static class Is
         object expected,
         Func<int, bool> predicate,
         string expectation) =>
-        new Constraint(
+        new(
             actual => predicate(AssertionHelpers.Compare(actual, expected)),
             $"{expectation} {AssertionHelpers.Format(expected)}");
 

@@ -5,9 +5,9 @@
 using System.Collections.Concurrent;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Production;
+namespace IoT.Driver.S7PlcRx.Reactive.Production;
 #else
-namespace IoT.DriverCore.S7PlcRx.Production;
+namespace IoT.Driver.S7PlcRx.Production;
 #endif
 
 /// <summary>
@@ -38,17 +38,10 @@ public static class ProductionExtensions
         IRxS7 plc,
         ProductionErrorConfig config)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc));
-        }
+        Guard.NotNull(plc, nameof(plc));
+        Guard.NotNull(config, nameof(config));
 
-        if (config is null)
-        {
-            throw new ArgumentNullException(nameof(config));
-        }
-
-        return new ProductionErrorHandler(config);
+        return new(config);
     }
 
     /// <summary>Executes an asynchronous PLC operation with the default error-handling configuration.</summary>
@@ -57,7 +50,7 @@ public static class ProductionExtensions
     /// <param name="operation">A function that represents the asynchronous operation to execute.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     public static Task<T> ExecuteWithErrorHandlingAsync<T>(IRxS7 plc, Func<Task<T>> operation) =>
-        ExecuteWithErrorHandlingAsync(plc, operation, new ProductionErrorConfig());
+        ExecuteWithErrorHandlingAsync(plc, operation, new());
 
     /// <summary>Executes an asynchronous PLC operation with error handling and circuit-breaker protection.</summary>
     /// <typeparam name="T">The type of the result returned by the operation.</typeparam>
@@ -75,7 +68,10 @@ public static class ProductionExtensions
         Guard.NotNull(config, nameof(config));
 
         var circuitBreakerKey = $"{plc.IP}_{plc.PLCType}";
-        var circuitBreaker = CircuitBreakers.GetOrAdd(circuitBreakerKey, _ => new CircuitBreaker(config));
+        var circuitBreaker = CircuitBreakers.GetOrAdd(
+            circuitBreakerKey,
+            static (_, configuration) => new CircuitBreaker(configuration),
+            config);
         return circuitBreaker.ExecuteAsync(operation);
     }
 
@@ -83,7 +79,7 @@ public static class ProductionExtensions
     /// <param name="plc">The PLC instance.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     public static Task<SystemValidationResult> ValidateProductionReadinessAsync(IRxS7 plc) =>
-        ValidateProductionReadinessAsync(plc, new ProductionValidationConfig());
+        ValidateProductionReadinessAsync(plc, new());
 
     /// <summary>Validates whether the PLC is ready for production deployment.</summary>
     /// <param name="plc">The PLC instance.</param>

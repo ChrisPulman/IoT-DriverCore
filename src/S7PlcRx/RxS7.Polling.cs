@@ -3,63 +3,46 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Core;
-using IoT.DriverCore.S7PlcRx.Reactive.Enums;
-using IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+using IoT.Driver.S7PlcRx.Reactive.Enums;
+using IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-using IoT.DriverCore.S7PlcRx.Core;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.PlcTypes;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 using TimeSpan = System.TimeSpan;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive;
+namespace IoT.Driver.S7PlcRx.Reactive;
 #else
-namespace IoT.DriverCore.S7PlcRx;
+namespace IoT.Driver.S7PlcRx;
 #endif
 
 /// <summary>Contains polling members for <see cref="RxS7"/>.</summary>
 public partial class RxS7
 {
     /// <summary>Reads a data block bit address.</summary>
+    /// <param name="instance">The PLC reader that performs the operation.</param>
     /// <param name="tag">The tag to read.</param>
     /// <param name="strings">The parsed address components.</param>
     /// <param name="db">The data block number.</param>
     /// <param name="byteOffset">The byte offset.</param>
     /// <returns>The bit value.</returns>
-    private bool ReadDataBlockBitAddress(Tag tag, string[] strings, int db, int byteOffset)
+    private static bool ReadDataBlockBitAddress(RxS7 instance, Tag tag, string[] strings, int db, int byteOffset)
     {
         var bitOffset = int.Parse(strings[BitAddressComponentIndex]);
         RxS7ValueHelpers.EnsureBitOffsetIsValid(bitOffset, tag);
-        var value = Read<byte>(tag, DataType.DataBlock, db, byteOffset, VarType.Byte);
+        var value = instance.Read<byte>(tag, DataType.DataBlock, db, byteOffset, VarType.Byte);
         return RxS7ValueHelpers.GetBit(value, bitOffset);
     }
 
-    /// <summary>Reads a timer, counter, or bit address outside data blocks.</summary>
-    /// <param name="tag">The tag to read.</param>
-    /// <param name="correctVariable">The normalized variable address.</param>
-    /// <returns>The value read from the address.</returns>
-    private object? ReadSpecialOrBitAddress(Tag tag, string correctVariable)
-    {
-        return correctVariable[..1] switch
-        {
-            "E" or "I" => ReadBitAddress(tag, correctVariable, DataType.Input),
-            "A" or "O" => ReadBitAddress(tag, correctVariable, DataType.Output),
-            "M" => ReadBitAddress(tag, correctVariable, DataType.Memory),
-            "T" => ReadTimerAddress(tag, correctVariable),
-            "Z" or "C" => ReadCounterAddress(tag, correctVariable),
-            _ => throw new ArgumentException($"Unknown variable type {correctVariable[..1]}.", nameof(tag)),
-        };
-    }
-
     /// <summary>Reads a bit address from the specified data area.</summary>
+    /// <param name="instance">The PLC reader that performs the operation.</param>
     /// <param name="tag">The tag to read.</param>
     /// <param name="correctVariable">The normalized variable address.</param>
     /// <param name="dataType">The data area type.</param>
     /// <returns>The bit value.</returns>
-    private bool ReadBitAddress(Tag tag, string correctVariable, DataType dataType)
+    private static bool ReadBitAddress(RxS7 instance, Tag tag, string correctVariable, DataType dataType)
     {
         var addressLocation = correctVariable[1..];
         var decimalPointIndex = addressLocation.IndexOf('.');
@@ -76,28 +59,30 @@ public partial class RxS7
         var byteOffset = int.Parse(addressLocation[..decimalPointIndex]);
         var bitOffset = int.Parse(addressLocation[(decimalPointIndex + 1)..]);
         RxS7ValueHelpers.EnsureBitOffsetIsValid(bitOffset, tag);
-        var value = Read<byte>(tag, dataType, 0, byteOffset, VarType.Byte);
+        var value = instance.Read<byte>(tag, dataType, 0, byteOffset, VarType.Byte);
         return RxS7ValueHelpers.GetBit(value, bitOffset);
     }
 
     /// <summary>Reads a timer address.</summary>
+    /// <param name="instance">The PLC reader that performs the operation.</param>
     /// <param name="tag">The tag to read.</param>
     /// <param name="correctVariable">The normalized variable address.</param>
     /// <returns>The timer value or array.</returns>
-    private object? ReadTimerAddress(Tag tag, string correctVariable) =>
+    private static object? ReadTimerAddress(RxS7 instance, Tag tag, string correctVariable) =>
         tag.Type == typeof(double[])
-            ? Read<double[]>(tag, DataType.Timer, 0, int.Parse(correctVariable[AreaAddressCodeLength..]), VarType.Timer)
-            : Read<double>(tag, DataType.Timer, 0, int.Parse(correctVariable[1..]), VarType.Timer);
+            ? instance.Read<double[]>(tag, DataType.Timer, 0, int.Parse(correctVariable[AreaAddressCodeLength..]), VarType.Timer)
+            : instance.Read<double>(tag, DataType.Timer, 0, int.Parse(correctVariable[1..]), VarType.Timer);
 
     /// <summary>Reads a counter address.</summary>
+    /// <param name="instance">The PLC reader that performs the operation.</param>
     /// <param name="tag">The tag to read.</param>
     /// <param name="correctVariable">The normalized variable address.</param>
     /// <returns>The counter value or array.</returns>
-    private object? ReadCounterAddress(Tag tag, string correctVariable)
+    private static object? ReadCounterAddress(RxS7 instance, Tag tag, string correctVariable)
     {
         if (tag.Type == typeof(ushort[]))
         {
-            return Read<ushort[]>(
+            return instance.Read<ushort[]>(
                 tag,
                 DataType.Counter,
                 0,
@@ -107,7 +92,7 @@ public partial class RxS7
 
         if (tag.Type == typeof(short[]))
         {
-            return Read<short[]>(
+            return instance.Read<short[]>(
                 tag,
                 DataType.Counter,
                 0,
@@ -116,13 +101,30 @@ public partial class RxS7
         }
 
         return tag.Type == typeof(short)
-            ? Read<short>(
+            ? instance.Read<short>(
                 tag,
                 DataType.Counter,
                 0,
                 int.Parse(correctVariable[AreaAddressCodeLength..]),
                 VarType.Counter)
-            : Read<ushort>(tag, DataType.Counter, 0, int.Parse(correctVariable[1..]), VarType.Counter);
+            : instance.Read<ushort>(tag, DataType.Counter, 0, int.Parse(correctVariable[1..]), VarType.Counter);
+    }
+
+    /// <summary>Reads a timer, counter, or bit address outside data blocks.</summary>
+    /// <param name="tag">The tag to read.</param>
+    /// <param name="correctVariable">The normalized variable address.</param>
+    /// <returns>The value read from the address.</returns>
+    private object? ReadSpecialOrBitAddress(Tag tag, string correctVariable)
+    {
+        return correctVariable[..1] switch
+        {
+            "E" or "I" => ReadBitAddress(this, tag, correctVariable, DataType.Input),
+            "A" or "O" => ReadBitAddress(this, tag, correctVariable, DataType.Output),
+            "M" => ReadBitAddress(this, tag, correctVariable, DataType.Memory),
+            "T" => ReadTimerAddress(this, tag, correctVariable),
+            "Z" or "C" => ReadCounterAddress(this, tag, correctVariable),
+            _ => throw new ArgumentException($"Unknown variable type {correctVariable[..1]}.", nameof(tag)),
+        };
     }
 
     /// <summary>Reads bytes from the specified data block and address.</summary>
@@ -148,8 +150,9 @@ public partial class RxS7
                 package.Add(ReadHeaderPackage());
                 package.Add(CreateReadDataRequestPackage(dataType, db, startByteAdr, count));
 
-                var sent = _socketRx.Send(tag, package.Array, package.Array.Length);
-                if (package.Array.Length != sent)
+                var packageBytes = package.ToArray();
+                var sent = _socketRx.Send(tag, packageBytes, packageBytes.Length);
+                if (packageBytes.Length != sent)
                 {
                     return default;
                 }
@@ -317,7 +320,16 @@ public partial class RxS7
             return;
         }
 
-        var tagList = TagList.ToList().Where(tag => !tag.DoNotPoll).ToList();
+        var allTags = TagList.ToList();
+        var tagList = new List<Tag>(allTags.Count);
+        foreach (var tag in allTags)
+        {
+            if (!tag.DoNotPoll)
+            {
+                tagList.Add(tag);
+            }
+        }
+
         if (tagList.Count == 0 || _pause)
         {
             NotifyPaused(true);
@@ -337,7 +349,7 @@ public partial class RxS7
                         await Task.Delay(ConnectionWaitDelayMilliseconds).ConfigureAwait(false);
                     }
 
-                    _plcRequestSubject.OnNext(new PLCRequest(PlcRequestType.Read, tag));
+                    _plcRequestSubject.OnNext(new(PlcRequestType.Read, tag));
                 }
                 catch (Exception ex)
                 {

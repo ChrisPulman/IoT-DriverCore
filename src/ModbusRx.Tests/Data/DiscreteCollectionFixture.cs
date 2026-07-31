@@ -4,9 +4,9 @@
 
 using System;
 using System.Collections.Generic;
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Data;
+namespace IoT.Driver.ModbusRx.UnitTests.Data;
 
 /// <summary>Tests the DiscreteCollectionFixture behavior.</summary>
 public class DiscreteCollectionFixture
@@ -32,7 +32,7 @@ public class DiscreteCollectionFixture
     public void NetworkBytes()
     {
         var col = new DiscreteCollection(true, true);
-        Assert.Equal([Num.Value3], col.NetworkBytes);
+        Assert.Equal([Num.Value3], col.ToNetworkBytes());
     }
 
     /// <summary>Creates the new discrete collection initialize.</summary>
@@ -80,12 +80,12 @@ public class DiscreteCollectionFixture
     /// <summary>Creates the new discrete collection from bytes parameters null array.</summary>
     [TUnit.Core.Test]
     public void CreateNewDiscreteCollectionFromBytesParams_NullArray() =>
-        Assert.Throws<ArgumentNullException>(() => _ = new DiscreteCollection((byte[])null!));
+        Assert.Throws<ArgumentNullException>(static () => _ = new DiscreteCollection((byte[])null!));
 
     /// <summary>Rejects a null list supplied to the internal storage constructor.</summary>
     [TUnit.Core.Test]
     public void CreateNewDiscreteCollectionFromList_NullList() =>
-        Assert.Throws<ArgumentNullException>(() => _ = new DiscreteCollection((List<bool>)null!));
+        Assert.Throws<ArgumentNullException>(static () => _ = new DiscreteCollection((List<bool>)null!));
 
     /// <summary>Creates the new discrete collection from bytes parameters order.</summary>
     [TUnit.Core.Test]
@@ -123,10 +123,10 @@ public class DiscreteCollectionFixture
     {
         var col = new DiscreteCollection(byte.MaxValue, byte.MaxValue);
         Assert.Equal(Num.Value16, col.Count);
-        var originalBytes = col.NetworkBytes;
+        var originalBytes = col.ToNetworkBytes();
         col.RemoveAt(Num.Value3);
         Assert.Equal(Num.Value15, col.Count);
-        Assert.NotEqual(originalBytes, col.NetworkBytes);
+        Assert.NotEqual(originalBytes, col.ToNetworkBytes());
     }
 
     /// <summary>Adds the coil.</summary>

@@ -3,14 +3,14 @@
 // See the LICENSE file in the project root for full license information.
 
 #if SERIAL
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Device;
 
-namespace IoT.DriverCore.ModbusRx.IntegrationTests;
+namespace IoT.Driver.ModbusRx.IntegrationTests;
 
 /// <summary>
 /// Base class for ModbusSerialMaster test fixtures.
 /// </summary>
-/// <seealso cref="IoT.DriverCore.ModbusRx.IntegrationTests.ModbusRxMasterFixtureBase" />
+/// <seealso cref="IoT.Driver.ModbusRx.IntegrationTests.ModbusRxMasterFixtureBase" />
 public abstract class ModbusSerialMasterFixtureBase : ModbusRxMasterFixtureBase
 {
     /// <summary>Gets the serial device addressed by the fixture.</summary>

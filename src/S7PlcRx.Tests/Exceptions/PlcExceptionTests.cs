@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Enums;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Exceptions;
+namespace IoT.Driver.S7PlcRx.Tests.Exceptions;
 
 /// <summary>Tests for `PlcException`.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
@@ -18,36 +18,39 @@ public class PlcExceptionTests
     }
 
     /// <summary>Ensures error code and default message are set.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
-    public void Ctor_WithErrorCode_ShouldSetErrorCodeAndMessage()
+    public async Task Ctor_WithErrorCode_ShouldSetErrorCodeAndMessage()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         var ex = new PlcException(ErrorCode.ReadData);
-        Assert.That(ex.ErrorCode, Is.EqualTo(ErrorCode.ReadData));
-        Assert.That(ex.Message, Does.Contain("PLC communication failed"));
+        await Assert.That(ex.ErrorCode, Is.EqualTo(ErrorCode.ReadData));
+        await Assert.That(ex.Message, Does.Contain("PLC communication failed"));
     }
 
     /// <summary>Ensures the inner exception is propagated and its message becomes the exception message.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
-    public void Ctor_WithErrorCodeAndInnerException_ShouldPropagateInnerMessage()
+    public async Task Ctor_WithErrorCodeAndInnerException_ShouldPropagateInnerMessage()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         var inner = new InvalidOperationException("boom");
         var ex = new PlcException(ErrorCode.ReadData, inner);
-        Assert.That(ex.ErrorCode, Is.EqualTo(ErrorCode.ReadData));
-        Assert.That(ex.InnerException, Is.SameAs(inner));
-        Assert.That(ex.Message, Is.EqualTo("boom"));
+        await Assert.That(ex.ErrorCode, Is.EqualTo(ErrorCode.ReadData));
+        await Assert.That(ex.InnerException, Is.SameAs(inner));
+        await Assert.That(ex.Message, Is.EqualTo("boom"));
     }
 
     /// <summary>Ensures custom message and inner exception are set.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
-    public void Ctor_WithErrorCodeMessageAndInner_ShouldSetProperties()
+    public async Task Ctor_WithErrorCodeMessageAndInner_ShouldSetProperties()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         var inner = new InvalidOperationException("inner");
         var ex = new PlcException(ErrorCode.WriteData, "custom", inner);
-        Assert.That(ex.ErrorCode, Is.EqualTo(ErrorCode.WriteData));
-        Assert.That(ex.Message, Is.EqualTo("custom"));
-        Assert.That(ex.InnerException, Is.SameAs(inner));
+        await Assert.That(ex.ErrorCode, Is.EqualTo(ErrorCode.WriteData));
+        await Assert.That(ex.Message, Is.EqualTo("custom"));
+        await Assert.That(ex.InnerException, Is.SameAs(inner));
     }
 }

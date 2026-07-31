@@ -229,6 +229,10 @@ jobs:
           MinVerVersionOverride: ${{ steps.minver.outputs.SemVer2 }}
         run: dotnet pack --no-build --no-restore --configuration "${{ env.configuration }}" ${{ env.solutionFile }} -o "${GITHUB_WORKSPACE}/packages" -p:MinVerVersionOverride="${{ steps.minver.outputs.SemVer2 }}"
 
+      - name: Verify package identities and generator isolation
+        shell: bash
+        run: python3 src/eng/verify-package-layout.py packages
+
       - name: Upload unsigned packages
         uses: actions/upload-artifact@v7
         with:

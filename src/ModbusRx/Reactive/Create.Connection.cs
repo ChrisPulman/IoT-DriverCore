@@ -4,15 +4,15 @@
 
 using System.Net.NetworkInformation;
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Device;
+using IoT.Driver.ModbusRx.Reactive.Device;
 #else
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Device;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive;
+namespace IoT.Driver.ModbusRx.Reactive;
 #else
-namespace IoT.DriverCore.ModbusRx;
+namespace IoT.Driver.ModbusRx;
 #endif
 
 /// <summary>Provides ModbusRx functionality.</summary>
@@ -40,7 +40,7 @@ public static partial class Create
                 Observable.Timer(CheckConnectionInterval, PingInterval)
                     .Where(_ => !state.Connected)
                     .Select(_ => pingSender.SendPingAsync(hostAddress, OneThousand))
-                    .Select(task => ProcessPingReply(task, observer, resources, state, masterFactory))
+                    .SelectMany(task => Observable.FromAsync(() => ProcessPingReplyAsync(task, observer, resources, state, masterFactory)))
                     .Retry(int.MaxValue)
                     .Subscribe());
             return resources;
@@ -53,14 +53,14 @@ public static partial class Create
     /// <param name="state">The connection state.</param>
     /// <param name="masterFactory">Creates the master.</param>
     /// <returns>The ping reply.</returns>
-    private static PingReply? ProcessPingReply(
+    private static async Task<PingReply?> ProcessPingReplyAsync(
         Task<PingReply> task,
         IObserver<(bool Connected, Exception? Error, ModbusIpMaster? Master)> observer,
         CompositeDisposable resources,
         MasterConnectionState<ModbusIpMaster> state,
         Func<ModbusIpMaster> masterFactory)
     {
-        var reply = task.Result;
+        var reply = await task.ConfigureAwait(false);
         if (state.Master is not null || reply.Status != IPStatus.Success)
         {
             return reply;

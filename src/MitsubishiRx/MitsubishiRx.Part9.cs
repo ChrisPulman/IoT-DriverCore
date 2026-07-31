@@ -4,11 +4,11 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -163,7 +163,15 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
     private string[] ResolveTagAddresses(IEnumerable<string> tagNames)
     {
         ArgumentNullException.ThrowIfNull(tagNames);
-        return tagNames.Select(ResolveTagAddress).ToArray();
+        var addresses = new List<string>();
+        foreach (var tagName in tagNames)
+        {
+            addresses.Add(ResolveTagAddress(tagName));
+        }
+
+        var result = new string[addresses.Count];
+        addresses.CopyTo(result);
+        return result;
     }
 
     /// <summary>Executes the PublishFault operation.</summary>
@@ -195,7 +203,7 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         Exception? exception = null)
     {
         _operationLogs.OnNext(
-            new MitsubishiOperationLog(
+            new(
                 _timeProvider.GetUtcNow(),
                 _connectionStates.Value,
                 description,

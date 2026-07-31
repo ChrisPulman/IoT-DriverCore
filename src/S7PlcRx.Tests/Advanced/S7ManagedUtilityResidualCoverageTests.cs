@@ -2,12 +2,13 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Advanced;
-using IoT.DriverCore.S7PlcRx.BatchOperations;
-using IoT.DriverCore.S7PlcRx.Cache;
-using IoT.DriverCore.S7PlcRx.Core;
+using IoT.Driver.S7PlcRx.Advanced;
+using IoT.Driver.S7PlcRx.BatchOperations;
+using IoT.Driver.S7PlcRx.Cache;
+using IoT.Driver.S7PlcRx.Core;
+using IoT.Driver.S7PlcRx.Tests.Testing;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Advanced;
+namespace IoT.Driver.S7PlcRx.Tests.Advanced;
 
 /// <summary>Exercises deterministic, in-memory behavior of small S7 managed utility types.</summary>
 public sealed class S7ManagedUtilityResidualCoverageTests
@@ -163,17 +164,17 @@ public sealed class S7ManagedUtilityResidualCoverageTests
         IReadOnlyList<string>? missingVariables = null;
         IReadOnlyDictionary<string, int>? missingValues = null;
         using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        await AsyncCompatibility.CancelAsync(cancellation);
 
         await TUnit.Assertions.Assert.That(
-                async () => await AsyncExtensions.ReadValueAsync(
+                static async () => await AsyncExtensions.ReadValueAsync(
                     null!,
                     UtilityValue,
                     UtilityTagName,
                     CancellationToken.None).AsTask())
             .Throws<ArgumentNullException>();
         await TUnit.Assertions.Assert.That(
-                async () => await AsyncExtensions.ReadValuesAsync(
+                static async () => await AsyncExtensions.ReadValuesAsync(
                     null!,
                     UtilityValue,
                     [UtilityTagName],
@@ -194,7 +195,7 @@ public sealed class S7ManagedUtilityResidualCoverageTests
                     cancellation.Token).AsTask())
             .Throws<OperationCanceledException>();
         await TUnit.Assertions.Assert.That(
-                async () => await AsyncExtensions.WriteValuesAsync(
+                static async () => await AsyncExtensions.WriteValuesAsync(
                     null!,
                     new Dictionary<string, int>(),
                     CancellationToken.None).AsTask())
@@ -249,10 +250,10 @@ public sealed class S7ManagedUtilityResidualCoverageTests
     public async Task AsyncObservableExtensionsRejectNullPlcAsync()
     {
         await TUnit.Assertions.Assert.That(
-                () => AsyncExtensions.ObserveValue(null!, UtilityValue, UtilityTagName))
+                static () => AsyncExtensions.ObserveValue(null!, UtilityValue, UtilityTagName))
             .Throws<ArgumentNullException>();
         await TUnit.Assertions.Assert.That(
-                () => AsyncExtensions.ObserveValues(null!, UtilityValue, UtilityTagName))
+                static () => AsyncExtensions.ObserveValues(null!, UtilityValue, UtilityTagName))
             .Throws<ArgumentNullException>();
     }
 #endif

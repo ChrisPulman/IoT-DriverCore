@@ -6,9 +6,9 @@ using System;
 using System.Threading.Tasks;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Channels;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core.Channels;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core.Channels;
+namespace IoT.Driver.OmronPlcRx.Core.Channels;
 #endif
 
 /// <summary>Defines the serial-port operations required by the Omron serial FINS channel.</summary>

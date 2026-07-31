@@ -7,15 +7,15 @@ using System.Diagnostics.CodeAnalysis;
 #endif
 using System.Reflection;
 using CP.Collections.Reactive;
-using IoT.DriverCore.TwinCATRx.Reactive;
+using IoT.Driver.TwinCATRx.Reactive;
 using ReactiveUI.Primitives.Disposables;
-using ReactiveClient = IoT.DriverCore.TwinCATRx.Reactive.RxTcAdsClient;
-using ReactiveCoreExtensions = IoT.DriverCore.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
-using ReactiveExtensions = IoT.DriverCore.TwinCATRx.Reactive.TwinCatRxExtensions;
-using ReactiveInterface = IoT.DriverCore.TwinCATRx.Reactive.IRxTcAdsClient;
-using ReactiveSettings = IoT.DriverCore.TwinCATRx.Core.Reactive.Settings;
+using ReactiveClient = IoT.Driver.TwinCATRx.Reactive.RxTcAdsClient;
+using ReactiveCoreExtensions = IoT.Driver.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
+using ReactiveExtensions = IoT.Driver.TwinCATRx.Reactive.TwinCatRxExtensions;
+using ReactiveInterface = IoT.Driver.TwinCATRx.Reactive.IRxTcAdsClient;
+using ReactiveSettings = IoT.Driver.TwinCATRx.Core.Reactive.Settings;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Deterministic parity coverage for the System.Reactive runtime surface.</summary>
 public class ReactiveRuntimeParityCoverageTests
@@ -174,10 +174,10 @@ public class ReactiveRuntimeParityCoverageTests
 
         var syncResult = ReactiveExtensions.WriteValues(
             table,
-            clone => clone.SetStructure(new TestStructure { Value = FirstUpdatedValue }));
+            static clone => clone.SetStructure(new TestStructure { Value = FirstUpdatedValue }));
         var asyncResult = await ReactiveExtensions.WriteValuesAsync(
             table,
-            clone => clone.SetStructure(new TestStructure { Value = SecondUpdatedValue }),
+            static clone => clone.SetStructure(new TestStructure { Value = SecondUpdatedValue }),
             TimeSpan.FromHours(1));
         table.Dispose();
 
@@ -200,7 +200,7 @@ public class ReactiveRuntimeParityCoverageTests
         client.Pause(TimeSpan.FromHours(1));
         var table = CreateTaggedTable(client, ScalarVariable);
 
-        var writeTask = ReactiveExtensions.WriteValuesAsync(table, _ => { }, TimeSpan.Zero);
+        var writeTask = ReactiveExtensions.WriteValuesAsync(table, static _ => { }, TimeSpan.Zero);
         await Task.Yield();
         client.Disconnect();
         var result = await writeTask;
@@ -226,18 +226,18 @@ public class ReactiveRuntimeParityCoverageTests
         var nullClientResult = ReactiveExtensions.CreateStruct((ReactiveInterface)null!, ScalarVariable);
         using var emptyClone = ReactiveExtensions.CreateClone(table);
 
-        await TUnitAssert.That(ReactiveExtensions.WriteValues((HashTableRx)null!, _ => { })).IsFalse();
+        await TUnitAssert.That(static () => ReactiveExtensions.WriteValues((HashTableRx)null!, static _ => { })).IsFalse();
         await TUnitAssert.That(ReactiveExtensions.WriteValues(table, null!)).IsFalse();
-        await TUnitAssert.That(ReactiveExtensions.WriteValues(table, _ => { })).IsFalse();
+        await TUnitAssert.That(() => ReactiveExtensions.WriteValues(table, static _ => { })).IsFalse();
         await TUnitAssert.That(await ReactiveExtensions.WriteValuesAsync(
             (HashTableRx)null!,
-            _ => { },
+            static _ => { },
             TimeSpan.Zero)).IsFalse();
         await TUnitAssert.That(await ReactiveExtensions.WriteValuesAsync(table, null!, TimeSpan.Zero)).IsFalse();
-        await TUnitAssert.That(await ReactiveExtensions.WriteValuesAsync(table, _ => { }, TimeSpan.Zero)).IsFalse();
-        await TUnitAssert.That(() => ReactiveExtensions.CreateClone((HashTableRx)null!))
+        await TUnitAssert.That(await ReactiveExtensions.WriteValuesAsync(table, static _ => { }, TimeSpan.Zero)).IsFalse();
+        await TUnitAssert.That(static () => ReactiveExtensions.CreateClone((HashTableRx)null!))
             .Throws<ArgumentNullException>();
-        await TUnitAssert.That(() => ReactiveExtensions.StructureReady((HashTableRx)null!))
+        await TUnitAssert.That(static () => ReactiveExtensions.StructureReady((HashTableRx)null!))
             .Throws<ArgumentNullException>();
         await TUnitAssert.That(emptyClone.Count).IsEqualTo(0);
         await TUnitAssert.That(nullClientResult).IsNull();
@@ -280,7 +280,7 @@ public class ReactiveRuntimeParityCoverageTests
     {
         var table = new HashTableRx(false);
         table.SetStructure(new TestStructure { Value = 1 });
-        table.Tag[nameof(IoT.DriverCore.TwinCATRx.Reactive.RxTcAdsClient)] = client;
+        table.Tag[nameof(IoT.Driver.TwinCATRx.Reactive.RxTcAdsClient)] = client;
         table.Tag["Variable"] = variable;
         return table;
     }

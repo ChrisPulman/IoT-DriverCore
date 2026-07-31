@@ -5,19 +5,19 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Xml.Linq;
-using IoT.DriverCore.Core;
-using IoT.DriverCore.S7PlcRx.Advanced;
-using IoT.DriverCore.S7PlcRx.Binding;
-using IoT.DriverCore.S7PlcRx.Enterprise;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.LogicalTags;
-using PlcClass = IoT.DriverCore.S7PlcRx.PlcTypes.Class;
-using PlcString = IoT.DriverCore.S7PlcRx.PlcTypes.String;
-using PlcStruct = IoT.DriverCore.S7PlcRx.PlcTypes.Struct;
-using S7TypeConverter = IoT.DriverCore.S7PlcRx.Core.TypeConverter;
+using IoT.Driver.Core;
+using IoT.Driver.S7PlcRx.Advanced;
+using IoT.Driver.S7PlcRx.Binding;
+using IoT.Driver.S7PlcRx.Enterprise;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.LogicalTags;
+using PlcClass = IoT.Driver.S7PlcRx.PlcTypes.Class;
+using PlcString = IoT.Driver.S7PlcRx.PlcTypes.String;
+using PlcStruct = IoT.Driver.S7PlcRx.PlcTypes.Struct;
+using S7TypeConverter = IoT.Driver.S7PlcRx.Core.TypeConverter;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Core;
+namespace IoT.Driver.S7PlcRx.Tests.Core;
 
 /// <summary>Closes deterministic branches in private S7 runtime helpers.</summary>
 public sealed class S7RawBranchClosureTests
@@ -147,11 +147,11 @@ public sealed class S7RawBranchClosureTests
     [Test]
     public async Task StructuredHelpers_ExerciseDefensiveAndAlignmentBranchesAsync()
     {
-        await TUnitAssert.That(() => PlcClass.GetClassSize(new NullableValueContainer()))
+        await TUnitAssert.That(static () => PlcClass.GetClassSize(new NullableValueContainer()))
             .Throws<ArgumentException>();
-        await TUnitAssert.That(() => PlcClass.FromBytes(new NullableValueContainer(), [0]))
+        await TUnitAssert.That(static () => PlcClass.FromBytes(new NullableValueContainer(), [0]))
             .Throws<ArgumentException>();
-        await TUnitAssert.That(() => PlcStruct.FromBytes(typeof(int?), []))
+        await TUnitAssert.That(static () => PlcStruct.FromBytes(typeof(int?), []))
             .Throws<ArgumentException>();
 
         var increasedSize = GetMethod(typeof(PlcClass), "GetIncreasedNumberOfBytes", ThreeParameters);
@@ -283,21 +283,21 @@ public sealed class S7RawBranchClosureTests
     [Test]
     public async Task BindingAndConversionHelpers_ExerciseResidualGuardAndPoolingBranchesAsync()
     {
-        var invalidName = () => new S7TagDefinition(
+        var invalidName = static () => new S7TagDefinition(
             string.Empty,
             TagAddress,
             typeof(int),
             OneParameter,
             S7TagDirection.ReadWrite,
             OneParameter);
-        var invalidAddress = () => new S7TagDefinition(
+        var invalidAddress = static () => new S7TagDefinition(
             HelperVariable,
             string.Empty,
             typeof(int),
             OneParameter,
             S7TagDirection.ReadWrite,
             OneParameter);
-        var invalidType = () => new S7TagDefinition(
+        var invalidType = static () => new S7TagDefinition(
             HelperVariable,
             TagAddress,
             null!,
@@ -339,7 +339,12 @@ public sealed class S7RawBranchClosureTests
     [Test]
     public async Task ConversionHelpers_ExercisePooledAndEmptyBranchesAsync()
     {
-        var pooledValues = Enumerable.Repeat(TagValue, PooledIntegerCount).ToArray();
+        var pooledValues = new int[PooledIntegerCount];
+        for (var index = 0; index < pooledValues.Length; index++)
+        {
+            pooledValues[index] = TagValue;
+        }
+
         var pooledBytes = S7TypeConverter.ToByteArray(pooledValues, BitConverter.GetBytes);
         await TUnitAssert.That(pooledBytes.Length).IsEqualTo(PooledIntegerCount * sizeof(int));
         await TUnitAssert.That(S7TypeConverter.ToByteArray<int>([], BitConverter.GetBytes).Length)
@@ -478,9 +483,12 @@ public sealed class S7RawBranchClosureTests
         var observedCount = 0;
         using var subscription = client.ObserveMany([HelperVariable]).Subscribe(_ => observedCount++);
         testPlc.ObserveAllSubject.OnNext(null);
-        testPlc.ObserveAllSubject.OnNext(new Tag(TagAddress, typeof(int)) { Name = null });
-        testPlc.ObserveAllSubject.OnNext(new Tag(OtherVariable, TagAddress, TagValue, typeof(int)));
-        testPlc.ObserveAllSubject.OnNext(new Tag(HelperVariable, TagAddress, TagValue, typeof(int)));
+        var unnamedTag = new Tag(TagAddress, typeof(int)) { Name = null };
+        var otherTag = new Tag(OtherVariable, TagAddress, TagValue, typeof(int));
+        var matchingTag = new Tag(HelperVariable, TagAddress, TagValue, typeof(int));
+        testPlc.ObserveAllSubject.OnNext(unnamedTag);
+        testPlc.ObserveAllSubject.OnNext(otherTag);
+        testPlc.ObserveAllSubject.OnNext(matchingTag);
         await TUnitAssert.That(observedCount).IsEqualTo(OneParameter);
 
         using var disconnected = new RxS7(
@@ -489,7 +497,7 @@ public sealed class S7RawBranchClosureTests
         disconnectedCatalog.Upsert(logicalTag);
         using var disconnectedClient = new S7LogicalTagClient(disconnected, disconnectedCatalog);
         var writeResult = await disconnectedClient.WriteAsync(
-            new LogicalTagValue(HelperVariable, TagValue, TimeProvider.System.GetUtcNow()));
+            new(HelperVariable, TagValue, TimeProvider.System.GetUtcNow()));
         await TUnitAssert.That(writeResult.Succeeded).IsFalse();
     }
 
@@ -512,15 +520,12 @@ public sealed class S7RawBranchClosureTests
 
         var tagSequence = GetMethod(typeof(TagOperations), "CreateTagValueSequence", OneParameter);
         await TUnitAssert.That(tagSequence.Invoke(null, [(object?)null])).IsNotNull();
-        await TUnitAssert.That(tagSequence.Invoke(
-            null,
-            [new Tag(TagAddress, typeof(int)) { Name = null, Value = TagValue }])).IsNotNull();
-        await TUnitAssert.That(tagSequence.Invoke(
-            null,
-            [new Tag(TagName, TagAddress, typeof(int)) { Value = null }])).IsNotNull();
-        await TUnitAssert.That(tagSequence.Invoke(
-            null,
-            [new Tag(TagName, TagAddress, TagValue, typeof(int))])).IsNotNull();
+        var missingNameTag = new Tag(TagAddress, typeof(int)) { Name = null, Value = TagValue };
+        var missingValueTag = new Tag(TagName, TagAddress, typeof(int)) { Value = null };
+        var populatedTag = new Tag(TagName, TagAddress, TagValue, typeof(int));
+        await TUnitAssert.That(tagSequence.Invoke(null, [missingNameTag])).IsNotNull();
+        await TUnitAssert.That(tagSequence.Invoke(null, [missingValueTag])).IsNotNull();
+        await TUnitAssert.That(tagSequence.Invoke(null, [populatedTag])).IsNotNull();
 
         using var testPlc = new S7PlcRxAsyncExtensionsTests.TestPlc();
         var currentValue = GetGenericMethod(
@@ -528,7 +533,7 @@ public sealed class S7RawBranchClosureTests
             "TryGetCurrentValue",
             ThreeParameters).MakeGenericMethod(typeof(int));
         await TUnitAssert.That(InvokeCurrentValue(currentValue, testPlc, HelperVariable)).IsFalse();
-        testPlc.TagList.Add(new Tag(HelperVariable, TagAddress, typeof(int)) { Value = null });
+        testPlc.TagList.Add(new(HelperVariable, TagAddress, typeof(int)) { Value = null });
         await TUnitAssert.That(InvokeCurrentValue(currentValue, testPlc, HelperVariable)).IsFalse();
         testPlc.TagList[HelperVariable]!.Value = TagValue.ToString();
         await TUnitAssert.That(InvokeCurrentValue(currentValue, testPlc, HelperVariable)).IsFalse();
@@ -588,24 +593,36 @@ public sealed class S7RawBranchClosureTests
     /// <param name="name">The method name.</param>
     /// <param name="parameterCount">The parameter count.</param>
     /// <returns>The matching method.</returns>
-    private static MethodInfo GetMethod(Type type, string name, int parameterCount) =>
-        type.GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
-            .Single(method =>
-                method.Name == name &&
-                !method.IsGenericMethodDefinition &&
-                method.GetParameters().Length == parameterCount);
+    private static MethodInfo GetMethod(Type type, string name, int parameterCount)
+    {
+        foreach (var method in type.GetMethods(BindingFlags.Static | BindingFlags.NonPublic))
+        {
+            if (method.Name == name && !method.IsGenericMethodDefinition && method.GetParameters().Length == parameterCount)
+            {
+                return method;
+            }
+        }
+
+        throw new MissingMethodException(type.FullName, name);
+    }
 
     /// <summary>Gets a private generic static method with an exact parameter count.</summary>
     /// <param name="type">The declaring type.</param>
     /// <param name="name">The method name.</param>
     /// <param name="parameterCount">The parameter count.</param>
     /// <returns>The matching generic method definition.</returns>
-    private static MethodInfo GetGenericMethod(Type type, string name, int parameterCount) =>
-        type.GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
-            .Single(method =>
-                method.Name == name &&
-                method.IsGenericMethodDefinition &&
-                method.GetParameters().Length == parameterCount);
+    private static MethodInfo GetGenericMethod(Type type, string name, int parameterCount)
+    {
+        foreach (var method in type.GetMethods(BindingFlags.Static | BindingFlags.NonPublic))
+        {
+            if (method.Name == name && method.IsGenericMethodDefinition && method.GetParameters().Length == parameterCount)
+            {
+                return method;
+            }
+        }
+
+        throw new MissingMethodException(type.FullName, name);
+    }
 
     /// <summary>Invokes a static method and casts its result.</summary>
     /// <typeparam name="T">The expected result type.</typeparam>

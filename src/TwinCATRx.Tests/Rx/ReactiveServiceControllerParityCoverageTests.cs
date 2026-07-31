@@ -7,9 +7,9 @@ using System.ServiceProcess;
 #if !NETFRAMEWORK
 using System.Runtime.Versioning;
 #endif
-using ReactiveServiceController = IoT.DriverCore.TwinCATRx.Reactive.ObservableServiceController;
+using ReactiveServiceController = IoT.Driver.TwinCATRx.Reactive.ObservableServiceController;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Non-live lifecycle parity tests for the Reactive service wrapper.</summary>
 #if !NETFRAMEWORK

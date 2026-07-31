@@ -4,11 +4,11 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -17,7 +17,11 @@ namespace IoT.DriverCore.MitsubishiRx;
 public sealed class MitsubishiReactiveWritePipeline<TPayload> : IDisposable
 {
     /// <summary>Stores the gate field.</summary>
+#if NET9_0_OR_GREATER
+    private readonly System.Threading.Lock _gate = new();
+#else
     private readonly object _gate = new();
+#endif
 
     /// <summary>Stores the scheduler field.</summary>
     private readonly IScheduler _scheduler;
@@ -90,7 +94,7 @@ public sealed class MitsubishiReactiveWritePipeline<TPayload> : IDisposable
                 lock (_gate)
                 {
                     _queuedWrites.Enqueue(payload);
-                    _scheduledDrain ??= ScheduleImmediate(DrainQueued);
+                    _scheduledDrain ??= ScheduleImmediate(DrainQueuedAsync);
                 }
 
                 break;
@@ -102,7 +106,7 @@ public sealed class MitsubishiReactiveWritePipeline<TPayload> : IDisposable
                 {
                     _pendingLatest = payload;
                     _hasPendingLatest = true;
-                    _scheduledDrain ??= ScheduleImmediate(DrainLatestWins);
+                    _scheduledDrain ??= ScheduleImmediate(DrainLatestWinsAsync);
                 }
 
                 break;
@@ -117,7 +121,8 @@ public sealed class MitsubishiReactiveWritePipeline<TPayload> : IDisposable
                     _coalescingTimer?.Dispose();
                     _coalescingTimer = Observable
                         .Timer(_coalescingWindow, _scheduler)
-                        .Subscribe(_ => FlushCoalesced());
+                        .SelectAsyncSequential(_ => FlushCoalescedAsync())
+                        .Subscribe(static _ => { });
                 }
 
                 break;
@@ -155,11 +160,14 @@ public sealed class MitsubishiReactiveWritePipeline<TPayload> : IDisposable
     /// <summary>Executes the ScheduleImmediate operation.</summary>
     /// <param name="action">The action parameter.</param>
     /// <returns>The ScheduleImmediate operation result.</returns>
-    private IDisposable ScheduleImmediate(Action action) =>
-        Observable.Return(Unit.Default, _scheduler).Subscribe(_ => action());
+    private IDisposable ScheduleImmediate(Func<Task<Unit>> action) =>
+        Observable.Return(Unit.Default, _scheduler)
+            .SelectAsyncSequential(_ => action())
+            .Subscribe(static _ => { });
 
-    /// <summary>Executes the DrainQueued operation.</summary>
-    private void DrainQueued()
+    /// <summary>Executes the DrainQueuedAsync operation.</summary>
+    /// <returns>A completion value after all queued writes have been drained.</returns>
+    private async Task<Unit> DrainQueuedAsync()
     {
         while (true)
         {
@@ -170,18 +178,19 @@ public sealed class MitsubishiReactiveWritePipeline<TPayload> : IDisposable
                 {
                     _scheduledDrain?.Dispose();
                     _scheduledDrain = null;
-                    return;
+                    return Unit.Default;
                 }
 
                 payload = _queuedWrites.Dequeue();
             }
 
-            PublishResult(WriteSynchronously(payload));
+            PublishResult(await WriteAsync(payload).ConfigureAwait(false));
         }
     }
 
-    /// <summary>Executes the DrainLatestWins operation.</summary>
-    private void DrainLatestWins()
+    /// <summary>Executes the DrainLatestWinsAsync operation.</summary>
+    /// <returns>A completion value after the latest pending write has been processed.</returns>
+    private async Task<Unit> DrainLatestWinsAsync()
     {
         TPayload payload;
         lock (_gate)
@@ -190,7 +199,7 @@ public sealed class MitsubishiReactiveWritePipeline<TPayload> : IDisposable
             {
                 _scheduledDrain?.Dispose();
                 _scheduledDrain = null;
-                return;
+                return Unit.Default;
             }
 
             payload = _pendingLatest!;
@@ -200,18 +209,21 @@ public sealed class MitsubishiReactiveWritePipeline<TPayload> : IDisposable
             _scheduledDrain = null;
         }
 
-        PublishResult(WriteSynchronously(payload));
+        PublishResult(await WriteAsync(payload).ConfigureAwait(false));
         lock (_gate)
         {
             if (_hasPendingLatest && _scheduledDrain is null)
             {
-                _scheduledDrain = ScheduleImmediate(DrainLatestWins);
+                _scheduledDrain = ScheduleImmediate(DrainLatestWinsAsync);
             }
         }
+
+        return Unit.Default;
     }
 
-    /// <summary>Executes the FlushCoalesced operation.</summary>
-    private void FlushCoalesced()
+    /// <summary>Executes the FlushCoalescedAsync operation.</summary>
+    /// <returns>A completion value after the coalesced write has been processed.</returns>
+    private async Task<Unit> FlushCoalescedAsync()
     {
         TPayload payload;
         lock (_gate)
@@ -220,7 +232,7 @@ public sealed class MitsubishiReactiveWritePipeline<TPayload> : IDisposable
             _coalescingTimer = null;
             if (!_hasPendingLatest)
             {
-                return;
+                return Unit.Default;
             }
 
             payload = _pendingLatest!;
@@ -228,18 +240,19 @@ public sealed class MitsubishiReactiveWritePipeline<TPayload> : IDisposable
             _hasPendingLatest = false;
         }
 
-        PublishResult(WriteSynchronously(payload));
+        PublishResult(await WriteAsync(payload).ConfigureAwait(false));
+        return Unit.Default;
     }
 
-    /// <summary>Executes the WriteSynchronously operation.</summary>
+    /// <summary>Executes the WriteAsync operation.</summary>
     /// <param name="payload">The payload parameter.</param>
-    /// <returns>The WriteSynchronously operation result.</returns>
-    private MitsubishiReactiveWriteResult WriteSynchronously(TPayload payload)
+    /// <returns>The WriteAsync operation result.</returns>
+    private async Task<MitsubishiReactiveWriteResult> WriteAsync(TPayload payload)
     {
         try
         {
-            var response = _writer(payload).GetAwaiter().GetResult();
-            return new MitsubishiReactiveWriteResult(
+            var response = await _writer(payload).ConfigureAwait(false);
+            return new(
                 _target,
                 _scheduler.Now,
                 Mode,
@@ -250,7 +263,7 @@ public sealed class MitsubishiReactiveWritePipeline<TPayload> : IDisposable
         }
         catch (Exception ex)
         {
-            return new MitsubishiReactiveWriteResult(
+            return new(
                 _target,
                 _scheduler.Now,
                 Mode,

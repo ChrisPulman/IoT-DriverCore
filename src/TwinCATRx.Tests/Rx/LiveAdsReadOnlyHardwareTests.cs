@@ -6,10 +6,10 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx.Core;
 using TwinCAT.Ads;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Opt-in, read-only hardware probes for the documented TwinCAT routes.</summary>
 [Category("LiveAds")]

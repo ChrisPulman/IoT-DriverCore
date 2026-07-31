@@ -5,9 +5,9 @@
 using System.Diagnostics;
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>Tag base definition.</summary>
@@ -15,6 +15,9 @@ namespace IoT.DriverCore.ABPlcRx;
 /// <seealso cref="System.IDisposable" />
 internal sealed class PlcTag<TType> : IPlcTag<TType>, IPlcTagLocalValue
 {
+    /// <summary>Number of milliseconds in one second.</summary>
+    private const long MillisecondsPerSecond = 1000;
+
     /// <summary>Publishes tag read changes.</summary>
     private readonly Signal<PlcTagResult> _changedSubject = new();
 
@@ -188,13 +191,12 @@ internal sealed class PlcTag<TType> : IPlcTag<TType>, IPlcTagLocalValue
     public PlcTagResult Read()
     {
         var timestamp = _timeProvider.GetUtcNow();
-        var watch = Stopwatch.StartNew();
+        var startTimestamp = Stopwatch.GetTimestamp();
         var statusCode = _native.Read(Handle, ABPlc.Timeout);
 
-        watch.Stop();
         IsRead = true;
 
-        var result = new PlcTagResult(this, timestamp, watch.ElapsedMilliseconds, statusCode);
+        var result = new PlcTagResult(this, timestamp, GetElapsedMilliseconds(startTimestamp), statusCode);
 
         // check raise exception
         if (ABPlc.FailOperationRaiseException && PlcTagStatus.IsError(statusCode))
@@ -226,12 +228,11 @@ internal sealed class PlcTag<TType> : IPlcTag<TType>, IPlcTagLocalValue
         ValueManager.Set(_value);
 
         var timestamp = _timeProvider.GetUtcNow();
-        var watch = Stopwatch.StartNew();
+        var startTimestamp = Stopwatch.GetTimestamp();
         var statusCode = _native.Write(Handle, ABPlc.Timeout);
-        watch.Stop();
         IsWrite = true;
 
-        var result = new PlcTagResult(this, timestamp, watch.ElapsedMilliseconds, statusCode);
+        var result = new PlcTagResult(this, timestamp, GetElapsedMilliseconds(startTimestamp), statusCode);
 
         // check raise exception
         if (ABPlc.FailOperationRaiseException && PlcTagStatus.IsError(statusCode))
@@ -240,6 +241,18 @@ internal sealed class PlcTag<TType> : IPlcTag<TType>, IPlcTagLocalValue
         }
 
         return result;
+    }
+
+    /// <summary>Gets elapsed milliseconds from a Stopwatch timestamp.</summary>
+    /// <param name="startTimestamp">The starting stopwatch timestamp.</param>
+    /// <returns>The elapsed milliseconds.</returns>
+    private static long GetElapsedMilliseconds(long startTimestamp)
+    {
+#if NET8_0_OR_GREATER
+        return (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
+#else
+        return ((Stopwatch.GetTimestamp() - startTimestamp) * MillisecondsPerSecond) / Stopwatch.Frequency;
+#endif
     }
 
     /// <summary>Releases unmanaged and - optionally - managed resources.</summary>

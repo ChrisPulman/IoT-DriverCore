@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Enums;
+namespace IoT.Driver.S7PlcRx.Reactive.Enums;
 #else
-namespace IoT.DriverCore.S7PlcRx.Enums;
+namespace IoT.Driver.S7PlcRx.Enums;
 #endif
 
 /// <summary>Specifies a supported Siemens S7 variable type.</summary>

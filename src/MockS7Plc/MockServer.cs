@@ -5,7 +5,7 @@
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 
-namespace IoT.DriverCore.S7PlcRx.Mock;
+namespace IoT.Driver.S7PlcRx.Mock;
 
 /// <summary>Hosts a managed or Snap7-backed mock PLC server for tests and local development.</summary>
 public class MockServer : IDisposable
@@ -402,10 +402,14 @@ public class MockServer : IDisposable
     /// <returns>The Snap7 result code.</returns>
     public int RegisterArea(int areaCode, int index, byte[] userData, int size)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(userData);
+#else
         if (userData is null)
         {
             throw new ArgumentNullException(nameof(userData));
         }
+#endif
 
         if (size < 0 || size > userData.Length)
         {

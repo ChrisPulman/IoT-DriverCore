@@ -5,20 +5,20 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Tags;
-using IoT.DriverCore.Serial.Reactive;
+using IoT.Driver.OmronPlcRx.Reactive.Tags;
+using IoT.Driver.Serial.Reactive;
 #else
-using IoT.DriverCore.OmronPlcRx.Tags;
-using IoT.DriverCore.Serial;
+using IoT.Driver.OmronPlcRx.Tags;
+using IoT.Driver.Serial;
 #endif
 using ReactiveUI.Primitives.Async;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Async;
+namespace IoT.Driver.OmronPlcRx.Reactive.Async;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Async;
+namespace IoT.Driver.OmronPlcRx.Async;
 #endif
 
 /// <summary>Bridges Omron PLC classic Rx streams into ReactiveUI.Primitives.Async observables.</summary>
@@ -33,10 +33,14 @@ public static class OmronPlcRxAsyncObservableExtensions
         IOmronPlcRx plc,
         LogicalTagKey<T> tag)
     {
+#if NET6_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(plc);
+#else
         if (plc is null)
         {
             throw new ArgumentNullException(nameof(plc));
         }
+#endif
 
         return ObservableAsyncBridgeExtensions.ToAsyncObservable(plc.Observe(tag));
     }
@@ -46,10 +50,14 @@ public static class OmronPlcRxAsyncObservableExtensions
     /// <returns>An async observable of all changed tags.</returns>
     public static IObservableAsync<IPlcTag?> ObserveAllAsAsyncObservable(IOmronPlcRx plc)
     {
+#if NET6_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(plc);
+#else
         if (plc is null)
         {
             throw new ArgumentNullException(nameof(plc));
         }
+#endif
 
         return ObservableAsyncBridgeExtensions.ToAsyncObservable(plc.ObserveAll);
     }
@@ -59,10 +67,14 @@ public static class OmronPlcRxAsyncObservableExtensions
     /// <returns>An async observable of PLC errors.</returns>
     public static IObservableAsync<OmronPLCException?> ErrorsAsAsyncObservable(IOmronPlcRx plc)
     {
+#if NET6_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(plc);
+#else
         if (plc is null)
         {
             throw new ArgumentNullException(nameof(plc));
         }
+#endif
 
         return ObservableAsyncBridgeExtensions.ToAsyncObservable(plc.Errors);
     }

@@ -5,9 +5,9 @@
 #if NET9_0_OR_GREATER
 using System.Diagnostics.CodeAnalysis;
 #endif
-using LeanBridge = IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions;
+using LeanBridge = IoT.Driver.TwinCATRx.ObservableBridgeExtensions;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Tests source generator bindings.</summary>
 public class SourceGeneratorTests

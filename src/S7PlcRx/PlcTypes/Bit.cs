@@ -5,9 +5,9 @@
 using System.Collections;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace IoT.DriverCore.S7PlcRx.PlcTypes;
+namespace IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>Contains the conversion methods to convert Bit from S7 plc to C#.</summary>
@@ -40,10 +40,7 @@ public static class Bit
     /// <paramref name="bitIndex"/> is less than 0 or greater than 7.</exception>
     public static bool FromSpan(ReadOnlySpan<byte> bytes, int byteIndex, int bitIndex)
     {
-        if (byteIndex >= bytes.Length)
-        {
-            throw new ArgumentOutOfRangeException(nameof(byteIndex), "Byte index is out of range");
-        }
+        Guard.LessThan(byteIndex, bytes.Length, nameof(byteIndex), "Byte index is out of range");
 
         if (bitIndex is < 0 or > MaximumBitIndex)
         {
@@ -121,7 +118,7 @@ public static class Bit
             bools[i] = bitArr[i];
         }
 
-        return new BitArray(bools);
+        return new(bools);
     }
 
     /// <summary>Sets the value of a specific bit within a byte in the provided span.</summary>
@@ -139,10 +136,7 @@ public static class Bit
     /// when <paramref name="bitIndex"/> is less than 0 or greater than 7.</exception>
     public static void SetBit(Span<byte> bytes, int byteIndex, int bitIndex, bool value)
     {
-        if (byteIndex >= bytes.Length)
-        {
-            throw new ArgumentOutOfRangeException(nameof(byteIndex), "Byte index is out of range");
-        }
+        Guard.LessThan(byteIndex, bytes.Length, nameof(byteIndex), "Byte index is out of range");
 
         if (bitIndex is < 0 or > MaximumBitIndex)
         {

@@ -4,10 +4,10 @@
 
 using System;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.Serial;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.Serial;
 
-namespace IoT.DriverCore.ModbusRx.IntegrationTests;
+namespace IoT.Driver.ModbusRx.IntegrationTests;
 
 /// <summary>Tests the NModbusSerialAsciiMasterFixture behavior.</summary>
 public class ModbusRxSerialAsciiMasterFixture : NetworkTestBase

@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using LeanCoreExtensions = IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions;
-using LeanSettings = IoT.DriverCore.TwinCATRx.Core.Settings;
+using IoT.Driver.Core;
+using LeanCoreExtensions = IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions;
+using LeanSettings = IoT.Driver.TwinCATRx.Core.Settings;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Provides deterministic native-operation acceptance coverage for grouped TwinCAT logical tags.</summary>
 public sealed class TwinCatLogicalTagPerformanceAcceptanceTests
@@ -75,8 +75,16 @@ public sealed class TwinCatLogicalTagPerformanceAcceptanceTests
             ]);
         var metrics = native.OperationMetrics;
 
-        await TUnitAssert.That(reads.All(static result => result.Succeeded)).IsTrue();
-        await TUnitAssert.That(writes.All(static result => result.Succeeded)).IsTrue();
+        foreach (var readResult in reads)
+        {
+            await TUnitAssert.That(readResult.Succeeded).IsTrue();
+        }
+
+        foreach (var writeResult in writes)
+        {
+            await TUnitAssert.That(writeResult.Succeeded).IsTrue();
+        }
+
         await TUnitAssert.That(readMetrics.ReadOperations).IsEqualTo(1);
         await TUnitAssert.That(readMetrics.WriteOperations).IsEqualTo(0);
         await TUnitAssert.That(LogicalItemsPerGroup / (double)readMetrics.ReadOperations)

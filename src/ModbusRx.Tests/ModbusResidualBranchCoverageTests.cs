@@ -4,16 +4,16 @@
 
 using System.Collections.ObjectModel;
 using System.Reflection;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.IO;
-using IoT.DriverCore.ModbusRx.LogicalTags;
-using IoT.DriverCore.ModbusRx.Message;
-using IoT.DriverCore.ModbusRx.Utility;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx.IO;
+using IoT.Driver.ModbusRx.LogicalTags;
+using IoT.Driver.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Utility;
 using Moq;
 using NativeAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Exercises deterministic residual branches in Modbus protocol primitives.</summary>
 public sealed class ModbusResidualBranchCoverageTests
@@ -48,22 +48,22 @@ public sealed class ModbusResidualBranchCoverageTests
     public async Task UtilityAndConversionBranches_AreDeterministicAsync()
     {
         await NativeAssert.That(
-                () => ModbusUtility.NetworkBytesToHostUInt16([0], new ushort[1]))
+                static () => ModbusUtility.NetworkBytesToHostUInt16([0], new ushort[1]))
             .Throws<ArgumentException>();
         await NativeAssert.That(
-                () => ModbusUtility.NetworkBytesToHostUInt16([0, 1], Array.Empty<ushort>()))
+                static () => ModbusUtility.NetworkBytesToHostUInt16([0, 1], Array.Empty<ushort>()))
             .Throws<ArgumentException>();
-        await NativeAssert.That(() => ModbusUtility.HexToBytes("0".AsSpan(), new byte[1]))
+        await NativeAssert.That(static () => ModbusUtility.HexToBytes("0".AsSpan(), new byte[1]))
             .Throws<ArgumentException>();
-        await NativeAssert.That(() => ModbusUtility.HexToBytes("00".AsSpan(), Array.Empty<byte>()))
+        await NativeAssert.That(static () => ModbusUtility.HexToBytes("00".AsSpan(), Array.Empty<byte>()))
             .Throws<ArgumentException>();
-        await NativeAssert.That(() => ModbusUtility.HexToBytes("GG".AsSpan(), new byte[1]))
+        await NativeAssert.That(static () => ModbusUtility.HexToBytes("GG".AsSpan(), new byte[1]))
             .Throws<FormatException>();
-        await NativeAssert.That(() => ModbusUtility.CalculateCrc([1], new byte[1]))
+        await NativeAssert.That(static () => ModbusUtility.CalculateCrc([1], new byte[1]))
             .Throws<ArgumentException>();
-        await NativeAssert.That(() => ModbusUtility.WriteSingle(1F, new ushort[1], false))
+        await NativeAssert.That(static () => ModbusUtility.WriteSingle(1F, new ushort[1], false))
             .Throws<ArgumentException>();
-        await NativeAssert.That(() => ModbusUtility.ReadDouble(new ushort[3], false))
+        await NativeAssert.That(static () => ModbusUtility.ReadDouble(new ushort[3], false))
             .Throws<ArgumentException>();
 
         var single = new ushort[2];
@@ -101,7 +101,7 @@ public sealed class ModbusResidualBranchCoverageTests
     public async Task ReadWriteRequest_HandlesUninitializedStateAsync()
     {
         var request = new ReadWriteMultipleRegistersRequest();
-        await NativeAssert.That(() => request.ProtocolDataUnit).Throws<InvalidOperationException>();
+        await NativeAssert.That(() => request.ToProtocolDataUnit()).Throws<InvalidOperationException>();
         await NativeAssert.That(request.ToString()).Contains("Write  holding registers");
         request.ValidateResponse(null!);
 
@@ -109,7 +109,7 @@ public sealed class ModbusResidualBranchCoverageTests
             request,
             nameof(ReadWriteMultipleRegistersRequest.ReadRequest),
             new ReadHoldingInputRegistersRequest(Modbus.ReadHoldingRegisters, 1, 0, 1));
-        await NativeAssert.That(() => request.ProtocolDataUnit).Throws<InvalidOperationException>();
+        await NativeAssert.That(() => request.ToProtocolDataUnit()).Throws<InvalidOperationException>();
         await NativeAssert.That(() => request.ValidateResponse(null!)).Throws<IOException>();
     }
 
@@ -118,15 +118,15 @@ public sealed class ModbusResidualBranchCoverageTests
     [TUnit.Core.Test]
     public async Task OptimizedParser_RejectsNullAndIncompleteFramesAsync()
     {
-        await NativeAssert.That(() => OptimizedModbusMessageFactory.ParseReadHoldingRegistersResponse(null!))
+        await NativeAssert.That(static () => OptimizedModbusMessageFactory.ParseReadHoldingRegistersResponse(null!))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(
-                () => OptimizedModbusMessageFactory.ParseReadHoldingRegistersResponse([1, Three, Four, 0, 1]))
+                static () => OptimizedModbusMessageFactory.ParseReadHoldingRegistersResponse([1, Three, Four, 0, 1]))
             .Throws<ArgumentException>();
-        await NativeAssert.That(() => OptimizedModbusMessageFactory.ParseReadCoilsResponse(null!, 1))
+        await NativeAssert.That(static () => OptimizedModbusMessageFactory.ParseReadCoilsResponse(null!, 1))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(
-                () => OptimizedModbusMessageFactory.ParseReadCoilsResponse([1, 1, Two, 1, 0], 1))
+                static () => OptimizedModbusMessageFactory.ParseReadCoilsResponse([1, 1, Two, 1, 0], 1))
             .Throws<ArgumentException>();
         OptimizedModbusMessageFactory.DisposeSharedResources();
         var request = OptimizedModbusMessageFactory.CreateReadHoldingRegistersRequest(1, 0, 1);
@@ -139,18 +139,20 @@ public sealed class ModbusResidualBranchCoverageTests
     [TUnit.Core.Test]
     public async Task OptimizedFactory_ResetRemainsUsableUnderConcurrencyAsync()
     {
-        var operations = Enumerable.Range(0, SharedResourceResetOperationCount)
-            .Select(_ => Task.Run(
-                () =>
-                {
-                    OptimizedModbusMessageFactory.DisposeSharedResources();
-                    var request = OptimizedModbusMessageFactory.CreateReadHoldingRegistersRequest(1, 0, 1);
-                    return OptimizedModbusMessageFactory.ValidateMessageCrc(request);
-                }));
+        var operations = new Task<bool>[SharedResourceResetOperationCount];
+        for (var i = 0; i < operations.Length; i++)
+        {
+            operations[i] = Task.Run(static () =>
+            {
+                OptimizedModbusMessageFactory.DisposeSharedResources();
+                var request = OptimizedModbusMessageFactory.CreateReadHoldingRegistersRequest(1, 0, 1);
+                return OptimizedModbusMessageFactory.ValidateMessageCrc(request);
+            });
+        }
 
         var results = await Task.WhenAll(operations);
 
-        await NativeAssert.That(results.All(static result => result)).IsTrue();
+        await NativeAssert.That(Array.TrueForAll(results, static result => result)).IsTrue();
     }
 
     /// <summary>Exercises discriminated-union formatting and register collection ownership.</summary>
@@ -173,7 +175,7 @@ public sealed class ModbusResidualBranchCoverageTests
         var copiedCollection = new RegisterCollection(readOnly);
         await NativeAssert.That(mutableCollection.ToString()).IsEqualTo("{1, 2}");
         await NativeAssert.That(copiedCollection.ToString()).IsEqualTo("{3, 4}");
-        await NativeAssert.That(() => new RegisterCollection((IList<ushort>)null!))
+        await NativeAssert.That(static () => new RegisterCollection((IList<ushort>)null!))
             .Throws<ArgumentNullException>();
     }
 
@@ -231,7 +233,7 @@ public sealed class ModbusResidualBranchCoverageTests
     public async Task EnhancedObservation_ValidatesServerAndEmptyStoreAsync()
     {
         await NativeAssert.That(
-                () => EnhancedModbusServerExtensions.ObserveDataChangesEventDriven(null!))
+                static () => EnhancedModbusServerExtensions.ObserveDataChangesEventDriven(null!))
             .Throws<ArgumentNullException>();
         using var server = new ModbusServer
         {
@@ -282,7 +284,7 @@ public sealed class ModbusResidualBranchCoverageTests
     {
         var master = new Mock<IModbusMaster>(MockBehavior.Strict);
         await NativeAssert.That(
-                () => new ModbusLogicalTagClient(null!, null, null, null))
+                static () => new ModbusLogicalTagClient(null!, null, null, null))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(
                 () => new ModbusLogicalTagClient(master.Object, null, TimeSpan.Zero, null))
@@ -303,7 +305,7 @@ public sealed class ModbusResidualBranchCoverageTests
     {
         var master = new Mock<IModbusMaster>(MockBehavior.Strict);
         using var client = new ModbusLogicalTagClient(master.Object, null, null, null);
-        _ = client.CreateTag(new ModbusTagConfiguration(
+        _ = client.CreateTag(new(
             "Cancelable",
             1,
             ModbusDataArea.HoldingRegister,
@@ -311,7 +313,11 @@ public sealed class ModbusResidualBranchCoverageTests
             1,
             typeof(ushort)));
         using var cancellation = new CancellationTokenSource();
+#if NET8_0_OR_GREATER
+        await cancellation.CancelAsync();
+#else
         cancellation.Cancel();
+#endif
 
         await NativeAssert.That(
                 async () => await client.ReadAsync("Cancelable", cancellation.Token))
@@ -344,7 +350,7 @@ public sealed class ModbusResidualBranchCoverageTests
     {
         var master = new Mock<IModbusMaster>(MockBehavior.Strict);
         using var client = new ModbusLogicalTagClient(master.Object, null, TimeSpan.FromSeconds(1), null);
-        _ = client.CreateTag(new ModbusTagConfiguration(
+        _ = client.CreateTag(new(
             "Fast",
             1,
             ModbusDataArea.HoldingRegister,
@@ -373,7 +379,7 @@ public sealed class ModbusResidualBranchCoverageTests
         var singleCoil = new WriteSingleCoilRequestResponse(1, 0, true);
         var read = new ReadCoilsInputsRequest(Modbus.ReadCoils, 1, 0, 1);
 
-        await NativeAssert.That(() => new WriteMultipleRegistersRequest(1, 0, null!))
+        await NativeAssert.That(static () => new WriteMultipleRegistersRequest(1, 0, null!))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(() => registers.ValidateResponse(null!)).Throws<IOException>();
         await NativeAssert.That(() => coils.ValidateResponse(null!)).Throws<IOException>();
@@ -400,8 +406,8 @@ public sealed class ModbusResidualBranchCoverageTests
     [TUnit.Core.Test]
     public async Task ModbusDataCollection_RejectsUnsupportedTypesAndNullListsAsync()
     {
-        await NativeAssert.That(() => new ModbusDataCollection<int>()).Throws<NotSupportedException>();
-        await NativeAssert.That(() => new ModbusDataCollection<bool>((IList<bool>)null!))
+        await NativeAssert.That(static () => new ModbusDataCollection<int>()).Throws<NotSupportedException>();
+        await NativeAssert.That(static () => new ModbusDataCollection<bool>((IList<bool>)null!))
             .Throws<ArgumentNullException>();
     }
 
@@ -411,7 +417,7 @@ public sealed class ModbusResidualBranchCoverageTests
     public async Task TagCodec_RejectsPartialValuesAndUnknownByteOrderAsync()
     {
         await NativeAssert.That(
-                () => new ModbusLogicalTag(
+                static () => new ModbusLogicalTag(
                     new ModbusTagConfiguration(
                         "Partial",
                         1,
@@ -421,7 +427,7 @@ public sealed class ModbusResidualBranchCoverageTests
                         typeof(int[]))))
             .Throws<ArgumentException>();
         await NativeAssert.That(
-                () => InvokeCodecTransform((ModbusByteOrder)int.MaxValue))
+                static () => InvokeCodecTransform((ModbusByteOrder)int.MaxValue))
             .Throws<TargetInvocationException>();
     }
 
@@ -475,11 +481,11 @@ public sealed class ModbusResidualBranchCoverageTests
         busy.Object.SlaveBusyUsesRetryCount = true;
         _ = busy.Setup(transport => transport.Write(It.IsAny<IModbusMessage>()));
         _ = busy.Setup(transport => transport.ReadResponseAsync(
-                It.IsAny<Func<ReadCoilsInputsResponse>>()).Result)
-            .Returns(new SlaveExceptionResponse(
+                It.IsAny<Func<ReadCoilsInputsResponse>>()))
+            .Returns(Task.FromResult<IModbusMessage>(new SlaveExceptionResponse(
                 1,
                 Modbus.ReadCoils + Modbus.ExceptionOffset,
-                Modbus.SlaveDeviceBusy));
+                Modbus.SlaveDeviceBusy)));
         await NativeAssert.That(
                 () => busy.Object.UnicastMessage(
                     request,
@@ -543,17 +549,43 @@ public sealed class ModbusResidualBranchCoverageTests
     private static object? InvokePrivate(
         ModbusLogicalTagClient target,
         string methodName,
-        params object[] arguments) =>
-        typeof(ModbusLogicalTagClient)
-            .GetMethods(BindingFlags.Instance | BindingFlags.NonPublic)
-            .Single(method =>
-                method.Name == methodName &&
-                method.GetParameters().Length == arguments.Length &&
-                method.GetParameters()
-                    .Select(static parameter => parameter.ParameterType)
-                    .Zip(arguments, static (parameterType, argument) => parameterType.IsInstanceOfType(argument))
-                    .All(static matches => matches))
+        params object[] arguments)
+    {
+        MethodInfo? matchingMethod = null;
+        foreach (var method in typeof(ModbusLogicalTagClient).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic))
+        {
+            if (method.Name != methodName || method.GetParameters().Length != arguments.Length)
+            {
+                continue;
+            }
+
+            var parameters = method.GetParameters();
+            var matches = true;
+            for (var i = 0; i < parameters.Length; i++)
+            {
+                if (!parameters[i].ParameterType.IsInstanceOfType(arguments[i]))
+                {
+                    matches = false;
+                    break;
+                }
+            }
+
+            if (!matches)
+            {
+                continue;
+            }
+
+            if (matchingMethod is not null)
+            {
+                throw new InvalidOperationException("Sequence contains more than one matching element.");
+            }
+
+            matchingMethod = method;
+        }
+
+        return (matchingMethod ?? throw new InvalidOperationException("Sequence contains no matching element."))
             .Invoke(target, arguments);
+    }
 
     /// <summary>Invokes a private asynchronous logical-client method.</summary>
     /// <typeparam name="TResult">The asynchronous result type.</typeparam>

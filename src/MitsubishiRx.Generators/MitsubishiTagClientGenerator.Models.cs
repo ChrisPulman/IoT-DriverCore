@@ -5,7 +5,7 @@
 using System.Collections.Generic;
 using System.Text.Json;
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 /// <summary>Contains schema-model types used by the Mitsubishi tag source generator.</summary>
 public sealed partial class MitsubishiTagClientGenerator
@@ -16,10 +16,12 @@ public sealed partial class MitsubishiTagClientGenerator
         /// <summary>Initializes a new instance of the <see cref="SchemaModel"/> class.</summary>
         /// <param name="tags">Parsed tags.</param>
         /// <param name="groups">Parsed groups.</param>
-        private SchemaModel(IReadOnlyList<TagModel> tags, IReadOnlyList<GroupModel> groups)
+        /// <param name="namespaceName">The runtime namespace that owns the marker attributes.</param>
+        private SchemaModel(IReadOnlyList<TagModel> tags, IReadOnlyList<GroupModel> groups, string namespaceName)
         {
             Tags = tags;
             Groups = groups;
+            NamespaceName = namespaceName;
         }
 
         /// <summary>Gets the parsed tags.</summary>
@@ -28,14 +30,18 @@ public sealed partial class MitsubishiTagClientGenerator
         /// <summary>Gets the parsed groups.</summary>
         internal IReadOnlyList<GroupModel> Groups { get; }
 
+        /// <summary>Gets the runtime namespace that owns the generated surface.</summary>
+        internal string NamespaceName { get; }
+
         /// <summary>Parses schema JSON.</summary>
         /// <param name="json">Schema JSON.</param>
+        /// <param name="namespaceName">Runtime namespace that owns the generated surface.</param>
         /// <returns>Parsed schema model.</returns>
-        internal static SchemaModel Parse(string json)
+        internal static SchemaModel Parse(string json, string namespaceName)
         {
             using var document = JsonDocument.Parse(json);
             var root = document.RootElement;
-            return new SchemaModel(ParseTags(root), ParseGroups(root));
+            return new(ParseTags(root), ParseGroups(root), namespaceName);
         }
 
         /// <summary>Parses tag entries from the schema root.</summary>
@@ -51,7 +57,7 @@ public sealed partial class MitsubishiTagClientGenerator
 
             foreach (var tag in tagsElement.EnumerateArray())
             {
-                tags.Add(new TagModel(
+                tags.Add(new(
                     GetStringProperty(tag, "name") ?? string.Empty,
                     GetStringProperty(tag, "dataType")));
             }
@@ -72,7 +78,7 @@ public sealed partial class MitsubishiTagClientGenerator
 
             foreach (var group in groupsElement.EnumerateArray())
             {
-                groups.Add(new GroupModel(
+                groups.Add(new(
                     GetStringProperty(group, "name") ?? string.Empty,
                     ParseTagNames(group)));
             }

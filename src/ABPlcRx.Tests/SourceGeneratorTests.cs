@@ -4,8 +4,8 @@
 
 using System.Collections.Immutable;
 using System.Reflection;
-using IoT.DriverCore.ABPlcRx.SourceGeneration;
-using IoT.DriverCore.ABPlcRx.SourceGenerators;
+using IoT.Driver.ABPlcRx.SourceGeneration;
+using IoT.Driver.ABPlcRx.SourceGenerators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using ReactiveUI.Primitives;
@@ -14,11 +14,11 @@ using ReactiveUI.Primitives.Disposables;
 using TUnit.Assertions;
 using TUnit.Core;
 using ReactiveAsyncContext = ReactiveUI.Primitives.Async.Reactive.AsyncContext;
-using ReactiveIABPlcRx = IoT.DriverCore.ABPlcRx.Reactive.IABPlcRx;
+using ReactiveIABPlcRx = IoT.Driver.ABPlcRx.Reactive.IABPlcRx;
 using ReactiveLinqExtensions = ReactiveUI.Primitives.Reactive.LinqExtensions;
-using ReactivePlcModelAttribute = IoT.DriverCore.ABPlcRx.Reactive.SourceGeneration.PlcModelAttribute;
+using ReactivePlcModelAttribute = IoT.Driver.ABPlcRx.Reactive.SourceGeneration.PlcModelAttribute;
 
-namespace IoT.DriverCore.ABPlcRx.Tests;
+namespace IoT.Driver.ABPlcRx.Tests;
 
 /// <summary>Tests the PLC model source generator.</summary>
 public sealed class SourceGeneratorTests
@@ -32,7 +32,7 @@ public sealed class SourceGeneratorTests
     internal async Task PlcModelGeneratorCreatesPropertiesAndObservableStreamsAsync()
     {
         const string source = """
-            using IoT.DriverCore.ABPlcRx.SourceGeneration;
+            using IoT.Driver.ABPlcRx.SourceGeneration;
 
             namespace GeneratedSample;
 
@@ -56,13 +56,13 @@ public sealed class SourceGeneratorTests
         await Assert.That(generatedSource).Contains("ReadyObservableAsync");
         await Assert.That(generatedSource).Contains("ReadCounterAsync");
         await Assert.That(generatedSource).Contains("WriteCounterAsync");
-        await Assert.That(generatedSource).Contains("global::IoT.DriverCore.Core.ILogicalTagClient TagClient");
-        await Assert.That(generatedSource).Contains("global::IoT.DriverCore.Core.LogicalTagMixins.ReadAsync");
-        await Assert.That(generatedSource).Contains("global::IoT.DriverCore.Core.LogicalTagMixins.WriteAsync");
+        await Assert.That(generatedSource).Contains("global::IoT.Driver.Core.ILogicalTagClient TagClient");
+        await Assert.That(generatedSource).Contains("global::IoT.Driver.Core.LogicalTagMixins.ReadAsync");
+        await Assert.That(generatedSource).Contains("global::IoT.Driver.Core.LogicalTagMixins.WriteAsync");
         await Assert.That(generatedSource).Contains("global::ReactiveUI.Primitives.Disposables.MultipleDisposable");
         await Assert.That(generatedSource).Contains("global::ReactiveUI.Primitives.Async.IObservableAsync<bool>");
         await Assert.That(generatedSource)
-            .Contains("global::IoT.DriverCore.ABPlcRx.ObservableAsyncBridgeExtensions.ToAsyncObservable");
+            .Contains("global::IoT.Driver.ABPlcRx.ObservableAsyncBridgeExtensions.ToAsyncObservable");
         await Assert.That(generatedSource)
             .Contains(
                 "controller.AddUpdateTagItem<short>(@\"LightOn\", @\"B3:3\", @\"Default\", default(short))");
@@ -78,7 +78,7 @@ public sealed class SourceGeneratorTests
     internal async Task PlcModelGeneratorCreatesReactiveNamespaceModelsAsync()
     {
         const string source = """
-            using IoT.DriverCore.ABPlcRx.Reactive.SourceGeneration;
+            using IoT.Driver.ABPlcRx.Reactive.SourceGeneration;
 
             namespace GeneratedReactiveSample;
 
@@ -94,9 +94,9 @@ public sealed class SourceGeneratorTests
         var generatedSource = await GetGeneratedSourceAsync(run);
 
         await Assert.That(generatedSource).Contains("using ReactiveUI.Primitives.Reactive;");
-        await Assert.That(generatedSource).Contains("global::IoT.DriverCore.ABPlcRx.Reactive.IABPlcRx");
+        await Assert.That(generatedSource).Contains("global::IoT.Driver.ABPlcRx.Reactive.IABPlcRx");
         await Assert.That(generatedSource)
-            .Contains("global::IoT.DriverCore.ABPlcRx.Reactive.ObservableAsyncBridgeExtensions.ToAsyncObservable");
+            .Contains("global::IoT.Driver.ABPlcRx.Reactive.ObservableAsyncBridgeExtensions.ToAsyncObservable");
         await Assert.That(generatedSource)
             .Contains(
                 "controller.AddUpdateTagItem<int>(@\"Counter\", @\"MyDINT\", @\"Default\", default(int))");
@@ -108,7 +108,7 @@ public sealed class SourceGeneratorTests
     internal async Task PlcModelGeneratorReportsDiagnosticForNonPartialModelsAsync()
     {
         const string source = """
-            using IoT.DriverCore.ABPlcRx.SourceGeneration;
+            using IoT.Driver.ABPlcRx.SourceGeneration;
 
             namespace GeneratedSample;
 
@@ -120,7 +120,7 @@ public sealed class SourceGeneratorTests
             """;
 
         var run = RunGenerator(source);
-        var diagnostic = run.Diagnostics.Single(diagnostic => diagnostic.Id == "ABPLCRXSG001");
+        var diagnostic = run.Diagnostics.Single(static diagnostic => diagnostic.Id == "ABPLCRXSG001");
 
         await Assert.That(diagnostic.Severity).IsEqualTo(DiagnosticSeverity.Error);
         await Assert.That(diagnostic.GetMessage()).Contains("MachineTags");
@@ -133,7 +133,7 @@ public sealed class SourceGeneratorTests
     internal async Task PlcModelGeneratorSkipsModelsWithoutTagsAsync()
     {
         const string source = """
-            using IoT.DriverCore.ABPlcRx.SourceGeneration;
+            using IoT.Driver.ABPlcRx.SourceGeneration;
 
             namespace GeneratedSample;
 
@@ -180,7 +180,7 @@ public sealed class SourceGeneratorTests
     internal async Task PlcModelGeneratorIgnoresInvalidTagAttributesAsync()
     {
         const string source = """
-            using IoT.DriverCore.ABPlcRx.SourceGeneration;
+            using IoT.Driver.ABPlcRx.SourceGeneration;
 
             namespace GeneratedSample;
 
@@ -243,7 +243,7 @@ public sealed class SourceGeneratorTests
     internal async Task PlcModelGeneratorEmitsPropertyTagsAndCustomSettingsAsync()
     {
         const string source = """
-            using IoT.DriverCore.ABPlcRx.SourceGeneration;
+            using IoT.Driver.ABPlcRx.SourceGeneration;
 
             namespace GeneratedSample;
 
@@ -280,7 +280,7 @@ public sealed class SourceGeneratorTests
         var generator = new PlcModelGenerator();
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             [generator.AsSourceGenerator()],
-            parseOptions: new CSharpParseOptions(LanguageVersion.Preview));
+            parseOptions: new(LanguageVersion.Preview));
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
 
         return new(driver, outputCompilation, diagnostics);
@@ -291,16 +291,26 @@ public sealed class SourceGeneratorTests
     /// <returns><see cref="Task"/> representing the assertion.</returns>
     private static async Task AssertNoErrorsAsync(GeneratorRun run)
     {
-        var generatorErrors = string.Join(
-            Environment.NewLine,
-            run.Diagnostics.Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
-        var outputErrors = string.Join(
-            Environment.NewLine,
-            run.OutputCompilation.GetDiagnostics()
-                .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+        var generatorErrors = new List<Diagnostic>();
+        foreach (var diagnostic in run.Diagnostics)
+        {
+            if (diagnostic.Severity == DiagnosticSeverity.Error)
+            {
+                generatorErrors.Add(diagnostic);
+            }
+        }
 
-        await Assert.That(generatorErrors).IsEqualTo(string.Empty);
-        await Assert.That(outputErrors).IsEqualTo(string.Empty);
+        var outputErrors = new List<Diagnostic>();
+        foreach (var diagnostic in run.OutputCompilation.GetDiagnostics())
+        {
+            if (diagnostic.Severity == DiagnosticSeverity.Error)
+            {
+                outputErrors.Add(diagnostic);
+            }
+        }
+
+        await Assert.That(string.Join(Environment.NewLine, generatorErrors)).IsEqualTo(string.Empty);
+        await Assert.That(string.Join(Environment.NewLine, outputErrors)).IsEqualTo(string.Empty);
     }
 
     /// <summary>Gets the generated source from a successful run.</summary>
@@ -311,7 +321,7 @@ public sealed class SourceGeneratorTests
         var generatedTree = run.Driver
             .GetRunResult()
             .GeneratedTrees
-            .Single(tree => tree.FilePath.EndsWith(".ABPlcRx.g.cs", StringComparison.Ordinal));
+            .Single(static tree => tree.FilePath.EndsWith(".ABPlcRx.g.cs", StringComparison.Ordinal));
 
         return (await generatedTree.GetTextAsync()).ToString();
     }
@@ -322,50 +332,59 @@ public sealed class SourceGeneratorTests
     /// <returns>The created compilation.</returns>
     private static CSharpCompilation CreateCompilation(string source, bool reactive)
     {
-        var references = GetFrameworkReferences()
-            .Concat(
-            [
-                MetadataReference.CreateFromFile(typeof(PlcModelAttribute).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(IABPlcRx).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(RxVoid).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(LinqExtensions).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(MultipleDisposable).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(IObservableAsync<>).Assembly.Location),
-            ])
-            .Concat(reactive
-                ? [
-                    MetadataReference.CreateFromFile(typeof(ReactivePlcModelAttribute).Assembly.Location),
-                    MetadataReference.CreateFromFile(typeof(ReactiveIABPlcRx).Assembly.Location),
-                    MetadataReference.CreateFromFile(typeof(ReactiveLinqExtensions).Assembly.Location),
-                    MetadataReference.CreateFromFile(typeof(ReactiveAsyncContext).Assembly.Location),
-                ]
-                : []);
+        var references = new List<MetadataReference>(GetFrameworkReferences())
+        {
+            MetadataReference.CreateFromFile(typeof(PlcModelAttribute).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(IABPlcRx).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(RxVoid).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(LinqExtensions).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(MultipleDisposable).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(IObservableAsync<>).Assembly.Location),
+        };
+
+        if (reactive)
+        {
+            references.Add(MetadataReference.CreateFromFile(typeof(ReactivePlcModelAttribute).Assembly.Location));
+            references.Add(MetadataReference.CreateFromFile(typeof(ReactiveIABPlcRx).Assembly.Location));
+            references.Add(MetadataReference.CreateFromFile(typeof(ReactiveLinqExtensions).Assembly.Location));
+            references.Add(MetadataReference.CreateFromFile(typeof(ReactiveAsyncContext).Assembly.Location));
+        }
 
         return CSharpCompilation.Create(
             "GeneratedSample",
-            [CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview))],
+            [CSharpSyntaxTree.ParseText(source, new(LanguageVersion.Preview))],
             references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            new(OutputKind.DynamicallyLinkedLibrary));
     }
 
     /// <summary>Gets trusted platform assembly references for Roslyn compilation.</summary>
     /// <returns>The metadata references.</returns>
-    private static IEnumerable<MetadataReference> GetFrameworkReferences()
+    private static List<MetadataReference> GetFrameworkReferences()
     {
         var trustedPlatformAssemblies = (string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES");
-        var frameworkReferences = string.IsNullOrWhiteSpace(trustedPlatformAssemblies)
-            ? GetNetFrameworkReferences()
-            : trustedPlatformAssemblies!
-                .Split(Path.PathSeparator)
-                .Where(File.Exists)
-                .Select(CreateMetadataReference);
+        var frameworkReferences = new List<MetadataReference>();
+        if (string.IsNullOrWhiteSpace(trustedPlatformAssemblies))
+        {
+            frameworkReferences.AddRange(GetNetFrameworkReferences());
+        }
+        else
+        {
+            foreach (var assemblyPath in trustedPlatformAssemblies!.Split(Path.PathSeparator))
+            {
+                if (File.Exists(assemblyPath))
+                {
+                    frameworkReferences.Add(CreateMetadataReference(assemblyPath));
+                }
+            }
+        }
 
-        return frameworkReferences.Concat(GetOutputAssemblyReferences());
+        frameworkReferences.AddRange(GetOutputAssemblyReferences());
+        return frameworkReferences;
     }
 
     /// <summary>Gets the .NET Framework reference assemblies used by legacy Roslyn generator tests.</summary>
     /// <returns>The available framework metadata references.</returns>
-    private static IEnumerable<MetadataReference> GetNetFrameworkReferences()
+    private static List<MetadataReference> GetNetFrameworkReferences()
     {
         var directory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
@@ -374,26 +393,57 @@ public sealed class SourceGeneratorTests
             "Framework",
             ".NETFramework",
             "v4.8.1");
-        return Directory.Exists(directory)
-            ? Directory.EnumerateFiles(directory, DynamicLibraryPattern)
-                .Concat(Directory.EnumerateFiles(Path.Combine(directory, "Facades"), DynamicLibraryPattern))
-                .Where(static path => Path.GetFileName(path) is not "System.EnterpriseServices.Wrapper.dll" and not "System.EnterpriseServices.Thunk.dll")
-                .Select(CreateMetadataReference)
-            : [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)];
+        if (!Directory.Exists(directory))
+        {
+            return [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)];
+        }
+
+        var frameworkReferences = new List<MetadataReference>();
+        AddFrameworkReferences(directory, frameworkReferences);
+        var facadeDirectory = Path.Combine(directory, "Facades");
+        if (Directory.Exists(facadeDirectory))
+        {
+            AddFrameworkReferences(facadeDirectory, frameworkReferences);
+        }
+
+        return frameworkReferences;
     }
 
     /// <summary>Creates a metadata reference from an assembly path.</summary>
     /// <param name="path">The assembly path.</param>
     /// <returns>The metadata reference.</returns>
-    private static MetadataReference CreateMetadataReference(string path) => MetadataReference.CreateFromFile(path);
+    private static PortableExecutableReference CreateMetadataReference(string path) => MetadataReference.CreateFromFile(path);
+
+    /// <summary>Adds supported framework assembly metadata references from a directory.</summary>
+    /// <param name="directory">The directory containing framework assemblies.</param>
+    /// <param name="references">The collection to receive metadata references.</param>
+    private static void AddFrameworkReferences(string directory, List<MetadataReference> references)
+    {
+        foreach (var assemblyPath in Directory.EnumerateFiles(directory, DynamicLibraryPattern))
+        {
+            var fileName = Path.GetFileName(assemblyPath);
+            if (fileName is not "System.EnterpriseServices.Wrapper.dll" and not "System.EnterpriseServices.Thunk.dll")
+            {
+                references.Add(CreateMetadataReference(assemblyPath));
+            }
+        }
+    }
 
     /// <summary>Gets copied package assemblies from the test output folder.</summary>
     /// <returns>The metadata references.</returns>
-    private static IEnumerable<MetadataReference> GetOutputAssemblyReferences() =>
-        Directory.EnumerateFiles(AppContext.BaseDirectory, DynamicLibraryPattern)
-            .Where(File.Exists)
-            .Where(IsManagedAssembly)
-            .Select(CreateMetadataReference);
+    private static List<MetadataReference> GetOutputAssemblyReferences()
+    {
+        var outputReferences = new List<MetadataReference>();
+        foreach (var assemblyPath in Directory.EnumerateFiles(AppContext.BaseDirectory, DynamicLibraryPattern))
+        {
+            if (File.Exists(assemblyPath) && IsManagedAssembly(assemblyPath))
+            {
+                outputReferences.Add(CreateMetadataReference(assemblyPath));
+            }
+        }
+
+        return outputReferences;
+    }
 
     /// <summary>Determines whether a DLL is a managed assembly suitable for a Roslyn metadata reference.</summary>
     /// <param name="path">The DLL path to inspect.</param>

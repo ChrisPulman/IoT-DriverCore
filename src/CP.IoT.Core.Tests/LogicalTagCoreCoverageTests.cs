@@ -3,12 +3,12 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 using Microsoft.Data.Sqlite;
 using TUnit.Assertions;
 using TUnit.Core;
 
-namespace IoT.DriverCore.Core.Tests;
+namespace IoT.Driver.Core.Tests;
 
 /// <summary>Exercises validation, failure, compatibility, and migration paths in the shared core.</summary>
 public sealed class LogicalTagCoreCoverageTests
@@ -51,14 +51,14 @@ public sealed class LogicalTagCoreCoverageTests
     [Test]
     public async Task TransportAddressValidatesAndImplementsValueSemanticsAsync()
     {
-        _ = Assert.Throws<ArgumentException>(() => CreateAddress(partition: " "));
-        _ = Assert.Throws<ArgumentException>(() => CreateAddress(memoryArea: " "));
-        _ = Assert.Throws<ArgumentException>(() => CreateAddress(encoding: " "));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => CreateAddress(access: (TagTransferAccess)99));
-        _ = Assert.Throws<ArgumentNullException>(() => CreateAddress(route: null!));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => CreateAddress(offset: -1));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => CreateAddress(length: 0));
-        _ = Assert.Throws<OverflowException>(() => CreateAddress(offset: long.MaxValue));
+        _ = Assert.Throws<ArgumentException>(static () => CreateAddress(partition: " "));
+        _ = Assert.Throws<ArgumentException>(static () => CreateAddress(memoryArea: " "));
+        _ = Assert.Throws<ArgumentException>(static () => CreateAddress(encoding: " "));
+        _ = Assert.Throws<ArgumentOutOfRangeException>(static () => CreateAddress(access: (TagTransferAccess)99));
+        _ = Assert.Throws<ArgumentNullException>(static () => CreateAddress(route: null!));
+        _ = Assert.Throws<ArgumentOutOfRangeException>(static () => CreateAddress(offset: -1));
+        _ = Assert.Throws<ArgumentOutOfRangeException>(static () => CreateAddress(length: 0));
+        _ = Assert.Throws<OverflowException>(static () => CreateAddress(offset: long.MaxValue));
 
         var address = CreateAddress(route: $" {RouteName} ", offset: Two, length: Three);
         var equal = CreateAddress(route: RouteName, offset: Two, length: Three);
@@ -78,9 +78,9 @@ public sealed class LogicalTagCoreCoverageTests
     [Test]
     public async Task PlannerAndPlanValidateAllInputsAsync()
     {
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => _ = new TagTransferCapabilities(0));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => _ = new TagTransferCapabilities(1, 0));
-        _ = Assert.Throws<ArgumentNullException>(() => _ = new TagTransferPlanner(null!));
+        _ = Assert.Throws<ArgumentOutOfRangeException>(static () => _ = new TagTransferCapabilities(0));
+        _ = Assert.Throws<ArgumentOutOfRangeException>(static () => _ = new TagTransferCapabilities(1, 0));
+        _ = Assert.Throws<ArgumentNullException>(static () => _ = new TagTransferPlanner(null!));
         var planner = new TagTransferPlanner(new TagTransferCapabilities(Four));
         _ = Assert.Throws<ArgumentNullException>(() => planner.Plan(null!));
         _ = Assert.Throws<ArgumentException>(() => planner.Plan([null!]));
@@ -105,13 +105,13 @@ public sealed class LogicalTagCoreCoverageTests
     [Test]
     public async Task CsvValidatesArgumentsAndMalformedDocumentsAsync()
     {
-        using var writer = new StringWriter();
+        await using var writer = new StringWriter();
         await Assert.That(await ThrowsAsync<ArgumentNullException>(() => LogicalTagCsv.ExportAsync(null!, writer))).IsTrue();
-        await Assert.That(await ThrowsAsync<ArgumentNullException>(() => LogicalTagCsv.ExportAsync([], null!))).IsTrue();
+        await Assert.That(await ThrowsAsync<ArgumentNullException>(static () => LogicalTagCsv.ExportAsync([], null!))).IsTrue();
         await Assert.That(await ThrowsAsync<ArgumentOutOfRangeException>(
             () => LogicalTagCsv.ExportAsync([], writer, '"'))).IsTrue();
         await Assert.That(await ThrowsAsync<ArgumentException>(() => LogicalTagCsv.ExportAsync([null!], writer))).IsTrue();
-        await Assert.That(await ThrowsAsync<ArgumentNullException>(() => LogicalTagCsv.ImportAsync(null!))).IsTrue();
+        await Assert.That(await ThrowsAsync<ArgumentNullException>(static () => LogicalTagCsv.ImportAsync(null!))).IsTrue();
 
         var empty = await LogicalTagCsv.ImportAsync(new StringReader(string.Empty));
         await Assert.That(empty.Count).IsEqualTo(0);
@@ -123,7 +123,7 @@ public sealed class LogicalTagCoreCoverageTests
         await Assert.That(await ImportFailsAsync("a\"b")).IsTrue();
         await Assert.That(await ImportFailsAsync("\"a\"b")).IsTrue();
 
-        using var customWriter = new StringWriter();
+        await using var customWriter = new StringWriter();
         await LogicalTagCsv.ExportAsync([new LogicalTag("A", "D0", Int32DataType)], customWriter, ';');
         var imported = await LogicalTagCsv.ImportAsync(new StringReader(customWriter.ToString()), ';');
         await Assert.That(imported[0].ScanInterval).IsNull();
@@ -134,13 +134,13 @@ public sealed class LogicalTagCoreCoverageTests
     [Test]
     public async Task ModelsAndCatalogValidateLifecycleEdgesAsync()
     {
-        _ = Assert.Throws<ArgumentNullException>(() => _ = new LogicalTag("A", "A", Int32DataType, null!));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => _ = new LogicalTag(
+        _ = Assert.Throws<ArgumentNullException>(static () => _ = new LogicalTag("A", "A", Int32DataType, null!));
+        _ = Assert.Throws<ArgumentOutOfRangeException>(static () => _ = new LogicalTag(
             "A",
             "A",
             Int32DataType,
             new() { ScanInterval = TimeSpan.Zero }));
-        _ = Assert.Throws<ArgumentException>(() => _ = new LogicalTag(
+        _ = Assert.Throws<ArgumentException>(static () => _ = new LogicalTag(
             "A",
             "A",
             Int32DataType,
@@ -157,7 +157,7 @@ public sealed class LogicalTagCoreCoverageTests
         await Assert.That(new LogicalTagGroup("A", " Description ").Description).IsEqualTo("Description");
         await Assert.That(new LogicalTagKey<int>(" A ").Name).IsEqualTo("A");
         await Assert.That(LogicalTagKey<int>.ValueType).IsEqualTo(typeof(int));
-        _ = Assert.Throws<ArgumentNullException>(() => _ = new LogicalTagKey<int>((LogicalTag)null!));
+        _ = Assert.Throws<ArgumentNullException>(static () => _ = new LogicalTagKey<int>((LogicalTag)null!));
 
         var catalog = new LogicalTagCatalog();
         _ = Assert.Throws<ArgumentNullException>(() => catalog.TryAdd(null!));
@@ -178,9 +178,9 @@ public sealed class LogicalTagCoreCoverageTests
         var now = TimeProvider.System.GetUtcNow();
         var failingReader = new ConfigurableReader(TagOperationResult<LogicalTagValue>.Failure(OfflineError));
         var wrongReader = new ConfigurableReader(TagOperationResult<LogicalTagValue>.Success(
-            new LogicalTagValue("A", "wrong", now)));
+            new("A", "wrong", now)));
         var nullReader = new ConfigurableReader(TagOperationResult<LogicalTagValue>.Success(
-            new LogicalTagValue("A", null, now)));
+            new("A", null, now)));
         var failingWriter = new ConfigurableWriter(false);
 
         await Assert.That((await failingReader.ReadAsync(key)).Error).IsEqualTo(OfflineError);
@@ -207,17 +207,31 @@ public sealed class LogicalTagCoreCoverageTests
             var store = new LogicalTagSqliteStore($"Data Source={file};Pooling=False");
             await store.InitializeAsync();
             await store.InitializeAsync();
-            await store.UpsertGroupAsync(new LogicalTagGroup("B"));
-            await store.UpsertGroupAsync(new LogicalTagGroup("A"));
-            await store.UpsertTagAsync(new LogicalTag("B", "D1", Int32DataType));
-            await store.UpsertTagAsync(new LogicalTag("A", "D0", Int32DataType));
+            await store.UpsertGroupAsync(new("B"));
+            await store.UpsertGroupAsync(new("A"));
+            await store.UpsertTagAsync(new("B", "D1", Int32DataType));
+            await store.UpsertTagAsync(new("A", "D0", Int32DataType));
 
-            await Assert.That((await store.ListGroupsAsync()).Select(static group => group.Name).ToArray())
+            var groups = await store.ListGroupsAsync();
+            var groupNames = new string[groups.Count];
+            for (var index = 0; index < groups.Count; index++)
+            {
+                groupNames[index] = groups[index].Name;
+            }
+
+            await Assert.That(groupNames)
                 .IsEquivalentTo(["A", "B"]);
-            await Assert.That((await store.ListTagsAsync()).Select(static listedTag => listedTag.Name).ToArray())
+            var tags = await store.ListTagsAsync();
+            var tagNames = new string[tags.Count];
+            for (var index = 0; index < tags.Count; index++)
+            {
+                tagNames[index] = tags[index].Name;
+            }
+
+            await Assert.That(tagNames)
                 .IsEquivalentTo(["A", "B"]);
-            await Assert.That(await store.UpdateTagAsync(new LogicalTag("A", "D2", Int32DataType))).IsTrue();
-            await Assert.That(await store.EditTagAsync(new LogicalTag(MissingName, "D9", Int32DataType))).IsFalse();
+            await Assert.That(await store.UpdateTagAsync(new("A", "D2", Int32DataType))).IsTrue();
+            await Assert.That(await store.EditTagAsync(new(MissingName, "D9", Int32DataType))).IsFalse();
             await Assert.That(await store.GetGroupAsync(MissingName)).IsNull();
             await Assert.That(await store.DeleteTagAsync(MissingName)).IsFalse();
             await Assert.That(await store.DeleteGroupAsync(MissingName)).IsFalse();

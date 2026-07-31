@@ -3,34 +3,30 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Collections.Immutable;
-using IoT.DriverCore.TwinCATRx.SourceGenerators;
+using IoT.Driver.TwinCATRx.SourceGenerators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
-namespace IoT.DriverCore.TwinCATRx.SourceGenerators.Tests;
+namespace IoT.Driver.TwinCATRx.SourceGenerators.Tests;
 
 /// <summary>Exercises deterministic source-generator inputs through the Roslyn generator driver.</summary>
 public class TwinCatReactiveStreamGeneratorTests
 {
-    /// <summary>The two post-initialization attribute sources.</summary>
-    private const int AttributeSourceCount = 2;
+    /// <summary>An empty input does not produce generated implementation sources.</summary>
+    private const int EmptySourceCount = 0;
 
-    /// <summary>The two attribute sources plus one connection source.</summary>
-    private const int AttributeAndConnectionSourceCount = 3;
+    /// <summary>One connection input produces one implementation source.</summary>
+    private const int ConnectionSourceCount = 1;
 
-    /// <summary>Verifies post-initialization attributes are emitted for an empty compilation.</summary>
+    /// <summary>Verifies marker attributes are owned by the runtime packages rather than generator output.</summary>
     /// <returns>The test task.</returns>
     [Test]
-    public async Task Empty_Input_Emits_Both_Attribute_SurfacesAsync()
+    public async Task Empty_Input_Does_Not_Emit_Runtime_Attribute_SurfacesAsync()
     {
         var result = RunGenerator(string.Empty);
 
         await TUnitAssert.That(result.Diagnostics.Length).IsEqualTo(0);
-        await TUnitAssert.That(result.GeneratedSources.Length).IsEqualTo(AttributeSourceCount);
-        await TUnitAssert.That(GetSource(result, "TwinCatReactiveStreamAttribute.Lean.g.cs"))
-            .Contains("namespace IoT.DriverCore.TwinCATRx;");
-        await TUnitAssert.That(GetSource(result, "TwinCatReactiveStreamAttribute.Reactive.g.cs"))
-            .Contains("namespace IoT.DriverCore.TwinCATRx.Reactive;");
+        await TUnitAssert.That(result.GeneratedSources.Length).IsEqualTo(EmptySourceCount);
     }
 
     /// <summary>Verifies invalid stream and connection values are ignored without generator diagnostics.</summary>
@@ -39,7 +35,7 @@ public class TwinCatReactiveStreamGeneratorTests
     public async Task Invalid_Attribute_Values_Are_Ignored_Without_DiagnosticsAsync()
     {
         const string source = """
-            using IoT.DriverCore.TwinCATRx;
+            using IoT.Driver.TwinCATRx;
 
             [TwinCatReactiveStream("", typeof(int))]
             internal partial class EmptyStream;
@@ -61,7 +57,7 @@ public class TwinCatReactiveStreamGeneratorTests
         var result = RunGenerator(source);
 
         await TUnitAssert.That(result.Diagnostics.Length).IsEqualTo(0);
-        await TUnitAssert.That(result.GeneratedSources.Length).IsEqualTo(AttributeAndConnectionSourceCount);
+        await TUnitAssert.That(result.GeneratedSources.Length).IsEqualTo(ConnectionSourceCount);
         var generated = GetGeneratedSource(result, "TwinCatPlcConnection");
         await TUnitAssert.That(generated).Contains("internal partial class EmptyConnection");
         await TUnitAssert.That(generated).DoesNotContain("InvalidDirectObservable");
@@ -75,7 +71,7 @@ public class TwinCatReactiveStreamGeneratorTests
     public async Task Lean_Legacy_Stream_Emits_Sanitized_And_Escaped_BindingsAsync()
     {
         const string source = """
-            using IoT.DriverCore.TwinCATRx;
+            using IoT.Driver.TwinCATRx;
 
             namespace Generator.Samples;
 
@@ -101,7 +97,7 @@ public class TwinCatReactiveStreamGeneratorTests
         await TUnitAssert.That(generated).Contains("MotorChanges => _motorSpeedSubject;");
         await TUnitAssert.That(generated).Contains("MAIN.Path\\\\Segment\\\"Quoted");
         await TUnitAssert.That(generated).Contains("id\\\\part\\\"quoted");
-        await TUnitAssert.That(generated).Contains("global::IoT.DriverCore.TwinCATRx.IRxTcAdsClient");
+        await TUnitAssert.That(generated).Contains("global::IoT.Driver.TwinCATRx.IRxTcAdsClient");
     }
 
     /// <summary>Verifies Reactive legacy bindings use the System.Reactive-compatible API aliases.</summary>
@@ -110,7 +106,7 @@ public class TwinCatReactiveStreamGeneratorTests
     public async Task Reactive_Legacy_Stream_Uses_Reactive_Api_SurfaceAsync()
     {
         const string source = """
-            [IoT.DriverCore.TwinCATRx.Reactive.TwinCatReactiveStream(".Reactive", typeof(long), Id = "reactive")]
+            [IoT.Driver.TwinCATRx.Reactive.TwinCatReactiveStream(".Reactive", typeof(long), Id = "reactive")]
             internal partial class ReactiveStreams;
             """;
 
@@ -119,9 +115,9 @@ public class TwinCatReactiveStreamGeneratorTests
 
         await TUnitAssert.That(result.Diagnostics.Length).IsEqualTo(0);
         await TUnitAssert.That(generated).DoesNotContain("namespace ");
-        await TUnitAssert.That(generated).Contains("global::IoT.DriverCore.TwinCATRx.Reactive.IRxTcAdsClient");
-        await TUnitAssert.That(generated).Contains("global::IoT.DriverCore.TwinCATRx.Reactive.ObservableBridgeExtensions");
-        await TUnitAssert.That(generated).Contains("global::IoT.DriverCore.TwinCATRx.Reactive.TwinCatRxExtensions");
+        await TUnitAssert.That(generated).Contains("global::IoT.Driver.TwinCATRx.Reactive.IRxTcAdsClient");
+        await TUnitAssert.That(generated).Contains("global::IoT.Driver.TwinCATRx.Reactive.ObservableBridgeExtensions");
+        await TUnitAssert.That(generated).Contains("global::IoT.Driver.TwinCATRx.Reactive.TwinCatRxExtensions");
         await TUnitAssert.That(generated).Contains(
             "Observe<long>(client, \".Reactive\", \"reactive\", static value =>");
     }
@@ -132,7 +128,7 @@ public class TwinCatReactiveStreamGeneratorTests
     public async Task Lean_Connection_Emits_All_Property_VariantsAsync()
     {
         const string source = """
-            using IoT.DriverCore.TwinCATRx;
+            using IoT.Driver.TwinCATRx;
             namespace Generator.Samples;
 
             [TwinCatPlcConnection("1.2.3.4.5.6", 851, SettingsId = "Line\"One")]
@@ -172,7 +168,7 @@ public class TwinCatReactiveStreamGeneratorTests
 
         await TUnitAssert.That(result.Diagnostics.Length).IsEqualTo(0);
         await TUnitAssert.That(generated).Contains("using CP.Collections;");
-        await TUnitAssert.That(generated).Contains("using IoT.DriverCore.TwinCATRx.Core;");
+        await TUnitAssert.That(generated).Contains("using IoT.Driver.TwinCATRx.Core;");
         await TUnitAssert.That(generated).Contains("AdsAddress = \"1.2.3.4.5.6\"");
         await TUnitAssert.That(generated).Contains("Port = 851");
         await TUnitAssert.That(generated).Contains("SettingsId = \"Line\\\"One\"");
@@ -198,16 +194,16 @@ public class TwinCatReactiveStreamGeneratorTests
         const string source = """
             namespace Generator.ReactiveSamples
             {
-                [IoT.DriverCore.TwinCATRx.Reactive.TwinCatPlcConnection("reactive-address", 852)]
+                [IoT.Driver.TwinCATRx.Reactive.TwinCatPlcConnection("reactive-address", 852)]
                 internal partial class ReactiveConnection
                 {
-                    [IoT.DriverCore.TwinCATRx.Reactive.DirectNotification(".Value", WriteAddress = ".WriteValue")]
+                    [IoT.Driver.TwinCATRx.Reactive.DirectNotification(".Value", WriteAddress = ".WriteValue")]
                     public int Value { get; }
 
-                    [IoT.DriverCore.TwinCATRx.Reactive.StructuredNotification(".Structure", "Nested.Value")]
+                    [IoT.Driver.TwinCATRx.Reactive.StructuredNotification(".Structure", "Nested.Value")]
                     public int NestedValue { get; }
 
-                    [IoT.DriverCore.TwinCATRx.Reactive.WriteOnly(".Only")]
+                    [IoT.Driver.TwinCATRx.Reactive.WriteOnly(".Only")]
                     public string Only { get; }
                 }
             }
@@ -218,9 +214,9 @@ public class TwinCatReactiveStreamGeneratorTests
 
         await TUnitAssert.That(result.Diagnostics.Length).IsEqualTo(0);
         await TUnitAssert.That(generated).Contains("using CP.Collections.Reactive;");
-        await TUnitAssert.That(generated).Contains("using IoT.DriverCore.TwinCATRx.Core.Reactive;");
-        await TUnitAssert.That(generated).Contains("global::IoT.DriverCore.TwinCATRx.Reactive.IRxTcAdsClient");
-        await TUnitAssert.That(generated).Contains("global::IoT.DriverCore.TwinCATRx.Reactive.RxTcAdsClient");
+        await TUnitAssert.That(generated).Contains("using IoT.Driver.TwinCATRx.Core.Reactive;");
+        await TUnitAssert.That(generated).Contains("global::IoT.Driver.TwinCATRx.Reactive.IRxTcAdsClient");
+        await TUnitAssert.That(generated).Contains("global::IoT.Driver.TwinCATRx.Reactive.RxTcAdsClient");
         await TUnitAssert.That(generated).Contains("AdsAddress = \"reactive-address\"");
         await TUnitAssert.That(generated).Contains("Port = 852");
         await TUnitAssert.That(generated).Contains("SettingsId = \"ReactiveConnection\"");
@@ -237,7 +233,7 @@ public class TwinCatReactiveStreamGeneratorTests
     public async Task Edge_Case_Names_And_Addresses_Use_FallbacksAsync()
     {
         const string source = """
-            using IoT.DriverCore.TwinCATRx;
+            using IoT.Driver.TwinCATRx;
 
             [TwinCatReactiveStream(".BlankName", typeof(int), PropertyName = "", ObservableName = "")]
             internal partial class BlankNameStream;
@@ -294,14 +290,14 @@ public class TwinCatReactiveStreamGeneratorTests
             "GeneratorTests",
             [syntaxTree],
             GetPlatformReferences(),
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            new(OutputKind.DynamicallyLinkedLibrary));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             [new TwinCatReactiveStreamGenerator().AsSourceGenerator()],
             parseOptions: parseOptions);
 
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out var diagnostics);
         var runResult = driver.GetRunResult();
-        if (diagnostics.Length != 0)
+        if (!diagnostics.IsEmpty)
         {
             throw new InvalidOperationException(string.Join(Environment.NewLine, diagnostics));
         }
@@ -325,9 +321,9 @@ public class TwinCatReactiveStreamGeneratorTests
     /// <returns>The assertion task.</returns>
     private static async Task AssertLogicalTagContractAsync(string generated)
     {
-        await TUnitAssert.That(generated).Contains("new global::IoT.DriverCore.Core.LogicalTagOptions");
-        await TUnitAssert.That(generated).Contains("global::IoT.DriverCore.Core.LogicalTagMixins.ReadAsync<int>");
-        await TUnitAssert.That(generated).Contains("global::IoT.DriverCore.Core.LogicalTagMixins.WriteAsync<int>");
+        await TUnitAssert.That(generated).Contains("new global::IoT.Driver.Core.LogicalTagOptions");
+        await TUnitAssert.That(generated).Contains("global::IoT.Driver.Core.LogicalTagMixins.ReadAsync<int>");
+        await TUnitAssert.That(generated).Contains("global::IoT.Driver.Core.LogicalTagMixins.WriteAsync<int>");
         await TUnitAssert.That(generated).DoesNotContain("LogicalTagContractHelpers");
     }
 
@@ -352,31 +348,19 @@ public class TwinCatReactiveStreamGeneratorTests
             references.Add(MetadataReference.CreateFromFile(path));
         }
 
+        references.Add(MetadataReference.CreateFromFile(
+            typeof(TwinCatReactiveStreamAttribute).Assembly.Location));
+        references.Add(MetadataReference.CreateFromFile(
+            typeof(global::IoT.Driver.TwinCATRx.Reactive.TwinCatReactiveStreamAttribute).Assembly.Location));
+
         return references.ToImmutable();
-    }
-
-    /// <summary>Gets a generated source by exact hint name.</summary>
-    /// <param name="result">The generator result.</param>
-    /// <param name="hintName">The source hint name.</param>
-    /// <returns>The generated source text.</returns>
-    private static string GetSource(GeneratorRunResult result, string hintName)
-    {
-        foreach (var source in result.GeneratedSources)
-        {
-            if (source.HintName == hintName)
-            {
-                return source.SourceText.ToString();
-            }
-        }
-
-        throw new InvalidOperationException($"Generated source '{hintName}' was not found.");
     }
 
     /// <summary>Gets the first generated source whose hint name contains a suffix.</summary>
     /// <param name="result">The generator result.</param>
     /// <param name="hintNamePart">The source hint-name fragment.</param>
     /// <returns>The generated source text.</returns>
-    private static string GetGeneratedSource(GeneratorRunResult result, string hintNamePart)
+    private static string GetGeneratedSource(in GeneratorRunResult result, string hintNamePart)
     {
         foreach (var source in result.GeneratedSources)
         {

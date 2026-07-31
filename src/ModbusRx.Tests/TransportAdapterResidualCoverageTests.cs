@@ -4,11 +4,11 @@
 
 using System.Net;
 using System.Net.Sockets;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.IO;
-using IoT.DriverCore.Serial;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx.IO;
+using IoT.Driver.Serial;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Bounded loopback coverage for Modbus transport adapters and slave factories.</summary>
 [TUnit.Core.NotInParallel]
@@ -101,7 +101,7 @@ public sealed class TransportAdapterResidualCoverageTests
             .IsEquivalentTo(response);
         await TUnit.Assertions.Assert.That(received.Buffer)
             .IsEquivalentTo(Slice(request, BufferOffset, PayloadLength));
-        await TUnit.Assertions.Assert.That(() => new UdpClientAdapter(null!)).Throws<ArgumentNullException>();
+        await TUnit.Assertions.Assert.That(static () => new UdpClientAdapter(null!)).Throws<ArgumentNullException>();
     }
 
     /// <summary>Exposes serial transports through the explicit serial-master contract without opening a listener.</summary>
@@ -129,9 +129,9 @@ public sealed class TransportAdapterResidualCoverageTests
         await TUnit.Assertions.Assert.That(tcpSlave.UnitId).IsEqualTo(UnitId);
         await TUnit.Assertions.Assert.That(tcpSlave.Masters).IsEmpty();
         await TUnit.Assertions.Assert.That(udpSlave.UnitId).IsEqualTo(UnitId);
-        await TUnit.Assertions.Assert.That(() => ModbusTcpSlave.CreateTcp(UnitId, null!))
+        await TUnit.Assertions.Assert.That(static () => ModbusTcpSlave.CreateTcp(UnitId, null!))
             .Throws<ArgumentNullException>();
-        await TUnit.Assertions.Assert.That(() => ModbusUdpSlave.CreateUdp(UnitId, null!))
+        await TUnit.Assertions.Assert.That(static () => ModbusUdpSlave.CreateUdp(UnitId, null!))
             .Throws<ArgumentNullException>();
 
         tcpSlave.Dispose();

@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Device;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Device;
+namespace IoT.Driver.ModbusRx.UnitTests.Device;
 
 /// <summary>Tests the TcpConnectionEventArgsFixture behavior.</summary>
 public class TcpConnectionEventArgsFixture
@@ -13,12 +13,12 @@ public class TcpConnectionEventArgsFixture
     /// <summary>TCPs the connection event arguments null end point.</summary>
     [TUnit.Core.Test]
     public void TcpConnectionEventArgs_NullEndPoint() =>
-        Assert.Throws<ArgumentNullException>(() => _ = new TcpConnectionEventArgs(null!));
+        Assert.Throws<ArgumentNullException>(static () => _ = new TcpConnectionEventArgs(null!));
 
     /// <summary>TCPs the connection event arguments empty end point.</summary>
     [TUnit.Core.Test]
     public void TcpConnectionEventArgs_EmptyEndPoint() =>
-        Assert.Throws<ArgumentException>(() => _ = new TcpConnectionEventArgs(string.Empty));
+        Assert.Throws<ArgumentException>(static () => _ = new TcpConnectionEventArgs(string.Empty));
 
     /// <summary>TCPs the connection event arguments.</summary>
     [TUnit.Core.Test]

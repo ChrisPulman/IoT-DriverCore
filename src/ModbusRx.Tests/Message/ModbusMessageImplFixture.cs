@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
+namespace IoT.Driver.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the ModbusMessageImplFixture behavior.</summary>
 public class ModbusMessageImplFixture
@@ -51,7 +51,7 @@ public class ModbusMessageImplFixture
     {
         var messageImpl = new ModbusMessageImpl(Num.Value11, Modbus.ReadCoils);
         byte[] expectedResult = { Modbus.ReadCoils };
-        Assert.Equal(expectedResult, messageImpl.ProtocolDataUnit);
+        Assert.Equal(expectedResult, messageImpl.ToProtocolDataUnit());
     }
 
     /// <summary>Messages the frame.</summary>
@@ -60,6 +60,6 @@ public class ModbusMessageImplFixture
     {
         var messageImpl = new ModbusMessageImpl(Num.Value11, Modbus.ReadHoldingRegisters);
         byte[] expectedMessageFrame = { 11, Modbus.ReadHoldingRegisters };
-        Assert.Equal(expectedMessageFrame, messageImpl.MessageFrame);
+        Assert.Equal(expectedMessageFrame, messageImpl.ToMessageFrame());
     }
 }

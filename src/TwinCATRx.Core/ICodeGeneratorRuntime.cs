@@ -5,9 +5,9 @@
 using TwinCAT.TypeSystem;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Core.Reactive;
+namespace IoT.Driver.TwinCATRx.Core.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx.Core;
+namespace IoT.Driver.TwinCATRx.Core;
 #endif
 
 /// <summary>Defines the native symbol operations consumed by <see cref="CodeGenerator"/>.</summary>

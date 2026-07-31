@@ -2,13 +2,13 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Tags;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Verifies grouped logical-tag operations use native contiguous FINS transfers.</summary>
 public sealed class OmronLogicalTagBulkTests
@@ -79,7 +79,11 @@ public sealed class OmronLogicalTagBulkTests
             CancellationToken.None);
 
         await Assert.That(results.Count).IsEqualTo(ExpectedTagCount);
-        await Assert.That(results.All(static result => result.Succeeded)).IsTrue();
+        foreach (var result in results)
+        {
+            await Assert.That(result.Succeeded).IsTrue();
+        }
+
         await Assert.That((short)results[0].Value!.Value!).IsEqualTo(ThirdValue);
         await Assert.That((short)results[1].Value!.Value!).IsEqualTo(FirstValue);
         await Assert.That((short)results[2].Value!.Value!).IsEqualTo(SecondValue);
@@ -107,7 +111,11 @@ public sealed class OmronLogicalTagBulkTests
             CancellationToken.None);
 
         await Assert.That(results.Count).IsEqualTo(ExpectedTagCount);
-        await Assert.That(results.All(static result => result.Succeeded)).IsTrue();
+        foreach (var result in results)
+        {
+            await Assert.That(result.Succeeded).IsTrue();
+        }
+
         await Assert.That((short)results[0].Value!.Value!).IsEqualTo(ThirdValue);
         await Assert.That((short)results[1].Value!.Value!).IsEqualTo(FirstValue);
         await Assert.That((short)results[2].Value!.Value!).IsEqualTo(SecondValue);
@@ -135,7 +143,11 @@ public sealed class OmronLogicalTagBulkTests
             [ThirdTag, FirstTag, SecondTag],
             CancellationToken.None);
 
-        await Assert.That(results.All(static result => result.Succeeded)).IsTrue();
+        foreach (var result in results)
+        {
+            await Assert.That(result.Succeeded).IsTrue();
+        }
+
         await Assert.That((bool)results[0].Value!.Value!).IsTrue();
         await Assert.That((bool)results[1].Value!.Value!).IsTrue();
         await Assert.That((bool)results[2].Value!.Value!).IsFalse();
@@ -164,7 +176,11 @@ public sealed class OmronLogicalTagBulkTests
         ],
             CancellationToken.None);
 
-        await Assert.That(results.All(static result => result.Succeeded)).IsTrue();
+        foreach (var result in results)
+        {
+            await Assert.That(result.Succeeded).IsTrue();
+        }
+
         await Assert.That(channel.SendCount).IsEqualTo(ExpectedSingleTransfer);
         await Assert.That(driver.GetValue(new LogicalTagKey<bool>(FirstTag))).IsFalse();
         await Assert.That(driver.GetValue(new LogicalTagKey<bool>(SecondTag))).IsTrue();
@@ -198,7 +214,11 @@ public sealed class OmronLogicalTagBulkTests
             ["Enabled", ThirdTag, FirstTag, SecondTag],
             CancellationToken.None);
 
-        await Assert.That(results.All(static result => result.Succeeded)).IsTrue();
+        foreach (var result in results)
+        {
+            await Assert.That(result.Succeeded).IsTrue();
+        }
+
         await Assert.That((bool)results[0].Value!.Value!).IsTrue();
         await Assert.That((string)results[1].Value!.Value!).IsEqualTo(TextValue);
         await Assert.That((short)results[2].Value!.Value!).IsEqualTo(FirstValue);
@@ -228,7 +248,11 @@ public sealed class OmronLogicalTagBulkTests
         ],
             CancellationToken.None);
 
-        await Assert.That(results.All(static result => result.Succeeded)).IsTrue();
+        foreach (var result in results)
+        {
+            await Assert.That(result.Succeeded).IsTrue();
+        }
+
         await Assert.That(channel.SendCount).IsEqualTo(ExpectedSingleTransfer);
         await Assert.That(driver.GetValue(new LogicalTagKey<int>(FirstTag))).IsEqualTo(MultiWordValue);
         await Assert.That(driver.GetValue(new LogicalTagKey<string>(SecondTag))).IsEqualTo(TextValue);
@@ -278,8 +302,12 @@ public sealed class OmronLogicalTagBulkTests
             CancellationToken.None);
 
         await Assert.That(results.Count).IsEqualTo(ExpectedTagCount);
-        await Assert.That(results.All(static result => !result.Succeeded)).IsTrue();
-        await Assert.That(results.All(static result => result.Error.Contains("too short"))).IsTrue();
+        foreach (var result in results)
+        {
+            await Assert.That(result.Succeeded).IsFalse();
+            await Assert.That(result.Error).Contains("too short");
+        }
+
         await Assert.That(channel.SendCount).IsEqualTo(ExpectedSingleTransfer);
     }
 

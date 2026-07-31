@@ -2,13 +2,15 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.ModbusRx.Server.UI.Data;
-using IoT.DriverCore.ModbusRx.Server.UI.Services;
-using IoT.DriverCore.ModbusRx.Server.UI.Visualization;
+using System.IO;
+using IoT.Driver.ModbusRx.Server.UI.Data;
+using IoT.Driver.ModbusRx.Server.UI.Services;
+using IoT.Driver.ModbusRx.Server.UI.Visualization;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using ReactiveUI.SourceGenerators;
 
-namespace IoT.DriverCore.ModbusRx.Server.UI;
+namespace IoT.Driver.ModbusRx.Server.UI;
 
 /// <summary>Interaction logic for MainWindow.xaml.</summary>
 [IViewFor<ModbusServerViewModel>]
@@ -26,7 +28,12 @@ public partial class MainWindow
     {
         // Setup Entity Framework
         var optionsBuilder = new DbContextOptionsBuilder<ModbusServerContext>();
-        _ = optionsBuilder.UseSqlite("Data Source=modbusrx.db");
+        var databasePath = Path.Combine(Environment.CurrentDirectory, "modbusrx.db");
+        var connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = databasePath,
+        }.ToString();
+        _ = optionsBuilder.UseSqlite(connectionString);
 
         var context = new ModbusServerContext(optionsBuilder.Options);
         _ = context.Database.EnsureCreated();

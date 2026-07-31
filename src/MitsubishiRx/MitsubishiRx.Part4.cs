@@ -4,11 +4,11 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -161,7 +161,7 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
                 () =>
                     MitsubishiProtocolEncoding.Encode(
                         Options,
-                        new MitsubishiRawCommandRequest(
+                        new(
                             MitsubishiCommandCodes.ClearError,
                             0x0000,
                             [],
@@ -238,6 +238,12 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(values);
+        var valueArray = new ushort[values.Count];
+        for (var index = 0; index < values.Count; index++)
+        {
+            valueArray[index] = values[index];
+        }
+
         var raw = await ExecuteObservableAsync(
                 () =>
                     Options.TransportKind == MitsubishiTransportKind.Serial
@@ -245,14 +251,14 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
                             Options,
                             command,
                             address,
-                            values.Count,
-                            values.ToArray())
+                            valueArray.Length,
+                            valueArray)
                         : MitsubishiProtocolEncoding.EncodeMemoryAccess(
                             Options,
                             command,
                             address,
-                            values.Count,
-                            values.ToArray()),
+                            valueArray.Length,
+                            valueArray),
                 null,
                 $"Write memory {command:X4}",
                 cancellationToken)
@@ -361,7 +367,9 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         IObservable<Unit> trigger)
     {
         ArgumentNullException.ThrowIfNull(trigger);
-        return trigger.SelectLatestAsync(_ =>
-            ReadWordsAsync(address, points, CancellationToken.None));
+        return trigger
+            .Select(_ => Observable.FromAsync(cancellationToken =>
+                ReadWordsAsync(address, points, cancellationToken)))
+            .Switch();
     }
 }

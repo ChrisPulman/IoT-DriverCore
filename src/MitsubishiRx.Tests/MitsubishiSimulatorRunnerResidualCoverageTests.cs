@@ -7,11 +7,11 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 #endif
 
@@ -21,13 +21,16 @@ internal sealed class MitsubishiSimulatorRunnerResidualCoverageTests
     /// <summary>Stores the largest point count representable by a legacy batch request.</summary>
     private const int MaximumLegacyPointCount = 256;
 
+    /// <summary>Stores the expected legacy binary error response.</summary>
+    private static readonly byte[] ExpectedLegacyErrorResponse = [0x81, 0x5B, 0x51, 0xC0];
+
     /// <summary>Verifies public simulator state controls and legacy error response shapes.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
     internal async Task StateControlsAndLegacyErrorResponsesAreDeterministicAsync()
     {
         _ = Assert.Throws<ArgumentNullException>(
-            () =>
+            static () =>
             {
                 var unexpectedSimulator = new MitsubishiSimulatorTransport(
                     (MitsubishiSimulatorMemory)null!);
@@ -51,8 +54,7 @@ internal sealed class MitsubishiSimulatorRunnerResidualCoverageTests
             CreateMcOptions(MitsubishiFrameType.OneE, CommunicationDataCode.Ascii),
             0xC051);
 
-        await Assert.That(binary.Select(static value => (int)value).ToArray())
-            .IsEquivalentTo([0x81, 0x5B, 0x51, 0xC0]);
+        await Assert.That(binary).IsEquivalentTo(ExpectedLegacyErrorResponse);
         await Assert.That(Encoding.ASCII.GetString(ascii)).IsEqualTo("815BC051");
     }
 
@@ -66,14 +68,14 @@ internal sealed class MitsubishiSimulatorRunnerResidualCoverageTests
         await simulator.ConnectAsync(options, CancellationToken.None);
 
         var fallback = await simulator.ExchangeAsync(
-            new MitsubishiTransportRequest([], null, "Unsupported serial operation"),
+            new([], null, "Unsupported serial operation"),
             CancellationToken.None);
 
         await Assert.That(fallback).IsNotEmpty();
-        _ = Assert.Throws<InvalidDataException>(
-            () => simulator.ExchangeAsync(
-                new MitsubishiTransportRequest([0x05], null, "Read words D100"),
-                CancellationToken.None).AsTask().GetAwaiter().GetResult());
+        _ = await Assert.ThrowsAsync<InvalidDataException>(
+            async () => await simulator.ExchangeAsync(
+                new([0x05], null, "Read words D100"),
+                CancellationToken.None));
     }
 
     /// <summary>Verifies legacy zero point counts decode to the supported maximum batch size.</summary>
