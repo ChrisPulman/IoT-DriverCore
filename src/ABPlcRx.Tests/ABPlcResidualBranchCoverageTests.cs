@@ -106,7 +106,7 @@ public sealed class ABPlcResidualBranchCoverageTests
     {
         using var native = new SimulatedPlcTagNative(TimeProvider.System);
         using var plc = new ABPlc(LoopbackAddress, PlcType.SLC, null, native);
-        using var tags = plc.CreateTagList("PrimitiveBits", TimeSpan.FromMinutes(1));
+        using var tags = plc.CreateTagList("PrimitiveBits", TimeSpan.FromMinutes(1), scanEnabled: false);
 
         await AssertBitSetAsync(tags.CreateTagType<bool>(BooleanTagName, BooleanTagName), static wrapper => wrapper.SetBool(true, 0));
         await AssertBitSetAsync(tags.CreateTagType<byte>(ByteTagName, ByteTagName), static wrapper => wrapper.SetUInt8(1, 0));

@@ -123,6 +123,9 @@ public sealed class ManagedS7Server : IDisposable
     /// <summary>The order-code text field length.</summary>
     private const int OrderCodeTextLength = 20;
 
+    /// <summary>The number of seconds allowed for listener and client shutdown.</summary>
+    private const int ShutdownWaitSeconds = 2;
+
     /// <summary>The S7ANY syntax identifier offset.</summary>
     private const int S7AnySyntaxOffset = 2;
 
@@ -335,7 +338,7 @@ public sealed class ManagedS7Server : IDisposable
             _cancellation = null;
         }
 
-        ShutdownOperation.Begin(shutdownTasks, cancellation);
+        DrainShutdownTasks(shutdownTasks, cancellation);
     }
 
     /// <summary>Disposes the server.</summary>
@@ -354,6 +357,53 @@ public sealed class ManagedS7Server : IDisposable
         Stop();
         _cancellation?.Dispose();
         _cancellation = null;
+    }
+
+    /// <summary>Drains listener and client tasks before releasing their cancellation source.</summary>
+    /// <param name="shutdownTasks">The tasks owned by the stopped server generation.</param>
+    /// <param name="cancellation">The cancellation source owned by the stopped server generation.</param>
+    private static void DrainShutdownTasks(Task[] shutdownTasks, CancellationTokenSource? cancellation)
+    {
+        if (shutdownTasks.Length == 0)
+        {
+            cancellation?.Dispose();
+            return;
+        }
+
+        var completion = Task.WhenAll(shutdownTasks);
+        if (WaitForCompletion(completion, TimeSpan.FromSeconds(ShutdownWaitSeconds)))
+        {
+            _ = completion.Exception;
+            cancellation?.Dispose();
+            return;
+        }
+
+        _ = completion.ContinueWith(
+            static (task, state) =>
+            {
+                _ = task.Exception;
+                ((CancellationTokenSource?)state)?.Dispose();
+            },
+            cancellation,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    /// <summary>Waits for a task without releasing state still owned by an incomplete operation.</summary>
+    /// <param name="task">The task to observe.</param>
+    /// <param name="timeout">The maximum wait.</param>
+    /// <returns><see langword="true"/> when the task completed within the timeout.</returns>
+    private static bool WaitForCompletion(Task task, TimeSpan timeout)
+    {
+        var signal = new CompletionSignal(task.IsCompleted);
+        _ = task.ContinueWith(
+            static (_, state) => ((CompletionSignal)state!).Complete(),
+            signal,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+        return signal.Wait(timeout);
     }
 
     /// <summary>Classifies an incoming frame.</summary>
@@ -1009,52 +1059,37 @@ public sealed class ManagedS7Server : IDisposable
         public int Count { get; }
     }
 
-    /// <summary>Owns the disposable state needed to drain one stopped server generation.</summary>
-    private sealed class ShutdownOperation
+    /// <summary>Coordinates bounded synchronous waits with asynchronous task completion.</summary>
+    private sealed class CompletionSignal
     {
-        /// <summary>The cancellation source owned by this operation.</summary>
-        private readonly CancellationTokenSource? _cancellation;
+        /// <summary>Synchronizes completion state.</summary>
+        private readonly object _syncRoot = new();
 
-        /// <summary>The listener and client tasks to observe before releasing cancellation state.</summary>
-        private readonly Task[] _shutdownTasks;
+        /// <summary>Indicates whether the observed task completed.</summary>
+        private bool _completed;
 
-        /// <summary>Initializes a new instance of the <see cref="ShutdownOperation"/> class.</summary>
-        /// <param name="shutdownTasks">The listener and client tasks to observe.</param>
-        /// <param name="cancellation">The cancellation source that owns the tasks.</param>
-        private ShutdownOperation(Task[] shutdownTasks, CancellationTokenSource? cancellation)
+        /// <summary>Initializes a new instance of the <see cref="CompletionSignal"/> class.</summary>
+        /// <param name="completed">The initial completion state.</param>
+        public CompletionSignal(bool completed) => _completed = completed;
+
+        /// <summary>Signals task completion.</summary>
+        public void Complete()
         {
-            _shutdownTasks = shutdownTasks;
-            _cancellation = cancellation;
+            lock (_syncRoot)
+            {
+                _completed = true;
+                Monitor.PulseAll(_syncRoot);
+            }
         }
 
-        /// <summary>Begins draining a stopped server generation.</summary>
-        /// <param name="shutdownTasks">The listener and client tasks to observe.</param>
-        /// <param name="cancellation">The cancellation source that owns the tasks.</param>
-        internal static void Begin(Task[] shutdownTasks, CancellationTokenSource? cancellation) =>
-            new ShutdownOperation(shutdownTasks, cancellation).Start();
-
-        /// <summary>Starts the asynchronous drain while retaining ownership of its disposable state.</summary>
-        private void Start() => _ = CompleteAsync();
-
-        /// <summary>Observes all shutdown tasks before releasing the cancellation source.</summary>
-        /// <returns>A task that completes when the stopped server generation is fully drained.</returns>
-        private async Task CompleteAsync()
+        /// <summary>Waits for completion up to the specified timeout.</summary>
+        /// <param name="timeout">The maximum wait.</param>
+        /// <returns><see langword="true"/> when completion was signalled.</returns>
+        public bool Wait(TimeSpan timeout)
         {
-            try
+            lock (_syncRoot)
             {
-                if (_shutdownTasks.Length > 0)
-                {
-                    await Task.WhenAll(_shutdownTasks).ConfigureAwait(false);
-                }
-            }
-            catch (Exception ex) when (
-                ex is IOException or ObjectDisposedException or SocketException or OperationCanceledException)
-            {
-                return;
-            }
-            finally
-            {
-                _cancellation?.Dispose();
+                return _completed || (Monitor.Wait(_syncRoot, timeout) && _completed);
             }
         }
     }

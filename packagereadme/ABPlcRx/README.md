@@ -18,9 +18,12 @@ PLC writes can move equipment. Validate tags against a non-production controller
 |---|---|---|---|
 | `IoT-Driver.ABPlcRx` | `IoT.Driver.ABPlcRx` | net472, net48, net481, net8.0–net11.0 | libplctag-backed reactive AB client |
 | `IoT-Driver.ABPlcRx.Reactive` | `IoT.Driver.ABPlcRx.Reactive` | matching package targets | System.Reactive-compatible surface where supplied |
+| `IoT-Driver.ABPlcRx.NativeImport` | n/a | managed, native, and MSBuild assets | Stable standalone redistribution of the libplctag native-import asset graph |
 | `IoT-Driver.ABPlcRx.Generators` | `IoT.Driver.ABPlcRx.SourceGenerators` | netstandard2.0 analyzer | Standalone analyzer package for generated PLC models |
 
-`IoT-Driver.ABPlcRx` references `ReactiveUI.Primitives`, `ReactiveUI.Primitives.Async`, and `libplctag.NativeImport`. Runtime packages never contain a source-generator assembly; install the standalone generator package only when generated PLC models are required.
+`IoT-Driver.ABPlcRx` references `ReactiveUI.Primitives` and `ReactiveUI.Primitives.Async`. Both AB runtime packages transitively depend on the standalone stable `IoT-Driver.ABPlcRx.NativeImport` wrapper, which redistributes the exact `libplctag.NativeImport` 2.0.0-alpha.8 managed, native, and MSBuild asset graph; applications normally receive it by installing a runtime package.
+
+Runtime packages never contain a source-generator assembly; install the standalone `IoT-Driver.ABPlcRx.Generators` package only when generated PLC models are required.
 
 ## Install
 

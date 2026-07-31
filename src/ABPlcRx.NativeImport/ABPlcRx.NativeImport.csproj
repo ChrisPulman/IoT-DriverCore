@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- This package only repackages the upstream binary distribution. -->
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IncludeSymbols>false</IncludeSymbols>
+    <PackageId>IoT-Driver.ABPlcRx.NativeImport</PackageId>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ChrisPulman/IoT-DriverCore</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/libplctag/libplctag.NET</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryCommit>ee026b8911508006e6cb493e231a6aa07d4088dc</RepositoryCommit>
+    <PackageDescription>Stable redistribution of libplctag.NativeImport 2.0.0-alpha.8 managed, native, and MSBuild assets for IoT-Driver.ABPlcRx consumers.</PackageDescription>
+    <PackageReleaseNotes>Redistributes the exact libplctag.NativeImport 2.0.0-alpha.8 asset graph under MPL-2.0.</PackageReleaseNotes>
+    <PackageTags>Allen-Bradley;Rockwell;PLC;libplctag;native;IoT</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <NuspecFile>IoT-Driver.ABPlcRx.NativeImport.nuspec</NuspecFile>
+    <NuspecProperties>upstreamPackageRoot=$(PkgLibplctag_NativeImport)</NuspecProperties>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The source-project graph receives the upstream runtime assets through this
+         composition boundary. The custom nuspec below remains authoritative for the
+         published stable package and therefore does not expose a prerelease dependency. -->
+    <PackageReference Include="libplctag.NativeImport"
+                      GeneratePathProperty="true" />
+  </ItemGroup>
+
+  <!-- PackageVersion is assigned by NuGet's pack targets, after project evaluation. -->
+  <Target Name="ConfigureNativeImportNuspec" BeforeTargets="GenerateNuspec">
+    <PropertyGroup>
+      <NuspecProperties>$(NuspecProperties);version=$(PackageVersion)</NuspecProperties>
+    </PropertyGroup>
+  </Target>
+
+</Project>

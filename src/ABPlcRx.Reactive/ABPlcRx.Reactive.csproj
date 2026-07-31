@@ -26,7 +26,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="libplctag.NativeImport" />
     <PackageReference Include="ReactiveUI.Primitives.Reactive" />
     <PackageReference Include="ReactiveUI.Primitives.Async.Reactive" />
   </ItemGroup>
@@ -39,6 +38,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CP.IoT.Core\CP.IoT.Core.csproj" />
+    <ProjectReference Include="..\ABPlcRx.NativeImport\ABPlcRx.NativeImport.csproj" />
     <ProjectReference Include="..\ABPlcRx.Generators\ABPlcRx.Generators.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"

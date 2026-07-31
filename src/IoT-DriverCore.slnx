@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/AllenBradley/">
     <Project Path="ABPlcRx.Generators/ABPlcRx.Generators.csproj" />
+    <Project Path="ABPlcRx.NativeImport/ABPlcRx.NativeImport.csproj" />
     <Project Path="ABPlcRx.Reactive/ABPlcRx.Reactive.csproj" />
     <Project Path="ABPlcRx.TestApp/ABPlcRx.TestApp.csproj" />
     <Project Path="ABPlcRx/ABPlcRx.csproj" />

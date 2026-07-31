@@ -63,6 +63,7 @@
     <PackageId Condition="'$(MSBuildProjectName)' == 'ABPlcRx'">IoT-Driver.ABPlcRx</PackageId>
     <PackageId Condition="'$(MSBuildProjectName)' == 'ABPlcRx.Reactive'">IoT-Driver.ABPlcRx.Reactive</PackageId>
     <PackageId Condition="'$(MSBuildProjectName)' == 'ABPlcRx.Generators'">IoT-Driver.ABPlcRx.Generators</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'ABPlcRx.NativeImport'">IoT-Driver.ABPlcRx.NativeImport</PackageId>
     <PackageId Condition="'$(MSBuildProjectName)' == 'MitsubishiRx'">IoT-Driver.MitsubishiRx</PackageId>
     <PackageId Condition="'$(MSBuildProjectName)' == 'MitsubishiRx.Reactive'">IoT-Driver.MitsubishiRx.Reactive</PackageId>
     <PackageId Condition="'$(MSBuildProjectName)' == 'MitsubishiRx.Generators'">IoT-Driver.MitsubishiRx.Generators</PackageId>

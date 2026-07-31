@@ -194,8 +194,7 @@ public sealed class S7MockRawBranchCoverageTests
 
         using var server = new MockServer(S7ServerBackend.Snap7);
         byte[] area = new byte[NativeAreaSize];
-        SrvCallback callback = static (nint _, ref USrvEvent _, int _) => { };
-        SrvRwAreaCallback areaCallback = static (nint _, int _, int _, ref S7Tag _, ref RwBuffer _) => SuccessResult;
+        var callbacks = RegisterNativeCallbacks(server);
         var serverEvent = default(USrvEvent);
 
         server.LogMask = uint.MaxValue;
@@ -204,17 +203,53 @@ public sealed class S7MockRawBranchCoverageTests
         await TUnitAssert.That(server.EventMask).IsEqualTo(uint.MaxValue);
         await TUnitAssert.That(server.RegisterArea(MockServer.SrvAreaDB, 1, area, area.Length))
             .IsEqualTo(SuccessResult);
-        await TUnitAssert.That(server.SetEventsCallBack(callback, 0)).IsEqualTo(SuccessResult);
-        await TUnitAssert.That(server.SetReadEventsCallBack(callback, 0)).IsEqualTo(SuccessResult);
-        await TUnitAssert.That(server.SetRwAreaCallBack(areaCallback, 0)).IsEqualTo(SuccessResult);
+        await TUnitAssert.That(callbacks.EventsResult).IsEqualTo(SuccessResult);
+        await TUnitAssert.That(callbacks.ReadEventsResult).IsEqualTo(SuccessResult);
+        await TUnitAssert.That(callbacks.AreaResult).IsEqualTo(SuccessResult);
         await TUnitAssert.That(server.LockArea(MockServer.SrvAreaDB, 1)).IsEqualTo(SuccessResult);
         await TUnitAssert.That(server.UnlockArea(MockServer.SrvAreaDB, 1)).IsEqualTo(SuccessResult);
         _ = server.PickEvent(ref serverEvent);
         await TUnitAssert.That(server.ClearEvents()).IsEqualTo(SuccessResult);
         await TUnitAssert.That(server.UnregisterArea(MockServer.SrvAreaDB, 1)).IsEqualTo(SuccessResult);
 
-        GC.KeepAlive(callback);
-        GC.KeepAlive(areaCallback);
+        var eventsCallback = typeof(MockServer).GetField("_eventsCallback", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?.GetValue(server);
+        var readEventsCallback = typeof(MockServer).GetField(
+            "_readEventsCallback",
+            BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(server);
+        var areaCallback = typeof(MockServer).GetField(
+            "_readWriteAreaCallback",
+            BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(server);
+        await TUnitAssert.That(ReferenceEquals(eventsCallback, callbacks.Callback)).IsTrue();
+        await TUnitAssert.That(ReferenceEquals(readEventsCallback, callbacks.Callback)).IsTrue();
+        await TUnitAssert.That(ReferenceEquals(areaCallback, callbacks.AreaCallback)).IsTrue();
+    }
+
+    /// <summary>Registers native callbacks and returns their registration results.</summary>
+    /// <param name="server">The native server receiving the callbacks.</param>
+    /// <returns>The callbacks and their registration results.</returns>
+    private static (
+        SrvCallback Callback,
+        SrvRwAreaCallback AreaCallback,
+        int EventsResult,
+        int ReadEventsResult,
+        int AreaResult) RegisterNativeCallbacks(MockServer server)
+    {
+        var callbackState = new object();
+        var areaCallbackState = new object();
+        SrvCallback callback = (nint _, ref USrvEvent _, int _) => GC.KeepAlive(callbackState);
+        SrvRwAreaCallback areaCallback = (nint _, int _, int _, ref S7Tag _, ref RwBuffer _) =>
+        {
+            GC.KeepAlive(areaCallbackState);
+            return SuccessResult;
+        };
+
+        return (
+            callback,
+            areaCallback,
+            server.SetEventsCallBack(callback, 0),
+            server.SetReadEventsCallBack(callback, 0),
+            server.SetRwAreaCallBack(areaCallback, 0));
     }
 
     /// <summary>Invokes one private instance method.</summary>

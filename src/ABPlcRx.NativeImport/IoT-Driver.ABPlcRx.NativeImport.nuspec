@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>IoT-Driver.ABPlcRx.NativeImport</id>
+    <version>$version$</version>
+    <authors>libplctag contributors; Chris Pulman</authors>
+    <owners>Chris Pulman</owners>
+    <license type="expression">MPL-2.0</license>
+    <projectUrl>https://github.com/ChrisPulman/IoT-DriverCore</projectUrl>
+    <repository type="git" url="https://github.com/libplctag/libplctag.NET" commit="ee026b8911508006e6cb493e231a6aa07d4088dc" />
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <readme>README.md</readme>
+    <description>Stable redistribution of the exact libplctag.NativeImport 2.0.0-alpha.8 managed assemblies, native runtime libraries, and MSBuild assets for IoT-Driver.ABPlcRx consumers.</description>
+    <releaseNotes>Redistributes the exact upstream libplctag.NativeImport 2.0.0-alpha.8 asset graph under MPL-2.0.</releaseNotes>
+    <copyright>Copyright (c) libplctag contributors. Redistribution packaging copyright (c) Chris Pulman.</copyright>
+    <tags>plc modbus netstandard rockwell allen-bradley libplctag native iot</tags>
+    <dependencies>
+      <group targetFramework=".NETFramework4.7">
+        <dependency id="System.Memory" version="4.6.0" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETFramework4.7.1">
+        <dependency id="System.Memory" version="4.6.0" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETFramework4.7.2">
+        <dependency id="System.Memory" version="4.6.0" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETFramework4.8">
+        <dependency id="System.Memory" version="4.6.0" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETFramework4.8.1">
+        <dependency id="System.Memory" version="4.6.0" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework="net5.0">
+        <dependency id="System.Memory" version="4.6.0" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework="net6.0">
+        <dependency id="System.Memory" version="4.6.0" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework="net7.0">
+        <dependency id="System.Memory" version="4.6.0" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework="net8.0">
+        <dependency id="System.Memory" version="4.6.0" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETCoreApp3.0">
+        <dependency id="System.Memory" version="4.6.0" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETCoreApp3.1">
+        <dependency id="System.Memory" version="4.6.0" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="$upstreamPackageRoot$\lib\**\*" target="lib" />
+    <file src="$upstreamPackageRoot$\runtimes\**\*" target="runtimes" />
+    <file src="$upstreamPackageRoot$\build\**\*" target="build" />
+    <file src="$upstreamPackageRoot$\buildTransitive\**\*" target="buildTransitive" />
+    <!-- NuGet auto-imports build assets only when their base name matches the package ID. -->
+    <file src="$upstreamPackageRoot$\build\libplctag.NativeImport.props" target="build\IoT-Driver.ABPlcRx.NativeImport.props" />
+    <file src="$upstreamPackageRoot$\build\libplctag.NativeImport.targets" target="build\IoT-Driver.ABPlcRx.NativeImport.targets" />
+    <file src="$upstreamPackageRoot$\buildTransitive\libplctag.NativeImport.props" target="buildTransitive\IoT-Driver.ABPlcRx.NativeImport.props" />
+    <file src="$upstreamPackageRoot$\buildTransitive\libplctag.NativeImport.targets" target="buildTransitive\IoT-Driver.ABPlcRx.NativeImport.targets" />
+    <file src="..\..\packagereadme\ABPlcRx.NativeImport\README.md" target="README.md" />
+    <file src="third-party\libplctag.NativeImport\NOTICE.md" target="third-party\libplctag.NativeImport\NOTICE.md" />
+    <file src="third-party\libplctag.NativeImport\LICENSE-MPL-2.0.txt" target="third-party\libplctag.NativeImport\LICENSE-MPL-2.0.txt" />
+  </files>
+</package>
