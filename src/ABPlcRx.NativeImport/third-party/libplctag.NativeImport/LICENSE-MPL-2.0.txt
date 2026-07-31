@@ -1,0 +1,12 @@
+Mozilla Public License Version 2.0
+==================================
+
+This redistribution includes executable-form material from libplctag.NativeImport
+under the Mozilla Public License, version 2.0 (MPL-2.0).
+
+The complete, unmodified license text is available from the Mozilla Foundation:
+https://www.mozilla.org/MPL/2.0/
+
+The corresponding upstream source and its license are available at the exact
+redistributed source commit:
+https://github.com/libplctag/libplctag.NET/tree/ee026b8911508006e6cb493e231a6aa07d4088dc
