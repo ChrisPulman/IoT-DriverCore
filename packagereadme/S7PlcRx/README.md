@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ChrisPulman/IoT-DriverCore/main/images/s7-plc-rx.png" alt="S7PlcRx package logo" width="320" />
+  <img src="https://github.com/ChrisPulman/IoT-DriverCore/blob/main/images/s7-plc-rx.png" alt="S7PlcRx package logo" width="320" />
 </p>
 
 # S7PlcRx
