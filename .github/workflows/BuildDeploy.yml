@@ -38,7 +38,7 @@ env:
   configuration: Release
   solutionFile: IoT-DriverCore.slnx
   solutionFolder: src
-  minMajorMinorVersion: '1.0'
+  minMajorMinorVersion: '0.1'
 
 jobs:
   release:
