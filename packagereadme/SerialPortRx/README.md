@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ChrisPulman/IoT-DriverCore/main/images/serial-port-rx.png" alt="SerialPortRx package logo" width="320" />
+  <img src="https://github.com/ChrisPulman/IoT-DriverCore/blob/main/images/serial-port-rx.png" alt="SerialPortRx package logo" width="320" />
 </p>
 
 # SerialPortRx
