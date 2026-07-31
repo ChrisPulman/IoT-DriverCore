@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ChrisPulman/IoT-DriverCore/main/images/mitsubishi-rx.png" alt="MitsubishiRx package logo" width="320" />
+  <img src="https://github.com/ChrisPulman/IoT-DriverCore/blob/main/images/mitsubishi-rx.png" alt="MitsubishiRx package logo" width="320" />
 </p>
 
 # MitsubishiRx
