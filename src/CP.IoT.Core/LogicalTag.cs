@@ -4,7 +4,7 @@
 
 using System.Collections.ObjectModel;
 
-namespace IoT.DriverCore.Core;
+namespace IoT.Driver.Core;
 
 /// <summary>Describes an immutable logical PLC tag.</summary>
 public sealed class LogicalTag

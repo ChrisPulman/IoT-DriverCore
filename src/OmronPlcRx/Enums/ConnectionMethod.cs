@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Enums;
+namespace IoT.Driver.OmronPlcRx.Reactive.Enums;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Enums;
+namespace IoT.Driver.OmronPlcRx.Enums;
 #endif
 
 /// <summary>Transport protocol used for communication with the PLC.</summary>

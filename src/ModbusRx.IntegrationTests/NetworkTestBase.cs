@@ -10,7 +10,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace IoT.DriverCore.ModbusRx.IntegrationTests;
+namespace IoT.Driver.ModbusRx.IntegrationTests;
 
 /// <summary>Base class for network-related integration tests with proper resource management.</summary>
 public class NetworkTestBase : IDisposable
@@ -111,21 +111,22 @@ public class NetworkTestBase : IDisposable
         TimeSpan timeout,
         TimeSpan pollInterval)
     {
-        if (condition is null)
-        {
-            throw new ArgumentNullException(nameof(condition));
-        }
+        ArgumentNullException.ThrowIfNull(condition);
 
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var startTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+        using var timer = new PeriodicTimer(pollInterval);
 
-        while (stopwatch.Elapsed < timeout)
+        while (System.Diagnostics.Stopwatch.GetElapsedTime(startTimestamp) < timeout)
         {
             if (condition())
             {
                 return true;
             }
 
-            await Task.Delay(pollInterval);
+            if (!await timer.WaitForNextTickAsync())
+            {
+                break;
+            }
         }
 
         return false;

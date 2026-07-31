@@ -3,13 +3,14 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive.SourceGeneration;
+namespace IoT.Driver.ABPlcRx.Reactive.SourceGeneration;
 #else
-namespace IoT.DriverCore.ABPlcRx.SourceGeneration;
+namespace IoT.Driver.ABPlcRx.SourceGeneration;
 #endif
 
 /// <summary>Describes a PLC tag stream that should be generated for a partial model.</summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Property, AllowMultiple = true, Inherited = false)]
+[System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
 public sealed class PlcTagAttribute : Attribute
 {
     /// <summary>Initializes a new instance of the <see cref="PlcTagAttribute"/> class.</summary>
@@ -47,4 +48,8 @@ public sealed class PlcTagAttribute : Attribute
 
     /// <summary>Gets or sets a value indicating whether generated attach logic should register the tag.</summary>
     public bool RegisterTag { get; set; } = true;
+
+    /// <summary>Gets debugger-only type information without affecting the public API.</summary>
+    [System.Diagnostics.DebuggerBrowsable(System.Diagnostics.DebuggerBrowsableState.Never)]
+    private string DebuggerDisplay => ToString() ?? GetType().Name;
 }

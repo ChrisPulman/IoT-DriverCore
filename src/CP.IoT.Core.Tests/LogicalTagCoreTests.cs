@@ -1,11 +1,11 @@
 // Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 using TUnit.Assertions;
 using TUnit.Core;
 
-namespace IoT.DriverCore.Core.Tests;
+namespace IoT.Driver.Core.Tests;
 
 /// <summary>Direct coverage for logical tag models, catalog, CSV, persistence, and contracts.</summary>
 public sealed class LogicalTagCoreTests
@@ -135,7 +135,7 @@ public sealed class LogicalTagCoreTests
                 AccessMode = LogicalTagAccessMode.Read,
                 ScanInterval = TimeSpan.FromMilliseconds(CsvScanMilliseconds),
             });
-        using var writer = new StringWriter();
+        await using var writer = new StringWriter();
 
         await LogicalTagCsv.ExportAsync([tag], writer);
         var imported = await LogicalTagCsv.ImportAsync(new StringReader(writer.ToString()));
@@ -205,11 +205,18 @@ public sealed class LogicalTagCoreTests
         {
             var store = new LogicalTagSqliteStore($"Data Source={file};Pooling=False");
             await store.InitializeAsync();
-            await store.UpsertTagAsync(new LogicalTag("B", "B:0", "Boolean"));
-            await store.UpsertTagAsync(new LogicalTag("A", "A:0", "Boolean"));
+            await store.UpsertTagAsync(new("B", "B:0", "Boolean"));
+            await store.UpsertTagAsync(new("A", "A:0", "Boolean"));
             using var catalog = await store.LoadCatalogAsync();
 
-            await Assert.That(catalog.List().Select(static tag => tag.Name).ToArray()).IsEquivalentTo(["A", "B"]);
+            var tags = catalog.List();
+            var tagNames = new string[tags.Count];
+            for (var index = 0; index < tags.Count; index++)
+            {
+                tagNames[index] = tags[index].Name;
+            }
+
+            await Assert.That(tagNames).IsEquivalentTo(["A", "B"]);
             await Assert.That(catalog.TryGet("B", out var tag)).IsTrue();
             await Assert.That(tag!.Address).IsEqualTo("B:0");
         }
@@ -264,7 +271,7 @@ public sealed class LogicalTagCoreTests
         await Assert.That(plan.Ranges[0].Items[0].Request.TagName).IsEqualTo("First");
         await Assert.That(plan.Ranges[0].Items[1].Request.TagName).IsEqualTo("Overlap");
         await Assert.That(plan.Ranges[0].Items[2].Request.TagName).IsEqualTo("Later");
-        await Assert.That(plan.Ranges[0].InputIndices.ToArray()).IsEquivalentTo([0, 1, OverlapInputIndex]);
+        await Assert.That(plan.Ranges[0].InputIndices).IsEquivalentTo([0, 1, OverlapInputIndex]);
         await Assert.That(plan.Ranges[1].Address.Access).IsEqualTo(TagTransferAccess.Write);
         await Assert.That(plan.Ranges[2].Address.MemoryArea).IsEqualTo("Inputs");
 
@@ -277,7 +284,7 @@ public sealed class LogicalTagCoreTests
             new TagIndexedResult<string>(OverlapInputIndex, "overlap"),
         ]);
 
-        await Assert.That(ordered.ToArray()).IsEquivalentTo(["later", "first", "overlap", "other", "write"]);
+        await Assert.That(ordered).IsEquivalentTo(["later", "first", "overlap", "other", "write"]);
     }
 
     /// <summary>Verifies capability limits prevent invalid coalescing while preserving deterministic numeric ordering.</summary>
@@ -366,11 +373,16 @@ public sealed class LogicalTagCoreTests
             CancellationToken cancellationToken)
         {
             LastNames = tagNames;
-            IReadOnlyList<TagOperationResult<LogicalTagValue>> results = tagNames
-                .Select(name => TagOperationResult<LogicalTagValue>.Success(
-                    new LogicalTagValue(name, null, _timeProvider.GetUtcNow())))
-                .ToArray();
-            return Task.FromResult(results);
+            var results = new TagOperationResult<LogicalTagValue>[tagNames.Count];
+            var index = 0;
+            foreach (var name in tagNames)
+            {
+                results[index] = TagOperationResult<LogicalTagValue>.Success(
+                    new(name, null, _timeProvider.GetUtcNow()));
+                index++;
+            }
+
+            return Task.FromResult<IReadOnlyList<TagOperationResult<LogicalTagValue>>>(results);
         }
     }
 
@@ -392,9 +404,15 @@ public sealed class LogicalTagCoreTests
             CancellationToken cancellationToken)
         {
             LastValues = values;
-            IReadOnlyList<TagOperationResult<LogicalTagValue>> results =
-                values.Select(TagOperationResult<LogicalTagValue>.Success).ToArray();
-            return Task.FromResult(results);
+            var results = new TagOperationResult<LogicalTagValue>[values.Count];
+            var index = 0;
+            foreach (var value in values)
+            {
+                results[index] = TagOperationResult<LogicalTagValue>.Success(value);
+                index++;
+            }
+
+            return Task.FromResult<IReadOnlyList<TagOperationResult<LogicalTagValue>>>(results);
         }
     }
 }

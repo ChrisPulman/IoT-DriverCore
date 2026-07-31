@@ -3,14 +3,17 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.Serial.Reactive.SourceGeneration;
+namespace IoT.Driver.Serial.Reactive.SourceGeneration;
 #else
-namespace IoT.DriverCore.Serial.SourceGeneration;
+namespace IoT.Driver.Serial.SourceGeneration;
 #endif
 
 /// <summary>Converts generated serial stream values into strongly typed reactive properties.</summary>
 public static class SerialPortReactiveValueConverter
 {
+    /// <summary>Bounds matching time for configured regular expressions.</summary>
+    private static readonly TimeSpan RegexMatchTimeout = TimeSpan.FromSeconds(1);
+
     /// <summary>Tries to match and convert a serial stream value.</summary>
     /// <typeparam name="T">The target type.</typeparam>
     /// <param name="value">The raw stream value.</param>
@@ -22,6 +25,7 @@ public static class SerialPortReactiveValueConverter
     /// <returns><c>true</c> when a value was matched and converted; otherwise, <c>false</c>.</returns>
     public static bool TryConvertMatch<T>(
         object? value,
+        [System.Diagnostics.CodeAnalysis.StringSyntax(System.Diagnostics.CodeAnalysis.StringSyntaxAttribute.Regex)]
         string? pattern,
         string? groupName,
         int groupNumber,
@@ -40,7 +44,7 @@ public static class SerialPortReactiveValueConverter
                 options |= RegexOptions.IgnoreCase;
             }
 
-            var match = Regex.Match(text, pattern, options);
+            var match = CreateConfiguredRegex(pattern!, options).Match(text);
             if (!match.Success)
             {
                 return false;
@@ -79,6 +83,13 @@ public static class SerialPortReactiveValueConverter
 
         return match.Value;
     }
+
+    /// <summary>Creates a bounded regular expression from a trusted generated configuration pattern.</summary>
+    /// <param name="pattern">The configured regular-expression pattern.</param>
+    /// <param name="options">The regular-expression options to apply.</param>
+    /// <returns>A regular expression with bounded matching time.</returns>
+    private static Regex CreateConfiguredRegex(string pattern, RegexOptions options) =>
+        (Regex)Activator.CreateInstance(typeof(Regex), [pattern, options, RegexMatchTimeout])!;
 
     /// <summary>Tries to convert text into the target type.</summary>
     /// <typeparam name="T">The target type.</typeparam>

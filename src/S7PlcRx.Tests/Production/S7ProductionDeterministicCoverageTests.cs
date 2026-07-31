@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Enterprise;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.Production;
+using IoT.Driver.S7PlcRx.Enterprise;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Production;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Production;
+namespace IoT.Driver.S7PlcRx.Tests.Production;
 
 /// <summary>Exercises production resiliency with deterministic in-memory PLC collaborators.</summary>
 public sealed class S7ProductionDeterministicCoverageTests
@@ -67,8 +67,8 @@ public sealed class S7ProductionDeterministicCoverageTests
             ReliabilityTestCount = 1,
             MinimumProductionScore = PercentageScore,
         };
-        var healthy = new DeterministicPlc(true, () => Observable.Return((string[])["CPU 1516"]));
-        var unhealthy = new DeterministicPlc(false, () => Observable.Throw<string[]>(new InvalidOperationException("offline")));
+        var healthy = new DeterministicPlc(true, static () => Observable.Return((string[])["CPU 1516"]));
+        var unhealthy = new DeterministicPlc(false, static () => Observable.Throw<string[]>(new InvalidOperationException("offline")));
 
         var healthyResult = await ProductionExtensions.ValidateProductionReadinessAsync(
             healthy,
@@ -95,7 +95,7 @@ public sealed class S7ProductionDeterministicCoverageTests
     [Test]
     public async Task ProductionErrorHandlingValidatesArgumentsAndExecutesThroughItsFacadeAsync()
     {
-        var plc = new DeterministicPlc(true, () => Observable.Return((string[])["CPU"]));
+        var plc = new DeterministicPlc(true, static () => Observable.Return((string[])["CPU"]));
         var config = new ProductionErrorConfig { MaxRetryAttempts = 0, BaseRetryDelayMs = 0 };
 
         await TUnit.Assertions.Assert.That(() => ProductionExtensions.EnableProductionErrorHandling(null!, config))
@@ -105,18 +105,18 @@ public sealed class S7ProductionDeterministicCoverageTests
         Func<Task<int>> nullOperation = null!;
         await TUnit.Assertions.Assert.That(() => ProductionExtensions.ExecuteWithErrorHandlingAsync(plc, nullOperation, config))
             .Throws<ArgumentNullException>();
-        Func<Task<int>> successfulOperation = () => Task.FromResult(1);
+        Func<Task<int>> successfulOperation = static () => Task.FromResult(1);
         await TUnit.Assertions.Assert.That(() => ProductionExtensions.ExecuteWithErrorHandlingAsync(plc, successfulOperation, null!))
             .Throws<ArgumentNullException>();
 
         var handler = ProductionExtensions.EnableProductionErrorHandling(plc, config);
-        var result = await handler.ExecuteAsync(() => Task.FromResult("handled"));
+        var result = await handler.ExecuteAsync(static () => Task.FromResult("handled"));
 
         await TUnit.Assertions.Assert.That(result).IsEqualTo("handled");
 
         var defaultResult = await ProductionExtensions.ExecuteWithErrorHandlingAsync(
-            new DeterministicPlc(true, () => Observable.Return((string[])["CPU"]), "127.0.0.2"),
-            () => Task.FromResult("default-configured"));
+            new DeterministicPlc(true, static () => Observable.Return((string[])["CPU"]), "127.0.0.2"),
+            static () => Task.FromResult("default-configured"));
         await TUnit.Assertions.Assert.That(defaultResult).IsEqualTo("default-configured");
     }
 
@@ -126,9 +126,9 @@ public sealed class S7ProductionDeterministicCoverageTests
     public async Task HighAvailabilityFailoverPublishesSelectedBackupAndHandlesNoAvailableBackupAsync()
     {
         var time = new SteppingTimeProvider(DateTimeOffset.Parse("2026-07-23T03:00:00+00:00"));
-        var disconnectedPrimary = new DeterministicPlc(false, () => Observable.Return((string[])[]), "10.0.0.1");
-        var disconnectedBackup = new DeterministicPlc(false, () => Observable.Return((string[])[]), "10.0.0.2");
-        var connectedBackup = new DeterministicPlc(true, () => Observable.Return((string[])["CPU"]), "10.0.0.3");
+        var disconnectedPrimary = new DeterministicPlc(false, static () => Observable.Return((string[])[]), "10.0.0.1");
+        var disconnectedBackup = new DeterministicPlc(false, static () => Observable.Return((string[])[]), "10.0.0.2");
+        var connectedBackup = new DeterministicPlc(true, static () => Observable.Return((string[])["CPU"]), "10.0.0.3");
         var failoverCandidates = new List<IRxS7> { disconnectedBackup, connectedBackup };
 
         using var manager = new HighAvailabilityPlcManager(
@@ -146,10 +146,10 @@ public sealed class S7ProductionDeterministicCoverageTests
         await TUnit.Assertions.Assert.That(failoverEvent.OldPlc).IsEqualTo("10.0.0.1:S71500");
         await TUnit.Assertions.Assert.That(failoverEvent.NewPlc).IsEqualTo("10.0.0.3:S71500");
 
-        var unavailablePrimary = new DeterministicPlc(false, () => Observable.Return((string[])[]), "10.0.0.4");
+        var unavailablePrimary = new DeterministicPlc(false, static () => Observable.Return((string[])[]), "10.0.0.4");
         var unavailableBackups = new List<IRxS7>
         {
-            new DeterministicPlc(false, () => Observable.Return((string[])[]), "10.0.0.5"),
+            new DeterministicPlc(false, static () => Observable.Return((string[])[]), "10.0.0.5"),
         };
         using var unavailableManager = new HighAvailabilityPlcManager(
             unavailablePrimary,
@@ -236,15 +236,15 @@ public sealed class S7ProductionDeterministicCoverageTests
             },
             clock);
 
-        Func<Task<int>> terminalOperation = () => Task.FromException<int>(new InvalidOperationException("terminal"));
+        Func<Task<int>> terminalOperation = static () => Task.FromException<int>(new InvalidOperationException("terminal"));
         await TUnit.Assertions.Assert.That(() => openingBreaker.ExecuteAsync(terminalOperation))
             .Throws<InvalidOperationException>();
         await TUnit.Assertions.Assert.That(openingBreaker.State).IsEqualTo(CircuitBreakerState.Open);
-        await TUnit.Assertions.Assert.That(() => openingBreaker.ExecuteAsync(() => Task.FromResult(1)))
+        await TUnit.Assertions.Assert.That(() => openingBreaker.ExecuteAsync(static () => Task.FromResult(1)))
             .Throws<InvalidOperationException>();
 
         clock.Advance(TimeSpan.FromSeconds(1));
-        var recovered = await openingBreaker.ExecuteAsync(() => Task.FromResult(RecoveredResult));
+        var recovered = await openingBreaker.ExecuteAsync(static () => Task.FromResult(RecoveredResult));
 
         await TUnit.Assertions.Assert.That(recovered).IsEqualTo(RecoveredResult);
         await TUnit.Assertions.Assert.That(openingBreaker.State).IsEqualTo(CircuitBreakerState.Closed);
@@ -322,7 +322,7 @@ public sealed class S7ProductionDeterministicCoverageTests
         public IObservable<string> Status => Observable.Empty<string>();
 
         /// <inheritdoc/>
-        public global::IoT.DriverCore.S7PlcRx.Tags TagList { get; } = [];
+        public global::IoT.Driver.S7PlcRx.Tags TagList { get; } = [];
 
         /// <inheritdoc/>
         public bool ShowWatchDogWriting { get; set; }

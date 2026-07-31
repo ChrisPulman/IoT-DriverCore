@@ -3,13 +3,13 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Enums;
+using IoT.Driver.S7PlcRx.Reactive.Enums;
 
-namespace IoT.DriverCore.S7PlcRx.Reactive;
+namespace IoT.Driver.S7PlcRx.Reactive;
 #else
-using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Enums;
 
-namespace IoT.DriverCore.S7PlcRx;
+namespace IoT.Driver.S7PlcRx;
 #endif
 
 /// <summary>Describes the PLC endpoint used by an <see cref="RxS7"/> connection.</summary>

@@ -7,12 +7,12 @@ using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
-using IoT.DriverCore.S7PlcRx.Core;
-using IoT.DriverCore.S7PlcRx.Enterprise;
-using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Core;
+using IoT.Driver.S7PlcRx.Enterprise;
+using IoT.Driver.S7PlcRx.Enums;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Core;
+namespace IoT.Driver.S7PlcRx.Tests.Core;
 
 /// <summary>Provides deterministic coverage for the S7 connection pool, metrics, and socket transport.</summary>
 [NotInParallel]
@@ -259,7 +259,13 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
 
         await TUnitAssert.That(pool.MaxConnections).IsEqualTo(PoolConnectionCount);
         await TUnitAssert.That(pool.ActiveConnections).IsEqualTo(PoolConnectionCount);
-        await TUnitAssert.That(pool.AllConnections.Count()).IsEqualTo(PoolConnectionCount);
+        var connectionCount = 0;
+        foreach (var _ in pool.AllConnections)
+        {
+            connectionCount++;
+        }
+
+        await TUnitAssert.That(connectionCount).IsEqualTo(PoolConnectionCount);
         await TUnitAssert.That(ReferenceEquals(selectedFirst, first)).IsTrue();
         await TUnitAssert.That(ReferenceEquals(selectedSecond, second)).IsTrue();
         await TUnitAssert.That(ReferenceEquals(selectedThird, first)).IsTrue();
@@ -319,10 +325,16 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
         };
 
         using var configured = new ConnectionPool(connectionConfigs, config);
-        await TUnitAssert.That(configured.AllConnections.Count()).IsEqualTo(1);
+        var configuredConnectionCount = 0;
+        foreach (var _ in configured.AllConnections)
+        {
+            configuredConnectionCount++;
+        }
+
+        await TUnitAssert.That(configuredConnectionCount).IsEqualTo(1);
         await TUnitAssert.That(configured.ActiveConnections).IsEqualTo(0);
         await TUnitAssert.That(configured.Connection).IsNotNull();
-        await TUnitAssert.That(() => new ConnectionPool(null!)).Throws<ArgumentNullException>();
+        await TUnitAssert.That(static () => new ConnectionPool(null!)).Throws<ArgumentNullException>();
         await TUnitAssert.That(
             () => new ConnectionPool((IEnumerable<PlcConnectionConfig>)null!, config))
             .Throws<ArgumentNullException>();
@@ -333,7 +345,7 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
             () => new ConnectionPool(connectionConfigs, null!))
             .Throws<ArgumentNullException>();
         await TUnitAssert.That(
-            () => new ConnectionPool((IRxS7[])[], null!))
+            static () => new ConnectionPool((IRxS7[])[], null!))
             .Throws<ArgumentNullException>();
     }
 
@@ -369,16 +381,17 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
             var szl = transport.GetSZLData(0);
 
             await TUnitAssert.That(transport.DataReadLength).IsEqualTo(expectedPduLength);
-            await TUnitAssert.That(transport.Send(new Tag(), buffer, buffer.Length)).IsEqualTo(-1);
-            await TUnitAssert.That(transport.Receive(new Tag(), buffer, buffer.Length)).IsEqualTo(-1);
+            var tag = new Tag();
+            await TUnitAssert.That(transport.Send(tag, buffer, buffer.Length)).IsEqualTo(-1);
+            await TUnitAssert.That(transport.Receive(tag, buffer, buffer.Length)).IsEqualTo(-1);
             await TUnitAssert.That(szl.Data).IsEmpty();
             await TUnitAssert.That(szl.Size).IsEqualTo((ushort)0);
             await TUnitAssert.That(transport.Metrics).IsNotNull();
             ((IDisposable)transport).Dispose();
             var connectCompleted = false;
             using var subscription = transport.Connect.Subscribe(
-                _ => { },
-                _ => { },
+                static _ => { },
+                static _ => { },
                 () => connectCompleted = true);
             await TUnitAssert.That(connectCompleted).IsTrue();
         }
@@ -505,7 +518,7 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
         var counter = new S7MultiVar.ReadItem(DataType.Counter, 0, 1, 1, tagName);
         var pool = ArrayPool<byte>.Shared;
 
-        await TUnitAssert.That(() => S7MultiVar.BuildReadVarRequest(null!)).Throws<ArgumentNullException>();
+        await TUnitAssert.That(static () => S7MultiVar.BuildReadVarRequest(null!)).Throws<ArgumentNullException>();
         await TUnitAssert.That(S7MultiVar.BuildReadVarRequest([])).IsEmpty();
         await TUnitAssert.That(S7MultiVar.BuildReadVarRequest([timer, counter])).IsNotEmpty();
         await TUnitAssert.That(
@@ -521,7 +534,7 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
                 pool)).IsEmpty();
         await TUnitAssert.That(
             S7MultiVar.ParseReadVarResponse(CreateResponseWithTruncatedItemData(), [timer], pool)).IsEmpty();
-        await TUnitAssert.That(() => S7MultiVar.BuildWriteVarRequest(null!)).Throws<ArgumentNullException>();
+        await TUnitAssert.That(static () => S7MultiVar.BuildWriteVarRequest(null!)).Throws<ArgumentNullException>();
         await TUnitAssert.That(S7MultiVar.BuildWriteVarRequest([])).IsEmpty();
         await TUnitAssert.That(S7MultiVar.ParseWriteVarResponse([], 0)).IsEmpty();
         await TUnitAssert.That(
@@ -534,7 +547,7 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
     public async Task SocketAvailabilityRejectsBlankEndpointAndBacksOffAsync()
     {
         await TUnitAssert.That(
-            () => new S7SocketRx(null!, CpuType.S71500, RackNumber, SlotNumber))
+            static () => new S7SocketRx(null!, CpuType.S71500, RackNumber, SlotNumber))
             .Throws<ArgumentNullException>();
         using var automatic = new S7SocketRx(" ", CpuType.S71500, RackNumber, SlotNumber);
         await TUnitAssert.That(automatic.DataReadLength).IsEqualTo(HighPerformancePduLength);
@@ -618,7 +631,8 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
 
         for (var failure = 0; failure < ConsecutiveSendFailureCount; failure++)
         {
-            await TUnitAssert.That(transport.Send(new Tag(), buffer, buffer.Length)).IsEqualTo(-1);
+            var tag = new Tag();
+            await TUnitAssert.That(transport.Send(tag, buffer, buffer.Length)).IsEqualTo(-1);
         }
 
         await Task.Delay(RestartTaskStartDelay);
@@ -640,7 +654,9 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
             socket,
             TimeProvider.System);
         SetPrivateField(transport, InitCompleteFieldName, false);
-        await TUnitAssert.That(transport.Receive(new Tag(), new byte[1], 1)).IsEqualTo(-1);
+        var tag = new Tag();
+        var singleByteBuffer = new byte[1];
+        await TUnitAssert.That(transport.Receive(tag, singleByteBuffer, singleByteBuffer.Length)).IsEqualTo(-1);
         SetPrivateField(transport, InitCompleteFieldName, true);
         InvokePrivate(transport, "ReportMetrics", []);
         GetPrivateField<IDisposable>(transport, "_metricsSubject").Dispose();
@@ -701,7 +717,7 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
             SlotNumber,
             primarySocket,
             TimeProvider.System);
-        using (primary.Connect.Subscribe(_ => { }, _ => { }))
+        using (primary.Connect.Subscribe(static _ => { }, static _ => { }))
         {
             var subject = GetPrivateField<object>(primary, SocketExceptionSubjectFieldName);
             InvokeObjectMethod(subject, OnNextMethodName, null);
@@ -717,7 +733,7 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
             recoveredSocket,
             TimeProvider.System);
         GetPrivateField<IDisposable>(recovered, SocketExceptionSubjectFieldName).Dispose();
-        using (recovered.Connect.Subscribe(_ => { }, _ => { }))
+        using (recovered.Connect.Subscribe(static _ => { }, static _ => { }))
         {
             var replacement = GetPrivateField<object>(recovered, SocketExceptionSubjectFieldName);
             InvokeObjectMethod(replacement, OnNextMethodName, null);
@@ -1188,7 +1204,7 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
                 TimeProvider.System))
             .Throws<ArgumentNullException>();
         await TUnitAssert.That(
-            () => new S7SocketRx(
+            static () => new S7SocketRx(
                 IPAddress.Loopback.ToString(),
                 CpuType.S71500,
                 RackNumber,
@@ -1224,7 +1240,7 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
         SendAll(peer, frame);
         peer.Shutdown(SocketShutdown.Send);
         var buffer = new byte[StandardPduLength];
-        return transport.ReceiveIsoData(new Tag(), ref buffer);
+        return transport.ReceiveIsoData(new(), ref buffer);
     }
 
     /// <summary>Creates a connected IPv4 loopback socket pair.</summary>
@@ -1238,7 +1254,11 @@ public sealed partial class S7TransportCoreDeterministicCoverageTests
             var endpoint = (IPEndPoint)listener.LocalEndpoint;
             var acceptTask = Task.Run(() => listener.AcceptSocket());
             var transport = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+#if NET6_0_OR_GREATER
+            await transport.ConnectAsync(endpoint);
+#else
             transport.Connect(endpoint);
+#endif
             return (transport, await acceptTask);
         }
         finally

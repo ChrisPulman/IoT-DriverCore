@@ -4,7 +4,7 @@
 
 using System.Security.Cryptography;
 
-namespace IoT.DriverCore.ModbusRx.DriverTest;
+namespace IoT.Driver.ModbusRx.DriverTest;
 
 /// <summary>Tests the DummyTemperatureController behavior.</summary>
 public class DummyTemperatureController

@@ -29,7 +29,7 @@
     <Using Include="ReactiveUI.Primitives.Reactive.Concurrency" />
     <Using Include="ReactiveUI.Primitives.Extensions.Reactive" />
     <Using Include="ReactiveUI.Primitives.Extensions.Reactive.Operators" />
-    <Using Include="IoT.DriverCore.Serial.Reactive" />
+    <Using Include="IoT.Driver.Serial.Reactive" />
     <Using Include="System.Reactive.Concurrency.IScheduler" Alias="IScheduler" />
     <Using Include="System.Reactive.Concurrency.Scheduler" Alias="Scheduler" />
     <Using Include="Microsoft.Reactive.Testing.TestScheduler" Alias="TestScheduler" />

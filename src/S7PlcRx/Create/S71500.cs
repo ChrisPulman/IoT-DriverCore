@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive;
+namespace IoT.Driver.S7PlcRx.Reactive;
 #else
-namespace IoT.DriverCore.S7PlcRx;
+namespace IoT.Driver.S7PlcRx;
 #endif
 
 /// <summary>Creates connections to Siemens S7-1500 PLC devices.</summary>
@@ -21,14 +21,14 @@ public static class S71500
     /// <param name="ip">The PLC IP address.</param>
     /// <returns>The configured PLC connection.</returns>
     public static IRxS7 Create(string ip) =>
-        Create(ip, 0, 1, new S7PollingOptions(), null);
+        Create(ip, 0, 1, new(), null);
 
     /// <summary>Creates an S7-1500 connection with an explicit polling interval.</summary>
     /// <param name="ip">The PLC IP address.</param>
     /// <param name="interval">The polling interval in milliseconds.</param>
     /// <returns>The configured PLC connection.</returns>
     public static IRxS7 Create(string ip, double interval) =>
-        Create(ip, 0, 1, new S7PollingOptions(interval), null);
+        Create(ip, 0, 1, new(interval), null);
 
     /// <summary>Creates an S7-1500 connection at a rack and slot with standard polling.</summary>
     /// <param name="ip">The PLC IP address.</param>
@@ -36,7 +36,7 @@ public static class S71500
     /// <param name="slot">The PLC CPU slot.</param>
     /// <returns>The configured PLC connection.</returns>
     public static IRxS7 Create(string ip, short rack, short slot) =>
-        Create(ip, rack, slot, new S7PollingOptions(), null);
+        Create(ip, rack, slot, new(), null);
 
     /// <summary>Creates an S7-1500 connection with legacy scalar settings.</summary>
     /// <param name="ip">The PLC IP address.</param>
@@ -55,7 +55,7 @@ public static class S71500
             ip,
             rack,
             slot,
-            new S7PollingOptions(interval),
+            new(interval),
             watchDogAddress is null ? null : new S7WatchdogOptions(watchDogAddress));
 
     /// <summary>Creates an S7-1500 connection with explicit settings.</summary>

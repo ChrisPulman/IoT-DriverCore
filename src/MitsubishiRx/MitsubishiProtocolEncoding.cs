@@ -6,11 +6,11 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -114,7 +114,7 @@ internal static partial class MitsubishiProtocolEncoding
                 : Encode3EDeviceBody(address, points, options);
         return Encode(
             options,
-            new MitsubishiRawCommandRequest(
+            new(
                 MitsubishiCommandCodes.DeviceRead,
                 subcommand,
                 body,
@@ -148,7 +148,7 @@ internal static partial class MitsubishiProtocolEncoding
                 : Encode3EDeviceWriteBody(address, values, options, bitUnits);
         return Encode(
             options,
-            new MitsubishiRawCommandRequest(
+            new(
                 MitsubishiCommandCodes.DeviceWrite,
                 subcommand,
                 body,
@@ -178,7 +178,7 @@ internal static partial class MitsubishiProtocolEncoding
                 : Encode3ERandomReadBody(wordDevices, options);
         return Encode(
             options,
-            new MitsubishiRawCommandRequest(
+            new(
                 MitsubishiCommandCodes.RandomRead,
                 0x0000,
                 body,
@@ -208,7 +208,7 @@ internal static partial class MitsubishiProtocolEncoding
                 : Encode3ERandomWriteBody(values, options);
         return Encode(
             options,
-            new MitsubishiRawCommandRequest(
+            new(
                 MitsubishiCommandCodes.RandomWrite,
                 0x0000,
                 body,
@@ -238,7 +238,7 @@ internal static partial class MitsubishiProtocolEncoding
                 : Encode3ERandomReadBody(wordDevices, options);
         return Encode(
             options,
-            new MitsubishiRawCommandRequest(
+            new(
                 MitsubishiCommandCodes.EntryMonitorDevice,
                 0x0000,
                 body,
@@ -251,7 +251,7 @@ internal static partial class MitsubishiProtocolEncoding
     internal static byte[] EncodeExecuteMonitor(MitsubishiClientOptions options) =>
         Encode(
             options,
-            new MitsubishiRawCommandRequest(
+            new(
                 MitsubishiCommandCodes.ExecuteMonitor,
                 0x0000,
                 [],
@@ -274,7 +274,7 @@ internal static partial class MitsubishiProtocolEncoding
         var body = Encode3EBlocks(request, options, includeValues: false);
         return Encode(
             options,
-            new MitsubishiRawCommandRequest(
+            new(
                 MitsubishiCommandCodes.BlockRead,
                 0x0000,
                 body,
@@ -298,7 +298,7 @@ internal static partial class MitsubishiProtocolEncoding
         var body = Encode3EBlocks(request, options, includeValues: true);
         return Encode(
             options,
-            new MitsubishiRawCommandRequest(
+            new(
                 MitsubishiCommandCodes.BlockWrite,
                 0x0000,
                 body,
@@ -311,7 +311,7 @@ internal static partial class MitsubishiProtocolEncoding
     internal static byte[] EncodeReadTypeName(MitsubishiClientOptions options) =>
         Encode(
             options,
-            new MitsubishiRawCommandRequest(
+            new(
                 MitsubishiCommandCodes.ReadTypeName,
                 0x0000,
                 [],
@@ -343,7 +343,7 @@ internal static partial class MitsubishiProtocolEncoding
         };
         return Encode(
             options,
-            new MitsubishiRawCommandRequest(command, 0x0000, body, $"Remote op {command:X4}"));
+            new(command, 0x0000, body, $"Remote op {command:X4}"));
     }
 
     /// <summary>Executes the EncodeLoopback operation.</summary>
@@ -367,7 +367,7 @@ internal static partial class MitsubishiProtocolEncoding
 
         return Encode(
             options,
-            new MitsubishiRawCommandRequest(
+            new(
                 MitsubishiCommandCodes.LoopbackTest,
                 0x0000,
                 body,

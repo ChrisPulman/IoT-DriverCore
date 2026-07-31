@@ -9,10 +9,10 @@ using System.ServiceProcess;
 using System.Runtime.Versioning;
 #endif
 using CP.Collections;
-using IoT.DriverCore.Core;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.Core;
+using IoT.Driver.TwinCATRx.Core;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Exercises error, completion, cancellation, and persistence paths through public TwinCAT runtime seams.</summary>
 public sealed class TwinCatResidualRuntimeCoverageTests
@@ -52,7 +52,11 @@ public sealed class TwinCatResidualRuntimeCoverageTests
         using (var cancellation = new CancellationTokenSource())
         {
             var pending = client.ReadAsync(TagName, cancellation.Token);
+#if NET8_0_OR_GREATER
+            await cancellation.CancelAsync();
+#else
             cancellation.Cancel();
+#endif
             await TUnitAssert.That(async () => await pending).Throws<OperationCanceledException>();
         }
     }
@@ -168,7 +172,7 @@ public sealed class TwinCatResidualRuntimeCoverageTests
         await TUnitAssert.That(directValues[0]).IsEqualTo(directValue);
         await TUnitAssert.That(directValues[1]).IsEqualTo(directValue);
         await TUnitAssert.That(directValues[2]).IsEqualTo(correlatedValue);
-        await TUnitAssert.That(correlatedValues.Single()).IsEqualTo(correlatedValue);
+        await TUnitAssert.That(correlatedValues[0]).IsEqualTo(correlatedValue);
     }
 
     /// <summary>Verifies logical-tag persistence overloads synchronize the catalog without a physical controller.</summary>
@@ -270,8 +274,8 @@ public sealed class TwinCatResidualRuntimeCoverageTests
         await TUnitAssert.That(TwinCatRxExtensions.WriteValues(table, static _ => { })).IsFalse();
         await TUnitAssert.That(TwinCatRxExtensions.CreateStruct(null!, Address)).IsNull();
         await TUnitAssert.That(clone.Structure).IsNull();
-        await TUnitAssert.That(() => TwinCatRxExtensions.CreateClone(null!)).Throws<ArgumentNullException>();
-        await TUnitAssert.That(() => TwinCatRxExtensions.StructureReady(null!)).Throws<ArgumentNullException>();
+        await TUnitAssert.That(static () => TwinCatRxExtensions.CreateClone(null!)).Throws<ArgumentNullException>();
+        await TUnitAssert.That(static () => TwinCatRxExtensions.StructureReady(null!)).Throws<ArgumentNullException>();
     }
 
     /// <summary>Verifies persistence APIs reject null tag and group definitions before reaching SQLite.</summary>

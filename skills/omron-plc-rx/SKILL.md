@@ -13,19 +13,19 @@ Read the co-packaged `../../README.md`; in a repository checkout use `packagerea
 
 ## Package choice
 
-- Use `OmronPlcRx` and `IoT.DriverCore.OmronPlcRx` by default.
-- Use `OmronPlcRx.Reactive` and its `.Reactive` namespace for System.Reactive applications.
-- Runtime packages embed their matching generator. Install `OmronPlcRx.Generators` only to version it independently, and never load a duplicate analyzer.
+- Use `IoT-Driver.OmronPlcRx` and `IoT.Driver.OmronPlcRx` by default.
+- Use `IoT-Driver.OmronPlcRx.Reactive` and its `.Reactive` namespace for System.Reactive applications.
+- Runtime packages never embed the generator. Install `IoT-Driver.OmronPlcRx.Generators` separately only when generated bindings are required.
 
 ## Network workflow
 
 Create `OmronConnectionOptions(localNodeId, remoteNodeId, connectionMethod, remoteHost)` and set port, timeout, retries, and optional serial settings.
 
 ```csharp
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx;
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Tags;
 
 var options = new OmronConnectionOptions(
     11, 1, ConnectionMethod.UDP, "192.168.250.1")
@@ -73,7 +73,7 @@ Clock read/write and cycle-time commands affect or expose controller state. Veri
 
 ## Logical tags and persistence
 
-Use the driver logical-tag client and `IoT.DriverCore.Core` catalogues, typed keys, CSV, SQLite, and batch APIs. Keep FINS/serial syntax and codecs inside the Omron adapter.
+Use the driver logical-tag client and `IoT.Driver.Core` catalogues, typed keys, CSV, SQLite, and batch APIs. Keep FINS/serial syntax and codecs inside the Omron adapter.
 
 ## Simulation and generation
 

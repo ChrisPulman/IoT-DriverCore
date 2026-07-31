@@ -4,9 +4,9 @@
 
 using System;
 using System.Collections.Generic;
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Data;
+namespace IoT.Driver.ModbusRx.UnitTests.Data;
 
 /// <summary>Tests the DataStoreEventArgsFixture behavior.</summary>
 public class DataStoreEventArgsFixture
@@ -29,7 +29,7 @@ public class DataStoreEventArgsFixture
     /// <summary>Creates the type of the data store event arguments invalid.</summary>
     [TUnit.Core.Test]
     public void CreateDataStoreEventArgs_InvalidType() =>
-        Assert.Throws<ArgumentException>(() =>
+        Assert.Throws<ArgumentException>(static () =>
             DataStoreEventArgs.CreateDataStoreEventArgs(
                 Num.Value5,
                 ModbusDataType.HoldingRegister,
@@ -38,7 +38,7 @@ public class DataStoreEventArgsFixture
     /// <summary>Creates the data store event arguments data null.</summary>
     [TUnit.Core.Test]
     public void CreateDataStoreEventArgs_DataNull() =>
-        Assert.Throws<ArgumentNullException>(() =>
+        Assert.Throws<ArgumentNullException>(static () =>
             DataStoreEventArgs.CreateDataStoreEventArgs(
                 Num.Value5,
                 ModbusDataType.HoldingRegister,

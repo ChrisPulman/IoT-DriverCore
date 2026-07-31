@@ -2,14 +2,14 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiTagGroupTests type.</summary>
@@ -57,7 +57,7 @@ internal sealed class MitsubishiTagGroupTests
         ]);
 
         database.AddGroup(
-            new MitsubishiTagGroupDefinition(
+            new(
                 Line1GroupName,
                 [BadWordTagName, "MissingTag", OperatorMessageTagName]));
 
@@ -80,15 +80,15 @@ internal sealed class MitsubishiTagGroupTests
 
         await Assert.That(result.IsSucceed).IsFalse();
         await Assert.That(
-                result.ErrList.Any(
+                result.ErrList.Exists(
                     static err => err.Contains(BadWordTagName, StringComparison.OrdinalIgnoreCase)))
             .IsTrue();
         await Assert.That(
-                result.ErrList.Any(
+                result.ErrList.Exists(
                     static err => err.Contains("MissingTag", StringComparison.OrdinalIgnoreCase)))
             .IsTrue();
         await Assert.That(
-                result.ErrList.Any(
+                result.ErrList.Exists(
                     static err => err.Contains("Length", StringComparison.OrdinalIgnoreCase)))
             .IsTrue();
     }
@@ -114,7 +114,7 @@ internal sealed class MitsubishiTagGroupTests
             new MitsubishiTagDefinition(PumpRunningTagName, "M10", DataType: "Bit"),
         ]);
         database.AddGroup(
-            new MitsubishiTagGroupDefinition(
+            new(
                 Line1GroupName,
                 [SignedTempTagName, TotalCountTagName, OperatorMessageTagName, PumpRunningTagName]));
 
@@ -144,7 +144,13 @@ internal sealed class MitsubishiTagGroupTests
         await Assert.That(result.Value.GetRequired(new LogicalTagKey<uint>(TotalCountTagName))).IsEqualTo(0x12345678U);
         await Assert.That(result.Value.GetRequired(new LogicalTagKey<string>(OperatorMessageTagName))).IsEqualTo("OK!");
         await Assert.That(result.Value.GetRequired(new LogicalTagKey<bool>(PumpRunningTagName))).IsTrue();
-        await Assert.That(transport.Requests.Select(static request => request.Description).ToArray()).IsEquivalentTo([
+        var requestDescriptions = new string[transport.Requests.Count];
+        for (var index = 0; index < transport.Requests.Count; index++)
+        {
+            requestDescriptions[index] = transport.Requests[index].Description;
+        }
+
+        await Assert.That(requestDescriptions).IsEquivalentTo([
             "Read words D700",
             "Read words D400",
             "Read words D600",
@@ -172,7 +178,7 @@ internal sealed class MitsubishiTagGroupTests
                 Offset: -10,
                 Units: "°C"),
         ]);
-        database.AddGroup(new MitsubishiTagGroupDefinition("Thermals", [HeadTempTagName]));
+        database.AddGroup(new("Thermals", [HeadTempTagName]));
 
         await using var client = new MitsubishiRx(
             new MitsubishiClientOptions(

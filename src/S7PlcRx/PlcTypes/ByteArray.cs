@@ -5,9 +5,9 @@
 using System.Buffers;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace IoT.DriverCore.S7PlcRx.PlcTypes;
+namespace IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>Provides a growable pooled byte buffer.</summary>
@@ -47,12 +47,13 @@ public class ByteArray(int size) : IDisposable
     /// <value>The current data as memory.</value>
     public ReadOnlyMemory<byte> Memory => _buffer.AsMemory(0, _position);
 
-    /// <summary>Gets the array. Use Span property for better performance when possible.</summary>
-    /// <value>The array.</value>
-    public byte[] Array => Span.ToArray();
-
     /// <summary>Gets the current position (length of data).</summary>
     public int Length => _position;
+
+    /// <summary>Copies the current data to a new array.</summary>
+    /// <remarks>Use <see cref="Span"/> or <see cref="Memory"/> when a non-copying read-only view is sufficient.</remarks>
+    /// <returns>A new array containing the current data.</returns>
+    public byte[] ToArray() => Span.ToArray();
 
     /// <summary>Adds a byte value to the end of the buffer.</summary>
     /// <param name="item">The byte value to add to the buffer.</param>
@@ -88,10 +89,7 @@ public class ByteArray(int size) : IDisposable
     /// null.</param>
     public void Add(ByteArray byteArray)
     {
-        if (byteArray is null)
-        {
-            throw new ArgumentNullException(nameof(byteArray));
-        }
+        Guard.NotNull(byteArray, nameof(byteArray));
 
         Add(byteArray.Span);
     }

@@ -6,13 +6,12 @@
 using System.IO.Ports;
 #endif
 
-using System.Linq;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.Message;
-using IoT.DriverCore.ModbusRx.UnitTests.Message;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Message;
+using IoT.Driver.ModbusRx.UnitTests.Message;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Device;
+namespace IoT.Driver.ModbusRx.UnitTests.Device;
 
 /// <summary>Tests the ModbusSlaveFixture behavior.</summary>
 public class ModbusSlaveFixture
@@ -108,9 +107,13 @@ public class ModbusSlaveFixture
             new DiscreteCollection(val, val, val, val, val, val, val, val, val, val));
         var response = ModbusSlave.WriteMultipleCoils(request, _testDataStore, _testDataStore.CoilDiscretes);
         ModbusMessageFixture.AssertModbusMessagePropertiesAreEqual(expectedResponse, response);
-        Assert.Equal(
-            [val, val, val, val, val, val, val, val, val, val],
-            _testDataStore.CoilDiscretes.Skip(startAddress + 1).Take(numberOfPoints));
+        var actualValues = new bool[numberOfPoints];
+        for (var i = 0; i < actualValues.Length; i++)
+        {
+            actualValues[i] = _testDataStore.CoilDiscretes[startAddress + 1 + i];
+        }
+
+        Assert.Equal([val, val, val, val, val, val, val, val, val, val], actualValues);
     }
 
     /// <summary>Writes the single register.</summary>
@@ -132,9 +135,13 @@ public class ModbusSlaveFixture
     {
         const ushort startAddress = 35;
         ushort[] valuesToWrite = [1, 2, 3, 4, 5];
-        Assert.NotEqual(
-            valuesToWrite,
-            _testDataStore.HoldingRegisters.Skip(startAddress - 1).Take(valuesToWrite.Length));
+        var existingValues = new ushort[valuesToWrite.Length];
+        for (var i = 0; i < existingValues.Length; i++)
+        {
+            existingValues[i] = _testDataStore.HoldingRegisters[startAddress - 1 + i];
+        }
+
+        Assert.NotEqual(valuesToWrite, existingValues);
         var expectedResponse = new WriteMultipleRegistersResponse(1, startAddress, (ushort)valuesToWrite.Length);
         var request = new WriteMultipleRegistersRequest(1, startAddress, new RegisterCollection(valuesToWrite));
         var response = ModbusSlave.WriteMultipleRegisters(request, _testDataStore, _testDataStore.HoldingRegisters);
@@ -173,9 +180,13 @@ public class ModbusSlaveFixture
         { NumberOfPoints = Num.Value2 };
         _ = ModbusSlave.WriteMultipleCoils(request, dataStore, dataStore.CoilDiscretes);
 
-        Assert.Equal(
-            [true, true, false, false, false, false, false, false],
-            dataStore.CoilDiscretes.Skip(1).Take(Num.Value8));
+        var actualCoils = new bool[Num.Value8];
+        for (var i = 0; i < actualCoils.Length; i++)
+        {
+            actualCoils[i] = dataStore.CoilDiscretes[1 + i];
+        }
+
+        Assert.Equal([true, true, false, false, false, false, false, false], actualCoils);
     }
 
     /// <summary>Creates a coil buffer filled with one value.</summary>

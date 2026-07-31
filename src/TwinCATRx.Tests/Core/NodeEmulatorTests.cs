@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx.Core;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Core;
+namespace IoT.Driver.TwinCATRx.Tests.Core;
 
 /// <summary>Tests for NodeEmulator.</summary>
 public class NodeEmulatorTests
@@ -15,7 +15,7 @@ public class NodeEmulatorTests
     [Test]
     public async Task Dispose_Clears_StateAsync()
     {
-        var type = typeof(Settings).Assembly.GetType("IoT.DriverCore.TwinCATRx.Core.NodeEmulator")
+        var type = typeof(Settings).Assembly.GetType("IoT.Driver.TwinCATRx.Core.NodeEmulator")
             ?? throw new InvalidOperationException("NodeEmulator was not found.");
         var n = Activator.CreateInstance(type)
             ?? throw new InvalidOperationException("NodeEmulator could not be created.");

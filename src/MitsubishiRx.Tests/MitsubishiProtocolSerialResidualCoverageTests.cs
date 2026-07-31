@@ -7,11 +7,11 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 #endif
 
@@ -42,6 +42,12 @@ internal sealed class MitsubishiProtocolSerialResidualCoverageTests
     private static readonly MitsubishiDeviceAddress ExtendedWordAddress =
         MitsubishiDeviceAddress.Parse("ZR100", XyAddressNotation.Octal);
 
+    /// <summary>Stores the representative block word values.</summary>
+    private static readonly ushort[] BlockWordValues = [0x1234];
+
+    /// <summary>Stores the representative block bit values.</summary>
+    private static readonly bool[] BlockBitValues = [true];
+
     /// <summary>Exercises MC decoder error and ASCII payload-boundary validation.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
@@ -56,19 +62,19 @@ internal sealed class MitsubishiProtocolSerialResidualCoverageTests
         var asciiError = MitsubishiProtocolEncoding.Decode(
             asciiOneE,
             request,
-            Encoding.ASCII.GetBytes("815B1234"));
+            "815B1234"u8.ToArray());
         var modernError = MitsubishiProtocolEncoding.Decode(
             asciiThreeE,
             request,
-            Encoding.ASCII.GetBytes("D00000FF03FF0000020034"));
+            "D00000FF03FF0000020034"u8.ToArray());
         var missingPayloadPrefix = MitsubishiProtocolEncoding.Decode(
             asciiThreeE,
             request,
-            Encoding.ASCII.GetBytes("D00000FF03FF0000040000"));
+            "D00000FF03FF0000040000"u8.ToArray());
         var extraPayloadPrefix = MitsubishiProtocolEncoding.Decode(
             asciiThreeE,
             request,
-            Encoding.ASCII.GetBytes("D00000FF03FF0000040000CAFEDEAD"));
+            "D00000FF03FF0000040000CAFEDEAD"u8.ToArray());
 
         await Assert.That(binaryError.IsSucceed).IsFalse();
         await Assert.That(binaryError.ErrCode).IsEqualTo(0x1234);
@@ -161,7 +167,7 @@ internal sealed class MitsubishiProtocolSerialResidualCoverageTests
         _ = Assert.Throws<NotSupportedException>(
             () => MitsubishiSerialProtocolEncoding.EncodeRawRequest(
                 invalidFourC,
-                new MitsubishiRawCommandRequest(0x1234, 0x0000, [0xCA])));
+                new(0x1234, 0x0000, [0xCA])));
         return Task.CompletedTask;
     }
 
@@ -186,7 +192,7 @@ internal sealed class MitsubishiProtocolSerialResidualCoverageTests
         var encoded = new[]
         {
             MitsubishiSerialProtocolEncoding.EncodeWordReadRequest(oneC, ExtendedWordAddress, 1),
-            MitsubishiSerialProtocolEncoding.EncodeLoopbackRequest(fourCAscii, Encoding.ASCII.GetBytes("AB")),
+            MitsubishiSerialProtocolEncoding.EncodeLoopbackRequest(fourCAscii, "AB"u8.ToArray()),
             MitsubishiSerialProtocolEncoding.EncodeLoopbackRequest(fourCBinary, [0x41, 0x42]),
             MitsubishiSerialProtocolEncoding.EncodeMemoryAccessRequest(
                 fourCAscii,
@@ -235,7 +241,7 @@ internal sealed class MitsubishiProtocolSerialResidualCoverageTests
         await Assert.That(
                 MitsubishiSerialProtocolEncoding.IsExpectedFrameComplete(
                     fourCFormat4,
-                    validWrappedAscii[..^ChecksumCharacterCount]))
+                    validWrappedAscii.AsSpan(0, validWrappedAscii.Length - ChecksumCharacterCount)))
             .IsFalse();
         await Assert.That(MitsubishiSerialProtocolEncoding.IsExpectedFrameComplete(fourCFormat4, validWrappedAscii))
             .IsTrue();
@@ -246,7 +252,7 @@ internal sealed class MitsubishiProtocolSerialResidualCoverageTests
                     fourCFormat5,
                     [0x10, 0x03, 0x02, 0x00, 0xF8, 0x00, 0x10, 0x03]))
             .IsFalse();
-        await Assert.That(MitsubishiSerialProtocolEncoding.IsExpectedFrameComplete(fourCFormat5, validBinary[..^1]))
+        await Assert.That(MitsubishiSerialProtocolEncoding.IsExpectedFrameComplete(fourCFormat5, validBinary.AsSpan(0, validBinary.Length - 1)))
             .IsFalse();
         await Assert.That(MitsubishiSerialProtocolEncoding.IsExpectedFrameComplete(fourCFormat5, validBinary))
             .IsTrue();
@@ -255,8 +261,8 @@ internal sealed class MitsubishiProtocolSerialResidualCoverageTests
     /// <summary>Creates a representative mixed block request.</summary>
     /// <returns>The block request.</returns>
     private static MitsubishiBlockRequest CreateBlocks() => new(
-        [new MitsubishiWordBlock(WordAddress, new ushort[] { 0x1234 })],
-        [new MitsubishiBitBlock(BitAddress, new bool[] { true })]);
+        [new MitsubishiWordBlock(WordAddress, BlockWordValues)],
+        [new MitsubishiBitBlock(BitAddress, BlockBitValues)]);
 
     /// <summary>Creates a checksum-bearing ASCII serial frame.</summary>
     /// <param name="body">The frame body.</param>
@@ -264,8 +270,13 @@ internal sealed class MitsubishiProtocolSerialResidualCoverageTests
     /// <returns>The encoded frame.</returns>
     private static byte[] BuildAsciiFrame(string body, bool wrapped)
     {
-        var checksum = (Encoding.ASCII.GetBytes(body).Aggregate(0, static (sum, value) => sum + value) & 0xFF)
-            .ToString("X2", System.Globalization.CultureInfo.InvariantCulture);
+        var checksumValue = 0;
+        foreach (var value in Encoding.ASCII.GetBytes(body))
+        {
+            checksumValue += value;
+        }
+
+        var checksum = (checksumValue & 0xFF).ToString("X2", System.Globalization.CultureInfo.InvariantCulture);
         return Encoding.ASCII.GetBytes(wrapped ? $"\r\n{body}{checksum}\r\n" : body + checksum);
     }
 

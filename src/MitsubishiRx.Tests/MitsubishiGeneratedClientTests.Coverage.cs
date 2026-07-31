@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 /// <summary>Provides branch-complete coverage for generated Mitsubishi tag mappings.</summary>
 internal sealed partial class MitsubishiGeneratedClientTests
@@ -92,7 +92,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         foreach (string schema in schemas)
         {
             var result = RunGeneratorCompilation(CreateSchemaMarkerSource(schema));
-            await Assert.That(result.Diagnostics.Any(static diagnostic => diagnostic.Id == "AD0001")).IsFalse();
+            await Assert.That(GetDiagnosticsById(result.Diagnostics, "AD0001").Length > 0).IsFalse();
         }
     }
 
@@ -102,7 +102,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
     internal async Task IncrementalGeneratorHandlesDefaultAndEmptyPropertyBindingsAsync()
     {
         const string source = """
-        using IoT.DriverCore.MitsubishiRx;
+        using IoT.Driver.MitsubishiRx;
 
         internal sealed partial class GlobalDashboard
         {
@@ -129,9 +129,10 @@ internal sealed partial class MitsubishiGeneratedClientTests
     internal async Task GeneratorMappingFallbacksResolveToWordOperationsAsync()
     {
         var emitter = typeof(MitsubishiTagClientGenerator).Assembly.GetType(
-            "IoT.DriverCore.MitsubishiRx.MitsubishiTagClientEmitter",
+            "IoT.Driver.MitsubishiRx.MitsubishiTagClientEmitter",
             throwOnError: true)!;
-        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        const System.Reflection.BindingFlags flags =
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
         string[] methodNames = ["ResolveReadType", "ResolveReadMethod", "ResolveWriteMethod"];
         string[] expected = ["ushort", "ReadUInt16ByTagAsync", "WriteUInt16ByTagAsync"];
         string[] supportedDataTypes =

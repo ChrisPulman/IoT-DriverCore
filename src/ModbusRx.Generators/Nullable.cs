@@ -4,7 +4,7 @@
 
 using Microsoft.CodeAnalysis;
 
-namespace IoT.DriverCore.ModbusRx.Generators;
+namespace IoT.Driver.ModbusRx.Generators;
 
 /// <summary>Provides nullable type helpers for generator type analysis.</summary>
 internal static class Nullable

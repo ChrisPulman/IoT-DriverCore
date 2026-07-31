@@ -5,15 +5,17 @@
 using System;
 using System.Threading.Tasks;
 #if REACTIVE_SHIM
-using SerialPortRx = IoT.DriverCore.Serial.Reactive.SerialPortRx;
+using IoT.Driver.OmronPlcRx.Reactive.Core;
+using SerialPortRx = IoT.Driver.Serial.Reactive.SerialPortRx;
 #else
-using SerialPortRx = IoT.DriverCore.Serial.SerialPortRx;
+using IoT.Driver.OmronPlcRx.Core;
+using SerialPortRx = IoT.Driver.Serial.SerialPortRx;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Channels;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core.Channels;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core.Channels;
+namespace IoT.Driver.OmronPlcRx.Core.Channels;
 #endif
 
 /// <summary>Adapts the production serial implementation to the Omron serial channel contract.</summary>
@@ -27,10 +29,7 @@ internal sealed class OmronSerialPortAdapter : IOmronSerialPort
     /// <param name="timeout">Read and write timeout in milliseconds.</param>
     internal OmronSerialPortAdapter(OmronSerialOptions options, int timeout)
     {
-        if (options is null)
-        {
-            throw new ArgumentNullException(nameof(options));
-        }
+        OmronArgumentGuards.ThrowIfNull(options, nameof(options));
 
         _port = new(
             options.PortName,

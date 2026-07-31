@@ -5,21 +5,20 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Tags;
+using IoT.Driver.OmronPlcRx.Reactive.Tags;
 #else
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.OmronPlcRx.Tags;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive;
+namespace IoT.Driver.OmronPlcRx.Reactive;
 
 #else
-namespace IoT.DriverCore.OmronPlcRx;
+namespace IoT.Driver.OmronPlcRx;
 
 #endif
 
@@ -127,10 +126,7 @@ public sealed partial class OmronLogicalTagClient : IManagedLogicalTagClient, ID
         LogicalTagAccessMode accessMode,
         TimeSpan? scanInterval)
     {
-        if (tag is null)
-        {
-            throw new ArgumentNullException(nameof(tag));
-        }
+        ThrowIfNull(tag, nameof(tag));
 
         var dataType = typeof(T).FullName ?? nameof(T);
         var logicalTag = new LogicalTag(
@@ -153,13 +149,10 @@ public sealed partial class OmronLogicalTagClient : IManagedLogicalTagClient, ID
     /// <param name="tag">Logical tag to register.</param>
     public void RegisterTag(LogicalTag tag)
     {
-        if (tag is null)
-        {
-            throw new ArgumentNullException(nameof(tag));
-        }
+        ThrowIfNull(tag, nameof(tag));
 
         ThrowIfDisposed();
-        RegisterWithPlc(tag);
+        RegisterWithPlc(_plc, tag);
         Catalog.Upsert(tag);
     }
 
@@ -352,10 +345,7 @@ public sealed partial class OmronLogicalTagClient : IManagedLogicalTagClient, ID
         IReadOnlyCollection<string> tagNames,
         CancellationToken cancellationToken)
     {
-        if (tagNames is null)
-        {
-            throw new ArgumentNullException(nameof(tagNames));
-        }
+        ThrowIfNull(tagNames, nameof(tagNames));
 
         return await ReadManyCoreAsync(tagNames, cancellationToken).ConfigureAwait(false);
     }
@@ -365,10 +355,7 @@ public sealed partial class OmronLogicalTagClient : IManagedLogicalTagClient, ID
         LogicalTagValue value,
         CancellationToken cancellationToken)
     {
-        if (value is null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
+        ThrowIfNull(value, nameof(value));
 
         if (!TryGetTag(value.TagName, LogicalTagAccessMode.Write, out var tag, out var failure))
         {
@@ -377,7 +364,7 @@ public sealed partial class OmronLogicalTagClient : IManagedLogicalTagClient, ID
 
         try
         {
-            var written = await WriteToPlcAsync(tag!, value.Value, cancellationToken)
+            var written = await WriteToPlcAsync(_plc, tag!, value.Value, cancellationToken)
                 .ConfigureAwait(false);
             var tagValue = new LogicalTagValue(
                 tag!.Name,
@@ -401,10 +388,7 @@ public sealed partial class OmronLogicalTagClient : IManagedLogicalTagClient, ID
         IReadOnlyCollection<LogicalTagValue> values,
         CancellationToken cancellationToken)
     {
-        if (values is null)
-        {
-            throw new ArgumentNullException(nameof(values));
-        }
+        ThrowIfNull(values, nameof(values));
 
         return await WriteManyCoreAsync(values, cancellationToken).ConfigureAwait(false);
     }
@@ -417,18 +401,20 @@ public sealed partial class OmronLogicalTagClient : IManagedLogicalTagClient, ID
             throw new KeyNotFoundException(failure.Error);
         }
 
-        return ObserveFromPlc(tag!);
+        return ObserveFromPlc(_plc, _timeProvider, tag!);
     }
 
     /// <inheritdoc />
     public IObservable<LogicalTagValue> ObserveMany(IReadOnlyCollection<string> tagNames)
     {
-        if (tagNames is null)
+        ThrowIfNull(tagNames, nameof(tagNames));
+        var sources = new List<IObservable<LogicalTagValue>>(tagNames.Count);
+        foreach (var tagName in tagNames)
         {
-            throw new ArgumentNullException(nameof(tagNames));
+            sources.Add(Observe(tagName));
         }
 
-        return new MergedObservable(tagNames.Select(Observe).ToArray());
+        return new MergedObservable(sources);
     }
 
     /// <inheritdoc />
@@ -456,5 +442,19 @@ public sealed partial class OmronLogicalTagClient : IManagedLogicalTagClient, ID
         }
 
         disposable.Dispose();
+    }
+
+    /// <summary>Validates a reference argument on all supported target frameworks.</summary>
+    /// <typeparam name="T">Reference argument type.</typeparam>
+    /// <param name="value">Value to validate.</param>
+    /// <param name="paramName">Parameter name.</param>
+    private static void ThrowIfNull<T>(T? value, string paramName)
+        where T : class
+    {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(value, paramName);
+#else
+        _ = value ?? throw new ArgumentNullException(paramName);
+#endif
     }
 }

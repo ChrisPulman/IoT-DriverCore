@@ -6,9 +6,9 @@ using System.Collections.ObjectModel;
 using System.Net.NetworkInformation;
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>Allen Bradley Plc.</summary>
@@ -21,7 +21,7 @@ internal sealed class ABPlc : IDisposable
     private readonly Dictionary<string, IPlcTag> _tagsByVariable = new(StringComparer.Ordinal);
 
     /// <summary>Synchronizes access to tag state.</summary>
-    private readonly object _syncRoot = new();
+    private readonly Lock _syncRoot = new();
 
     /// <summary>Publishes tags added to this controller.</summary>
     private readonly Signal<IPlcTag> _tagsAdded = new();
@@ -116,7 +116,16 @@ internal sealed class ABPlc : IDisposable
         {
             lock (_syncRoot)
             {
-                return _cachedTagCollections ??= _tagList.Values.ToList().AsReadOnly();
+                if (_cachedTagCollections is not null)
+                {
+                    return _cachedTagCollections;
+                }
+
+                var collections = new List<PlcTagCollection>(_tagList.Count);
+                collections.AddRange(_tagList.Values);
+
+                _cachedTagCollections = collections.AsReadOnly();
+                return _cachedTagCollections;
             }
         }
     }
@@ -146,7 +155,13 @@ internal sealed class ABPlc : IDisposable
                 groups = [.. _tagList.Values];
             }
 
-            return groups.SelectMany(a => a.Tags).ToList().AsReadOnly();
+            var tags = new List<IPlcTag>();
+            foreach (var group in groups)
+            {
+                tags.AddRange(group.Tags);
+            }
+
+            return tags.AsReadOnly();
         }
     }
 
@@ -188,7 +203,7 @@ internal sealed class ABPlc : IDisposable
                 return false;
             }
 
-            foreach (var tag in group.Tags.ToArray())
+            foreach (var tag in group.Tags)
             {
                 _ = _tagsByVariable.Remove(tag.Variable);
                 _tagsRemoved.OnNext(tag);
@@ -232,15 +247,17 @@ internal sealed class ABPlc : IDisposable
     /// <returns>A Value.</returns>
     internal async Task<bool> PingAsync(bool echo = false, CancellationToken cancellationToken = default)
     {
+#if NET11_0_OR_GREATER
+        static Task WriteLineAsync(string value, CancellationToken token) => Console.Out.WriteLineAsync(value.AsMemory(), token);
+#elif NET8_0_OR_GREATER
+        static Task WriteLineAsync(string value, CancellationToken token) => Console.Out.WriteLineAsync(value.AsMemory(), token);
+#else
         static Task WriteLineAsync(string value, CancellationToken token)
         {
-#if NET8_0_OR_GREATER
-            return Console.Out.WriteLineAsync(value.AsMemory(), token);
-#else
             token.ThrowIfCancellationRequested();
             return Console.Out.WriteLineAsync(value);
-#endif
         }
+#endif
 
         Ping? ping;
         lock (_syncRoot)
@@ -282,7 +299,15 @@ internal sealed class ABPlc : IDisposable
         }
 
         // Fallback lookup if not yet in the cache (should be rare)
-        return Tags.FirstOrDefault(a => a.Variable == variable);
+        foreach (var candidate in Tags)
+        {
+            if (candidate.Variable == variable)
+            {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>Tries to get the PLC tag by variable key.</summary>
@@ -341,7 +366,24 @@ internal sealed class ABPlc : IDisposable
         {
             if (_tagsByVariable.TryGetValue(variable, out removedTag))
             {
-                var previousGroup = _tagList.Values.FirstOrDefault(group => group.Tags.Contains(removedTag));
+                PlcTagCollection? previousGroup = null;
+                foreach (var candidate in _tagList.Values)
+                {
+                    foreach (var candidateTag in candidate.Tags)
+                    {
+                        if (candidateTag.Equals(removedTag))
+                        {
+                            previousGroup = candidate;
+                            break;
+                        }
+                    }
+
+                    if (previousGroup is not null)
+                    {
+                        break;
+                    }
+                }
+
                 previousGroup?.RemoveTag(removedTag);
                 _ = _tagsByVariable.Remove(variable);
             }
@@ -376,7 +418,24 @@ internal sealed class ABPlc : IDisposable
                 return false;
             }
 
-            var group = _tagList.Values.FirstOrDefault(candidate => candidate.Tags.Contains(removedTag));
+            PlcTagCollection? group = null;
+            foreach (var candidate in _tagList.Values)
+            {
+                foreach (var candidateTag in candidate.Tags)
+                {
+                    if (candidateTag.Equals(removedTag))
+                    {
+                        group = candidate;
+                        break;
+                    }
+                }
+
+                if (group is not null)
+                {
+                    break;
+                }
+            }
+
             group?.RemoveTag(removedTag);
             _ = _tagsByVariable.Remove(variable);
         }
@@ -398,7 +457,13 @@ internal sealed class ABPlc : IDisposable
             groups = [.. _tagList.Values];
         }
 
-        var results = new List<PlcTagResult>(groups.Sum(g => g.Tags.Count));
+        var resultCapacity = 0;
+        foreach (var group in groups)
+        {
+            resultCapacity += group.Tags.Count;
+        }
+
+        var results = new List<PlcTagResult>(resultCapacity);
         foreach (var g in groups)
         {
             results.AddRange(g.Read());
@@ -417,7 +482,13 @@ internal sealed class ABPlc : IDisposable
             groups = [.. _tagList.Values];
         }
 
-        var results = new List<PlcTagResult>(groups.Sum(g => g.Tags.Count));
+        var resultCapacity = 0;
+        foreach (var group in groups)
+        {
+            resultCapacity += group.Tags.Count;
+        }
+
+        var results = new List<PlcTagResult>(resultCapacity);
         foreach (var g in groups)
         {
             results.AddRange(g.Write());
@@ -486,14 +557,25 @@ internal sealed class ABPlc : IDisposable
         IPlcTag[] tags;
         lock (_syncRoot)
         {
-            tags = variables
-                .Select(variable => _tagsByVariable.TryGetValue(variable, out var tag) ? tag : null)
-                .Where(static tag => tag is not null)
-                .Cast<IPlcTag>()
-                .ToArray();
+            var resolvedTags = new List<IPlcTag>();
+            foreach (var variable in variables)
+            {
+                if (_tagsByVariable.TryGetValue(variable, out var tag))
+                {
+                    resolvedTags.Add(tag);
+                }
+            }
+
+            tags = [.. resolvedTags];
         }
 
-        return tags.Select(operation).ToArray();
+        var results = new PlcTagResult[tags.Length];
+        for (var index = 0; index < tags.Length; index++)
+        {
+            results[index] = operation(tags[index]);
+        }
+
+        return results;
     }
 
     /// <summary>Releases unmanaged and - optionally - managed resources.</summary>
@@ -509,7 +591,7 @@ internal sealed class ABPlc : IDisposable
 
         if (disposing)
         {
-            foreach (var group in _tagList.Values.ToArray())
+            foreach (var group in _tagList.Values)
             {
                 group.Dispose();
             }

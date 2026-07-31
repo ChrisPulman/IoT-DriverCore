@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.LogicalTags;
+using IoT.Driver.Core;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.LogicalTags;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.LogicalTags;
+namespace IoT.Driver.S7PlcRx.Tests.LogicalTags;
 
 /// <summary>Exercises the concrete logical-tag batch paths through their internal operation boundary.</summary>
 public sealed class S7LogicalBatchSeamTests
@@ -232,7 +232,7 @@ public sealed class S7LogicalBatchSeamTests
             },
         };
         using var client = CreateClient(plc, catalog, operations);
-        catalog.Upsert(new LogicalTag(DynamicTagName, "DB2.DBW0", "WORD"));
+        catalog.Upsert(new(DynamicTagName, "DB2.DBW0", "WORD"));
 
         var added = await client.ReadManyAsync(
             [DynamicTagName, FirstTagName],
@@ -275,14 +275,14 @@ public sealed class S7LogicalBatchSeamTests
     private static LogicalTagCatalog CreateCatalog()
     {
         var catalog = new LogicalTagCatalog();
-        catalog.Upsert(new LogicalTag(FirstTagName, "DB1.DBW0", "WORD"));
-        catalog.Upsert(new LogicalTag(SecondTagName, "DB1.DBW2", "WORD"));
-        catalog.Upsert(new LogicalTag(
+        catalog.Upsert(new(FirstTagName, "DB1.DBW0", "WORD"));
+        catalog.Upsert(new(SecondTagName, "DB1.DBW2", "WORD"));
+        catalog.Upsert(new(
             ReadOnlyTagName,
             "DB1.DBW4",
             "WORD",
             new LogicalTagOptions { AccessMode = LogicalTagAccessMode.Read }));
-        catalog.Upsert(new LogicalTag(
+        catalog.Upsert(new(
             WriteOnlyTagName,
             "DB1.DBW6",
             "WORD",
@@ -341,7 +341,12 @@ public sealed class S7LogicalBatchSeamTests
         public IReadOnlyDictionary<string, object?>? ReadMultiple(IReadOnlyList<Tag> tags)
         {
             ReadCallCount++;
-            ReadTagNames = tags.Select(static tag => tag.Name!).ToArray();
+            ReadTagNames = new string[tags.Count];
+            for (var index = 0; index < tags.Count; index++)
+            {
+                ReadTagNames[index] = tags[index].Name!;
+            }
+
             if (ReadException is not null)
             {
                 throw ReadException;
@@ -354,8 +359,15 @@ public sealed class S7LogicalBatchSeamTests
         public bool WriteMultiple(IReadOnlyList<Tag> tags)
         {
             WriteCallCount++;
-            WriteTagNames = tags.Select(static tag => tag.Name!).ToArray();
-            WrittenValues = tags.Select(static tag => tag.NewValue).ToArray();
+            WriteTagNames = new string[tags.Count];
+            WrittenValues = new object?[tags.Count];
+            for (var index = 0; index < tags.Count; index++)
+            {
+                var tag = tags[index];
+                WriteTagNames[index] = tag.Name!;
+                WrittenValues[index] = tag.NewValue;
+            }
+
             return WriteSucceeds;
         }
     }

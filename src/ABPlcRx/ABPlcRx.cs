@@ -7,15 +7,16 @@ using SignalFactory = ReactiveUI.Primitives.Reactive.Signals.Signal;
 #else
 using SignalFactory = ReactiveUI.Primitives.Signals.Signal;
 #endif
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>Reactive Allen Bradley PLC facade.</summary>
+[System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
 public class ABPlcRx : IABPlcRx
 {
     /// <summary>Number of bits in a byte or signed byte.</summary>
@@ -88,10 +89,10 @@ public class ABPlcRx : IABPlcRx
         };
 
         // Reactive: surface tag added/removed as part of this instance lifetime
-        var sub1 = _plc.TagsAdded.Subscribe(_ => { /* hook for external listeners if needed */ });
+        var sub1 = _plc.TagsAdded.Subscribe(static _ => { /* hook for external listeners if needed */ });
         _disposables.Add(sub1);
 
-        var sub2 = _plc.TagsRemoved.Subscribe(_ => { /* hook for external listeners if needed */ });
+        var sub2 = _plc.TagsRemoved.Subscribe(static _ => { /* hook for external listeners if needed */ });
         _disposables.Add(sub2);
     }
 
@@ -110,7 +111,7 @@ public class ABPlcRx : IABPlcRx
 
     /// <summary>Gets the data read.</summary>
     /// <value>The data read.</value>
-    public IObservable<IPlcTag?> ObserveAll => MergeTagChanges(_plc.Tags).Select(c => c.Tag);
+    public IObservable<IPlcTag?> ObserveAll => MergeTagChanges(_plc.Tags).Select(static c => c.Tag);
 
     /// <summary>Gets the data read as an async-native observable.</summary>
     /// <value>The async data read stream.</value>
@@ -134,6 +135,10 @@ public class ABPlcRx : IABPlcRx
             }
         }
     }
+
+    /// <summary>Gets debugger-only type information without affecting the public API.</summary>
+    [System.Diagnostics.DebuggerBrowsable(System.Diagnostics.DebuggerBrowsableState.Never)]
+    private string DebuggerDisplay => ToString() ?? GetType().Name;
 
     /// <summary>Adds the update tag item.</summary>
     /// <typeparam name="T">The PLC type.</typeparam>
@@ -200,12 +205,12 @@ public class ABPlcRx : IABPlcRx
     /// </returns>
     public IObservable<T?> Observe<T>(string? variable, T? typeWitness, int bit) =>
         _plc.TagsAdded
-            .Select(_ => RxVoid.Default)
+            .Select(static _ => RxVoid.Default)
             .StartWith(RxVoid.Default)
             .Select(_ => _plc.GetPlcTag(variable!))
-            .Where(t => t is not null)
+            .Where(static t => t is not null)
             .Select(t => t!.Changed
-                .Select(_ => RxVoid.Default)
+                .Select(static _ => RxVoid.Default)
                 .StartWith(RxVoid.Default)
                 .Select(__ => GetTagValue<T>(bit, t)))
             .Switch()
@@ -233,7 +238,7 @@ public class ABPlcRx : IABPlcRx
         return variables is null || variables.Length == 0
             ? SignalFactory.Return((IReadOnlyDictionary<string, object?>)new Dictionary<string, object?>())
             : _plc.TagsAdded
-            .Select(_ => RxVoid.Default)
+            .Select(static _ => RxVoid.Default)
             .StartWith(RxVoid.Default)
             .Select(_ => ObserveManySnapshot(variables))
             .Switch()
@@ -257,12 +262,27 @@ public class ABPlcRx : IABPlcRx
             var group = _plc.GetTagGroup(groupName);
 
             // existing tags
-            var current = SignalFactory.Merge(group.Tags.Select(t => t.Changed.Select(_ => t)));
+            var currentStreams = new List<IObservable<IPlcTag>>();
+            foreach (var tag in group.Tags)
+            {
+                currentStreams.Add(tag.Changed.Select(_ => tag));
+            }
+
+            var current = SignalFactory.Merge(currentStreams);
 
             // future tags that end up in the same group
-            var future = _plc.TagsAdded
-                            .Where(t => group.Tags.Contains(t))
-                            .SelectMany(t => t.Changed.Select(_ => t));
+            var future = _plc.TagsAdded.SelectMany(tag =>
+            {
+                foreach (var groupedTag in group.Tags)
+                {
+                    if (ReferenceEquals(groupedTag, tag))
+                    {
+                        return tag.Changed.Select(_ => tag);
+                    }
+                }
+
+                return SignalFactory.Silent<IPlcTag>();
+            });
 
             return current.Merge(future);
         })
@@ -328,7 +348,7 @@ public class ABPlcRx : IABPlcRx
     /// <summary>Streams only error results across all tags.</summary>
     /// <returns>Observable sequence of error results.</returns>
     public IObservable<PlcTagResult> ObserveErrors()
-        => MergeTagChanges(_plc.Tags).Where(r => PlcTagStatus.IsError(r.StatusCode)).Publish().RefCount();
+        => MergeTagChanges(_plc.Tags).Where(static r => PlcTagStatus.IsError(r.StatusCode)).Publish().RefCount();
 
     /// <summary>Streams only error results across all tags as an async-native observable.</summary>
     /// <returns>Async observable sequence of error results.</returns>
@@ -664,15 +684,28 @@ public class ABPlcRx : IABPlcRx
     /// <returns>A merged tag result observable.</returns>
     private static IObservable<PlcTagResult> MergeTagChanges(IEnumerable<IPlcTag> tags)
     {
-        var streams = tags.Select(tag => tag.Changed).ToArray();
-        return streams.Length == 0 ? SignalFactory.Silent<PlcTagResult>() : SignalFactory.Merge(streams);
+        var streams = new List<IObservable<PlcTagResult>>();
+        foreach (var tag in tags)
+        {
+            streams.Add(tag.Changed);
+        }
+
+        return streams.Count == 0 ? SignalFactory.Silent<PlcTagResult>() : SignalFactory.Merge(streams);
     }
 
     /// <summary>Creates a latest-value snapshot for observed tags.</summary>
     /// <param name="tags">The tags to snapshot.</param>
     /// <returns>The latest values by variable name.</returns>
-    private static Dictionary<string, object?> CreateSnapshot((string Variable, IPlcTag Tag)[] tags) =>
-        tags.ToDictionary(static item => item.Variable, static item => item.Tag.Value);
+    private static Dictionary<string, object?> CreateSnapshot(IEnumerable<(string Variable, IPlcTag Tag)> tags)
+    {
+        var snapshot = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var item in tags)
+        {
+            snapshot.Add(item.Variable, item.Tag.Value);
+        }
+
+        return snapshot;
+    }
 
     /// <summary>Observes the current snapshot for a set of variables.</summary>
     /// <param name="variables">The variables to observe.</param>
@@ -680,13 +713,17 @@ public class ABPlcRx : IABPlcRx
     private IObservable<IReadOnlyDictionary<string, object?>> ObserveManySnapshot(string[] variables) =>
         SignalFactory.Create<IReadOnlyDictionary<string, object?>>(observer =>
         {
-            var tags = variables
-                .Select(variable => (Variable: variable, Tag: _plc.GetPlcTag(variable)))
-                .Where(static item => item.Tag is not null)
-                .Select(static item => (item.Variable, Tag: item.Tag!))
-                .ToArray();
+            var tags = new List<(string Variable, IPlcTag Tag)>();
+            foreach (var variable in variables)
+            {
+                var tag = _plc.GetPlcTag(variable);
+                if (tag is not null)
+                {
+                    tags.Add((variable, tag));
+                }
+            }
 
-            if (tags.Length == 0)
+            if (tags.Count == 0)
             {
                 observer.OnNext(new Dictionary<string, object?>());
                 return EmptyDisposable.Instance;

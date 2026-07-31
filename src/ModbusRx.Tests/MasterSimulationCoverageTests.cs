@@ -2,16 +2,16 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.Extensions.Enron;
-using IoT.DriverCore.ModbusRx.IO;
-using IoT.DriverCore.ModbusRx.LogicalTags;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.Core;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Extensions.Enron;
+using IoT.Driver.ModbusRx.IO;
+using IoT.Driver.ModbusRx.LogicalTags;
+using IoT.Driver.ModbusRx.Message;
 using NativeAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Deterministic master tests backed by an in-memory response transport.</summary>
 public sealed class MasterSimulationCoverageTests
@@ -69,6 +69,9 @@ public sealed class MasterSimulationCoverageTests
 
     /// <summary>The updated address used by persisted-tag tests.</summary>
     private const ushort UpdatedStoredAddress = 7;
+
+    /// <summary>The holding-register values used by logical array write tests.</summary>
+    private static readonly ushort[] HoldingArrayValues = [LowWord, HighWord];
 
     /// <summary>Executes every standard master operation against an in-memory transport.</summary>
     /// <returns>A task representing the asynchronous test.</returns>
@@ -141,13 +144,13 @@ public sealed class MasterSimulationCoverageTests
         using var master = new ModbusMaster(new RecordingTransport());
 
         await NativeAssert.That(
-                async () => await EnronModbusExtensions.ReadHoldingRegisters32Async(null!, UnitId, 0, 1))
+                static async () => await EnronModbusExtensions.ReadHoldingRegisters32Async(null!, UnitId, 0, 1))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(
-                async () => await EnronModbusExtensions.ReadInputRegisters32Async(null!, UnitId, 0, 1))
+                static async () => await EnronModbusExtensions.ReadInputRegisters32Async(null!, UnitId, 0, 1))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(
-                () => EnronModbusExtensions.WriteSingleRegister32Async(null!, UnitId, 0, EnronValue))
+                static () => EnronModbusExtensions.WriteSingleRegister32Async(null!, UnitId, 0, EnronValue))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(
                 async () => await EnronModbusExtensions.ReadHoldingRegisters32Async(master, UnitId, 0, 0))
@@ -217,13 +220,13 @@ public sealed class MasterSimulationCoverageTests
         using var client = CreateLogicalClient(master);
         var timestamp = TestFrameworkCompatibilityExtensions.UnixEpoch;
 
-        var coil = await client.WriteAsync(new LogicalTagValue(CoilTagName, true, timestamp));
-        var holding = await client.WriteAsync(new LogicalTagValue(HoldingTagName, LowWord, timestamp));
+        var coil = await client.WriteAsync(new(CoilTagName, true, timestamp));
+        var holding = await client.WriteAsync(new(HoldingTagName, LowWord, timestamp));
         var array = await client.WriteAsync(
-            new LogicalTagValue("HoldingArray", new[] { LowWord, HighWord }, timestamp));
-        var missing = await client.WriteAsync(new LogicalTagValue(MissingTagName, LowWord, timestamp));
-        var readOnly = await client.WriteAsync(new LogicalTagValue(InputTagName, LowWord, timestamp));
-        var invalid = await client.WriteAsync(new LogicalTagValue(HoldingTagName, true, timestamp));
+            new("HoldingArray", HoldingArrayValues, timestamp));
+        var missing = await client.WriteAsync(new(MissingTagName, LowWord, timestamp));
+        var readOnly = await client.WriteAsync(new(InputTagName, LowWord, timestamp));
+        var invalid = await client.WriteAsync(new(HoldingTagName, true, timestamp));
         var many = await client.WriteManyAsync(
             [
                 new LogicalTagValue(CoilTagName, false, timestamp),
@@ -238,7 +241,17 @@ public sealed class MasterSimulationCoverageTests
         await NativeAssert.That(missing.Succeeded).IsFalse();
         await NativeAssert.That(readOnly.Succeeded).IsFalse();
         await NativeAssert.That(invalid.Succeeded).IsFalse();
-        await NativeAssert.That(many.All(static result => result.Succeeded)).IsTrue();
+        var allSucceeded = true;
+        foreach (var result in many)
+        {
+            if (!result.Succeeded)
+            {
+                allSucceeded = false;
+                break;
+            }
+        }
+
+        await NativeAssert.That(allSucceeded).IsTrue();
         await NativeAssert.That(observed.TagName).IsEqualTo(HoldingTagName);
         await NativeAssert.That(observedMany.TagName).IsEqualTo(HoldingTagName);
     }
@@ -251,54 +264,7 @@ public sealed class MasterSimulationCoverageTests
         var databasePath = Path.Combine(Path.GetTempPath(), $"modbusrx-simulation-{Guid.NewGuid():N}.db");
         try
         {
-            using var master = new ModbusMaster(new RecordingTransport());
-            var client = new ModbusLogicalTagClient(master, null, TimeSpan.FromMilliseconds(1));
-            await NativeAssert.That(
-                    async () => await client.ListStoredTagsAsync(CancellationToken.None))
-                .Throws<InvalidOperationException>();
-
-            await client.InitializeStoreAsync($"Data Source={databasePath};Pooling=False", CancellationToken.None);
-            var original = new ModbusLogicalTag(new ModbusTagConfiguration(
-                StoredTagName,
-                UnitId,
-                ModbusDataArea.HoldingRegister,
-                0,
-                1,
-                typeof(ushort)));
-            await client.UpsertStoredTagAsync(original, CancellationToken.None);
-
-            var stored = await client.GetStoredTagAsync(StoredTagName, CancellationToken.None);
-            var listed = await client.ListStoredTagsAsync(CancellationToken.None);
-            var updatedTag = new ModbusLogicalTag(new ModbusTagConfiguration(
-                StoredTagName,
-                UnitId,
-                ModbusDataArea.HoldingRegister,
-                UpdatedStoredAddress,
-                1,
-                typeof(ushort)));
-            var updated = await client.UpdateStoredTagAsync(updatedTag, CancellationToken.None);
-            var absent = await client.UpdateStoredTagAsync(
-                new ModbusLogicalTag(new ModbusTagConfiguration(
-                    MissingTagName,
-                    UnitId,
-                    ModbusDataArea.HoldingRegister,
-                    0,
-                    1,
-                    typeof(ushort))),
-                CancellationToken.None);
-            _ = client.Catalog.TryGet(StoredTagName, out var catalogTag);
-
-            await NativeAssert.That(stored?.Name).IsEqualTo(StoredTagName);
-            await NativeAssert.That(listed.Select(static tag => tag.Name)).Contains(StoredTagName);
-            await NativeAssert.That(updated).IsTrue();
-            await NativeAssert.That(absent).IsFalse();
-            await NativeAssert.That(catalogTag?.Address).IsEqualTo(UpdatedStoredAddress);
-
-            client.Dispose();
-            client.Dispose();
-            await NativeAssert.That(
-                    async () => await client.GetStoredTagAsync(StoredTagName, CancellationToken.None))
-                .Throws<ObjectDisposedException>();
+            await AssertPersistedTagFacadeAsync(databasePath);
         }
         finally
         {
@@ -316,7 +282,11 @@ public sealed class MasterSimulationCoverageTests
     {
         using var master = new ModbusMaster(new RecordingTransport());
         using var client = CreateLogicalClient(master);
+#if NET8_0_OR_GREATER
+        await using var writer = new StringWriter();
+#else
         using var writer = new StringWriter();
+#endif
         await client.ExportCsvAsync(writer, CancellationToken.None);
         using var importedMaster = new ModbusMaster(new RecordingTransport());
         using var imported = new ModbusLogicalTagClient(importedMaster, null, TimeSpan.FromMilliseconds(1));
@@ -336,16 +306,21 @@ public sealed class MasterSimulationCoverageTests
             .Throws<ArgumentNullException>();
 
         var writeOnly = await client.ReadManyAsync([WriteOnlyTagName], CancellationToken.None);
-        await NativeAssert.That(writeOnly.Single().Succeeded).IsFalse();
+        await NativeAssert.That(writeOnly.Count).IsEqualTo(1);
+        await NativeAssert.That(writeOnly[0].Succeeded).IsFalse();
 
         using var cancellation = new CancellationTokenSource();
+#if NET8_0_OR_GREATER
+        await cancellation.CancelAsync();
+#else
         cancellation.Cancel();
+#endif
         await NativeAssert.That(
                 async () => await client.ReadAsync(HoldingTagName, cancellation.Token))
             .Throws<OperationCanceledException>();
         await NativeAssert.That(
                 async () => await client.WriteAsync(
-                    new LogicalTagValue(HoldingTagName, LowWord, TestFrameworkCompatibilityExtensions.UnixEpoch),
+                    new(HoldingTagName, LowWord, TestFrameworkCompatibilityExtensions.UnixEpoch),
                     cancellation.Token))
             .Throws<OperationCanceledException>();
     }
@@ -358,7 +333,7 @@ public sealed class MasterSimulationCoverageTests
         var transport = new RecordingTransport();
         using var master = new ModbusMaster(transport);
         using var client = CreateLogicalClient(master);
-        _ = client.CreateTag(new ModbusTagConfiguration(
+        _ = client.CreateTag(new(
             WideTagName,
             UnitId,
             ModbusDataArea.HoldingRegister,
@@ -372,8 +347,28 @@ public sealed class MasterSimulationCoverageTests
             [HoldingTagName, CoilTagName],
             CancellationToken.None);
 
-        await NativeAssert.That(decoded.All(static result => !result.Succeeded)).IsTrue();
-        await NativeAssert.That(transportFailures.All(static result => !result.Succeeded)).IsTrue();
+        var decodedAllFailed = true;
+        foreach (var result in decoded)
+        {
+            if (result.Succeeded)
+            {
+                decodedAllFailed = false;
+                break;
+            }
+        }
+
+        var transportFailuresAllFailed = true;
+        foreach (var result in transportFailures)
+        {
+            if (result.Succeeded)
+            {
+                transportFailuresAllFailed = false;
+                break;
+            }
+        }
+
+        await NativeAssert.That(decodedAllFailed).IsTrue();
+        await NativeAssert.That(transportFailuresAllFailed).IsTrue();
     }
 
     /// <summary>Exercises async-enumerable and observable failure, cancellation, and disposal paths.</summary>
@@ -383,7 +378,7 @@ public sealed class MasterSimulationCoverageTests
     {
         using var master = new ModbusMaster(new RecordingTransport());
         using var client = CreateLogicalClient(master);
-        _ = client.CreateTag(new ModbusTagConfiguration(
+        _ = client.CreateTag(new(
             FastTagName,
             UnitId,
             ModbusDataArea.HoldingRegister,
@@ -405,11 +400,11 @@ public sealed class MasterSimulationCoverageTests
 
         var error = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var failing = client.Observe(MissingTagName)
-            .Subscribe(_ => { }, exception => error.TrySetResult(exception));
+            .Subscribe(static _ => { }, exception => error.TrySetResult(exception));
         await NativeAssert.That(await error.Task.WaitAsync(TimeSpan.FromSeconds(1)))
             .IsTypeOf<InvalidOperationException>();
 
-        var subscription = client.Observe(HoldingTagName).Subscribe(_ => { });
+        var subscription = client.Observe(HoldingTagName).Subscribe(static _ => { });
         subscription.Dispose();
         subscription.Dispose();
 
@@ -419,6 +414,82 @@ public sealed class MasterSimulationCoverageTests
         await NativeAssert.That(await values.MoveNextAsync()).IsTrue();
     }
 
+    /// <summary>Verifies the persisted-tag facade round trip and lifecycle guards.</summary>
+    /// <param name="databasePath">The temporary database path.</param>
+    /// <returns>A task representing the asynchronous assertions.</returns>
+    private static async Task AssertPersistedTagFacadeAsync(string databasePath)
+    {
+        using var master = new ModbusMaster(new RecordingTransport());
+        var client = new ModbusLogicalTagClient(master, null, TimeSpan.FromMilliseconds(1));
+        await NativeAssert.That(
+                async () => await client.ListStoredTagsAsync(CancellationToken.None))
+            .Throws<InvalidOperationException>();
+
+        await client.InitializeStoreAsync($"Data Source={databasePath};Pooling=False", CancellationToken.None);
+        await client.UpsertStoredTagAsync(CreateStoredTag(StoredTagName, 0), CancellationToken.None);
+
+        var stored = await client.GetStoredTagAsync(StoredTagName, CancellationToken.None);
+        var listed = await client.ListStoredTagsAsync(CancellationToken.None);
+        var updated = await client.UpdateStoredTagAsync(
+            CreateStoredTag(StoredTagName, UpdatedStoredAddress),
+            CancellationToken.None);
+        var absent = await client.UpdateStoredTagAsync(
+            CreateStoredTag(MissingTagName, 0),
+            CancellationToken.None);
+        _ = client.Catalog.TryGet(StoredTagName, out var catalogTag);
+
+        await AssertStoredTagResultsAsync(stored, listed, updated, absent, catalogTag);
+        client.Dispose();
+        client.Dispose();
+        await NativeAssert.That(
+                async () => await client.GetStoredTagAsync(StoredTagName, CancellationToken.None))
+            .Throws<ObjectDisposedException>();
+    }
+
+    /// <summary>Verifies results returned by the persisted-tag facade.</summary>
+    /// <param name="stored">The stored tag returned by name.</param>
+    /// <param name="listed">The stored tags returned by the list operation.</param>
+    /// <param name="updated">Whether the existing tag was updated.</param>
+    /// <param name="absent">Whether a missing tag was updated.</param>
+    /// <param name="catalogTag">The updated catalog tag.</param>
+    /// <returns>A task representing the asynchronous assertions.</returns>
+    private static async Task AssertStoredTagResultsAsync(
+        ModbusLogicalTag? stored,
+        IReadOnlyList<ModbusLogicalTag> listed,
+        bool updated,
+        bool absent,
+        ModbusLogicalTag? catalogTag)
+    {
+        var containsStoredTag = false;
+        foreach (var tag in listed)
+        {
+            if (tag.Name == StoredTagName)
+            {
+                containsStoredTag = true;
+                break;
+            }
+        }
+
+        await NativeAssert.That(stored?.Name).IsEqualTo(StoredTagName);
+        await NativeAssert.That(containsStoredTag).IsTrue();
+        await NativeAssert.That(updated).IsTrue();
+        await NativeAssert.That(absent).IsFalse();
+        await NativeAssert.That(catalogTag?.Address).IsEqualTo(UpdatedStoredAddress);
+    }
+
+    /// <summary>Creates a persisted holding-register tag.</summary>
+    /// <param name="name">The logical tag name.</param>
+    /// <param name="address">The Modbus address.</param>
+    /// <returns>The persisted logical tag.</returns>
+    private static ModbusLogicalTag CreateStoredTag(string name, ushort address) =>
+        new(new ModbusTagConfiguration(
+            name,
+            UnitId,
+            ModbusDataArea.HoldingRegister,
+            address,
+            1,
+            typeof(ushort)));
+
     /// <summary>Creates a logical client with tags spanning every supported raw data area.</summary>
     /// <param name="master">The in-memory master.</param>
     /// <returns>The configured logical client.</returns>
@@ -426,11 +497,11 @@ public sealed class MasterSimulationCoverageTests
     {
         var client = new ModbusLogicalTagClient(master, null, TimeSpan.FromMilliseconds(1), new FixedTimeProvider());
         _ = client.CreateTag(
-            new ModbusTagConfiguration(HoldingTagName, UnitId, ModbusDataArea.HoldingRegister, 0, 1, typeof(ushort)));
+            new(HoldingTagName, UnitId, ModbusDataArea.HoldingRegister, 0, 1, typeof(ushort)));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(CoilTagName, UnitId, ModbusDataArea.Coil, 0, 1, typeof(bool)));
+            new(CoilTagName, UnitId, ModbusDataArea.Coil, 0, 1, typeof(bool)));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(
+            new(
                 "HoldingArray",
                 UnitId,
                 ModbusDataArea.HoldingRegister,
@@ -438,17 +509,17 @@ public sealed class MasterSimulationCoverageTests
                 PointCount,
                 typeof(ushort[])));
         _ = client.CreateTag(
-            new ModbusTagConfiguration(InputTagName, UnitId, ModbusDataArea.InputRegister, 0, 1, typeof(ushort))
+            new(InputTagName, UnitId, ModbusDataArea.InputRegister, 0, 1, typeof(ushort))
             {
                 AccessMode = LogicalTagAccessMode.Read,
             });
         _ = client.CreateTag(
-            new ModbusTagConfiguration(DiscreteTagName, UnitId, ModbusDataArea.DiscreteInput, 0, 1, typeof(bool))
+            new(DiscreteTagName, UnitId, ModbusDataArea.DiscreteInput, 0, 1, typeof(bool))
             {
                 AccessMode = LogicalTagAccessMode.Read,
             });
         _ = client.CreateTag(
-            new ModbusTagConfiguration(
+            new(
                 WriteOnlyTagName,
                 UnitId,
                 ModbusDataArea.HoldingRegister,
@@ -517,7 +588,7 @@ public sealed class MasterSimulationCoverageTests
             Task.FromResult<IModbusMessage>(responseFactory());
 
         /// <inheritdoc />
-        internal override byte[] BuildMessageFrame(IModbusMessage message) => message.MessageFrame;
+        internal override byte[] BuildMessageFrame(IModbusMessage message) => message.ToMessageFrame();
 
         /// <inheritdoc />
         internal override void Write(IModbusMessage message) => LastRequest = message;

@@ -5,7 +5,7 @@
 #if LIVE_S7_TESTS
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.S7PlcRx.Tests;
+namespace IoT.Driver.S7PlcRx.Tests;
 
 /// <summary>Read-only hardware integration coverage for an S7-1500 test endpoint.</summary>
 /// <remarks>

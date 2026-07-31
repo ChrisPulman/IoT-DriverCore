@@ -3,10 +3,10 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using IoT.DriverCore.TwinCATRx.Core;
-using CoreTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions;
+using IoT.Driver.TwinCATRx.Core;
+using CoreTwinCatRxExtensions = IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Core;
+namespace IoT.Driver.TwinCATRx.Tests.Core;
 
 /// <summary>Exercises deterministic core extension branches.</summary>
 public class CoreExtensionsDeterministicCoverageTests
@@ -39,21 +39,21 @@ public class CoreExtensionsDeterministicCoverageTests
             await WriteEmptyFileAsync(Path.Combine(directory.FullName, "root.txt"));
             await WriteEmptyFileAsync(Path.Combine(nested.FullName, "nested.cs"));
 
-            await TUnitAssert.That(DirectoryInfoExtensions.GetFilesWhere(directory, _ => false)).IsEmpty();
+            await TUnitAssert.That(DirectoryInfoExtensions.GetFilesWhere(directory, static _ => false)).IsEmpty();
             await TUnitAssert.That(
-                DirectoryInfoExtensions.GetFilesWhere(directory, "*.cs", _ => true).Length).IsEqualTo(1);
+                DirectoryInfoExtensions.GetFilesWhere(directory, "*.cs", static _ => true).Length).IsEqualTo(1);
             await TUnitAssert.That(
-                DirectoryInfoExtensions.GetFilesWhere(directory, "*.cs", SearchOption.AllDirectories, _ => true).Length)
+                DirectoryInfoExtensions.GetFilesWhere(directory, "*.cs", SearchOption.AllDirectories, static _ => true).Length)
                 .IsEqualTo(RootAndNestedFileCount);
             await TUnitAssert.That(
-                DirectoryInfoExtensions.GetFilesWhere(directory, ["*.cs", "*.*"], _ => true).Length)
+                DirectoryInfoExtensions.GetFilesWhere(directory, ["*.cs", "*.*"], static _ => true).Length)
                 .IsEqualTo(RootAndNestedFileCount);
             await TUnitAssert.That(
                 DirectoryInfoExtensions.GetFilesWhere(
                     directory,
                     ["*.cs", "*.txt"],
                     SearchOption.AllDirectories,
-                    _ => true).Length)
+                    static _ => true).Length)
                 .IsEqualTo(AllFileCount);
         }
         finally
@@ -69,14 +69,14 @@ public class CoreExtensionsDeterministicCoverageTests
     {
         var directory = new DirectoryInfo(Path.GetTempPath());
 
-        await TUnitAssert.That(() => DirectoryInfoExtensions.GetFilesWhere(null!, _ => true))
+        await TUnitAssert.That(static () => DirectoryInfoExtensions.GetFilesWhere(null!, static _ => true))
             .Throws<ArgumentNullException>();
         await TUnitAssert.That(() =>
                 DirectoryInfoExtensions.GetFilesWhere(directory, (Func<FileInfo, bool>)null!))
             .Throws<ArgumentNullException>();
-        await TUnitAssert.That(() => DirectoryInfoExtensions.GetFilesWhere(directory, (string)null!, _ => true))
+        await TUnitAssert.That(() => DirectoryInfoExtensions.GetFilesWhere(directory, (string)null!, static _ => true))
             .Throws<ArgumentNullException>();
-        await TUnitAssert.That(() => DirectoryInfoExtensions.GetFilesWhere(directory, (string[])null!, _ => true))
+        await TUnitAssert.That(() => DirectoryInfoExtensions.GetFilesWhere(directory, (string[])null!, static _ => true))
             .Throws<ArgumentNullException>();
         await TUnitAssert.That(() =>
                 DirectoryInfoExtensions.GetFilesWhere(directory, ["*"], (Func<FileInfo, bool>)null!))
@@ -98,11 +98,12 @@ public class CoreExtensionsDeterministicCoverageTests
                 : Observable.Return(SuccessfulValue);
         });
 
-        var value = CoreTwinCatRxExtensions.OnErrorRetry<int, InvalidOperationException>(
+        var retried = CoreTwinCatRxExtensions.OnErrorRetry<int, InvalidOperationException>(
             eventuallySuccessful,
             _ => errors++,
             retryCount: ExpectedAttemptCount,
-            delay: TimeSpan.FromTicks(-1)).ToEnumerable().Single();
+            delay: TimeSpan.FromTicks(-1));
+        var value = GetSingleValue(retried.ToEnumerable());
 
         await TUnitAssert.That(value).IsEqualTo(SuccessfulValue);
         await TUnitAssert.That(attempts).IsEqualTo(ExpectedAttemptCount);
@@ -112,17 +113,16 @@ public class CoreExtensionsDeterministicCoverageTests
             Observable.Throw<int>(new InvalidOperationException("stop")),
             _ => errors++,
             retryCount: 1);
-        await TUnitAssert.That(() => terminal.ToEnumerable().ToArray()).Throws<InvalidOperationException>();
+        await TUnitAssert.That(() => EnumerateAll(terminal.ToEnumerable())).Throws<InvalidOperationException>();
 
-        IObservable<int?> nullSource = null!;
-        await TUnitAssert.That(() => CoreTwinCatRxExtensions.OnErrorRetry(nullSource)).Throws<ArgumentNullException>();
-        await TUnitAssert.That(() =>
+        await TUnitAssert.That(static () => CoreTwinCatRxExtensions.OnErrorRetry((IObservable<int?>)null!)).Throws<ArgumentNullException>();
+        await TUnitAssert.That(static () =>
                 CoreTwinCatRxExtensions.OnErrorRetry<int, InvalidOperationException>(Observable.Return(1), null!))
             .Throws<ArgumentNullException>();
-        await TUnitAssert.That(() =>
+        await TUnitAssert.That(static () =>
                 CoreTwinCatRxExtensions.OnErrorRetry<int, InvalidOperationException>(
                     Observable.Return(1),
-                    _ => { },
+                    static _ => { },
                     ExpectedAttemptCount,
                     TimeSpan.Zero,
                     null!))
@@ -143,7 +143,7 @@ public class CoreExtensionsDeterministicCoverageTests
                 : Observable.Return(UntypedSuccessfulValue);
         });
 
-        var result = CoreTwinCatRxExtensions.OnErrorRetry(source).ToEnumerable().Single();
+        var result = GetSingleValue(CoreTwinCatRxExtensions.OnErrorRetry(source).ToEnumerable());
 
         await TUnitAssert.That(result).IsEqualTo(UntypedSuccessfulValue);
         await TUnitAssert.That(attempts).IsEqualTo(ExpectedAttemptCount);
@@ -185,7 +185,7 @@ public class CoreExtensionsDeterministicCoverageTests
     [Test]
     public async Task NodeEmulator_Disposes_Children_And_Is_IdempotentAsync()
     {
-        var nodeType = typeof(Settings).Assembly.GetType("IoT.DriverCore.TwinCATRx.Core.NodeEmulator")
+        var nodeType = typeof(Settings).Assembly.GetType("IoT.Driver.TwinCATRx.Core.NodeEmulator")
             ?? throw new InvalidOperationException("NodeEmulator was not found.");
         var node = Activator.CreateInstance(nodeType)
             ?? throw new InvalidOperationException("NodeEmulator could not be created.");
@@ -194,7 +194,7 @@ public class CoreExtensionsDeterministicCoverageTests
             ?? throw new InvalidOperationException("Node collection was not found.");
         _ = nodes.Add(child);
         var tag = nodeType.GetProperty("Tag") ?? throw new InvalidOperationException("Tag property was not found.");
-        tag.SetValue(node, new object());
+        tag.SetValue(node, new());
 
         var dispose = nodeType.GetMethod("Dispose")
             ?? throw new InvalidOperationException("Dispose method was not found.");
@@ -204,6 +204,38 @@ public class CoreExtensionsDeterministicCoverageTests
         await TUnitAssert.That(child.DisposeCount).IsEqualTo(1);
         await TUnitAssert.That(nodeType.GetProperty("Nodes")?.GetValue(node)).IsNull();
         await TUnitAssert.That(tag.GetValue(node)).IsNull();
+    }
+
+    /// <summary>Returns the sole value from a finite sequence.</summary>
+    /// <typeparam name="T">The value type.</typeparam>
+    /// <param name="values">The sequence to inspect.</param>
+    /// <returns>The only value.</returns>
+    private static T GetSingleValue<T>(IEnumerable<T> values)
+    {
+        using var enumerator = values.GetEnumerator();
+        if (!enumerator.MoveNext())
+        {
+            throw new InvalidOperationException("The sequence was empty.");
+        }
+
+        var value = enumerator.Current;
+        if (enumerator.MoveNext())
+        {
+            throw new InvalidOperationException("The sequence contained multiple values.");
+        }
+
+        return value;
+    }
+
+    /// <summary>Enumerates a sequence completely.</summary>
+    /// <typeparam name="T">The value type.</typeparam>
+    /// <param name="values">The sequence to enumerate.</param>
+    private static void EnumerateAll<T>(IEnumerable<T> values)
+    {
+        foreach (var value in values)
+        {
+            _ = value;
+        }
     }
 
     /// <summary>Writes an empty test file.</summary>

@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
 using SignalFactory = ReactiveUI.Primitives.Reactive.Signals.Signal;
@@ -11,9 +11,9 @@ using SignalFactory = ReactiveUI.Primitives.Signals.Signal;
 #endif
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>Adapts an Allen-Bradley controller to shared logical-tag contracts through composition.</summary>
@@ -159,7 +159,7 @@ public sealed partial class ABLogicalTagClient : IManagedLogicalTagClient, IDisp
     /// <param name="dataType">The CLR or PLC data type name.</param>
     /// <returns>The registered definition.</returns>
     public LogicalTag CreateTag(string name, string address, string dataType) =>
-        CreateTag(new LogicalTag(name, address, dataType));
+        CreateTag(new(name, address, dataType));
 
     /// <summary>Creates and registers an existing logical tag definition.</summary>
     /// <param name="tag">The logical tag definition.</param>
@@ -174,10 +174,7 @@ public sealed partial class ABLogicalTagClient : IManagedLogicalTagClient, IDisp
     /// <param name="tag">The logical tag definition.</param>
     public void RegisterTag(LogicalTag tag)
     {
-        if (tag is null)
-        {
-            throw new ArgumentNullException(nameof(tag));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(tag, nameof(tag));
 
         ThrowIfDisposed();
         var groupName = string.IsNullOrWhiteSpace(tag.GroupName) ? "Default" : tag.GroupName;
@@ -233,34 +230,49 @@ public sealed partial class ABLogicalTagClient : IManagedLogicalTagClient, IDisp
         IReadOnlyCollection<string> tagNames,
         CancellationToken cancellationToken = default)
     {
-        if (tagNames is null)
-        {
-            throw new ArgumentNullException(nameof(tagNames));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(tagNames, nameof(tagNames));
 
         ThrowIfDisposed();
-        var names = tagNames.ToArray();
-        var validNames = names
-            .Where(name => TryGetAccessibleTag(name, write: false, out _, out _))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        var plcResults = await _controller.ReadManyAsync(validNames, cancellationToken).ConfigureAwait(false);
-        var byName = plcResults.ToDictionary(result => result.Tag.Variable, StringComparer.Ordinal);
-
-        return names
-            .Select(name =>
+        var names = new string[tagNames.Count];
+        var validNames = new HashSet<string>(StringComparer.Ordinal);
+        var nameIndex = 0;
+        foreach (var name in tagNames)
+        {
+            names[nameIndex] = name;
+            nameIndex++;
+            if (TryGetAccessibleTag(name, write: false, out _, out _))
             {
-                if (!TryGetAccessibleTag(name, write: false, out var tag, out var failure))
-                {
-                    return TagOperationResult<LogicalTagValue>.Failure(failure);
-                }
+                _ = validNames.Add(name);
+            }
+        }
 
-                return byName.TryGetValue(name, out var result)
-                    ? ToLogicalResult(tag!, result)
-                    : TagOperationResult<LogicalTagValue>.Failure(
-                        $"Tag '{name}' is not registered in the controller.");
-            })
-            .ToArray();
+        var plcResults = await _controller.ReadManyAsync(validNames, cancellationToken).ConfigureAwait(false);
+        var byName = new Dictionary<string, PlcTagResult>(StringComparer.Ordinal);
+        foreach (var result in plcResults)
+        {
+            byName.Add(result.Tag.Variable, result);
+        }
+
+        var logicalResults = new TagOperationResult<LogicalTagValue>[names.Length];
+        for (var index = 0; index < names.Length; index++)
+        {
+            var name = names[index];
+            if (!TryGetAccessibleTag(name, write: false, out var tag, out var failure))
+            {
+                logicalResults[index] = TagOperationResult<LogicalTagValue>.Failure(failure);
+            }
+            else if (byName.TryGetValue(name, out var result))
+            {
+                logicalResults[index] = ToLogicalResult(tag!, result);
+            }
+            else
+            {
+                logicalResults[index] = TagOperationResult<LogicalTagValue>.Failure(
+                    $"Tag '{name}' is not registered in the controller.");
+            }
+        }
+
+        return logicalResults;
     }
 
     /// <inheritdoc/>
@@ -268,10 +280,7 @@ public sealed partial class ABLogicalTagClient : IManagedLogicalTagClient, IDisp
         LogicalTagValue value,
         CancellationToken cancellationToken = default)
     {
-        if (value is null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(value, nameof(value));
 
         ThrowIfDisposed();
         if (!TryGetAccessibleTag(value.TagName, write: true, out _, out var failure))
@@ -292,7 +301,7 @@ public sealed partial class ABLogicalTagClient : IManagedLogicalTagClient, IDisp
                 .ConfigureAwait(false);
             return bitResult.Succeeded
                 ? TagOperationResult<LogicalTagValue>.Success(
-                    new LogicalTagValue(value.TagName, bitValue, _timeProvider.GetUtcNow(), "Good"))
+                    new(value.TagName, bitValue, _timeProvider.GetUtcNow(), "Good"))
                 : TagOperationResult<LogicalTagValue>.Failure(bitResult.Error);
         }
 
@@ -312,61 +321,13 @@ public sealed partial class ABLogicalTagClient : IManagedLogicalTagClient, IDisp
         IReadOnlyCollection<LogicalTagValue> values,
         CancellationToken cancellationToken = default)
     {
-        if (values is null)
-        {
-            throw new ArgumentNullException(nameof(values));
-        }
-
+        ArgumentExceptionHelper.ThrowIfNull(values, nameof(values));
         ThrowIfDisposed();
-        var items = values.ToArray();
-        var duplicateNames = items
-            .GroupBy(item => item.TagName, StringComparer.Ordinal)
-            .Where(group => group.Skip(1).Any())
-            .Select(group => group.Key)
-            .ToHashSet(StringComparer.Ordinal);
-        var writeValues = items
-            .Where(item =>
-                !duplicateNames.Contains(item.TagName) &&
-                TryGetAccessibleTag(item.TagName, write: true, out _, out _) &&
-                (!Catalog.TryGet(item.TagName, out var tag) || tag is null || !TryGetBit(tag, out _)))
-            .ToDictionary(item => item.TagName, item => item.Value, StringComparer.Ordinal);
+        var items = CopyItems(values, out var duplicateNames);
+        var writeValues = CollectNonBitWrites(items, duplicateNames);
         var plcResults = await _controller.WriteManyAsync(writeValues, cancellationToken).ConfigureAwait(false);
-        var byName = plcResults.ToDictionary(result => result.Tag.Variable, StringComparer.Ordinal);
-        var bitResults = new Dictionary<string, TagOperationResult<LogicalTagValue>>(StringComparer.Ordinal);
-        foreach (var item in items.Where(
-                     item => !duplicateNames.Contains(item.TagName) &&
-                             Catalog.TryGet(item.TagName, out var tag) &&
-                             tag is not null &&
-                             TryGetBit(tag, out _)))
-        {
-            bitResults[item.TagName] = await WriteAsync(item, cancellationToken).ConfigureAwait(false);
-        }
-
-        return items
-            .Select(item =>
-            {
-                if (duplicateNames.Contains(item.TagName))
-                {
-                    return TagOperationResult<LogicalTagValue>.Failure(
-                        $"Tag '{item.TagName}' occurs more than once in the bulk write.");
-                }
-
-                if (!TryGetAccessibleTag(item.TagName, write: true, out _, out var failure))
-                {
-                    return TagOperationResult<LogicalTagValue>.Failure(failure);
-                }
-
-                if (bitResults.TryGetValue(item.TagName, out var bitResult))
-                {
-                    return bitResult;
-                }
-
-                return byName.TryGetValue(item.TagName, out var result)
-                    ? ToLogicalResult(item, result, _timeProvider)
-                    : TagOperationResult<LogicalTagValue>.Failure(
-                        $"Tag '{item.TagName}' is not registered in the controller.");
-            })
-            .ToArray();
+        var bitResults = await WriteBitValuesAsync(items, duplicateNames, cancellationToken).ConfigureAwait(false);
+        return CreateBulkWriteResults(items, duplicateNames, plcResults, bitResults);
     }
 
     /// <inheritdoc/>
@@ -390,13 +351,17 @@ public sealed partial class ABLogicalTagClient : IManagedLogicalTagClient, IDisp
     /// <inheritdoc/>
     public IObservable<LogicalTagValue> ObserveMany(IReadOnlyCollection<string> tagNames)
     {
-        if (tagNames is null)
-        {
-            throw new ArgumentNullException(nameof(tagNames));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(tagNames, nameof(tagNames));
 
         ThrowIfDisposed();
-        var streams = tagNames.Select(Observe).ToArray();
+        var streams = new IObservable<LogicalTagValue>[tagNames.Count];
+        var streamIndex = 0;
+        foreach (var tagName in tagNames)
+        {
+            streams[streamIndex] = Observe(tagName);
+            streamIndex++;
+        }
+
         return streams.Length == 0
             ? SignalFactory.Silent<LogicalTagValue>()
             : SignalFactory.Merge(streams);
@@ -428,6 +393,37 @@ public sealed partial class ABLogicalTagClient : IManagedLogicalTagClient, IDisp
         }
 
         _disposed = true;
+    }
+
+    /// <summary>Copies values and identifies duplicate tag names.</summary>
+    /// <param name="values">The values to copy.</param>
+    /// <param name="duplicateNames">The names that occur more than once.</param>
+    /// <returns>A copy of <paramref name="values"/>.</returns>
+    private static LogicalTagValue[] CopyItems(
+        IReadOnlyCollection<LogicalTagValue> values,
+        out HashSet<string> duplicateNames)
+    {
+        var items = new LogicalTagValue[values.Count];
+        var nameCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        var index = 0;
+        foreach (var item in values)
+        {
+            items[index] = item;
+            index++;
+            _ = nameCounts.TryGetValue(item.TagName, out var count);
+            nameCounts[item.TagName] = count + 1;
+        }
+
+        duplicateNames = new(StringComparer.Ordinal);
+        foreach (var nameCount in nameCounts)
+        {
+            if (nameCount.Value > 1)
+            {
+                _ = duplicateNames.Add(nameCount.Key);
+            }
+        }
+
+        return items;
     }
 
     /// <summary>Normalizes a logical data type name.</summary>
@@ -559,7 +555,7 @@ public sealed partial class ABLogicalTagClient : IManagedLogicalTagClient, IDisp
         PlcTagStatus.IsError(result.StatusCode)
             ? TagOperationResult<LogicalTagValue>.Failure(PlcTagStatus.DecodeError(result.StatusCode))
             : TagOperationResult<LogicalTagValue>.Success(
-                new LogicalTagValue(
+                new(
                     tag.Name,
                     GetLogicalValue(tag, result.Tag),
                     result.Timestamp,
@@ -577,7 +573,7 @@ public sealed partial class ABLogicalTagClient : IManagedLogicalTagClient, IDisp
         PlcTagStatus.IsError(result.StatusCode)
             ? TagOperationResult<LogicalTagValue>.Failure(PlcTagStatus.DecodeError(result.StatusCode))
             : TagOperationResult<LogicalTagValue>.Success(
-                new LogicalTagValue(value.TagName, value.Value, timeProvider.GetUtcNow(), "Good"));
+                new(value.TagName, value.Value, timeProvider.GetUtcNow(), "Good"));
 
     /// <summary>Gets the public logical value, including integral bit projection.</summary>
     /// <param name="tag">The logical tag.</param>
@@ -623,6 +619,112 @@ public sealed partial class ABLogicalTagClient : IManagedLogicalTagClient, IDisp
 
         bit = -1;
         return false;
+    }
+
+    /// <summary>Collects non-bit writes that are accessible to the client.</summary>
+    /// <param name="items">The values to examine.</param>
+    /// <param name="duplicateNames">Names that must not be written.</param>
+    /// <returns>The non-bit values indexed by tag name.</returns>
+    private Dictionary<string, object?> CollectNonBitWrites(
+        IEnumerable<LogicalTagValue> items,
+        HashSet<string> duplicateNames)
+    {
+        var writeValues = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var item in items)
+        {
+            if (!duplicateNames.Contains(item.TagName) &&
+                TryGetAccessibleTag(item.TagName, write: true, out _, out _) &&
+                (!Catalog.TryGet(item.TagName, out var tag) || tag is null || !TryGetBit(tag, out _)))
+            {
+                writeValues.Add(item.TagName, item.Value);
+            }
+        }
+
+        return writeValues;
+    }
+
+    /// <summary>Writes the bit values that are accessible to the client.</summary>
+    /// <param name="items">The values to examine.</param>
+    /// <param name="duplicateNames">Names that must not be written.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The write results indexed by tag name.</returns>
+    private async Task<Dictionary<string, TagOperationResult<LogicalTagValue>>> WriteBitValuesAsync(
+        IEnumerable<LogicalTagValue> items,
+        HashSet<string> duplicateNames,
+        CancellationToken cancellationToken)
+    {
+        var results = new Dictionary<string, TagOperationResult<LogicalTagValue>>(StringComparer.Ordinal);
+        foreach (var item in items)
+        {
+            if (!duplicateNames.Contains(item.TagName) && Catalog.TryGet(item.TagName, out var tag) &&
+                tag is not null && TryGetBit(tag, out _))
+            {
+                results[item.TagName] = await WriteAsync(item, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        return results;
+    }
+
+    /// <summary>Creates a result for every requested bulk write.</summary>
+    /// <param name="items">The requested values.</param>
+    /// <param name="duplicateNames">Names that occur more than once.</param>
+    /// <param name="plcResults">Results returned by the controller.</param>
+    /// <param name="bitResults">Results returned for bit writes.</param>
+    /// <returns>The result corresponding to each requested value.</returns>
+    private TagOperationResult<LogicalTagValue>[] CreateBulkWriteResults(
+        LogicalTagValue[] items,
+        HashSet<string> duplicateNames,
+        IEnumerable<PlcTagResult> plcResults,
+        Dictionary<string, TagOperationResult<LogicalTagValue>> bitResults)
+    {
+        var byName = new Dictionary<string, PlcTagResult>(StringComparer.Ordinal);
+        foreach (var result in plcResults)
+        {
+            byName.Add(result.Tag.Variable, result);
+        }
+
+        var results = new TagOperationResult<LogicalTagValue>[items.Length];
+        for (var index = 0; index < items.Length; index++)
+        {
+            results[index] = CreateBulkWriteResult(items[index], duplicateNames, byName, bitResults);
+        }
+
+        return results;
+    }
+
+    /// <summary>Creates the result for one requested bulk write.</summary>
+    /// <param name="item">The requested value.</param>
+    /// <param name="duplicateNames">Names that occur more than once.</param>
+    /// <param name="plcResults">Results returned by the controller.</param>
+    /// <param name="bitResults">Results returned for bit writes.</param>
+    /// <returns>The result for <paramref name="item"/>.</returns>
+    private TagOperationResult<LogicalTagValue> CreateBulkWriteResult(
+        LogicalTagValue item,
+        HashSet<string> duplicateNames,
+        Dictionary<string, PlcTagResult> plcResults,
+        Dictionary<string, TagOperationResult<LogicalTagValue>> bitResults)
+    {
+        if (duplicateNames.Contains(item.TagName))
+        {
+            return TagOperationResult<LogicalTagValue>.Failure(
+                $"Tag '{item.TagName}' occurs more than once in the bulk write.");
+        }
+
+        if (!TryGetAccessibleTag(item.TagName, write: true, out _, out var failure))
+        {
+            return TagOperationResult<LogicalTagValue>.Failure(failure);
+        }
+
+        if (bitResults.TryGetValue(item.TagName, out var bitResult))
+        {
+            return bitResult;
+        }
+
+        return plcResults.TryGetValue(item.TagName, out var result)
+            ? ToLogicalResult(item, result, _timeProvider)
+            : TagOperationResult<LogicalTagValue>.Failure(
+                $"Tag '{item.TagName}' is not registered in the controller.");
     }
 
     /// <summary>Tries to resolve a tag and validate the requested access.</summary>

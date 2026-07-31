@@ -6,7 +6,7 @@
 
 ## Overview
 
-`CP.TwinCATRx` provides reactive Beckhoff TwinCAT ADS access: configuration-driven notifications, one-shot reads and writes, typed observation extensions, structured values, and an in-memory ADS client for deterministic tests.
+`IoT-Driver.TwinCATRx` provides reactive Beckhoff TwinCAT ADS access: configuration-driven notifications, one-shot reads and writes, typed observation extensions, structured values, and an in-memory ADS client for deterministic tests.
 
 ## Safety
 
@@ -16,27 +16,27 @@ ADS writes change PLC state. Use a non-production target for development, separa
 
 | Package | Default namespace | Targets | Purpose |
 |---|---|---|---|
-| `CP.TwinCATRx` | `IoT.DriverCore.TwinCATRx` | core targets plus Windows targets | ADS client, observables, structures, generator |
-| `CP.TwinCATRx.Reactive` | `IoT.DriverCore.TwinCATRx.Reactive` | matching package targets | System.Reactive-compatible surface where supplied |
-| `CP.TwinCATRx.Core` | `IoT.DriverCore.TwinCATRx.Core` | net462, net472, net48, net481, net8.0-net11.0 | Shared settings, ADS abstractions, conversion, retry, and dynamic-code helpers |
-| `CP.TwinCATRx.Core.Reactive` | `IoT.DriverCore.TwinCATRx.Core.Reactive` | matching core targets | System.Reactive-compatible core helper surface |
-| `TwinCATRx.Generators` | source attributes are in `IoT.DriverCore.TwinCATRx` | analyzer targets supplied by the compiler | Standalone optional reactive-stream analyzer, useful when it is version-pinned separately from the runtime. |
+| `IoT-Driver.TwinCATRx` | `IoT.Driver.TwinCATRx` | core targets plus Windows targets | ADS client, observables, and structures |
+| `IoT-Driver.TwinCATRx.Reactive` | `IoT.Driver.TwinCATRx.Reactive` | matching package targets | System.Reactive-compatible surface where supplied |
+| `IoT-Driver.TwinCATRx.Core` | `IoT.Driver.TwinCATRx.Core` | net462, net472, net48, net481, net8.0-net11.0 | Shared settings, ADS abstractions, conversion, retry, and dynamic-code helpers |
+| `IoT-Driver.TwinCATRx.Core.Reactive` | `IoT.Driver.TwinCATRx.Core.Reactive` | matching core targets | System.Reactive-compatible core helper surface |
+| `IoT-Driver.TwinCATRx.Generators` | source attributes are in `IoT.Driver.TwinCATRx` | analyzer targets supplied by the compiler | Standalone reactive-stream analyzer package. |
 
 The package references `HashTableRx`, `ReactiveUI.Primitives`, and `ReactiveUI.Primitives.Async`. The `TwinCATRx.Core` dependency supplies `Settings`, `ISettings`, ADS abstractions, and configuration extensions. Dynamic ADS type generation is annotated for trimming/AOT analysis; source-generated stream models avoid application-level runtime reflection.
 
 ## Install
 
 ```bash
-dotnet add package CP.TwinCATRx
-# Optional: CP.TwinCATRx already embeds this analyzer.
-dotnet add package TwinCATRx.Generators
+dotnet add package IoT-Driver.TwinCATRx
+# Add separately only when using generated stream or connection models.
+dotnet add package IoT-Driver.TwinCATRx.Generators
 ```
 
 ## Quick start
 
 ```csharp
-using IoT.DriverCore.TwinCATRx;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx;
+using IoT.Driver.TwinCATRx.Core;
 
 using var client = new RxTcAdsClient();
 var settings = new Settings { AdsAddress = "5.35.59.10.1.1", Port = 851, SettingsId = "Default" };
@@ -69,8 +69,8 @@ Use `Connect(ISettings)`, then `Disconnect()` before disposing. Dynamic structur
 `ErrorReceived` is the fault stream: subscribe before `Connect`, report the exception with the variable/correlation context held by your application, and do not assume an exception has stopped other notifications. `Code` exposes generated/dynamic type code where applicable, `OnWrite` emits written variable names, and `DataReceived` emits `(Variable, Data, Id)` for notification and correlated read results. Each has an `IObservableAsync<T>` counterpart where declared (`...Async`), suitable for the ReactiveUI.Primitives async observer model.
 
 ```csharp
-using IoT.DriverCore.TwinCATRx;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx;
+using IoT.Driver.TwinCATRx.Core;
 
 using var client = new RxTcAdsClient();
 using var errors = client.ErrorReceived.Subscribe(ex => AuditFailure(ex));
@@ -181,7 +181,7 @@ using (table.StructureReady().Take(1).Subscribe(_ => Console.WriteLine("Recipe a
 The persistence members `InitializeStoreAsync`, `LoadTagsAsync`, `GetTagAsync`, `ListTagsAsync`, `UpsertTagAsync`, `EditTagAsync`, `DeleteTagAsync`, group CRUD, `ImportCsvAsync`, and `ExportCsvAsync` support commissioning data. All have cancellation-bearing overloads where I/O occurs. Import into a staged catalog/store, validate address/type information against the PLC, then replace the active set - avoid modifying a live safety mapping from an unreviewed CSV.
 
 ```csharp
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 using var catalog = new LogicalTagCatalog();
 var store = new LogicalTagSqliteStore("Data Source=logical-tags.db");
@@ -217,12 +217,12 @@ Console.WriteLine(fake.OperationMetrics.WriteCount);
 
 ### Source-generated reactive stream and connection models
 
-`TwinCatReactiveStreamGenerator` is embedded in `CP.TwinCATRx`; `TwinCATRx.Generators` is the standalone optional analyzer package for projects that intentionally pin it separately. Do not reference both analyzer versions in one project. Apply `TwinCatReactiveStreamAttribute(variable, dataType)` to a partial class for the legacy stream surface, or apply `TwinCatPlcConnectionAttribute(adsAddress, port)` to a partial connection class and decorate members with `DirectNotificationAttribute`, `StructuredNotificationAttribute`, and/or `WriteOnlyAttribute`.
+Install `IoT-Driver.TwinCATRx.Generators` alongside exactly one TwinCAT runtime package. Runtime packages never contain the generator assembly. Apply `TwinCatReactiveStreamAttribute(variable, dataType)` to a partial class for the legacy stream surface, or apply `TwinCatPlcConnectionAttribute(adsAddress, port)` to a partial connection class and decorate members with `DirectNotificationAttribute`, `StructuredNotificationAttribute`, and/or `WriteOnlyAttribute`.
 
 `DirectNotificationAttribute` accepts `Address`, optional `CycleTime`, `ArraySize`, `Id`, `ObservableName`, `CanWrite`, and `WriteAddress`. `StructuredNotificationAttribute` supplies an address and optional member address plus the same notification/write options. `WriteOnlyAttribute` supplies `Address`, `ArraySize`, and `Id`. The generator emits strongly typed properties, observable members, read/write helpers, settings registrations and connection lifecycle wiring; inspect compiler diagnostics/`obj` generated source when a partial declaration does not produce the expected member.
 
 ```csharp
-using IoT.DriverCore.TwinCATRx;
+using IoT.Driver.TwinCATRx;
 
 [TwinCatPlcConnection("5.35.59.10.1.1", 851, SettingsId = "LineA")]
 public sealed partial class LineConnection
@@ -236,11 +236,11 @@ public sealed partial class LineConnection
 // Generated members own typed observation/settings; the partial source remains the schema.
 ```
 
-The legacy stream attribute is useful for a small, focused model rather than a full connection declaration. It generates a nullable typed property, classic/async observable properties, logical-tag read/write helpers, and `BindTwinCatRx(IRxTcAdsClient)`. The analyzer is supplied by `CP.TwinCATRx` or, when version-pinned deliberately, `TwinCATRx.Generators`; never both versions.
+The legacy stream attribute is useful for a small, focused model rather than a full connection declaration. It generates a nullable typed property, classic/async observable properties, logical-tag read/write helpers, and `BindTwinCatRx(IRxTcAdsClient)`. The analyzer is supplied only by `IoT-Driver.TwinCATRx.Generators`.
 
 ```csharp
-using IoT.DriverCore.TwinCATRx;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx;
+using IoT.Driver.TwinCATRx.Core;
 using ReactiveUI.Primitives;
 
 [TwinCatReactiveStream(
@@ -261,12 +261,12 @@ client.Read(".Main.Counter"); // updates Counter and CounterValues through the g
 
 ### Core helpers, dynamic code generation, and service monitoring
 
-`CP.TwinCATRx.Core` contains `CodeGenerator`/`ICodeGenerator`, `CSharpLanguage`/`ILanguageService`, `INodeEmulator`, `DirectoryInfoExtensions`, `Notification`, `WriteVariable`, and the `SimpleTypeException`/`UnsuportedTypeException` error types. `CodeGenerator` uses a symbol graph to produce/compile dynamic type support. These are advanced integration APIs and carry dynamic-code/trimming annotations: validate the actual published artifact, preserve required members or choose source generation for NativeAOT/trimmed applications.
+`IoT-Driver.TwinCATRx.Core` contains `CodeGenerator`/`ICodeGenerator`, `CSharpLanguage`/`ILanguageService`, `INodeEmulator`, `DirectoryInfoExtensions`, `Notification`, `WriteVariable`, and the `SimpleTypeException`/`UnsuportedTypeException` error types. `CodeGenerator` uses a symbol graph to produce/compile dynamic type support. These are advanced integration APIs and carry dynamic-code/trimming annotations: validate the actual published artifact, preserve required members or choose source generation for NativeAOT/trimmed applications.
 
 `TwinCatRxExtensions.AdsStateChangedObserver` and `AdsStateObserver` expose ADS state changes. Its `OnErrorRetry` overload family retries an observable with optional exception type, retry count/delay, and error callback; use bounded retry with telemetry, not an infinite blind loop around a safety operation. `AssemblyLoad` and `GetType` support plug-in/type loading. `ObservableServiceController`, `IObservableServiceController`, and `ServiceStatus` are Windows service-monitoring APIs; use them only on supported Windows targets and dispose their polling subscription.
 
 ```csharp
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx.Core;
 using ReactiveUI.Primitives;
 using TwinCAT.Ads;
 
@@ -286,7 +286,7 @@ using var status = service.StatusObserver.Subscribe(s => Console.WriteLine(s));
 The core APIs are independently usable, but dynamic-code methods are deliberately explicit about their deployment cost. The following source-verified recipe gives an ADS-state observer a bounded retry policy, emits a small support assembly, and emits source from a symbol tree discovered from the configured route. Run the dynamic part only in a non-trimmed, trusted engineering tool; it is not required for normal `RxTcAdsClient` use.
 
 ```csharp
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx.Core;
 using TwinCAT.Ads;
 
 static IDisposable WatchAdsState(AdsClient ads) =>
@@ -415,7 +415,7 @@ The following is the public surface by member family. Overloads with `id` add co
 | Core retry, state and loading | Core `TwinCatRxExtensions.AdsStateChangedObserver`, `AdsStateObserver`, all `OnErrorRetry` overloads (basic; typed error callback; callback plus delay; callback plus retry count; callback plus retry count/delay/sequencer), `AssemblyLoad`, `GetType`. | State observers are streams. Retry extension overloads return a new sequence; use a finite count/delay/callback for production recovery and observe terminal errors. |
 | Dynamic code generation | `ICodeGenerator`, `CodeGenerator` constructors/properties, static `CodeGenerator.PLCToCSharpTypeConverter`, `CreateCSharpCode` overloads, `CreateCSharpCodeString` overloads, `CreateDll` overloads, `LoadSymbols` overloads, `ReadSymbol`, `SearchSymbols`, and `Dispose`; `ILanguageService`/`CSharpLanguage` (`CreateAssembly`, `ParseText`, `CreateLibraryCompilation`); `INodeEmulator`; `DirectoryInfoExtensions.GetFilesWhere` overloads; `SimpleTypeException`, `UnsuportedTypeException`. | Advanced reflection/dynamic-compilation integration. Generated DLL/source file operations return success flags and can throw IO/compiler errors; guard them and validate trim/AOT deployment. |
 | Structures | `CreateStruct` returns the public `HashTableRx` abstraction from its extension API. | It materializes ADS structure values; dispose the returned table to release its source subscription. |
-| Analyzer | `TwinCatReactiveStreamGenerator`. | It emits the compile-time schema attributes `TwinCatReactiveStreamAttribute`, `TwinCatPlcConnectionAttribute`, `DirectNotificationAttribute`, `StructuredNotificationAttribute`, and `WriteOnlyAttribute` into the consuming compilation; they are not public runtime package types. `CP.TwinCATRx` embeds the analyzer; `TwinCATRx.Generators` supplies the same analyzer as a standalone optional package. |
+| Analyzer | `TwinCatReactiveStreamGenerator`. | The standalone `IoT-Driver.TwinCATRx.Generators` package emits the compile-time schema attributes `TwinCatReactiveStreamAttribute`, `TwinCatPlcConnectionAttribute`, `DirectNotificationAttribute`, `StructuredNotificationAttribute`, and `WriteOnlyAttribute` into the consuming compilation; they are not public runtime package types. |
 
 ## Operational guidance
 
@@ -445,37 +445,37 @@ This catalogue is generated from the packaged runtime assemblies and their XML d
 
 Exported public types: 14; declared public members: 220.
 
-#### `T:IoT.DriverCore.TwinCATRx.IObservableServiceController`
+#### `T:IoT.Driver.TwinCATRx.IObservableServiceController`
 
 ```csharp
-public interface IoT.DriverCore.TwinCATRx.IObservableServiceController
+public interface IoT.Driver.TwinCATRx.IObservableServiceController
 ```
 Interface for Observable Service Controller.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.IObservableServiceController.Restart`
+###### `M:IoT.Driver.TwinCATRx.IObservableServiceController.Restart`
 
 ```csharp
 public void Restart()
 ```
 Restarts this instance.
 
-###### `M:IoT.DriverCore.TwinCATRx.IObservableServiceController.Start`
+###### `M:IoT.Driver.TwinCATRx.IObservableServiceController.Start`
 
 ```csharp
 public void Start()
 ```
 Starts this instance.
 
-###### `M:IoT.DriverCore.TwinCATRx.IObservableServiceController.Stop`
+###### `M:IoT.Driver.TwinCATRx.IObservableServiceController.Stop`
 
 ```csharp
 public void Stop()
 ```
 Stops this instance.
 
-###### `P:IoT.DriverCore.TwinCATRx.IObservableServiceController.CanStop`
+###### `P:IoT.Driver.TwinCATRx.IObservableServiceController.CanStop`
 
 ```csharp
 public bool CanStop { get; }
@@ -484,7 +484,7 @@ Gets a value indicating whether this instance can stop.
 
 - Value: true if this instance can stop; otherwise, false .
 
-###### `P:IoT.DriverCore.TwinCATRx.IObservableServiceController.DisplayName`
+###### `P:IoT.Driver.TwinCATRx.IObservableServiceController.DisplayName`
 
 ```csharp
 public string DisplayName { get; }
@@ -493,7 +493,7 @@ Gets the display name.
 
 - Value: The display name.
 
-###### `P:IoT.DriverCore.TwinCATRx.IObservableServiceController.ServiceName`
+###### `P:IoT.Driver.TwinCATRx.IObservableServiceController.ServiceName`
 
 ```csharp
 public string ServiceName { get; }
@@ -502,7 +502,7 @@ Gets the name of the service.
 
 - Value: The name of the service.
 
-###### `P:IoT.DriverCore.TwinCATRx.IObservableServiceController.Status`
+###### `P:IoT.Driver.TwinCATRx.IObservableServiceController.Status`
 
 ```csharp
 public System.ServiceProcess.ServiceControllerStatus Status { get; }
@@ -511,7 +511,7 @@ Gets the status.
 
 - Value: The status.
 
-###### `P:IoT.DriverCore.TwinCATRx.IObservableServiceController.StatusObserver`
+###### `P:IoT.Driver.TwinCATRx.IObservableServiceController.StatusObserver`
 
 ```csharp
 public System.IObservable<System.ServiceProcess.ServiceControllerStatus> StatusObserver { get; }
@@ -520,32 +520,32 @@ Gets the status observer.
 
 - Value: The status observer.
 
-#### `T:IoT.DriverCore.TwinCATRx.IRxTcAdsClient`
+#### `T:IoT.Driver.TwinCATRx.IRxTcAdsClient`
 
 ```csharp
-public interface IoT.DriverCore.TwinCATRx.IRxTcAdsClient
+public interface IoT.Driver.TwinCATRx.IRxTcAdsClient
 ```
 Interface for Rx Tc Ads Client.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.Connect(IoT.DriverCore.TwinCATRx.Core.ISettings)`
+###### `M:IoT.Driver.TwinCATRx.IRxTcAdsClient.Connect(IoT.Driver.TwinCATRx.Core.ISettings)`
 
 ```csharp
-public void Connect(IoT.DriverCore.TwinCATRx.Core.ISettings settings)
+public void Connect(IoT.Driver.TwinCATRx.Core.ISettings settings)
 ```
 Connects the specified settings.
 
 - Parameter `settings`: The settings.
 
-###### `M:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.Disconnect`
+###### `M:IoT.Driver.TwinCATRx.IRxTcAdsClient.Disconnect`
 
 ```csharp
 public void Disconnect()
 ```
 Disconnects this instance.
 
-###### `M:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.Pause(System.TimeSpan)`
+###### `M:IoT.Driver.TwinCATRx.IRxTcAdsClient.Pause(System.TimeSpan)`
 
 ```csharp
 public void Pause(System.TimeSpan time)
@@ -554,7 +554,7 @@ Pauses the specified time.
 
 - Parameter `time`: The time.
 
-###### `M:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.Read(System.String)`
+###### `M:IoT.Driver.TwinCATRx.IRxTcAdsClient.Read(System.String)`
 
 ```csharp
 public void Read(string variable)
@@ -563,7 +563,7 @@ Reads the specified data.
 
 - Parameter `variable`: The data.
 
-###### `M:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.Read(System.String,System.Nullable`1{System.Int32})`
+###### `M:IoT.Driver.TwinCATRx.IRxTcAdsClient.Read(System.String,System.Nullable`1{System.Int32})`
 
 ```csharp
 public void Read(string variable, System.Nullable<int> arrayLength)
@@ -573,7 +573,7 @@ Executes the `Read` operation.
 - Parameter `variable`: The `variable` value.
 - Parameter `arrayLength`: The `arrayLength` value.
 
-###### `M:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.Read(System.String,System.Nullable`1{System.Int32},System.String)`
+###### `M:IoT.Driver.TwinCATRx.IRxTcAdsClient.Read(System.String,System.Nullable`1{System.Int32},System.String)`
 
 ```csharp
 public void Read(string variable, System.Nullable<int> arrayLength, string id)
@@ -584,7 +584,7 @@ Executes the `Read` operation.
 - Parameter `arrayLength`: The `arrayLength` value.
 - Parameter `id`: The `id` value.
 
-###### `M:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.Read(System.String,System.String)`
+###### `M:IoT.Driver.TwinCATRx.IRxTcAdsClient.Read(System.String,System.String)`
 
 ```csharp
 public void Read(string variable, string id)
@@ -594,7 +594,7 @@ Reads the specified data with a correlation identifier.
 - Parameter `variable`: The data.
 - Parameter `id`: The identifier.
 
-###### `M:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.Write(System.String,System.Object)`
+###### `M:IoT.Driver.TwinCATRx.IRxTcAdsClient.Write(System.String,System.Object)`
 
 ```csharp
 public void Write(string variable, object value)
@@ -604,7 +604,7 @@ Writes the specified value.
 - Parameter `variable`: The variable.
 - Parameter `value`: The value.
 
-###### `M:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.Write(System.String,System.Object,System.String)`
+###### `M:IoT.Driver.TwinCATRx.IRxTcAdsClient.Write(System.String,System.Object,System.String)`
 
 ```csharp
 public void Write(string variable, object value, string id)
@@ -615,7 +615,7 @@ Writes the specified value with a correlation identifier.
 - Parameter `value`: The value.
 - Parameter `id`: The identifier.
 
-###### `P:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.Code`
+###### `P:IoT.Driver.TwinCATRx.IRxTcAdsClient.Code`
 
 ```csharp
 public System.IObservable<string[]> Code { get; }
@@ -624,7 +624,7 @@ Gets the code.
 
 - Value: The code.
 
-###### `P:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.DataReceived`
+###### `P:IoT.Driver.TwinCATRx.IRxTcAdsClient.DataReceived`
 
 ```csharp
 public System.IObservable<System.ValueTuple<string, object, string>> DataReceived { get; }
@@ -633,7 +633,7 @@ Gets the data received.
 
 - Value: The data received.
 
-###### `P:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.DataReceivedAsync`
+###### `P:IoT.Driver.TwinCATRx.IRxTcAdsClient.DataReceivedAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<System.ValueTuple<string, object, string>> DataReceivedAsync { get; }
@@ -642,7 +642,7 @@ Gets the async data received stream.
 
 - Value: The `DataReceivedAsync` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.ErrorReceived`
+###### `P:IoT.Driver.TwinCATRx.IRxTcAdsClient.ErrorReceived`
 
 ```csharp
 public System.IObservable<System.Exception> ErrorReceived { get; }
@@ -651,7 +651,7 @@ Gets the error received.
 
 - Value: The error received.
 
-###### `P:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.ErrorReceivedAsync`
+###### `P:IoT.Driver.TwinCATRx.IRxTcAdsClient.ErrorReceivedAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<System.Exception> ErrorReceivedAsync { get; }
@@ -660,7 +660,7 @@ Gets the async error received stream.
 
 - Value: The `ErrorReceivedAsync` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.InitializeComplete`
+###### `P:IoT.Driver.TwinCATRx.IRxTcAdsClient.InitializeComplete`
 
 ```csharp
 public System.IObservable<ReactiveUI.Primitives.RxVoid> InitializeComplete { get; }
@@ -669,7 +669,7 @@ Gets the initialize complete. PLC is ready to read and write.
 
 - Value: The initialize complete.
 
-###### `P:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.InitializeCompleteAsync`
+###### `P:IoT.Driver.TwinCATRx.IRxTcAdsClient.InitializeCompleteAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<ReactiveUI.Primitives.RxVoid> InitializeCompleteAsync { get; }
@@ -678,7 +678,7 @@ Gets the async initialize complete stream.
 
 - Value: The `InitializeCompleteAsync` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.IsDisposed`
+###### `P:IoT.Driver.TwinCATRx.IRxTcAdsClient.IsDisposed`
 
 ```csharp
 public bool IsDisposed { get; }
@@ -687,7 +687,7 @@ Gets a value indicating whether the instance is disposed.
 
 - Value: The `IsDisposed` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.IsPaused`
+###### `P:IoT.Driver.TwinCATRx.IRxTcAdsClient.IsPaused`
 
 ```csharp
 public bool IsPaused { get; }
@@ -696,7 +696,7 @@ Gets a value indicating whether this instance is paused within WriteValuesAsync.
 
 - Value: true if this instance is paused; otherwise, false .
 
-###### `P:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.IsPausedObservable`
+###### `P:IoT.Driver.TwinCATRx.IRxTcAdsClient.IsPausedObservable`
 
 ```csharp
 public System.IObservable<bool> IsPausedObservable { get; }
@@ -705,7 +705,7 @@ Gets the is paused observable.
 
 - Value: The is paused observable.
 
-###### `P:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.IsPausedObservableAsync`
+###### `P:IoT.Driver.TwinCATRx.IRxTcAdsClient.IsPausedObservableAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<bool> IsPausedObservableAsync { get; }
@@ -714,7 +714,7 @@ Gets the async paused state stream.
 
 - Value: The `IsPausedObservableAsync` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.OnWrite`
+###### `P:IoT.Driver.TwinCATRx.IRxTcAdsClient.OnWrite`
 
 ```csharp
 public System.IObservable<string> OnWrite { get; }
@@ -723,7 +723,7 @@ Gets the on write.
 
 - Value: The on write.
 
-###### `P:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.OnWriteAsync`
+###### `P:IoT.Driver.TwinCATRx.IRxTcAdsClient.OnWriteAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<string> OnWriteAsync { get; }
@@ -732,7 +732,7 @@ Gets the async write result stream.
 
 - Value: The `OnWriteAsync` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.ReadWriteHandleInfo`
+###### `P:IoT.Driver.TwinCATRx.IRxTcAdsClient.ReadWriteHandleInfo`
 
 ```csharp
 public System.Collections.Generic.IDictionary<string, System.Nullable<uint>> ReadWriteHandleInfo { get; }
@@ -741,16 +741,16 @@ Gets the read write handle information.
 
 - Value: The read write handle information.
 
-###### `P:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.Settings`
+###### `P:IoT.Driver.TwinCATRx.IRxTcAdsClient.Settings`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.Core.ISettings Settings { get; }
+public IoT.Driver.TwinCATRx.Core.ISettings Settings { get; }
 ```
 Gets the settings.
 
 - Value: The settings.
 
-###### `P:IoT.DriverCore.TwinCATRx.IRxTcAdsClient.WriteHandleInfo`
+###### `P:IoT.Driver.TwinCATRx.IRxTcAdsClient.WriteHandleInfo`
 
 ```csharp
 public System.Collections.Generic.IDictionary<string, System.ValueTuple<System.Nullable<uint>, int>> WriteHandleInfo { get; }
@@ -759,46 +759,46 @@ Gets the write handle information.
 
 - Value: The write handle information.
 
-#### `T:IoT.DriverCore.TwinCATRx.InMemoryAdsClient`
+#### `T:IoT.Driver.TwinCATRx.InMemoryAdsClient`
 
 ```csharp
-public class IoT.DriverCore.TwinCATRx.InMemoryAdsClient
+public class IoT.Driver.TwinCATRx.InMemoryAdsClient
 ```
 Provides a deterministic, production-usable ADS simulator for applications that need to run without a TwinCAT runtime or physical PLC.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.#ctor`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.#ctor`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsClient()
+public IoT.Driver.TwinCATRx.InMemoryAdsClient()
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.InMemoryAdsClient` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.InMemoryAdsClient` class.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.Connect(IoT.DriverCore.TwinCATRx.Core.ISettings)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.Connect(IoT.Driver.TwinCATRx.Core.ISettings)`
 
 ```csharp
-public void Connect(IoT.DriverCore.TwinCATRx.Core.ISettings settings)
+public void Connect(IoT.Driver.TwinCATRx.Core.ISettings settings)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `settings`: The `settings` value.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.Disconnect`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.Disconnect`
 
 ```csharp
 public void Disconnect()
 ```
 Inherits XML documentation from its implemented or overridden member.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.Dispose`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.Dispose`
 
 ```csharp
 public void Dispose()
 ```
 Inherits XML documentation from its implemented or overridden member.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.Pause(System.TimeSpan)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.Pause(System.TimeSpan)`
 
 ```csharp
 public void Pause(System.TimeSpan time)
@@ -807,17 +807,17 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `time`: The `time` value.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.PublishNotifications`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.PublishNotifications`
 
 ```csharp
 public void PublishNotifications()
 ```
 Publishes every configured notification using the latest in-memory symbol values.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.QueueFault(IoT.DriverCore.TwinCATRx.InMemoryAdsOperation,System.Exception)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.QueueFault(IoT.Driver.TwinCATRx.InMemoryAdsOperation,System.Exception)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsClient QueueFault(IoT.DriverCore.TwinCATRx.InMemoryAdsOperation operation, System.Exception error)
+public IoT.Driver.TwinCATRx.InMemoryAdsClient QueueFault(IoT.Driver.TwinCATRx.InMemoryAdsOperation operation, System.Exception error)
 ```
 Queues a failure for the next matching operation.
 
@@ -825,7 +825,7 @@ Queues a failure for the next matching operation.
 - Parameter `error`: The error to publish.
 - Returns: This simulator for fluent setup.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.Read(System.String)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.Read(System.String)`
 
 ```csharp
 public void Read(string variable)
@@ -834,7 +834,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `variable`: The `variable` value.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.Read(System.String,System.Nullable`1{System.Int32})`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.Read(System.String,System.Nullable`1{System.Int32})`
 
 ```csharp
 public void Read(string variable, System.Nullable<int> arrayLength)
@@ -844,7 +844,7 @@ Executes the `Read` operation.
 - Parameter `variable`: The `variable` value.
 - Parameter `arrayLength`: The `arrayLength` value.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.Read(System.String,System.Nullable`1{System.Int32},System.String)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.Read(System.String,System.Nullable`1{System.Int32},System.String)`
 
 ```csharp
 public void Read(string variable, System.Nullable<int> arrayLength, string id)
@@ -855,7 +855,7 @@ Executes the `Read` operation.
 - Parameter `arrayLength`: The `arrayLength` value.
 - Parameter `id`: The `id` value.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.Read(System.String,System.String)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.Read(System.String,System.String)`
 
 ```csharp
 public void Read(string variable, string id)
@@ -865,7 +865,7 @@ Inherits XML documentation from its implemented or overridden member.
 - Parameter `variable`: The `variable` value.
 - Parameter `id`: The `id` value.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.ReadMany(System.Collections.Generic.IEnumerable`1{System.String})`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.ReadMany(System.Collections.Generic.IEnumerable`1{System.String})`
 
 ```csharp
 public void ReadMany(System.Collections.Generic.IEnumerable<string> variables)
@@ -874,7 +874,7 @@ Executes the `ReadMany` operation.
 
 - Parameter `variables`: The `variables` value.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.ReadMany(System.Collections.Generic.IEnumerable`1{System.String},System.String)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.ReadMany(System.Collections.Generic.IEnumerable`1{System.String},System.String)`
 
 ```csharp
 public void ReadMany(System.Collections.Generic.IEnumerable<string> variables, string correlationPrefix)
@@ -884,17 +884,17 @@ Executes the `ReadMany` operation.
 - Parameter `variables`: The `variables` value.
 - Parameter `correlationPrefix`: The `correlationPrefix` value.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.Reconnect`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.Reconnect`
 
 ```csharp
 public void Reconnect()
 ```
 Reconnects with the latest settings while preserving registered symbols and queued faults.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.RegisterStructure``1(System.String,``0)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.RegisterStructure``1(System.String,``0)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsClient RegisterStructure<T>(string name, T value)
+public IoT.Driver.TwinCATRx.InMemoryAdsClient RegisterStructure<T>(string name, T value)
 ```
 Registers or replaces an in-memory structure symbol.
 
@@ -902,10 +902,10 @@ Registers or replaces an in-memory structure symbol.
 - Parameter `value`: The structure value.
 - Returns: This simulator for fluent setup.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.RegisterStructure``1(System.String,``0,System.Boolean,System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.RegisterStructure``1(System.String,``0,System.Boolean,System.Boolean)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsClient RegisterStructure<T>(string name, T value, bool isReadable, bool isWritable)
+public IoT.Driver.TwinCATRx.InMemoryAdsClient RegisterStructure<T>(string name, T value, bool isReadable, bool isWritable)
 ```
 Registers or replaces an in-memory structure symbol with full access metadata.
 
@@ -915,10 +915,10 @@ Registers or replaces an in-memory structure symbol with full access metadata.
 - Parameter `isWritable`: Whether writes are permitted.
 - Returns: This simulator for fluent setup.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.RegisterSymbol(System.String,System.Object)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.RegisterSymbol(System.String,System.Object)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsClient RegisterSymbol(string name, object value)
+public IoT.Driver.TwinCATRx.InMemoryAdsClient RegisterSymbol(string name, object value)
 ```
 Registers or replaces an in-memory ADS symbol.
 
@@ -926,10 +926,10 @@ Registers or replaces an in-memory ADS symbol.
 - Parameter `value`: The initial value.
 - Returns: This simulator for fluent setup.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.RegisterSymbol(System.String,System.Object,System.Type)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.RegisterSymbol(System.String,System.Object,System.Type)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsClient RegisterSymbol(string name, object value, System.Type dataType)
+public IoT.Driver.TwinCATRx.InMemoryAdsClient RegisterSymbol(string name, object value, System.Type dataType)
 ```
 Registers or replaces an in-memory ADS symbol with an explicit declared type.
 
@@ -938,10 +938,10 @@ Registers or replaces an in-memory ADS symbol with an explicit declared type.
 - Parameter `dataType`: The declared type.
 - Returns: This simulator for fluent setup.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.RegisterSymbol(System.String,System.Object,System.Type,System.Int32,System.Boolean,System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.RegisterSymbol(System.String,System.Object,System.Type,System.Int32,System.Boolean,System.Boolean)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsClient RegisterSymbol(string name, object value, System.Type dataType, int arrayLength, bool isReadable, bool isWritable)
+public IoT.Driver.TwinCATRx.InMemoryAdsClient RegisterSymbol(string name, object value, System.Type dataType, int arrayLength, bool isReadable, bool isWritable)
 ```
 Registers or replaces an in-memory ADS symbol with full access metadata.
 
@@ -953,7 +953,7 @@ Registers or replaces an in-memory ADS symbol with full access metadata.
 - Parameter `isWritable`: Whether writes are permitted.
 - Returns: This simulator for fluent setup.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.RemoveSymbol(System.String)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.RemoveSymbol(System.String)`
 
 ```csharp
 public bool RemoveSymbol(string name)
@@ -963,14 +963,14 @@ Removes a registered symbol and any configured handles for it.
 - Parameter `name`: The symbol name.
 - Returns: Whether a symbol was removed.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.ResetOperationMetrics`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.ResetOperationMetrics`
 
 ```csharp
 public void ResetOperationMetrics()
 ```
 Resets deterministic native ADS operation counts without changing simulator state.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.SetValue(System.String,System.Object)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.SetValue(System.String,System.Object)`
 
 ```csharp
 public void SetValue(string variable, object value)
@@ -980,7 +980,7 @@ Updates a symbol as if its value changed in the simulated PLC.
 - Parameter `variable`: The variable to update.
 - Parameter `value`: The new value.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.TryGetValue``1(System.String,``0@)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.TryGetValue``1(System.String,``0@)`
 
 ```csharp
 public bool TryGetValue<T>(string variable, out T value)
@@ -991,7 +991,7 @@ Tries to retrieve and convert a registered symbol value.
 - Parameter `value`: The converted value when successful.
 - Returns: Whether the symbol exists and its value is compatible.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.Write(System.String,System.Object)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.Write(System.String,System.Object)`
 
 ```csharp
 public void Write(string variable, object value)
@@ -1001,7 +1001,7 @@ Inherits XML documentation from its implemented or overridden member.
 - Parameter `variable`: The `variable` value.
 - Parameter `value`: The `value` value.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.Write(System.String,System.Object,System.String)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.Write(System.String,System.Object,System.String)`
 
 ```csharp
 public void Write(string variable, object value, string id)
@@ -1012,7 +1012,7 @@ Inherits XML documentation from its implemented or overridden member.
 - Parameter `value`: The `value` value.
 - Parameter `id`: The `id` value.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.WriteMany(System.Collections.Generic.IEnumerable`1{System.Collections.Generic.KeyValuePair`2{System.String,System.Object}})`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.WriteMany(System.Collections.Generic.IEnumerable`1{System.Collections.Generic.KeyValuePair`2{System.String,System.Object}})`
 
 ```csharp
 public void WriteMany(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, object>> values)
@@ -1021,7 +1021,7 @@ Executes the `WriteMany` operation.
 
 - Parameter `values`: The `values` value.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.WriteMany(System.Collections.Generic.IEnumerable`1{System.Collections.Generic.KeyValuePair`2{System.String,System.Object}},System.String)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsClient.WriteMany(System.Collections.Generic.IEnumerable`1{System.Collections.Generic.KeyValuePair`2{System.String,System.Object}},System.String)`
 
 ```csharp
 public void WriteMany(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, object>> values, string correlationPrefix)
@@ -1031,7 +1031,7 @@ Executes the `WriteMany` operation.
 - Parameter `values`: The `values` value.
 - Parameter `correlationPrefix`: The `correlationPrefix` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.Code`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.Code`
 
 ```csharp
 public System.IObservable<string[]> Code { get; }
@@ -1040,7 +1040,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `Code` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.Connected`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.Connected`
 
 ```csharp
 public bool Connected { get; }
@@ -1049,25 +1049,25 @@ Gets a value indicating whether the simulator is connected.
 
 - Value: The `Connected` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.ConnectionState`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.ConnectionState`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsConnectionState ConnectionState { get; }
+public IoT.Driver.TwinCATRx.InMemoryAdsConnectionState ConnectionState { get; }
 ```
 Gets the current simulator connection state.
 
 - Value: The `ConnectionState` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.ConnectionStates`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.ConnectionStates`
 
 ```csharp
-public System.IObservable<IoT.DriverCore.TwinCATRx.InMemoryAdsConnectionState> ConnectionStates { get; }
+public System.IObservable<IoT.Driver.TwinCATRx.InMemoryAdsConnectionState> ConnectionStates { get; }
 ```
 Gets the observable connection state stream.
 
 - Value: The `ConnectionStates` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.DataReceived`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.DataReceived`
 
 ```csharp
 public System.IObservable<System.ValueTuple<string, object, string>> DataReceived { get; }
@@ -1076,7 +1076,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `DataReceived` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.DataReceivedAsync`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.DataReceivedAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<System.ValueTuple<string, object, string>> DataReceivedAsync { get; }
@@ -1085,7 +1085,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `DataReceivedAsync` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.ErrorReceived`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.ErrorReceived`
 
 ```csharp
 public System.IObservable<System.Exception> ErrorReceived { get; }
@@ -1094,7 +1094,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `ErrorReceived` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.ErrorReceivedAsync`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.ErrorReceivedAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<System.Exception> ErrorReceivedAsync { get; }
@@ -1103,7 +1103,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `ErrorReceivedAsync` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.InitializeComplete`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.InitializeComplete`
 
 ```csharp
 public System.IObservable<ReactiveUI.Primitives.RxVoid> InitializeComplete { get; }
@@ -1112,7 +1112,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `InitializeComplete` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.InitializeCompleteAsync`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.InitializeCompleteAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<ReactiveUI.Primitives.RxVoid> InitializeCompleteAsync { get; }
@@ -1121,7 +1121,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `InitializeCompleteAsync` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.IsDisposed`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.IsDisposed`
 
 ```csharp
 public bool IsDisposed { get; }
@@ -1130,7 +1130,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `IsDisposed` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.IsPaused`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.IsPaused`
 
 ```csharp
 public bool IsPaused { get; }
@@ -1139,7 +1139,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `IsPaused` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.IsPausedObservable`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.IsPausedObservable`
 
 ```csharp
 public System.IObservable<bool> IsPausedObservable { get; }
@@ -1148,7 +1148,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `IsPausedObservable` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.IsPausedObservableAsync`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.IsPausedObservableAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<bool> IsPausedObservableAsync { get; }
@@ -1157,7 +1157,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `IsPausedObservableAsync` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.OnWrite`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.OnWrite`
 
 ```csharp
 public System.IObservable<string> OnWrite { get; }
@@ -1166,7 +1166,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `OnWrite` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.OnWriteAsync`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.OnWriteAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<string> OnWriteAsync { get; }
@@ -1175,16 +1175,16 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `OnWriteAsync` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.OperationMetrics`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.OperationMetrics`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsOperationMetrics OperationMetrics { get; }
+public IoT.Driver.TwinCATRx.InMemoryAdsOperationMetrics OperationMetrics { get; }
 ```
 Gets a deterministic snapshot of native ADS operation counts.
 
 - Value: The `OperationMetrics` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.ReadWriteHandleInfo`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.ReadWriteHandleInfo`
 
 ```csharp
 public System.Collections.Generic.IDictionary<string, System.Nullable<uint>> ReadWriteHandleInfo { get; }
@@ -1193,25 +1193,25 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `ReadWriteHandleInfo` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.Settings`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.Settings`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.Core.ISettings Settings { get; }
+public IoT.Driver.TwinCATRx.Core.ISettings Settings { get; }
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `Settings` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.Symbols`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.Symbols`
 
 ```csharp
-public System.Collections.Generic.IReadOnlyCollection<IoT.DriverCore.TwinCATRx.InMemoryAdsSymbol> Symbols { get; }
+public System.Collections.Generic.IReadOnlyCollection<IoT.Driver.TwinCATRx.InMemoryAdsSymbol> Symbols { get; }
 ```
 Gets a snapshot of all registered symbols.
 
 - Value: The `Symbols` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsClient.WriteHandleInfo`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsClient.WriteHandleInfo`
 
 ```csharp
 public System.Collections.Generic.IDictionary<string, System.ValueTuple<System.Nullable<uint>, int>> WriteHandleInfo { get; }
@@ -1220,116 +1220,116 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `WriteHandleInfo` value.
 
-#### `T:IoT.DriverCore.TwinCATRx.InMemoryAdsConnectionState`
+#### `T:IoT.Driver.TwinCATRx.InMemoryAdsConnectionState`
 
 ```csharp
-public enum IoT.DriverCore.TwinCATRx.InMemoryAdsConnectionState
+public enum IoT.Driver.TwinCATRx.InMemoryAdsConnectionState
 ```
-Describes the lifecycle state of an `T:IoT.DriverCore.TwinCATRx.InMemoryAdsClient` .
+Describes the lifecycle state of an `T:IoT.Driver.TwinCATRx.InMemoryAdsClient` .
 
 ##### Declared public members
 
-###### `F:IoT.DriverCore.TwinCATRx.InMemoryAdsConnectionState.Connected`
+###### `F:IoT.Driver.TwinCATRx.InMemoryAdsConnectionState.Connected`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.InMemoryAdsConnectionState Connected
+public static const IoT.Driver.TwinCATRx.InMemoryAdsConnectionState Connected
 ```
 The simulator is ready to service reads, writes, and notifications.
 
-###### `F:IoT.DriverCore.TwinCATRx.InMemoryAdsConnectionState.Connecting`
+###### `F:IoT.Driver.TwinCATRx.InMemoryAdsConnectionState.Connecting`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.InMemoryAdsConnectionState Connecting
+public static const IoT.Driver.TwinCATRx.InMemoryAdsConnectionState Connecting
 ```
 The simulator is validating settings and creating handles.
 
-###### `F:IoT.DriverCore.TwinCATRx.InMemoryAdsConnectionState.Disconnected`
+###### `F:IoT.Driver.TwinCATRx.InMemoryAdsConnectionState.Disconnected`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.InMemoryAdsConnectionState Disconnected
+public static const IoT.Driver.TwinCATRx.InMemoryAdsConnectionState Disconnected
 ```
 The simulator is disconnected and can be connected.
 
-###### `F:IoT.DriverCore.TwinCATRx.InMemoryAdsConnectionState.Disposed`
+###### `F:IoT.Driver.TwinCATRx.InMemoryAdsConnectionState.Disposed`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.InMemoryAdsConnectionState Disposed
+public static const IoT.Driver.TwinCATRx.InMemoryAdsConnectionState Disposed
 ```
 The simulator and its observable streams have been disposed.
 
-###### `F:IoT.DriverCore.TwinCATRx.InMemoryAdsConnectionState.Faulted`
+###### `F:IoT.Driver.TwinCATRx.InMemoryAdsConnectionState.Faulted`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.InMemoryAdsConnectionState Faulted
+public static const IoT.Driver.TwinCATRx.InMemoryAdsConnectionState Faulted
 ```
 The latest connection attempt or simulated operation failed.
 
-#### `T:IoT.DriverCore.TwinCATRx.InMemoryAdsException`
+#### `T:IoT.Driver.TwinCATRx.InMemoryAdsException`
 
 ```csharp
-public class IoT.DriverCore.TwinCATRx.InMemoryAdsException
+public class IoT.Driver.TwinCATRx.InMemoryAdsException
 ```
 Represents a deterministic in-memory ADS operation failure.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsException.#ctor`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsException.#ctor`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsException()
+public IoT.Driver.TwinCATRx.InMemoryAdsException()
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.InMemoryAdsException` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.InMemoryAdsException` class.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsException.#ctor(IoT.DriverCore.TwinCATRx.InMemoryAdsOperation,System.String)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsException.#ctor(IoT.Driver.TwinCATRx.InMemoryAdsOperation,System.String)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsException(IoT.DriverCore.TwinCATRx.InMemoryAdsOperation operation, string message)
+public IoT.Driver.TwinCATRx.InMemoryAdsException(IoT.Driver.TwinCATRx.InMemoryAdsOperation operation, string message)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.InMemoryAdsException` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.InMemoryAdsException` class.
 
 - Parameter `operation`: The failed operation.
 - Parameter `message`: The failure message.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsException.#ctor(IoT.DriverCore.TwinCATRx.InMemoryAdsOperation,System.String,System.String)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsException.#ctor(IoT.Driver.TwinCATRx.InMemoryAdsOperation,System.String,System.String)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsException(IoT.DriverCore.TwinCATRx.InMemoryAdsOperation operation, string message, string variable)
+public IoT.Driver.TwinCATRx.InMemoryAdsException(IoT.Driver.TwinCATRx.InMemoryAdsOperation operation, string message, string variable)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.InMemoryAdsException` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.InMemoryAdsException` class.
 
 - Parameter `operation`: The failed operation.
 - Parameter `message`: The failure message.
 - Parameter `variable`: The optional ADS variable involved in the failure.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsException.#ctor(System.String)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsException.#ctor(System.String)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsException(string message)
+public IoT.Driver.TwinCATRx.InMemoryAdsException(string message)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.InMemoryAdsException` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.InMemoryAdsException` class.
 
 - Parameter `message`: The failure message.
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsException.#ctor(System.String,System.Exception)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsException.#ctor(System.String,System.Exception)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsException(string message, System.Exception innerException)
+public IoT.Driver.TwinCATRx.InMemoryAdsException(string message, System.Exception innerException)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.InMemoryAdsException` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.InMemoryAdsException` class.
 
 - Parameter `message`: The failure message.
 - Parameter `innerException`: The failure that caused this exception.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsException.Operation`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsException.Operation`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsOperation Operation { get; }
+public IoT.Driver.TwinCATRx.InMemoryAdsOperation Operation { get; }
 ```
 Gets the failed operation.
 
 - Value: The `Operation` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsException.Variable`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsException.Variable`
 
 ```csharp
 public string Variable { get; }
@@ -1338,64 +1338,64 @@ Gets the optional ADS variable involved in the failure.
 
 - Value: The `Variable` value.
 
-#### `T:IoT.DriverCore.TwinCATRx.InMemoryAdsOperation`
+#### `T:IoT.Driver.TwinCATRx.InMemoryAdsOperation`
 
 ```csharp
-public enum IoT.DriverCore.TwinCATRx.InMemoryAdsOperation
+public enum IoT.Driver.TwinCATRx.InMemoryAdsOperation
 ```
 Identifies an operation that can receive a deterministic simulator fault.
 
 ##### Declared public members
 
-###### `F:IoT.DriverCore.TwinCATRx.InMemoryAdsOperation.Connect`
+###### `F:IoT.Driver.TwinCATRx.InMemoryAdsOperation.Connect`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.InMemoryAdsOperation Connect
+public static const IoT.Driver.TwinCATRx.InMemoryAdsOperation Connect
 ```
 A connection or reconnection operation.
 
-###### `F:IoT.DriverCore.TwinCATRx.InMemoryAdsOperation.Notification`
+###### `F:IoT.Driver.TwinCATRx.InMemoryAdsOperation.Notification`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.InMemoryAdsOperation Notification
+public static const IoT.Driver.TwinCATRx.InMemoryAdsOperation Notification
 ```
 A configured notification publication.
 
-###### `F:IoT.DriverCore.TwinCATRx.InMemoryAdsOperation.Read`
+###### `F:IoT.Driver.TwinCATRx.InMemoryAdsOperation.Read`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.InMemoryAdsOperation Read
+public static const IoT.Driver.TwinCATRx.InMemoryAdsOperation Read
 ```
 A symbol read operation.
 
-###### `F:IoT.DriverCore.TwinCATRx.InMemoryAdsOperation.Write`
+###### `F:IoT.Driver.TwinCATRx.InMemoryAdsOperation.Write`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.InMemoryAdsOperation Write
+public static const IoT.Driver.TwinCATRx.InMemoryAdsOperation Write
 ```
 A symbol write operation.
 
-#### `T:IoT.DriverCore.TwinCATRx.InMemoryAdsOperationMetrics`
+#### `T:IoT.Driver.TwinCATRx.InMemoryAdsOperationMetrics`
 
 ```csharp
-public class IoT.DriverCore.TwinCATRx.InMemoryAdsOperationMetrics
+public class IoT.Driver.TwinCATRx.InMemoryAdsOperationMetrics
 ```
 Provides a deterministic snapshot of native ADS operations issued to an in-memory client.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsOperationMetrics.#ctor(System.Int64,System.Int64,System.Int64)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsOperationMetrics.#ctor(System.Int64,System.Int64,System.Int64)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsOperationMetrics(long readOperations, long writeOperations, long notificationPublications)
+public IoT.Driver.TwinCATRx.InMemoryAdsOperationMetrics(long readOperations, long writeOperations, long notificationPublications)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.InMemoryAdsOperationMetrics` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.InMemoryAdsOperationMetrics` class.
 
 - Parameter `readOperations`: The number of native read attempts.
 - Parameter `writeOperations`: The number of native write attempts.
 - Parameter `notificationPublications`: The number of notification publication attempts.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsOperationMetrics.NotificationPublications`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsOperationMetrics.NotificationPublications`
 
 ```csharp
 public long NotificationPublications { get; }
@@ -1404,7 +1404,7 @@ Gets the number of notification publication attempts.
 
 - Value: The `NotificationPublications` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsOperationMetrics.ReadOperations`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsOperationMetrics.ReadOperations`
 
 ```csharp
 public long ReadOperations { get; }
@@ -1413,7 +1413,7 @@ Gets the number of native read attempts.
 
 - Value: The `ReadOperations` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsOperationMetrics.WriteOperations`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsOperationMetrics.WriteOperations`
 
 ```csharp
 public long WriteOperations { get; }
@@ -1422,21 +1422,21 @@ Gets the number of native write attempts.
 
 - Value: The `WriteOperations` value.
 
-#### `T:IoT.DriverCore.TwinCATRx.InMemoryAdsSymbol`
+#### `T:IoT.Driver.TwinCATRx.InMemoryAdsSymbol`
 
 ```csharp
-public class IoT.DriverCore.TwinCATRx.InMemoryAdsSymbol
+public class IoT.Driver.TwinCATRx.InMemoryAdsSymbol
 ```
-Describes one symbol hosted by an `T:IoT.DriverCore.TwinCATRx.InMemoryAdsClient` .
+Describes one symbol hosted by an `T:IoT.Driver.TwinCATRx.InMemoryAdsClient` .
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.InMemoryAdsSymbol.#ctor(System.String,System.Object,System.Type,System.Int32,System.Boolean,System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.InMemoryAdsSymbol.#ctor(System.String,System.Object,System.Type,System.Int32,System.Boolean,System.Boolean)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.InMemoryAdsSymbol(string name, object value, System.Type dataType, int arrayLength, bool isReadable, bool isWritable)
+public IoT.Driver.TwinCATRx.InMemoryAdsSymbol(string name, object value, System.Type dataType, int arrayLength, bool isReadable, bool isWritable)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.InMemoryAdsSymbol` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.InMemoryAdsSymbol` class.
 
 - Parameter `name`: The case-insensitive ADS variable name.
 - Parameter `value`: The initial symbol value.
@@ -1445,7 +1445,7 @@ Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.InMemoryAdsSymbol`
 - Parameter `isReadable`: Whether ADS reads are permitted.
 - Parameter `isWritable`: Whether ADS writes are permitted.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsSymbol.ArrayLength`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsSymbol.ArrayLength`
 
 ```csharp
 public int ArrayLength { get; }
@@ -1454,7 +1454,7 @@ Gets the declared array or string length, or -1 for a scalar.
 
 - Value: The `ArrayLength` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsSymbol.DataType`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsSymbol.DataType`
 
 ```csharp
 public System.Type DataType { get; }
@@ -1463,7 +1463,7 @@ Gets the declared value type.
 
 - Value: The `DataType` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsSymbol.IsReadable`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsSymbol.IsReadable`
 
 ```csharp
 public bool IsReadable { get; }
@@ -1472,7 +1472,7 @@ Gets a value indicating whether ADS reads are permitted.
 
 - Value: The `IsReadable` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsSymbol.IsWritable`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsSymbol.IsWritable`
 
 ```csharp
 public bool IsWritable { get; }
@@ -1481,7 +1481,7 @@ Gets a value indicating whether ADS writes are permitted.
 
 - Value: The `IsWritable` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsSymbol.Name`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsSymbol.Name`
 
 ```csharp
 public string Name { get; }
@@ -1490,7 +1490,7 @@ Gets the case-insensitive ADS variable name.
 
 - Value: The `Name` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.InMemoryAdsSymbol.Value`
+###### `P:IoT.Driver.TwinCATRx.InMemoryAdsSymbol.Value`
 
 ```csharp
 public object Value { get; }
@@ -1499,16 +1499,16 @@ Gets the current symbol value.
 
 - Value: The `Value` value.
 
-#### `T:IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions`
+#### `T:IoT.Driver.TwinCATRx.ObservableBridgeExtensions`
 
 ```csharp
-public class IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions
+public class IoT.Driver.TwinCATRx.ObservableBridgeExtensions
 ```
 Observable bridge helpers.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions.SubscribeTo``1(System.IObservable`1{``0})`
+###### `M:IoT.Driver.TwinCATRx.ObservableBridgeExtensions.SubscribeTo``1(System.IObservable`1{``0})`
 
 ```csharp
 public static System.IDisposable SubscribeTo<T>(System.IObservable<T> source)
@@ -1518,7 +1518,7 @@ Executes the `SubscribeTo` operation.
 - Parameter `source`: The `source` value.
 - Returns: A `System.IDisposable` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions.SubscribeTo``1(System.IObservable`1{``0},System.Action`1{``0})`
+###### `M:IoT.Driver.TwinCATRx.ObservableBridgeExtensions.SubscribeTo``1(System.IObservable`1{``0},System.Action`1{``0})`
 
 ```csharp
 public static System.IDisposable SubscribeTo<T>(System.IObservable<T> source, System.Action<T> onNext)
@@ -1529,7 +1529,7 @@ Executes the `SubscribeTo` operation.
 - Parameter `onNext`: The `onNext` value.
 - Returns: A `System.IDisposable` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions.SubscribeTo``1(System.IObservable`1{``0},System.Action`1{``0},System.Action`1{System.Exception},System.Action)`
+###### `M:IoT.Driver.TwinCATRx.ObservableBridgeExtensions.SubscribeTo``1(System.IObservable`1{``0},System.Action`1{``0},System.Action`1{System.Exception},System.Action)`
 
 ```csharp
 public static System.IDisposable SubscribeTo<T>(System.IObservable<T> source, System.Action<T> onNext, System.Action<System.Exception> onError, System.Action onCompleted)
@@ -1542,7 +1542,7 @@ Executes the `SubscribeTo` operation.
 - Parameter `onCompleted`: The `onCompleted` value.
 - Returns: A `System.IDisposable` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions.ToAsyncObservable``1(System.IObservable`1{``0})`
+###### `M:IoT.Driver.TwinCATRx.ObservableBridgeExtensions.ToAsyncObservable``1(System.IObservable`1{``0})`
 
 ```csharp
 public static ReactiveUI.Primitives.Async.IObservableAsync<T> ToAsyncObservable<T>(System.IObservable<T> source)
@@ -1552,72 +1552,72 @@ Executes the `ToAsyncObservable` operation.
 - Parameter `source`: The `source` value.
 - Returns: A `ReactiveUI.Primitives.Async.IObservableAsync<T>` result.
 
-#### `T:IoT.DriverCore.TwinCATRx.ObservableServiceController`
+#### `T:IoT.Driver.TwinCATRx.ObservableServiceController`
 
 ```csharp
-public class IoT.DriverCore.TwinCATRx.ObservableServiceController
+public class IoT.Driver.TwinCATRx.ObservableServiceController
 ```
 Observable Service Controller.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.ObservableServiceController.#ctor(System.ServiceProcess.ServiceController)`
+###### `M:IoT.Driver.TwinCATRx.ObservableServiceController.#ctor(System.ServiceProcess.ServiceController)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.ObservableServiceController(System.ServiceProcess.ServiceController service)
+public IoT.Driver.TwinCATRx.ObservableServiceController(System.ServiceProcess.ServiceController service)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.ObservableServiceController` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.ObservableServiceController` class.
 
 - Parameter `service`: The service.
 
-###### `M:IoT.DriverCore.TwinCATRx.ObservableServiceController.#ctor(System.ServiceProcess.ServiceController,System.TimeSpan)`
+###### `M:IoT.Driver.TwinCATRx.ObservableServiceController.#ctor(System.ServiceProcess.ServiceController,System.TimeSpan)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.ObservableServiceController(System.ServiceProcess.ServiceController service, System.TimeSpan interval)
+public IoT.Driver.TwinCATRx.ObservableServiceController(System.ServiceProcess.ServiceController service, System.TimeSpan interval)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.ObservableServiceController` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.ObservableServiceController` class.
 
 - Parameter `service`: The service.
 - Parameter `interval`: The interval.
 
-###### `M:IoT.DriverCore.TwinCATRx.ObservableServiceController.Dispose`
+###### `M:IoT.Driver.TwinCATRx.ObservableServiceController.Dispose`
 
 ```csharp
 public void Dispose()
 ```
 Releases managed and unmanaged resources.
 
-###### `M:IoT.DriverCore.TwinCATRx.ObservableServiceController.GetServices`
+###### `M:IoT.Driver.TwinCATRx.ObservableServiceController.GetServices`
 
 ```csharp
-public static System.IObservable<IoT.DriverCore.TwinCATRx.ObservableServiceController> GetServices()
+public static System.IObservable<IoT.Driver.TwinCATRx.ObservableServiceController> GetServices()
 ```
 Gets the services.
 
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.ObservableServiceController.Restart`
+###### `M:IoT.Driver.TwinCATRx.ObservableServiceController.Restart`
 
 ```csharp
 public void Restart()
 ```
 Restarts this instance.
 
-###### `M:IoT.DriverCore.TwinCATRx.ObservableServiceController.Start`
+###### `M:IoT.Driver.TwinCATRx.ObservableServiceController.Start`
 
 ```csharp
 public void Start()
 ```
 Starts this instance.
 
-###### `M:IoT.DriverCore.TwinCATRx.ObservableServiceController.Stop`
+###### `M:IoT.Driver.TwinCATRx.ObservableServiceController.Stop`
 
 ```csharp
 public void Stop()
 ```
 Stops this instance.
 
-###### `P:IoT.DriverCore.TwinCATRx.ObservableServiceController.CanStop`
+###### `P:IoT.Driver.TwinCATRx.ObservableServiceController.CanStop`
 
 ```csharp
 public bool CanStop { get; }
@@ -1626,7 +1626,7 @@ Gets a value indicating whether this instance can stop.
 
 - Value: true if this instance can stop; otherwise, false .
 
-###### `P:IoT.DriverCore.TwinCATRx.ObservableServiceController.DisplayName`
+###### `P:IoT.Driver.TwinCATRx.ObservableServiceController.DisplayName`
 
 ```csharp
 public string DisplayName { get; }
@@ -1635,7 +1635,7 @@ Gets the display name.
 
 - Value: The display name.
 
-###### `P:IoT.DriverCore.TwinCATRx.ObservableServiceController.IsDisposed`
+###### `P:IoT.Driver.TwinCATRx.ObservableServiceController.IsDisposed`
 
 ```csharp
 public bool IsDisposed { get; }
@@ -1644,7 +1644,7 @@ Gets a value indicating whether the is disposed.
 
 - Value: The `IsDisposed` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.ObservableServiceController.ServiceName`
+###### `P:IoT.Driver.TwinCATRx.ObservableServiceController.ServiceName`
 
 ```csharp
 public string ServiceName { get; }
@@ -1653,7 +1653,7 @@ Gets the name of the service.
 
 - Value: The name of the service.
 
-###### `P:IoT.DriverCore.TwinCATRx.ObservableServiceController.Status`
+###### `P:IoT.Driver.TwinCATRx.ObservableServiceController.Status`
 
 ```csharp
 public System.ServiceProcess.ServiceControllerStatus Status { get; }
@@ -1662,7 +1662,7 @@ Gets the status.
 
 - Value: The status.
 
-###### `P:IoT.DriverCore.TwinCATRx.ObservableServiceController.StatusObserver`
+###### `P:IoT.Driver.TwinCATRx.ObservableServiceController.StatusObserver`
 
 ```csharp
 public System.IObservable<System.ServiceProcess.ServiceControllerStatus> StatusObserver { get; }
@@ -1671,55 +1671,55 @@ Gets the status.
 
 - Value: The status.
 
-#### `T:IoT.DriverCore.TwinCATRx.RxTcAdsClient`
+#### `T:IoT.Driver.TwinCATRx.RxTcAdsClient`
 
 ```csharp
-public class IoT.DriverCore.TwinCATRx.RxTcAdsClient
+public class IoT.Driver.TwinCATRx.RxTcAdsClient
 ```
 Observable TwinCAT ADS Client.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.RxTcAdsClient.#ctor`
+###### `M:IoT.Driver.TwinCATRx.RxTcAdsClient.#ctor`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.RxTcAdsClient()
+public IoT.Driver.TwinCATRx.RxTcAdsClient()
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.RxTcAdsClient` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.RxTcAdsClient` class.
 
-###### `M:IoT.DriverCore.TwinCATRx.RxTcAdsClient.#ctor(System.TimeProvider)`
+###### `M:IoT.Driver.TwinCATRx.RxTcAdsClient.#ctor(System.TimeProvider)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.RxTcAdsClient(System.TimeProvider timeProvider)
+public IoT.Driver.TwinCATRx.RxTcAdsClient(System.TimeProvider timeProvider)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.RxTcAdsClient` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.RxTcAdsClient` class.
 
 - Parameter `timeProvider`: The time provider.
 
-###### `M:IoT.DriverCore.TwinCATRx.RxTcAdsClient.Connect(IoT.DriverCore.TwinCATRx.Core.ISettings)`
+###### `M:IoT.Driver.TwinCATRx.RxTcAdsClient.Connect(IoT.Driver.TwinCATRx.Core.ISettings)`
 
 ```csharp
-public void Connect(IoT.DriverCore.TwinCATRx.Core.ISettings settings)
+public void Connect(IoT.Driver.TwinCATRx.Core.ISettings settings)
 ```
 Connects the specified settings.
 
 - Parameter `settings`: The settings.
 
-###### `M:IoT.DriverCore.TwinCATRx.RxTcAdsClient.Disconnect`
+###### `M:IoT.Driver.TwinCATRx.RxTcAdsClient.Disconnect`
 
 ```csharp
 public void Disconnect()
 ```
 Disconnects this instance.
 
-###### `M:IoT.DriverCore.TwinCATRx.RxTcAdsClient.Dispose`
+###### `M:IoT.Driver.TwinCATRx.RxTcAdsClient.Dispose`
 
 ```csharp
 public void Dispose()
 ```
 Releases unmanaged and - optionally - managed resources.
 
-###### `M:IoT.DriverCore.TwinCATRx.RxTcAdsClient.Pause(System.TimeSpan)`
+###### `M:IoT.Driver.TwinCATRx.RxTcAdsClient.Pause(System.TimeSpan)`
 
 ```csharp
 public void Pause(System.TimeSpan time)
@@ -1728,7 +1728,7 @@ Pauses the specified time.
 
 - Parameter `time`: The time.
 
-###### `M:IoT.DriverCore.TwinCATRx.RxTcAdsClient.Read(System.String)`
+###### `M:IoT.Driver.TwinCATRx.RxTcAdsClient.Read(System.String)`
 
 ```csharp
 public void Read(string variable)
@@ -1737,7 +1737,7 @@ Reads the specified variable.
 
 - Parameter `variable`: The data.
 
-###### `M:IoT.DriverCore.TwinCATRx.RxTcAdsClient.Read(System.String,System.Nullable`1{System.Int32})`
+###### `M:IoT.Driver.TwinCATRx.RxTcAdsClient.Read(System.String,System.Nullable`1{System.Int32})`
 
 ```csharp
 public void Read(string variable, System.Nullable<int> arrayLength)
@@ -1747,7 +1747,7 @@ Executes the `Read` operation.
 - Parameter `variable`: The `variable` value.
 - Parameter `arrayLength`: The `arrayLength` value.
 
-###### `M:IoT.DriverCore.TwinCATRx.RxTcAdsClient.Read(System.String,System.Nullable`1{System.Int32},System.String)`
+###### `M:IoT.Driver.TwinCATRx.RxTcAdsClient.Read(System.String,System.Nullable`1{System.Int32},System.String)`
 
 ```csharp
 public void Read(string variable, System.Nullable<int> arrayLength, string id)
@@ -1758,7 +1758,7 @@ Executes the `Read` operation.
 - Parameter `arrayLength`: The `arrayLength` value.
 - Parameter `id`: The `id` value.
 
-###### `M:IoT.DriverCore.TwinCATRx.RxTcAdsClient.Read(System.String,System.String)`
+###### `M:IoT.Driver.TwinCATRx.RxTcAdsClient.Read(System.String,System.String)`
 
 ```csharp
 public void Read(string variable, string id)
@@ -1768,7 +1768,7 @@ Reads a variable with a correlation identifier.
 - Parameter `variable`: The variable.
 - Parameter `id`: The correlation identifier.
 
-###### `M:IoT.DriverCore.TwinCATRx.RxTcAdsClient.Write(System.String,System.Object)`
+###### `M:IoT.Driver.TwinCATRx.RxTcAdsClient.Write(System.String,System.Object)`
 
 ```csharp
 public void Write(string variable, object value)
@@ -1778,7 +1778,7 @@ Writes the specified variable.
 - Parameter `variable`: The variable.
 - Parameter `value`: The value.
 
-###### `M:IoT.DriverCore.TwinCATRx.RxTcAdsClient.Write(System.String,System.Object,System.String)`
+###### `M:IoT.Driver.TwinCATRx.RxTcAdsClient.Write(System.String,System.Object,System.String)`
 
 ```csharp
 public void Write(string variable, object value, string id)
@@ -1789,7 +1789,7 @@ Writes a variable with a correlation identifier.
 - Parameter `value`: The value.
 - Parameter `id`: The correlation identifier.
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.Code`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.Code`
 
 ```csharp
 public System.IObservable<string[]> Code { get; }
@@ -1799,16 +1799,16 @@ Gets codes this instance.
 - Returns: A Value.
 - Value: The `Code` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.Connected`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.Connected`
 
 ```csharp
 public bool Connected { get; }
 ```
-Gets a value indicating whether this `T:IoT.DriverCore.TwinCATRx.RxTcAdsClient` is connected.
+Gets a value indicating whether this `T:IoT.Driver.TwinCATRx.RxTcAdsClient` is connected.
 
 - Value: true if connected; otherwise, false .
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.DataReceived`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.DataReceived`
 
 ```csharp
 public System.IObservable<System.ValueTuple<string, object, string>> DataReceived { get; }
@@ -1817,7 +1817,7 @@ Gets the data received.
 
 - Value: The data received.
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.DataReceivedAsync`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.DataReceivedAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<System.ValueTuple<string, object, string>> DataReceivedAsync { get; }
@@ -1826,7 +1826,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `DataReceivedAsync` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.ErrorReceived`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.ErrorReceived`
 
 ```csharp
 public System.IObservable<System.Exception> ErrorReceived { get; }
@@ -1836,7 +1836,7 @@ Gets error received.
 - Returns: A Value.
 - Value: The `ErrorReceived` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.ErrorReceivedAsync`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.ErrorReceivedAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<System.Exception> ErrorReceivedAsync { get; }
@@ -1845,7 +1845,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `ErrorReceivedAsync` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.InitializeComplete`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.InitializeComplete`
 
 ```csharp
 public System.IObservable<ReactiveUI.Primitives.RxVoid> InitializeComplete { get; }
@@ -1854,7 +1854,7 @@ Gets the initialize complete. PLC is ready to read and write.
 
 - Value: The initialize complete.
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.InitializeCompleteAsync`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.InitializeCompleteAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<ReactiveUI.Primitives.RxVoid> InitializeCompleteAsync { get; }
@@ -1863,7 +1863,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `InitializeCompleteAsync` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.IsDisposed`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.IsDisposed`
 
 ```csharp
 public bool IsDisposed { get; }
@@ -1872,7 +1872,7 @@ Gets a value indicating whether gets a value that indicates whether the object i
 
 - Value: The `IsDisposed` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.IsPaused`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.IsPaused`
 
 ```csharp
 public bool IsPaused { get; }
@@ -1881,7 +1881,7 @@ Gets a value indicating whether this instance is paused.
 
 - Value: true if this instance is paused; otherwise, false .
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.IsPausedObservable`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.IsPausedObservable`
 
 ```csharp
 public System.IObservable<bool> IsPausedObservable { get; }
@@ -1890,7 +1890,7 @@ Gets the is paused observable.
 
 - Value: The is paused observable.
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.IsPausedObservableAsync`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.IsPausedObservableAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<bool> IsPausedObservableAsync { get; }
@@ -1899,7 +1899,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `IsPausedObservableAsync` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.OnWrite`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.OnWrite`
 
 ```csharp
 public System.IObservable<string> OnWrite { get; }
@@ -1908,7 +1908,7 @@ Gets the on write.
 
 - Value: The on write.
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.OnWriteAsync`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.OnWriteAsync`
 
 ```csharp
 public ReactiveUI.Primitives.Async.IObservableAsync<string> OnWriteAsync { get; }
@@ -1917,7 +1917,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `OnWriteAsync` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.ReadWriteHandleInfo`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.ReadWriteHandleInfo`
 
 ```csharp
 public System.Collections.Generic.IDictionary<string, System.Nullable<uint>> ReadWriteHandleInfo { get; }
@@ -1926,16 +1926,16 @@ Gets the read write handle information.
 
 - Value: The read write handle information.
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.Settings`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.Settings`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.Core.ISettings Settings { get; }
+public IoT.Driver.TwinCATRx.Core.ISettings Settings { get; }
 ```
 Gets the settings.
 
 - Value: The settings.
 
-###### `P:IoT.DriverCore.TwinCATRx.RxTcAdsClient.WriteHandleInfo`
+###### `P:IoT.Driver.TwinCATRx.RxTcAdsClient.WriteHandleInfo`
 
 ```csharp
 public System.Collections.Generic.IDictionary<string, System.ValueTuple<System.Nullable<uint>, int>> WriteHandleInfo { get; }
@@ -1944,178 +1944,178 @@ Gets the write handle information.
 
 - Value: The write handle information.
 
-#### `T:IoT.DriverCore.TwinCATRx.ServiceStatus`
+#### `T:IoT.Driver.TwinCATRx.ServiceStatus`
 
 ```csharp
-public enum IoT.DriverCore.TwinCATRx.ServiceStatus
+public enum IoT.Driver.TwinCATRx.ServiceStatus
 ```
 Service Status.
 
 ##### Declared public members
 
-###### `F:IoT.DriverCore.TwinCATRx.ServiceStatus.Faulted`
+###### `F:IoT.Driver.TwinCATRx.ServiceStatus.Faulted`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.ServiceStatus Faulted
+public static const IoT.Driver.TwinCATRx.ServiceStatus Faulted
 ```
 The faulted.
 
-###### `F:IoT.DriverCore.TwinCATRx.ServiceStatus.Paused`
+###### `F:IoT.Driver.TwinCATRx.ServiceStatus.Paused`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.ServiceStatus Paused
+public static const IoT.Driver.TwinCATRx.ServiceStatus Paused
 ```
 The paused.
 
-###### `F:IoT.DriverCore.TwinCATRx.ServiceStatus.Running`
+###### `F:IoT.Driver.TwinCATRx.ServiceStatus.Running`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.ServiceStatus Running
+public static const IoT.Driver.TwinCATRx.ServiceStatus Running
 ```
 The running.
 
-###### `F:IoT.DriverCore.TwinCATRx.ServiceStatus.Starting`
+###### `F:IoT.Driver.TwinCATRx.ServiceStatus.Starting`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.ServiceStatus Starting
+public static const IoT.Driver.TwinCATRx.ServiceStatus Starting
 ```
 The starting.
 
-###### `F:IoT.DriverCore.TwinCATRx.ServiceStatus.StatusChanging`
+###### `F:IoT.Driver.TwinCATRx.ServiceStatus.StatusChanging`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.ServiceStatus StatusChanging
+public static const IoT.Driver.TwinCATRx.ServiceStatus StatusChanging
 ```
 The status changing.
 
-###### `F:IoT.DriverCore.TwinCATRx.ServiceStatus.Stopped`
+###### `F:IoT.Driver.TwinCATRx.ServiceStatus.Stopped`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.ServiceStatus Stopped
+public static const IoT.Driver.TwinCATRx.ServiceStatus Stopped
 ```
 The stopped.
 
-###### `F:IoT.DriverCore.TwinCATRx.ServiceStatus.Stopping`
+###### `F:IoT.Driver.TwinCATRx.ServiceStatus.Stopping`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.ServiceStatus Stopping
+public static const IoT.Driver.TwinCATRx.ServiceStatus Stopping
 ```
 The stopping.
 
-###### `F:IoT.DriverCore.TwinCATRx.ServiceStatus.Unknown`
+###### `F:IoT.Driver.TwinCATRx.ServiceStatus.Unknown`
 
 ```csharp
-public static const IoT.DriverCore.TwinCATRx.ServiceStatus Unknown
+public static const IoT.Driver.TwinCATRx.ServiceStatus Unknown
 ```
 The unknown.
 
-#### `T:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient`
+#### `T:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient`
 
 ```csharp
-public class IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient
+public class IoT.Driver.TwinCATRx.TwinCatLogicalTagClient
 ```
 Maps logical CP.IoT tags onto an event-driven TwinCAT ADS client.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.#ctor(IoT.DriverCore.TwinCATRx.IRxTcAdsClient)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.#ctor(IoT.Driver.TwinCATRx.IRxTcAdsClient)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient(IoT.DriverCore.TwinCATRx.IRxTcAdsClient nativeClient)
+public IoT.Driver.TwinCATRx.TwinCatLogicalTagClient(IoT.Driver.TwinCATRx.IRxTcAdsClient nativeClient)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient` class.
 
 - Parameter `nativeClient`: The composed ADS client.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.#ctor(IoT.DriverCore.TwinCATRx.IRxTcAdsClient,IoT.DriverCore.Core.ILogicalTagCatalog)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.#ctor(IoT.Driver.TwinCATRx.IRxTcAdsClient,IoT.Driver.Core.ILogicalTagCatalog)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient(IoT.DriverCore.TwinCATRx.IRxTcAdsClient nativeClient, IoT.DriverCore.Core.ILogicalTagCatalog catalog)
+public IoT.Driver.TwinCATRx.TwinCatLogicalTagClient(IoT.Driver.TwinCATRx.IRxTcAdsClient nativeClient, IoT.Driver.Core.ILogicalTagCatalog catalog)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient` class.
-
-- Parameter `nativeClient`: The composed ADS client.
-- Parameter `catalog`: The caller-owned catalog.
-
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.#ctor(IoT.DriverCore.TwinCATRx.IRxTcAdsClient,IoT.DriverCore.Core.ILogicalTagCatalog,IoT.DriverCore.Core.LogicalTagSqliteStore)`
-
-```csharp
-public IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient(IoT.DriverCore.TwinCATRx.IRxTcAdsClient nativeClient, IoT.DriverCore.Core.ILogicalTagCatalog catalog, IoT.DriverCore.Core.LogicalTagSqliteStore store)
-```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient` class.
 
 - Parameter `nativeClient`: The composed ADS client.
 - Parameter `catalog`: The caller-owned catalog.
-- Parameter `store`: The SQLite store.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.#ctor(IoT.DriverCore.TwinCATRx.IRxTcAdsClient,IoT.DriverCore.Core.ILogicalTagCatalog,IoT.DriverCore.Core.LogicalTagSqliteStore,System.TimeProvider)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.#ctor(IoT.Driver.TwinCATRx.IRxTcAdsClient,IoT.Driver.Core.ILogicalTagCatalog,IoT.Driver.Core.LogicalTagSqliteStore)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient(IoT.DriverCore.TwinCATRx.IRxTcAdsClient nativeClient, IoT.DriverCore.Core.ILogicalTagCatalog catalog, IoT.DriverCore.Core.LogicalTagSqliteStore store, System.TimeProvider timeProvider)
+public IoT.Driver.TwinCATRx.TwinCatLogicalTagClient(IoT.Driver.TwinCATRx.IRxTcAdsClient nativeClient, IoT.Driver.Core.ILogicalTagCatalog catalog, IoT.Driver.Core.LogicalTagSqliteStore store)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient` class.
 
 - Parameter `nativeClient`: The composed ADS client.
 - Parameter `catalog`: The caller-owned catalog.
 - Parameter `store`: The SQLite store.
-- Parameter `timeProvider`: The time provider.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.#ctor(IoT.DriverCore.TwinCATRx.IRxTcAdsClient,IoT.DriverCore.Core.ILogicalTagCatalog,System.TimeProvider)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.#ctor(IoT.Driver.TwinCATRx.IRxTcAdsClient,IoT.Driver.Core.ILogicalTagCatalog,IoT.Driver.Core.LogicalTagSqliteStore,System.TimeProvider)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient(IoT.DriverCore.TwinCATRx.IRxTcAdsClient nativeClient, IoT.DriverCore.Core.ILogicalTagCatalog catalog, System.TimeProvider timeProvider)
+public IoT.Driver.TwinCATRx.TwinCatLogicalTagClient(IoT.Driver.TwinCATRx.IRxTcAdsClient nativeClient, IoT.Driver.Core.ILogicalTagCatalog catalog, IoT.Driver.Core.LogicalTagSqliteStore store, System.TimeProvider timeProvider)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient` class.
+
+- Parameter `nativeClient`: The composed ADS client.
+- Parameter `catalog`: The caller-owned catalog.
+- Parameter `store`: The SQLite store.
+- Parameter `timeProvider`: The time provider.
+
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.#ctor(IoT.Driver.TwinCATRx.IRxTcAdsClient,IoT.Driver.Core.ILogicalTagCatalog,System.TimeProvider)`
+
+```csharp
+public IoT.Driver.TwinCATRx.TwinCatLogicalTagClient(IoT.Driver.TwinCATRx.IRxTcAdsClient nativeClient, IoT.Driver.Core.ILogicalTagCatalog catalog, System.TimeProvider timeProvider)
+```
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient` class.
 
 - Parameter `nativeClient`: The composed ADS client.
 - Parameter `catalog`: The caller-owned catalog.
 - Parameter `timeProvider`: The time provider.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.#ctor(IoT.DriverCore.TwinCATRx.IRxTcAdsClient,IoT.DriverCore.Core.LogicalTagSqliteStore)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.#ctor(IoT.Driver.TwinCATRx.IRxTcAdsClient,IoT.Driver.Core.LogicalTagSqliteStore)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient(IoT.DriverCore.TwinCATRx.IRxTcAdsClient nativeClient, IoT.DriverCore.Core.LogicalTagSqliteStore store)
+public IoT.Driver.TwinCATRx.TwinCatLogicalTagClient(IoT.Driver.TwinCATRx.IRxTcAdsClient nativeClient, IoT.Driver.Core.LogicalTagSqliteStore store)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient` class.
 
 - Parameter `nativeClient`: The composed ADS client.
 - Parameter `store`: The SQLite store.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.#ctor(IoT.DriverCore.TwinCATRx.IRxTcAdsClient,IoT.DriverCore.Core.LogicalTagSqliteStore,System.TimeProvider)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.#ctor(IoT.Driver.TwinCATRx.IRxTcAdsClient,IoT.Driver.Core.LogicalTagSqliteStore,System.TimeProvider)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient(IoT.DriverCore.TwinCATRx.IRxTcAdsClient nativeClient, IoT.DriverCore.Core.LogicalTagSqliteStore store, System.TimeProvider timeProvider)
+public IoT.Driver.TwinCATRx.TwinCatLogicalTagClient(IoT.Driver.TwinCATRx.IRxTcAdsClient nativeClient, IoT.Driver.Core.LogicalTagSqliteStore store, System.TimeProvider timeProvider)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient` class.
 
 - Parameter `nativeClient`: The composed ADS client.
 - Parameter `store`: The SQLite store.
 - Parameter `timeProvider`: The time provider.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.#ctor(IoT.DriverCore.TwinCATRx.IRxTcAdsClient,System.TimeProvider)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.#ctor(IoT.Driver.TwinCATRx.IRxTcAdsClient,System.TimeProvider)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient(IoT.DriverCore.TwinCATRx.IRxTcAdsClient nativeClient, System.TimeProvider timeProvider)
+public IoT.Driver.TwinCATRx.TwinCatLogicalTagClient(IoT.Driver.TwinCATRx.IRxTcAdsClient nativeClient, System.TimeProvider timeProvider)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient` class.
 
 - Parameter `nativeClient`: The composed ADS client.
 - Parameter `timeProvider`: The time provider.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.CreateTag(IoT.DriverCore.Core.LogicalTag)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.CreateTag(IoT.Driver.Core.LogicalTag)`
 
 ```csharp
-public IoT.DriverCore.Core.LogicalTag CreateTag(IoT.DriverCore.Core.LogicalTag tag)
+public IoT.Driver.Core.LogicalTag CreateTag(IoT.Driver.Core.LogicalTag tag)
 ```
 Creates a tag from a complete shared tag definition and registers it.
 
 - Parameter `tag`: The complete shared tag definition.
 - Returns: The registered tag.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.CreateTag(System.String,System.String,System.String)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.CreateTag(System.String,System.String,System.String)`
 
 ```csharp
-public IoT.DriverCore.Core.LogicalTag CreateTag(string name, string address, string dataType)
+public IoT.Driver.Core.LogicalTag CreateTag(string name, string address, string dataType)
 ```
 Creates and registers a logical TwinCAT tag.
 
@@ -2124,7 +2124,7 @@ Creates and registers a logical TwinCAT tag.
 - Parameter `dataType`: The logical data type.
 - Returns: The registered tag.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.DeleteGroupAsync(System.String,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.DeleteGroupAsync(System.String,System.Threading.CancellationToken)`
 
 ```csharp
 public System.Threading.Tasks.Task<bool> DeleteGroupAsync(string name, System.Threading.CancellationToken cancellationToken)
@@ -2135,7 +2135,7 @@ Inherits XML documentation from its implemented or overridden member.
 - Parameter `cancellationToken`: The `cancellationToken` value.
 - Returns: A `System.Threading.Tasks.Task<bool>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.DeleteTagAsync(System.String)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.DeleteTagAsync(System.String)`
 
 ```csharp
 public System.Threading.Tasks.Task<bool> DeleteTagAsync(string name)
@@ -2145,7 +2145,7 @@ Deletes a tag from SQLite and the live registry.
 - Parameter `name`: The logical tag name.
 - Returns: Whether an existing tag was deleted.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.DeleteTagAsync(System.String,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.DeleteTagAsync(System.String,System.Threading.CancellationToken)`
 
 ```csharp
 public System.Threading.Tasks.Task<bool> DeleteTagAsync(string name, System.Threading.CancellationToken cancellationToken)
@@ -2156,27 +2156,27 @@ Deletes a tag from SQLite and the live registry.
 - Parameter `cancellationToken`: The cancellation token.
 - Returns: Whether an existing tag was deleted.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.Dispose`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.Dispose`
 
 ```csharp
 public void Dispose()
 ```
 Releases registry-owned resources without disposing the composed ADS client.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.EditTagAsync(IoT.DriverCore.Core.LogicalTag)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.EditTagAsync(IoT.Driver.Core.LogicalTag)`
 
 ```csharp
-public System.Threading.Tasks.Task<bool> EditTagAsync(IoT.DriverCore.Core.LogicalTag tag)
+public System.Threading.Tasks.Task<bool> EditTagAsync(IoT.Driver.Core.LogicalTag tag)
 ```
 Edits an existing SQLite tag and refreshes the live registry.
 
 - Parameter `tag`: The logical tag.
 - Returns: Whether an existing tag was edited.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.EditTagAsync(IoT.DriverCore.Core.LogicalTag,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.EditTagAsync(IoT.Driver.Core.LogicalTag,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<bool> EditTagAsync(IoT.DriverCore.Core.LogicalTag tag, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<bool> EditTagAsync(IoT.Driver.Core.LogicalTag tag, System.Threading.CancellationToken cancellationToken)
 ```
 Edits an existing SQLite tag and refreshes the live registry.
 
@@ -2184,7 +2184,7 @@ Edits an existing SQLite tag and refreshes the live registry.
 - Parameter `cancellationToken`: The cancellation token.
 - Returns: Whether an existing tag was edited.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.ExportCsvAsync(System.IO.TextWriter)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.ExportCsvAsync(System.IO.TextWriter)`
 
 ```csharp
 public System.Threading.Tasks.Task ExportCsvAsync(System.IO.TextWriter writer)
@@ -2194,7 +2194,7 @@ Exports the live registry as CSV.
 - Parameter `writer`: The CSV writer.
 - Returns: The export operation.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.ExportCsvAsync(System.IO.TextWriter,System.Char,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.ExportCsvAsync(System.IO.TextWriter,System.Char,System.Threading.CancellationToken)`
 
 ```csharp
 public System.Threading.Tasks.Task ExportCsvAsync(System.IO.TextWriter writer, char delimiter, System.Threading.CancellationToken cancellationToken)
@@ -2206,7 +2206,7 @@ Inherits XML documentation from its implemented or overridden member.
 - Parameter `cancellationToken`: The `cancellationToken` value.
 - Returns: A `System.Threading.Tasks.Task` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.ExportCsvAsync(System.IO.TextWriter,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.ExportCsvAsync(System.IO.TextWriter,System.Threading.CancellationToken)`
 
 ```csharp
 public System.Threading.Tasks.Task ExportCsvAsync(System.IO.TextWriter writer, System.Threading.CancellationToken cancellationToken)
@@ -2217,31 +2217,31 @@ Exports the live registry as CSV.
 - Parameter `cancellationToken`: The cancellation token.
 - Returns: The export operation.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.GetGroupAsync(System.String,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.GetGroupAsync(System.String,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.Core.LogicalTagGroup> GetGroupAsync(string name, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.Core.LogicalTagGroup> GetGroupAsync(string name, System.Threading.CancellationToken cancellationToken)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `name`: The `name` value.
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.Core.LogicalTagGroup>` result.
+- Returns: A `System.Threading.Tasks.Task<IoT.Driver.Core.LogicalTagGroup>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.GetTagAsync(System.String)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.GetTagAsync(System.String)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.Core.LogicalTag> GetTagAsync(string name)
+public System.Threading.Tasks.Task<IoT.Driver.Core.LogicalTag> GetTagAsync(string name)
 ```
 Gets a persisted tag.
 
 - Parameter `name`: The logical tag name.
 - Returns: The persisted tag, or null.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.GetTagAsync(System.String,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.GetTagAsync(System.String,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.Core.LogicalTag> GetTagAsync(string name, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.Core.LogicalTag> GetTagAsync(string name, System.Threading.CancellationToken cancellationToken)
 ```
 Gets a persisted tag.
 
@@ -2249,20 +2249,20 @@ Gets a persisted tag.
 - Parameter `cancellationToken`: The cancellation token.
 - Returns: The persisted tag, or null.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.ImportCsvAsync(System.IO.TextReader)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.ImportCsvAsync(System.IO.TextReader)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> ImportCsvAsync(System.IO.TextReader reader)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTag>> ImportCsvAsync(System.IO.TextReader reader)
 ```
 Imports CSV definitions into the live registry.
 
 - Parameter `reader`: The CSV reader.
 - Returns: The imported tags.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.ImportCsvAsync(System.IO.TextReader,System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.ImportCsvAsync(System.IO.TextReader,System.Boolean)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> ImportCsvAsync(System.IO.TextReader reader, bool replaceExisting)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTag>> ImportCsvAsync(System.IO.TextReader reader, bool replaceExisting)
 ```
 Imports CSV definitions into the live registry.
 
@@ -2270,10 +2270,10 @@ Imports CSV definitions into the live registry.
 - Parameter `replaceExisting`: Whether imported tags replace matching live tags.
 - Returns: The imported tags.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.ImportCsvAsync(System.IO.TextReader,System.Boolean,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.ImportCsvAsync(System.IO.TextReader,System.Boolean,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> ImportCsvAsync(System.IO.TextReader reader, bool replaceExisting, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTag>> ImportCsvAsync(System.IO.TextReader reader, bool replaceExisting, System.Threading.CancellationToken cancellationToken)
 ```
 Imports CSV definitions into the live registry.
 
@@ -2282,10 +2282,10 @@ Imports CSV definitions into the live registry.
 - Parameter `cancellationToken`: The cancellation token.
 - Returns: The imported tags.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.ImportCsvAsync(System.IO.TextReader,System.Char,System.Boolean,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.ImportCsvAsync(System.IO.TextReader,System.Char,System.Boolean,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> ImportCsvAsync(System.IO.TextReader reader, char delimiter, bool replaceExisting, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTag>> ImportCsvAsync(System.IO.TextReader reader, char delimiter, bool replaceExisting, System.Threading.CancellationToken cancellationToken)
 ```
 Imports CSV definitions into the live registry.
 
@@ -2295,19 +2295,19 @@ Imports CSV definitions into the live registry.
 - Parameter `cancellationToken`: The cancellation token.
 - Returns: The imported tags.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.ImportCsvAsync(System.IO.TextReader,System.Char,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.ImportCsvAsync(System.IO.TextReader,System.Char,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> ImportCsvAsync(System.IO.TextReader reader, char delimiter, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTag>> ImportCsvAsync(System.IO.TextReader reader, char delimiter, System.Threading.CancellationToken cancellationToken)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `reader`: The `reader` value.
 - Parameter `delimiter`: The `delimiter` value.
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>>` result.
+- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTag>>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.InitializeStoreAsync`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.InitializeStoreAsync`
 
 ```csharp
 public System.Threading.Tasks.Task InitializeStoreAsync()
@@ -2316,7 +2316,7 @@ Initializes the configured SQLite store.
 
 - Returns: The initialization operation.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.InitializeStoreAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.InitializeStoreAsync(System.Threading.CancellationToken)`
 
 ```csharp
 public System.Threading.Tasks.Task InitializeStoreAsync(System.Threading.CancellationToken cancellationToken)
@@ -2326,49 +2326,49 @@ Initializes the configured SQLite store.
 - Parameter `cancellationToken`: The cancellation token.
 - Returns: The initialization operation.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.ListGroupsAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.ListGroupsAsync(System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTagGroup>> ListGroupsAsync(System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTagGroup>> ListGroupsAsync(System.Threading.CancellationToken cancellationToken)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTagGroup>>` result.
+- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTagGroup>>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.ListTagsAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.ListTagsAsync(System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> ListTagsAsync(System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTag>> ListTagsAsync(System.Threading.CancellationToken cancellationToken)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>>` result.
+- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTag>>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.LoadTagsAsync`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.LoadTagsAsync`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> LoadTagsAsync()
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTag>> LoadTagsAsync()
 ```
 Dynamically loads persisted tags into the live registry.
 
 - Returns: The loaded tags.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.LoadTagsAsync(System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.LoadTagsAsync(System.Boolean)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> LoadTagsAsync(bool replaceExisting)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTag>> LoadTagsAsync(bool replaceExisting)
 ```
 Dynamically loads persisted tags into the live registry.
 
 - Parameter `replaceExisting`: Whether persisted tags replace matching live tags.
 - Returns: The loaded tags.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.LoadTagsAsync(System.Boolean,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.LoadTagsAsync(System.Boolean,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> LoadTagsAsync(bool replaceExisting, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTag>> LoadTagsAsync(bool replaceExisting, System.Threading.CancellationToken cancellationToken)
 ```
 Dynamically loads persisted tags into the live registry.
 
@@ -2376,90 +2376,90 @@ Dynamically loads persisted tags into the live registry.
 - Parameter `cancellationToken`: The cancellation token.
 - Returns: The loaded tags.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.LoadTagsAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.LoadTagsAsync(System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> LoadTagsAsync(System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTag>> LoadTagsAsync(System.Threading.CancellationToken cancellationToken)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>>` result.
+- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTag>>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.Observe(System.String)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.Observe(System.String)`
 
 ```csharp
-public System.IObservable<IoT.DriverCore.Core.LogicalTagValue> Observe(string tagName)
+public System.IObservable<IoT.Driver.Core.LogicalTagValue> Observe(string tagName)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `tagName`: The `tagName` value.
-- Returns: A `System.IObservable<IoT.DriverCore.Core.LogicalTagValue>` result.
+- Returns: A `System.IObservable<IoT.Driver.Core.LogicalTagValue>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.ObserveAsync(System.String,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.ObserveAsync(System.String,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Collections.Generic.IAsyncEnumerable<IoT.DriverCore.Core.LogicalTagValue> ObserveAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+public System.Collections.Generic.IAsyncEnumerable<IoT.Driver.Core.LogicalTagValue> ObserveAsync(string tagName, System.Threading.CancellationToken cancellationToken)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `tagName`: The `tagName` value.
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Collections.Generic.IAsyncEnumerable<IoT.DriverCore.Core.LogicalTagValue>` result.
+- Returns: A `System.Collections.Generic.IAsyncEnumerable<IoT.Driver.Core.LogicalTagValue>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.ObserveMany(System.Collections.Generic.IReadOnlyCollection`1{System.String})`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.ObserveMany(System.Collections.Generic.IReadOnlyCollection`1{System.String})`
 
 ```csharp
-public System.IObservable<IoT.DriverCore.Core.LogicalTagValue> ObserveMany(System.Collections.Generic.IReadOnlyCollection<string> tagNames)
+public System.IObservable<IoT.Driver.Core.LogicalTagValue> ObserveMany(System.Collections.Generic.IReadOnlyCollection<string> tagNames)
 ```
 Executes the `ObserveMany` operation.
 
 - Parameter `tagNames`: The `tagNames` value.
-- Returns: A `System.IObservable<IoT.DriverCore.Core.LogicalTagValue>` result.
+- Returns: A `System.IObservable<IoT.Driver.Core.LogicalTagValue>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.ObserveManyAsync(System.Collections.Generic.IReadOnlyCollection`1{System.String},System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.ObserveManyAsync(System.Collections.Generic.IReadOnlyCollection`1{System.String},System.Threading.CancellationToken)`
 
 ```csharp
-public System.Collections.Generic.IAsyncEnumerable<IoT.DriverCore.Core.LogicalTagValue> ObserveManyAsync(System.Collections.Generic.IReadOnlyCollection<string> tagNames, System.Threading.CancellationToken cancellationToken)
+public System.Collections.Generic.IAsyncEnumerable<IoT.Driver.Core.LogicalTagValue> ObserveManyAsync(System.Collections.Generic.IReadOnlyCollection<string> tagNames, System.Threading.CancellationToken cancellationToken)
 ```
 Executes the `ObserveManyAsync` operation.
 
 - Parameter `tagNames`: The `tagNames` value.
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Collections.Generic.IAsyncEnumerable<IoT.DriverCore.Core.LogicalTagValue>` result.
+- Returns: A `System.Collections.Generic.IAsyncEnumerable<IoT.Driver.Core.LogicalTagValue>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.ReadAsync(System.String,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.ReadAsync(System.String,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>> ReadAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.Core.TagOperationResult<IoT.Driver.Core.LogicalTagValue>> ReadAsync(string tagName, System.Threading.CancellationToken cancellationToken)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `tagName`: The `tagName` value.
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>` result.
+- Returns: A `System.Threading.Tasks.Task<IoT.Driver.Core.TagOperationResult<IoT.Driver.Core.LogicalTagValue>>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.ReadManyAsync(System.Collections.Generic.IReadOnlyCollection`1{System.String},System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.ReadManyAsync(System.Collections.Generic.IReadOnlyCollection`1{System.String},System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>> ReadManyAsync(System.Collections.Generic.IReadOnlyCollection<string> tagNames, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.TagOperationResult<IoT.Driver.Core.LogicalTagValue>>> ReadManyAsync(System.Collections.Generic.IReadOnlyCollection<string> tagNames, System.Threading.CancellationToken cancellationToken)
 ```
 Executes the `ReadManyAsync` operation.
 
 - Parameter `tagNames`: The `tagNames` value.
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>>` result.
+- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.TagOperationResult<IoT.Driver.Core.LogicalTagValue>>>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.RegisterTag(IoT.DriverCore.Core.LogicalTag)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.RegisterTag(IoT.Driver.Core.LogicalTag)`
 
 ```csharp
-public void RegisterTag(IoT.DriverCore.Core.LogicalTag tag)
+public void RegisterTag(IoT.Driver.Core.LogicalTag tag)
 ```
 Adds or replaces a logical tag in the live registry.
 
 - Parameter `tag`: The logical tag.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.RemoveTag(System.String)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.RemoveTag(System.String)`
 
 ```csharp
 public bool RemoveTag(string name)
@@ -2469,10 +2469,10 @@ Removes a logical tag from the live registry.
 - Parameter `name`: The logical tag name.
 - Returns: Whether the tag was removed.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.UpsertGroupAsync(IoT.DriverCore.Core.LogicalTagGroup,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.UpsertGroupAsync(IoT.Driver.Core.LogicalTagGroup,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task UpsertGroupAsync(IoT.DriverCore.Core.LogicalTagGroup group, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task UpsertGroupAsync(IoT.Driver.Core.LogicalTagGroup group, System.Threading.CancellationToken cancellationToken)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
@@ -2480,20 +2480,20 @@ Inherits XML documentation from its implemented or overridden member.
 - Parameter `cancellationToken`: The `cancellationToken` value.
 - Returns: A `System.Threading.Tasks.Task` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.UpsertTagAsync(IoT.DriverCore.Core.LogicalTag)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.UpsertTagAsync(IoT.Driver.Core.LogicalTag)`
 
 ```csharp
-public System.Threading.Tasks.Task UpsertTagAsync(IoT.DriverCore.Core.LogicalTag tag)
+public System.Threading.Tasks.Task UpsertTagAsync(IoT.Driver.Core.LogicalTag tag)
 ```
 Upserts a tag in SQLite and the live registry.
 
 - Parameter `tag`: The logical tag.
 - Returns: The upsert operation.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.UpsertTagAsync(IoT.DriverCore.Core.LogicalTag,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.UpsertTagAsync(IoT.Driver.Core.LogicalTag,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task UpsertTagAsync(IoT.DriverCore.Core.LogicalTag tag, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task UpsertTagAsync(IoT.Driver.Core.LogicalTag tag, System.Threading.CancellationToken cancellationToken)
 ```
 Upserts a tag in SQLite and the live registry.
 
@@ -2501,47 +2501,47 @@ Upserts a tag in SQLite and the live registry.
 - Parameter `cancellationToken`: The cancellation token.
 - Returns: The upsert operation.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.WriteAsync(IoT.DriverCore.Core.LogicalTagValue,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.WriteAsync(IoT.Driver.Core.LogicalTagValue,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>> WriteAsync(IoT.DriverCore.Core.LogicalTagValue value, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.Core.TagOperationResult<IoT.Driver.Core.LogicalTagValue>> WriteAsync(IoT.Driver.Core.LogicalTagValue value, System.Threading.CancellationToken cancellationToken)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `value`: The `value` value.
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>` result.
+- Returns: A `System.Threading.Tasks.Task<IoT.Driver.Core.TagOperationResult<IoT.Driver.Core.LogicalTagValue>>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.WriteManyAsync(System.Collections.Generic.IReadOnlyCollection`1{IoT.DriverCore.Core.LogicalTagValue},System.Threading.CancellationToken)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.WriteManyAsync(System.Collections.Generic.IReadOnlyCollection`1{IoT.Driver.Core.LogicalTagValue},System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>> WriteManyAsync(System.Collections.Generic.IReadOnlyCollection<IoT.DriverCore.Core.LogicalTagValue> values, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.TagOperationResult<IoT.Driver.Core.LogicalTagValue>>> WriteManyAsync(System.Collections.Generic.IReadOnlyCollection<IoT.Driver.Core.LogicalTagValue> values, System.Threading.CancellationToken cancellationToken)
 ```
 Executes the `WriteManyAsync` operation.
 
 - Parameter `values`: The `values` value.
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>>` result.
+- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.TagOperationResult<IoT.Driver.Core.LogicalTagValue>>>` result.
 
-###### `P:IoT.DriverCore.TwinCATRx.TwinCatLogicalTagClient.Catalog`
+###### `P:IoT.Driver.TwinCATRx.TwinCatLogicalTagClient.Catalog`
 
 ```csharp
-public IoT.DriverCore.Core.ILogicalTagCatalog Catalog { get; }
+public IoT.Driver.Core.ILogicalTagCatalog Catalog { get; }
 ```
 Gets the logical tag catalog.
 
 - Value: The `Catalog` value.
 
-#### `T:IoT.DriverCore.TwinCATRx.TwinCatRxExtensions`
+#### `T:IoT.Driver.TwinCATRx.TwinCatRxExtensions`
 
 ```csharp
-public class IoT.DriverCore.TwinCATRx.TwinCatRxExtensions
+public class IoT.Driver.TwinCATRx.TwinCatRxExtensions
 ```
 Observable TwinCAT extensions.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatRxExtensions.CreateClone(CP.Collections.HashTableRx)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatRxExtensions.CreateClone(CP.Collections.HashTableRx)`
 
 ```csharp
 public static CP.Collections.HashTableRx CreateClone(CP.Collections.HashTableRx hashTable)
@@ -2551,10 +2551,10 @@ Clones the specified HashTableRx.
 - Parameter `hashTable`: The HashTableRx instance.
 - Returns: A HashTableRx.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatRxExtensions.CreateStruct(IoT.DriverCore.TwinCATRx.IRxTcAdsClient,System.String)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatRxExtensions.CreateStruct(IoT.Driver.TwinCATRx.IRxTcAdsClient,System.String)`
 
 ```csharp
-public static CP.Collections.HashTableRx CreateStruct(IoT.DriverCore.TwinCATRx.IRxTcAdsClient client, string variable)
+public static CP.Collections.HashTableRx CreateStruct(IoT.Driver.TwinCATRx.IRxTcAdsClient client, string variable)
 ```
 Creates the structure.
 
@@ -2562,10 +2562,10 @@ Creates the structure.
 - Parameter `variable`: The variable.
 - Returns: A HashTableRx with a link to the PLC.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatRxExtensions.ObserveAsyncObservable``1(IoT.DriverCore.TwinCATRx.IRxTcAdsClient,System.String,System.Func`2{System.Object,``0})`
+###### `M:IoT.Driver.TwinCATRx.TwinCatRxExtensions.ObserveAsyncObservable``1(IoT.Driver.TwinCATRx.IRxTcAdsClient,System.String,System.Func`2{System.Object,``0})`
 
 ```csharp
-public static ReactiveUI.Primitives.Async.IObservableAsync<T> ObserveAsyncObservable<T>(IoT.DriverCore.TwinCATRx.IRxTcAdsClient client, string variable, System.Func<object, T> converter)
+public static ReactiveUI.Primitives.Async.IObservableAsync<T> ObserveAsyncObservable<T>(IoT.Driver.TwinCATRx.IRxTcAdsClient client, string variable, System.Func<object, T> converter)
 ```
 Executes the `ObserveAsyncObservable` operation.
 
@@ -2574,10 +2574,10 @@ Executes the `ObserveAsyncObservable` operation.
 - Parameter `converter`: The `converter` value.
 - Returns: A `ReactiveUI.Primitives.Async.IObservableAsync<T>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatRxExtensions.ObserveAsyncObservable``1(IoT.DriverCore.TwinCATRx.IRxTcAdsClient,System.String,System.String,System.Func`2{System.Object,``0})`
+###### `M:IoT.Driver.TwinCATRx.TwinCatRxExtensions.ObserveAsyncObservable``1(IoT.Driver.TwinCATRx.IRxTcAdsClient,System.String,System.String,System.Func`2{System.Object,``0})`
 
 ```csharp
-public static ReactiveUI.Primitives.Async.IObservableAsync<T> ObserveAsyncObservable<T>(IoT.DriverCore.TwinCATRx.IRxTcAdsClient client, string variable, string id, System.Func<object, T> converter)
+public static ReactiveUI.Primitives.Async.IObservableAsync<T> ObserveAsyncObservable<T>(IoT.Driver.TwinCATRx.IRxTcAdsClient client, string variable, string id, System.Func<object, T> converter)
 ```
 Executes the `ObserveAsyncObservable` operation.
 
@@ -2587,10 +2587,10 @@ Executes the `ObserveAsyncObservable` operation.
 - Parameter `converter`: The `converter` value.
 - Returns: A `ReactiveUI.Primitives.Async.IObservableAsync<T>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatRxExtensions.Observe``1(IoT.DriverCore.TwinCATRx.IRxTcAdsClient,System.String,System.Func`2{System.Object,``0})`
+###### `M:IoT.Driver.TwinCATRx.TwinCatRxExtensions.Observe``1(IoT.Driver.TwinCATRx.IRxTcAdsClient,System.String,System.Func`2{System.Object,``0})`
 
 ```csharp
-public static System.IObservable<T> Observe<T>(IoT.DriverCore.TwinCATRx.IRxTcAdsClient client, string variable, System.Func<object, T> converter)
+public static System.IObservable<T> Observe<T>(IoT.Driver.TwinCATRx.IRxTcAdsClient client, string variable, System.Func<object, T> converter)
 ```
 Executes the `Observe` operation.
 
@@ -2599,10 +2599,10 @@ Executes the `Observe` operation.
 - Parameter `converter`: The `converter` value.
 - Returns: A `System.IObservable<T>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatRxExtensions.Observe``1(IoT.DriverCore.TwinCATRx.IRxTcAdsClient,System.String,System.String,System.Func`2{System.Object,``0})`
+###### `M:IoT.Driver.TwinCATRx.TwinCatRxExtensions.Observe``1(IoT.Driver.TwinCATRx.IRxTcAdsClient,System.String,System.String,System.Func`2{System.Object,``0})`
 
 ```csharp
-public static System.IObservable<T> Observe<T>(IoT.DriverCore.TwinCATRx.IRxTcAdsClient client, string variable, string id, System.Func<object, T> converter)
+public static System.IObservable<T> Observe<T>(IoT.Driver.TwinCATRx.IRxTcAdsClient client, string variable, string id, System.Func<object, T> converter)
 ```
 Executes the `Observe` operation.
 
@@ -2612,7 +2612,7 @@ Executes the `Observe` operation.
 - Parameter `converter`: The `converter` value.
 - Returns: A `System.IObservable<T>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatRxExtensions.StructureReady(CP.Collections.HashTableRx)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatRxExtensions.StructureReady(CP.Collections.HashTableRx)`
 
 ```csharp
 public static System.IObservable<CP.Collections.HashTableRx> StructureReady(CP.Collections.HashTableRx hashTable)
@@ -2622,7 +2622,7 @@ Returns an observable that fires when the structure is ready.
 - Parameter `hashTable`: The HashTableRx instance.
 - Returns: An observable when values have been set.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatRxExtensions.WriteValues(CP.Collections.HashTableRx,System.Action`1{CP.Collections.HashTableRx})`
+###### `M:IoT.Driver.TwinCATRx.TwinCatRxExtensions.WriteValues(CP.Collections.HashTableRx,System.Action`1{CP.Collections.HashTableRx})`
 
 ```csharp
 public static bool WriteValues(CP.Collections.HashTableRx hashTable, System.Action<CP.Collections.HashTableRx> setValues)
@@ -2633,7 +2633,7 @@ Executes the `WriteValues` operation.
 - Parameter `setValues`: The `setValues` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.TwinCatRxExtensions.WriteValuesAsync(CP.Collections.HashTableRx,System.Action`1{CP.Collections.HashTableRx},System.TimeSpan)`
+###### `M:IoT.Driver.TwinCATRx.TwinCatRxExtensions.WriteValuesAsync(CP.Collections.HashTableRx,System.Action`1{CP.Collections.HashTableRx},System.TimeSpan)`
 
 ```csharp
 public static System.Threading.Tasks.Task<bool> WriteValuesAsync(CP.Collections.HashTableRx hashTable, System.Action<CP.Collections.HashTableRx> setValues, System.TimeSpan time)
@@ -2649,23 +2649,23 @@ Executes the `WriteValuesAsync` operation.
 
 Exported public types: 13; declared public members: 97.
 
-#### `T:IoT.DriverCore.TwinCATRx.Core.CSharpLanguage`
+#### `T:IoT.Driver.TwinCATRx.Core.CSharpLanguage`
 
 ```csharp
-public class IoT.DriverCore.TwinCATRx.Core.CSharpLanguage
+public class IoT.Driver.TwinCATRx.Core.CSharpLanguage
 ```
 C Sharp Language.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CSharpLanguage.#ctor`
+###### `M:IoT.Driver.TwinCATRx.Core.CSharpLanguage.#ctor`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.Core.CSharpLanguage()
+public IoT.Driver.TwinCATRx.Core.CSharpLanguage()
 ```
-Initializes a new instance of `IoT.DriverCore.TwinCATRx.Core.CSharpLanguage`.
+Initializes a new instance of `IoT.Driver.TwinCATRx.Core.CSharpLanguage`.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CSharpLanguage.CreateAssembly(System.String,System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.CSharpLanguage.CreateAssembly(System.String,System.String)`
 
 ```csharp
 public static bool CreateAssembly(string code, string assemblyFileName)
@@ -2676,7 +2676,7 @@ Creates the assembly.
 - Parameter `assemblyFileName`: Name of the assembly file.
 - Returns: A bool.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CSharpLanguage.CreateLibraryCompilation(System.String,System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.Core.CSharpLanguage.CreateLibraryCompilation(System.String,System.Boolean)`
 
 ```csharp
 public Microsoft.CodeAnalysis.Compilation CreateLibraryCompilation(string assemblyName, bool enableOptimisations)
@@ -2687,7 +2687,7 @@ Inherits XML documentation from its implemented or overridden member.
 - Parameter `enableOptimisations`: The `enableOptimisations` value.
 - Returns: A `Microsoft.CodeAnalysis.Compilation` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CSharpLanguage.ParseText(System.String,Microsoft.CodeAnalysis.SourceCodeKind)`
+###### `M:IoT.Driver.TwinCATRx.Core.CSharpLanguage.ParseText(System.String,Microsoft.CodeAnalysis.SourceCodeKind)`
 
 ```csharp
 public Microsoft.CodeAnalysis.SyntaxTree ParseText(string code, Microsoft.CodeAnalysis.SourceCodeKind kind)
@@ -2698,45 +2698,45 @@ Inherits XML documentation from its implemented or overridden member.
 - Parameter `kind`: The `kind` value.
 - Returns: A `Microsoft.CodeAnalysis.SyntaxTree` result.
 
-#### `T:IoT.DriverCore.TwinCATRx.Core.CodeGenerator`
+#### `T:IoT.Driver.TwinCATRx.Core.CodeGenerator`
 
 ```csharp
-public class IoT.DriverCore.TwinCATRx.Core.CodeGenerator
+public class IoT.Driver.TwinCATRx.Core.CodeGenerator
 ```
 Code Generator.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.#ctor`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.#ctor`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.Core.CodeGenerator()
+public IoT.Driver.TwinCATRx.Core.CodeGenerator()
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.Core.CodeGenerator` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.Core.CodeGenerator` class.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.#ctor(System.Action`1{System.Exception})`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.#ctor(System.Action`1{System.Exception})`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.Core.CodeGenerator(System.Action<System.Exception> errorHandler)
+public IoT.Driver.TwinCATRx.Core.CodeGenerator(System.Action<System.Exception> errorHandler)
 ```
-Initializes a new instance of `IoT.DriverCore.TwinCATRx.Core.CodeGenerator`.
+Initializes a new instance of `IoT.Driver.TwinCATRx.Core.CodeGenerator`.
 
 - Parameter `errorHandler`: The `errorHandler` value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator)`
 
 ```csharp
-public bool CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN)
+public bool CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN)
 ```
 Creates a C# code file using the default TwinCAT version.
 
 - Parameter `selectedTN`: The selected node.
 - Returns: true when code was created.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.Boolean)`
 
 ```csharp
-public bool CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, bool isTwinCat3)
+public bool CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, bool isTwinCat3)
 ```
 Creates a C# code file based on the selected node structure.
 
@@ -2744,10 +2744,10 @@ Creates a C# code file based on the selected node structure.
 - Parameter `isTwinCat3`: Whether TwinCAT 3 packing should be used.
 - Returns: Result as a Boolean.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.String)`
 
 ```csharp
-public bool CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, string fileName)
+public bool CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, string fileName)
 ```
 Creates a C# code file using default generation settings.
 
@@ -2755,10 +2755,10 @@ Creates a C# code file using default generation settings.
 - Parameter `fileName`: The `fileName` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.String,System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.String,System.Boolean)`
 
 ```csharp
-public bool CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, string fileName, bool isTwinCat3)
+public bool CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, string fileName, bool isTwinCat3)
 ```
 Creates a C# code file using the default namespace.
 
@@ -2767,10 +2767,10 @@ Creates a C# code file using the default namespace.
 - Parameter `isTwinCat3`: The `isTwinCat3` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.String,System.Boolean,System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.String,System.Boolean,System.String)`
 
 ```csharp
-public bool CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, string fileName, bool isTwinCat3, string classNamespace)
+public bool CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, string fileName, bool isTwinCat3, string classNamespace)
 ```
 Creates a C# code file based on the selected node structure.
 
@@ -2780,20 +2780,20 @@ Creates a C# code file based on the selected node structure.
 - Parameter `classNamespace`: The class namespace.
 - Returns: Result as a Boolean.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.CreateCSharpCodeString(IoT.DriverCore.TwinCATRx.Core.INodeEmulator)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.CreateCSharpCodeString(IoT.Driver.TwinCATRx.Core.INodeEmulator)`
 
 ```csharp
-public string CreateCSharpCodeString(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN)
+public string CreateCSharpCodeString(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN)
 ```
 Creates a C# code string using default generation settings.
 
 - Parameter `selectedTN`: The selected node.
 - Returns: The generated code.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.CreateCSharpCodeString(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.CreateCSharpCodeString(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.Boolean)`
 
 ```csharp
-public string CreateCSharpCodeString(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, bool isTwinCat3)
+public string CreateCSharpCodeString(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, bool isTwinCat3)
 ```
 Creates a C# code string using the default namespace.
 
@@ -2801,10 +2801,10 @@ Creates a C# code string using the default namespace.
 - Parameter `isTwinCat3`: The `isTwinCat3` value.
 - Returns: A `string` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.CreateCSharpCodeString(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.Boolean,System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.CreateCSharpCodeString(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.Boolean,System.String)`
 
 ```csharp
-public string CreateCSharpCodeString(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, bool isTwinCat3, string classNamespace)
+public string CreateCSharpCodeString(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, bool isTwinCat3, string classNamespace)
 ```
 Creates the C# code string.
 
@@ -2813,20 +2813,20 @@ Creates the C# code string.
 - Parameter `classNamespace`: The class namespace.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator)`
 
 ```csharp
-public bool CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN)
+public bool CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN)
 ```
 Creates a DLL based on the selected node structure.
 
 - Parameter `selectedTN`: The selected tn.
 - Returns: Result as a Boolean.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.Boolean)`
 
 ```csharp
-public bool CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, bool isTwinCat3)
+public bool CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, bool isTwinCat3)
 ```
 Creates a DLL based on the selected node structure.
 
@@ -2834,10 +2834,10 @@ Creates a DLL based on the selected node structure.
 - Parameter `isTwinCat3`: Whether TwinCAT 3 packing should be used.
 - Returns: true when the DLL was created.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.String)`
 
 ```csharp
-public bool CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, string fileName)
+public bool CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, string fileName)
 ```
 Creates a DLL using default generation settings.
 
@@ -2845,10 +2845,10 @@ Creates a DLL using default generation settings.
 - Parameter `fileName`: The `fileName` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.String,System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.String,System.Boolean)`
 
 ```csharp
-public bool CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, string fileName, bool isTwinCat3)
+public bool CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, string fileName, bool isTwinCat3)
 ```
 Creates a DLL using the default namespace.
 
@@ -2857,10 +2857,10 @@ Creates a DLL using the default namespace.
 - Parameter `isTwinCat3`: The `isTwinCat3` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.String,System.Boolean,System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.String,System.Boolean,System.String)`
 
 ```csharp
-public bool CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, string fileName, bool isTwinCat3, string classNamespace)
+public bool CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, string fileName, bool isTwinCat3, string classNamespace)
 ```
 Creates a DLL based on the selected node structure.
 
@@ -2870,7 +2870,7 @@ Creates a DLL based on the selected node structure.
 - Parameter `classNamespace`: The class namespace.
 - Returns: Result as a Boolean.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.CreateDll(System.String,System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.CreateDll(System.String,System.String)`
 
 ```csharp
 public bool CreateDll(string sourceCode, string fileName)
@@ -2881,37 +2881,37 @@ Creates the DLL from raw source.
 - Parameter `fileName`: Name of the file.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.Dispose`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.Dispose`
 
 ```csharp
 public void Dispose()
 ```
 Performs application-defined tasks associated with freeing resources.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.LoadSymbols(System.Int32)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.LoadSymbols(System.Int32)`
 
 ```csharp
-public System.Collections.Generic.HashSet<IoT.DriverCore.TwinCATRx.Core.INodeEmulator> LoadSymbols(int port)
+public System.Collections.Generic.HashSet<IoT.Driver.TwinCATRx.Core.INodeEmulator> LoadSymbols(int port)
 ```
 Loads symbols from the specified PLC ADS port.
 
 - Parameter `port`: The port.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.LoadSymbols(System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.LoadSymbols(System.String)`
 
 ```csharp
-public System.Collections.Generic.HashSet<IoT.DriverCore.TwinCATRx.Core.INodeEmulator> LoadSymbols(string adsAddress)
+public System.Collections.Generic.HashSet<IoT.Driver.TwinCATRx.Core.INodeEmulator> LoadSymbols(string adsAddress)
 ```
 Loads symbols from the specified PLC ADS address.
 
 - Parameter `adsAddress`: The ADS address.
 - Returns: HashSet(Of NodeEmulator).
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.LoadSymbols(System.String,System.Int32)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.LoadSymbols(System.String,System.Int32)`
 
 ```csharp
-public System.Collections.Generic.HashSet<IoT.DriverCore.TwinCATRx.Core.INodeEmulator> LoadSymbols(string adsAddress, int port)
+public System.Collections.Generic.HashSet<IoT.Driver.TwinCATRx.Core.INodeEmulator> LoadSymbols(string adsAddress, int port)
 ```
 Loads symbols from the specified PLC ADS address and port.
 
@@ -2919,7 +2919,7 @@ Loads symbols from the specified PLC ADS address and port.
 - Parameter `port`: The port.
 - Returns: HashSet(Of NodeEmulator).
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.PLCToCSharpTypeConverter(System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.PLCToCSharpTypeConverter(System.String)`
 
 ```csharp
 public static string PLCToCSharpTypeConverter(string plcType)
@@ -2929,7 +2929,7 @@ Converts a supported PLC scalar, string, or array type name to its CLR represent
 - Parameter `plcType`: Type of the PLC.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.ReadSymbol(System.String,System.Int32,System.String,System.Type)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.ReadSymbol(System.String,System.Int32,System.String,System.Type)`
 
 ```csharp
 public object ReadSymbol(string adsAddress, int port, string variable, System.Type variableType)
@@ -2942,35 +2942,35 @@ Reads the symbol.
 - Parameter `variableType`: Type of the variable.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.SearchSymbols(System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.CodeGenerator.SearchSymbols(System.String)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.Core.INodeEmulator SearchSymbols(string symbolName)
+public IoT.Driver.TwinCATRx.Core.INodeEmulator SearchSymbols(string symbolName)
 ```
 Searches for the nearest matching symbol list element.
 
 - Parameter `symbolName`: Name of the symbol.
 - Returns: NodeEmulator.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.CodeGenerator.SymbolList`
+###### `P:IoT.Driver.TwinCATRx.Core.CodeGenerator.SymbolList`
 
 ```csharp
-public System.Collections.Generic.HashSet<IoT.DriverCore.TwinCATRx.Core.INodeEmulator> SymbolList { get; }
+public System.Collections.Generic.HashSet<IoT.Driver.TwinCATRx.Core.INodeEmulator> SymbolList { get; }
 ```
 Gets the symbol list.
 
 - Value: The symbol list.
 
-#### `T:IoT.DriverCore.TwinCATRx.Core.DirectoryInfoExtensions`
+#### `T:IoT.Driver.TwinCATRx.Core.DirectoryInfoExtensions`
 
 ```csharp
-public class IoT.DriverCore.TwinCATRx.Core.DirectoryInfoExtensions
+public class IoT.Driver.TwinCATRx.Core.DirectoryInfoExtensions
 ```
 Provides filtered file enumeration extensions for `T:System.IO.DirectoryInfo` .
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.DirectoryInfoExtensions.GetFilesWhere(System.IO.DirectoryInfo,System.Func`2{System.IO.FileInfo,System.Boolean})`
+###### `M:IoT.Driver.TwinCATRx.Core.DirectoryInfoExtensions.GetFilesWhere(System.IO.DirectoryInfo,System.Func`2{System.IO.FileInfo,System.Boolean})`
 
 ```csharp
 public static System.IO.FileInfo[] GetFilesWhere(System.IO.DirectoryInfo directory, System.Func<System.IO.FileInfo, bool> predicate)
@@ -2981,7 +2981,7 @@ Executes the `GetFilesWhere` operation.
 - Parameter `predicate`: The `predicate` value.
 - Returns: A `System.IO.FileInfo[]` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.DirectoryInfoExtensions.GetFilesWhere(System.IO.DirectoryInfo,System.String,System.Func`2{System.IO.FileInfo,System.Boolean})`
+###### `M:IoT.Driver.TwinCATRx.Core.DirectoryInfoExtensions.GetFilesWhere(System.IO.DirectoryInfo,System.String,System.Func`2{System.IO.FileInfo,System.Boolean})`
 
 ```csharp
 public static System.IO.FileInfo[] GetFilesWhere(System.IO.DirectoryInfo directory, string searchPattern, System.Func<System.IO.FileInfo, bool> predicate)
@@ -2993,7 +2993,7 @@ Executes the `GetFilesWhere` operation.
 - Parameter `predicate`: The `predicate` value.
 - Returns: A `System.IO.FileInfo[]` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.DirectoryInfoExtensions.GetFilesWhere(System.IO.DirectoryInfo,System.String,System.IO.SearchOption,System.Func`2{System.IO.FileInfo,System.Boolean})`
+###### `M:IoT.Driver.TwinCATRx.Core.DirectoryInfoExtensions.GetFilesWhere(System.IO.DirectoryInfo,System.String,System.IO.SearchOption,System.Func`2{System.IO.FileInfo,System.Boolean})`
 
 ```csharp
 public static System.IO.FileInfo[] GetFilesWhere(System.IO.DirectoryInfo directory, string searchPattern, System.IO.SearchOption searchOption, System.Func<System.IO.FileInfo, bool> predicate)
@@ -3006,7 +3006,7 @@ Executes the `GetFilesWhere` operation.
 - Parameter `predicate`: The `predicate` value.
 - Returns: A `System.IO.FileInfo[]` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.DirectoryInfoExtensions.GetFilesWhere(System.IO.DirectoryInfo,System.String[],System.Func`2{System.IO.FileInfo,System.Boolean})`
+###### `M:IoT.Driver.TwinCATRx.Core.DirectoryInfoExtensions.GetFilesWhere(System.IO.DirectoryInfo,System.String[],System.Func`2{System.IO.FileInfo,System.Boolean})`
 
 ```csharp
 public static System.IO.FileInfo[] GetFilesWhere(System.IO.DirectoryInfo directory, string[] searchPatterns, System.Func<System.IO.FileInfo, bool> predicate)
@@ -3018,7 +3018,7 @@ Executes the `GetFilesWhere` operation.
 - Parameter `predicate`: The `predicate` value.
 - Returns: A `System.IO.FileInfo[]` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.DirectoryInfoExtensions.GetFilesWhere(System.IO.DirectoryInfo,System.String[],System.IO.SearchOption,System.Func`2{System.IO.FileInfo,System.Boolean})`
+###### `M:IoT.Driver.TwinCATRx.Core.DirectoryInfoExtensions.GetFilesWhere(System.IO.DirectoryInfo,System.String[],System.IO.SearchOption,System.Func`2{System.IO.FileInfo,System.Boolean})`
 
 ```csharp
 public static System.IO.FileInfo[] GetFilesWhere(System.IO.DirectoryInfo directory, string[] searchPatterns, System.IO.SearchOption searchOption, System.Func<System.IO.FileInfo, bool> predicate)
@@ -3031,29 +3031,29 @@ Executes the `GetFilesWhere` operation.
 - Parameter `predicate`: The `predicate` value.
 - Returns: A `System.IO.FileInfo[]` result.
 
-#### `T:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator`
+#### `T:IoT.Driver.TwinCATRx.Core.ICodeGenerator`
 
 ```csharp
-public interface IoT.DriverCore.TwinCATRx.Core.ICodeGenerator
+public interface IoT.Driver.TwinCATRx.Core.ICodeGenerator
 ```
 Interface for Code Generator.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator)`
 
 ```csharp
-public bool CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN)
+public bool CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN)
 ```
 Creates the c sharp code.
 
 - Parameter `selectedTN`: The selected tn.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.Boolean)`
 
 ```csharp
-public bool CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, bool isTwinCat3)
+public bool CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, bool isTwinCat3)
 ```
 Creates the c sharp code.
 
@@ -3061,10 +3061,10 @@ Creates the c sharp code.
 - Parameter `isTwinCat3`: Whether TwinCAT 3 conventions are used.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.String)`
 
 ```csharp
-public bool CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, string fileName)
+public bool CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, string fileName)
 ```
 Creates the c sharp code.
 
@@ -3072,10 +3072,10 @@ Creates the c sharp code.
 - Parameter `fileName`: Name of the file.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.String,System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.String,System.Boolean)`
 
 ```csharp
-public bool CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, string fileName, bool isTwinCat3)
+public bool CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, string fileName, bool isTwinCat3)
 ```
 Creates the c sharp code.
 
@@ -3084,10 +3084,10 @@ Creates the c sharp code.
 - Parameter `isTwinCat3`: if set to true [is twin cat3].
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.String,System.Boolean,System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.String,System.Boolean,System.String)`
 
 ```csharp
-public bool CreateCSharpCode(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, string fileName, bool isTwinCat3, string classNamespace)
+public bool CreateCSharpCode(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, string fileName, bool isTwinCat3, string classNamespace)
 ```
 Creates the c sharp code.
 
@@ -3097,20 +3097,20 @@ Creates the c sharp code.
 - Parameter `classNamespace`: The namespace for generated types.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.CreateCSharpCodeString(IoT.DriverCore.TwinCATRx.Core.INodeEmulator)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.CreateCSharpCodeString(IoT.Driver.TwinCATRx.Core.INodeEmulator)`
 
 ```csharp
-public string CreateCSharpCodeString(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN)
+public string CreateCSharpCodeString(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN)
 ```
 Creates the c sharp code string.
 
 - Parameter `selectedTN`: The selected tn.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.CreateCSharpCodeString(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.CreateCSharpCodeString(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.Boolean)`
 
 ```csharp
-public string CreateCSharpCodeString(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, bool isTwinCat3)
+public string CreateCSharpCodeString(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, bool isTwinCat3)
 ```
 Creates the c sharp code string.
 
@@ -3118,10 +3118,10 @@ Creates the c sharp code string.
 - Parameter `isTwinCat3`: if set to true [is twin cat3].
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.CreateCSharpCodeString(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.Boolean,System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.CreateCSharpCodeString(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.Boolean,System.String)`
 
 ```csharp
-public string CreateCSharpCodeString(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, bool isTwinCat3, string classNamespace)
+public string CreateCSharpCodeString(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, bool isTwinCat3, string classNamespace)
 ```
 Creates the c sharp code string.
 
@@ -3130,20 +3130,20 @@ Creates the c sharp code string.
 - Parameter `classNamespace`: The namespace for generated types.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator)`
 
 ```csharp
-public bool CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN)
+public bool CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN)
 ```
 Creates the DLL.
 
 - Parameter `selectedTN`: The selected tn.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.Boolean)`
 
 ```csharp
-public bool CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, bool isTwinCat3)
+public bool CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, bool isTwinCat3)
 ```
 Creates the DLL.
 
@@ -3151,10 +3151,10 @@ Creates the DLL.
 - Parameter `isTwinCat3`: Whether TwinCAT 3 conventions are used.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.String)`
 
 ```csharp
-public bool CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, string fileName)
+public bool CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, string fileName)
 ```
 Creates the DLL.
 
@@ -3162,10 +3162,10 @@ Creates the DLL.
 - Parameter `fileName`: Name of the file.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.String,System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.String,System.Boolean)`
 
 ```csharp
-public bool CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, string fileName, bool isTwinCat3)
+public bool CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, string fileName, bool isTwinCat3)
 ```
 Creates the DLL.
 
@@ -3174,10 +3174,10 @@ Creates the DLL.
 - Parameter `isTwinCat3`: if set to true [is twin cat3].
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator,System.String,System.Boolean,System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator,System.String,System.Boolean,System.String)`
 
 ```csharp
-public bool CreateDll(IoT.DriverCore.TwinCATRx.Core.INodeEmulator selectedTN, string fileName, bool isTwinCat3, string classNamespace)
+public bool CreateDll(IoT.Driver.TwinCATRx.Core.INodeEmulator selectedTN, string fileName, bool isTwinCat3, string classNamespace)
 ```
 Creates the DLL.
 
@@ -3187,7 +3187,7 @@ Creates the DLL.
 - Parameter `classNamespace`: The namespace for generated types.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.CreateDll(System.String,System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.CreateDll(System.String,System.String)`
 
 ```csharp
 public bool CreateDll(string sourceCode, string fileName)
@@ -3198,30 +3198,30 @@ Creates the DLL.
 - Parameter `fileName`: Name of the file.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.LoadSymbols(System.Int32)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.LoadSymbols(System.Int32)`
 
 ```csharp
-public System.Collections.Generic.HashSet<IoT.DriverCore.TwinCATRx.Core.INodeEmulator> LoadSymbols(int port)
+public System.Collections.Generic.HashSet<IoT.Driver.TwinCATRx.Core.INodeEmulator> LoadSymbols(int port)
 ```
 Loads the symbols.
 
 - Parameter `port`: The port.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.LoadSymbols(System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.LoadSymbols(System.String)`
 
 ```csharp
-public System.Collections.Generic.HashSet<IoT.DriverCore.TwinCATRx.Core.INodeEmulator> LoadSymbols(string adsAddress)
+public System.Collections.Generic.HashSet<IoT.Driver.TwinCATRx.Core.INodeEmulator> LoadSymbols(string adsAddress)
 ```
 Loads the symbols.
 
 - Parameter `adsAddress`: The ADS address.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.LoadSymbols(System.String,System.Int32)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.LoadSymbols(System.String,System.Int32)`
 
 ```csharp
-public System.Collections.Generic.HashSet<IoT.DriverCore.TwinCATRx.Core.INodeEmulator> LoadSymbols(string adsAddress, int port)
+public System.Collections.Generic.HashSet<IoT.Driver.TwinCATRx.Core.INodeEmulator> LoadSymbols(string adsAddress, int port)
 ```
 Loads the symbols.
 
@@ -3229,7 +3229,7 @@ Loads the symbols.
 - Parameter `port`: The port.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.ReadSymbol(System.String,System.Int32,System.String,System.Type)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.ReadSymbol(System.String,System.Int32,System.String,System.Type)`
 
 ```csharp
 public object ReadSymbol(string adsAddress, int port, string variable, System.Type variableType)
@@ -3242,35 +3242,35 @@ Reads the symbol.
 - Parameter `variableType`: Type of the variable.
 - Returns: A Value.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.SearchSymbols(System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.ICodeGenerator.SearchSymbols(System.String)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.Core.INodeEmulator SearchSymbols(string symbolName)
+public IoT.Driver.TwinCATRx.Core.INodeEmulator SearchSymbols(string symbolName)
 ```
 Searches the symbols.
 
 - Parameter `symbolName`: Name of the symbol.
 - Returns: A Value.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.ICodeGenerator.SymbolList`
+###### `P:IoT.Driver.TwinCATRx.Core.ICodeGenerator.SymbolList`
 
 ```csharp
-public System.Collections.Generic.HashSet<IoT.DriverCore.TwinCATRx.Core.INodeEmulator> SymbolList { get; }
+public System.Collections.Generic.HashSet<IoT.Driver.TwinCATRx.Core.INodeEmulator> SymbolList { get; }
 ```
 Gets the symbol list.
 
 - Value: The symbol list.
 
-#### `T:IoT.DriverCore.TwinCATRx.Core.ILanguageService`
+#### `T:IoT.Driver.TwinCATRx.Core.ILanguageService`
 
 ```csharp
-public interface IoT.DriverCore.TwinCATRx.Core.ILanguageService
+public interface IoT.Driver.TwinCATRx.Core.ILanguageService
 ```
 I Language Service.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ILanguageService.CreateLibraryCompilation(System.String,System.Boolean)`
+###### `M:IoT.Driver.TwinCATRx.Core.ILanguageService.CreateLibraryCompilation(System.String,System.Boolean)`
 
 ```csharp
 public Microsoft.CodeAnalysis.Compilation CreateLibraryCompilation(string assemblyName, bool enableOptimisations)
@@ -3281,7 +3281,7 @@ Creates the library compilation.
 - Parameter `enableOptimisations`: if set to true [enable optimisations].
 - Returns: A Compilation.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ILanguageService.ParseText(System.String,Microsoft.CodeAnalysis.SourceCodeKind)`
+###### `M:IoT.Driver.TwinCATRx.Core.ILanguageService.ParseText(System.String,Microsoft.CodeAnalysis.SourceCodeKind)`
 
 ```csharp
 public Microsoft.CodeAnalysis.SyntaxTree ParseText(string code, Microsoft.CodeAnalysis.SourceCodeKind kind)
@@ -3292,25 +3292,25 @@ Parses the text.
 - Parameter `kind`: The kind.
 - Returns: A SyntaxTree.
 
-#### `T:IoT.DriverCore.TwinCATRx.Core.INodeEmulator`
+#### `T:IoT.Driver.TwinCATRx.Core.INodeEmulator`
 
 ```csharp
-public interface IoT.DriverCore.TwinCATRx.Core.INodeEmulator
+public interface IoT.Driver.TwinCATRx.Core.INodeEmulator
 ```
 Interface for Node Emulator.
 
 ##### Declared public members
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.INodeEmulator.Nodes`
+###### `P:IoT.Driver.TwinCATRx.Core.INodeEmulator.Nodes`
 
 ```csharp
-public System.Collections.Generic.HashSet<IoT.DriverCore.TwinCATRx.Core.INodeEmulator> Nodes { get; }
+public System.Collections.Generic.HashSet<IoT.Driver.TwinCATRx.Core.INodeEmulator> Nodes { get; }
 ```
 Gets the nodes.
 
 - Value: The nodes.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.INodeEmulator.Tag`
+###### `P:IoT.Driver.TwinCATRx.Core.INodeEmulator.Tag`
 
 ```csharp
 public object Tag { get; set; }
@@ -3319,7 +3319,7 @@ Gets or sets the tag.
 
 - Value: The tag.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.INodeEmulator.Text`
+###### `P:IoT.Driver.TwinCATRx.Core.INodeEmulator.Text`
 
 ```csharp
 public string Text { get; set; }
@@ -3328,16 +3328,16 @@ Gets or sets the text.
 
 - Value: The text.
 
-#### `T:IoT.DriverCore.TwinCATRx.Core.INotification`
+#### `T:IoT.Driver.TwinCATRx.Core.INotification`
 
 ```csharp
-public interface IoT.DriverCore.TwinCATRx.Core.INotification
+public interface IoT.Driver.TwinCATRx.Core.INotification
 ```
 Interface for Notification.
 
 ##### Declared public members
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.INotification.ArraySize`
+###### `P:IoT.Driver.TwinCATRx.Core.INotification.ArraySize`
 
 ```csharp
 public int ArraySize { get; }
@@ -3346,7 +3346,7 @@ Gets the size of the array.
 
 - Value: The size of the array.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.INotification.UpdateRate`
+###### `P:IoT.Driver.TwinCATRx.Core.INotification.UpdateRate`
 
 ```csharp
 public int UpdateRate { get; }
@@ -3355,7 +3355,7 @@ Gets the update rate.
 
 - Value: The update rate.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.INotification.Variable`
+###### `P:IoT.Driver.TwinCATRx.Core.INotification.Variable`
 
 ```csharp
 public string Variable { get; }
@@ -3364,16 +3364,16 @@ Gets the variable.
 
 - Value: The variable.
 
-#### `T:IoT.DriverCore.TwinCATRx.Core.ISettings`
+#### `T:IoT.Driver.TwinCATRx.Core.ISettings`
 
 ```csharp
-public interface IoT.DriverCore.TwinCATRx.Core.ISettings
+public interface IoT.Driver.TwinCATRx.Core.ISettings
 ```
 Interface for engine settings.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.ISettings.Defaults``1(``0)`
+###### `M:IoT.Driver.TwinCATRx.Core.ISettings.Defaults``1(``0)`
 
 ```csharp
 public T Defaults<T>(T defaultSettings)
@@ -3383,7 +3383,7 @@ Gets or sets Default settings.
 - Parameter `defaultSettings`: The settings instance that establishes the requested type.
 - Returns: Default values of type T.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.ISettings.AdsAddress`
+###### `P:IoT.Driver.TwinCATRx.Core.ISettings.AdsAddress`
 
 ```csharp
 public string AdsAddress { get; set; }
@@ -3392,16 +3392,16 @@ Gets or sets the ads address.
 
 - Value: The ads address.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.ISettings.Notifications`
+###### `P:IoT.Driver.TwinCATRx.Core.ISettings.Notifications`
 
 ```csharp
-public System.Collections.Generic.IList<IoT.DriverCore.TwinCATRx.Core.INotification> Notifications { get; }
+public System.Collections.Generic.IList<IoT.Driver.TwinCATRx.Core.INotification> Notifications { get; }
 ```
 Gets or sets Notifications of this Engine.
 
 - Value: The `Notifications` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.ISettings.Port`
+###### `P:IoT.Driver.TwinCATRx.Core.ISettings.Port`
 
 ```csharp
 public int Port { get; set; }
@@ -3410,7 +3410,7 @@ Gets or sets the port.
 
 - Value: The port.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.ISettings.SettingsId`
+###### `P:IoT.Driver.TwinCATRx.Core.ISettings.SettingsId`
 
 ```csharp
 public string SettingsId { get; set; }
@@ -3419,25 +3419,25 @@ Gets or sets System Identifier.
 
 - Value: The `SettingsId` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.ISettings.WriteVariables`
+###### `P:IoT.Driver.TwinCATRx.Core.ISettings.WriteVariables`
 
 ```csharp
-public System.Collections.Generic.IList<IoT.DriverCore.TwinCATRx.Core.IWriteVariable> WriteVariables { get; }
+public System.Collections.Generic.IList<IoT.Driver.TwinCATRx.Core.IWriteVariable> WriteVariables { get; }
 ```
 Gets or sets Write variables to this Engine.
 
 - Value: The `WriteVariables` value.
 
-#### `T:IoT.DriverCore.TwinCATRx.Core.IWriteVariable`
+#### `T:IoT.Driver.TwinCATRx.Core.IWriteVariable`
 
 ```csharp
-public interface IoT.DriverCore.TwinCATRx.Core.IWriteVariable
+public interface IoT.Driver.TwinCATRx.Core.IWriteVariable
 ```
 Interface for Write Variable.
 
 ##### Declared public members
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.IWriteVariable.ArraySize`
+###### `P:IoT.Driver.TwinCATRx.Core.IWriteVariable.ArraySize`
 
 ```csharp
 public int ArraySize { get; }
@@ -3446,7 +3446,7 @@ Gets the size of the array.
 
 - Value: The size of the array.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.IWriteVariable.Variable`
+###### `P:IoT.Driver.TwinCATRx.Core.IWriteVariable.Variable`
 
 ```csharp
 public string Variable { get; }
@@ -3455,23 +3455,23 @@ Gets the variable.
 
 - Value: The variable.
 
-#### `T:IoT.DriverCore.TwinCATRx.Core.Settings`
+#### `T:IoT.Driver.TwinCATRx.Core.Settings`
 
 ```csharp
-public class IoT.DriverCore.TwinCATRx.Core.Settings
+public class IoT.Driver.TwinCATRx.Core.Settings
 ```
 Base settings for Engine Settings file.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.Settings.#ctor`
+###### `M:IoT.Driver.TwinCATRx.Core.Settings.#ctor`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.Core.Settings()
+public IoT.Driver.TwinCATRx.Core.Settings()
 ```
-Initializes a new instance of `IoT.DriverCore.TwinCATRx.Core.Settings`.
+Initializes a new instance of `IoT.Driver.TwinCATRx.Core.Settings`.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.Settings.Defaults``1(``0)`
+###### `M:IoT.Driver.TwinCATRx.Core.Settings.Defaults``1(``0)`
 
 ```csharp
 public T Defaults<T>(T defaultSettings)
@@ -3481,7 +3481,7 @@ Creates default settings when no persisted file exists.
 - Parameter `defaultSettings`: The settings instance that establishes the requested type.
 - Returns: The default settings.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.Settings.AdsAddress`
+###### `P:IoT.Driver.TwinCATRx.Core.Settings.AdsAddress`
 
 ```csharp
 public string AdsAddress { get; set; }
@@ -3490,16 +3490,16 @@ Gets or sets the Ads Address.
 
 - Value: The `AdsAddress` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.Settings.Notifications`
+###### `P:IoT.Driver.TwinCATRx.Core.Settings.Notifications`
 
 ```csharp
-public System.Collections.Generic.List<IoT.DriverCore.TwinCATRx.Core.INotification> Notifications { get; set; }
+public System.Collections.Generic.List<IoT.Driver.TwinCATRx.Core.INotification> Notifications { get; set; }
 ```
 Gets or sets Notifications of this Engine.
 
 - Value: The `Notifications` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.Settings.Port`
+###### `P:IoT.Driver.TwinCATRx.Core.Settings.Port`
 
 ```csharp
 public int Port { get; set; }
@@ -3508,7 +3508,7 @@ Gets or sets the Port of the PLC to connect to.
 
 - Value: The `Port` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.Settings.SettingsId`
+###### `P:IoT.Driver.TwinCATRx.Core.Settings.SettingsId`
 
 ```csharp
 public string SettingsId { get; set; }
@@ -3517,73 +3517,73 @@ Gets or sets System Identifier.
 
 - Value: The `SettingsId` value.
 
-###### `P:IoT.DriverCore.TwinCATRx.Core.Settings.WriteVariables`
+###### `P:IoT.Driver.TwinCATRx.Core.Settings.WriteVariables`
 
 ```csharp
-public System.Collections.Generic.List<IoT.DriverCore.TwinCATRx.Core.IWriteVariable> WriteVariables { get; set; }
+public System.Collections.Generic.List<IoT.Driver.TwinCATRx.Core.IWriteVariable> WriteVariables { get; set; }
 ```
 Gets or sets Write variables to this Engine.
 
 - Value: The `WriteVariables` value.
 
-#### `T:IoT.DriverCore.TwinCATRx.Core.SimpleTypeException`
+#### `T:IoT.Driver.TwinCATRx.Core.SimpleTypeException`
 
 ```csharp
-public class IoT.DriverCore.TwinCATRx.Core.SimpleTypeException
+public class IoT.Driver.TwinCATRx.Core.SimpleTypeException
 ```
 Exception thrown when a simple type is not supported.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.SimpleTypeException.#ctor`
+###### `M:IoT.Driver.TwinCATRx.Core.SimpleTypeException.#ctor`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.Core.SimpleTypeException()
+public IoT.Driver.TwinCATRx.Core.SimpleTypeException()
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.Core.SimpleTypeException` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.Core.SimpleTypeException` class.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.SimpleTypeException.#ctor(System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.SimpleTypeException.#ctor(System.String)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.Core.SimpleTypeException(string message)
+public IoT.Driver.TwinCATRx.Core.SimpleTypeException(string message)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.Core.SimpleTypeException` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.Core.SimpleTypeException` class.
 
 - Parameter `message`: The message that describes the error.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.SimpleTypeException.#ctor(System.String,System.Exception)`
+###### `M:IoT.Driver.TwinCATRx.Core.SimpleTypeException.#ctor(System.String,System.Exception)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.Core.SimpleTypeException(string message, System.Exception innerException)
+public IoT.Driver.TwinCATRx.Core.SimpleTypeException(string message, System.Exception innerException)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.Core.SimpleTypeException` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.Core.SimpleTypeException` class.
 
 - Parameter `message`: The error message that explains the reason for the exception.
 - Parameter `innerException`: The exception that caused this exception, or null when no inner exception is specified.
 
-#### `T:IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions`
+#### `T:IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions`
 
 ```csharp
-public class IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions
+public class IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions
 ```
 Observable TwinCAT extensions.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.AddNotification(IoT.DriverCore.TwinCATRx.Core.ISettings,System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions.AddNotification(IoT.Driver.TwinCATRx.Core.ISettings,System.String)`
 
 ```csharp
-public static void AddNotification(IoT.DriverCore.TwinCATRx.Core.ISettings settings, string variableName)
+public static void AddNotification(IoT.Driver.TwinCATRx.Core.ISettings settings, string variableName)
 ```
 Adds a notification variable to the settings.
 
 - Parameter `settings`: The TwinCAT settings.
 - Parameter `variableName`: The PLC variable name.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.AddNotification(IoT.DriverCore.TwinCATRx.Core.ISettings,System.String,System.Int32)`
+###### `M:IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions.AddNotification(IoT.Driver.TwinCATRx.Core.ISettings,System.String,System.Int32)`
 
 ```csharp
-public static void AddNotification(IoT.DriverCore.TwinCATRx.Core.ISettings settings, string variableName, int cycleTime)
+public static void AddNotification(IoT.Driver.TwinCATRx.Core.ISettings settings, string variableName, int cycleTime)
 ```
 Adds a notification variable to the settings.
 
@@ -3591,10 +3591,10 @@ Adds a notification variable to the settings.
 - Parameter `variableName`: The PLC variable name.
 - Parameter `cycleTime`: The polling cycle time.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.AddNotification(IoT.DriverCore.TwinCATRx.Core.ISettings,System.String,System.Int32,System.Int32)`
+###### `M:IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions.AddNotification(IoT.Driver.TwinCATRx.Core.ISettings,System.String,System.Int32,System.Int32)`
 
 ```csharp
-public static void AddNotification(IoT.DriverCore.TwinCATRx.Core.ISettings settings, string variableName, int cycleTime, int arraySize)
+public static void AddNotification(IoT.Driver.TwinCATRx.Core.ISettings settings, string variableName, int cycleTime, int arraySize)
 ```
 Adds a notification variable to the settings.
 
@@ -3603,20 +3603,20 @@ Adds a notification variable to the settings.
 - Parameter `cycleTime`: The polling cycle time.
 - Parameter `arraySize`: The array size.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.AddWriteVariable(IoT.DriverCore.TwinCATRx.Core.ISettings,System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions.AddWriteVariable(IoT.Driver.TwinCATRx.Core.ISettings,System.String)`
 
 ```csharp
-public static void AddWriteVariable(IoT.DriverCore.TwinCATRx.Core.ISettings settings, string variableName)
+public static void AddWriteVariable(IoT.Driver.TwinCATRx.Core.ISettings settings, string variableName)
 ```
 Adds a write variable to the settings.
 
 - Parameter `settings`: The TwinCAT settings.
 - Parameter `variableName`: The PLC variable name.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.AddWriteVariable(IoT.DriverCore.TwinCATRx.Core.ISettings,System.String,System.Int32)`
+###### `M:IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions.AddWriteVariable(IoT.Driver.TwinCATRx.Core.ISettings,System.String,System.Int32)`
 
 ```csharp
-public static void AddWriteVariable(IoT.DriverCore.TwinCATRx.Core.ISettings settings, string variableName, int arraySize)
+public static void AddWriteVariable(IoT.Driver.TwinCATRx.Core.ISettings settings, string variableName, int arraySize)
 ```
 Adds a write variable to the settings.
 
@@ -3624,7 +3624,7 @@ Adds a write variable to the settings.
 - Parameter `variableName`: The PLC variable name.
 - Parameter `arraySize`: The array size.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.AdsStateChangedObserver(TwinCAT.Ads.AdsClient)`
+###### `M:IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions.AdsStateChangedObserver(TwinCAT.Ads.AdsClient)`
 
 ```csharp
 public static System.IObservable<TwinCAT.Ads.AdsStateChangedEventArgs> AdsStateChangedObserver(TwinCAT.Ads.AdsClient client)
@@ -3634,7 +3634,7 @@ Observes ADS state changed events.
 - Parameter `client`: The ADS client.
 - Returns: The ADS state changed observable sequence.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.AdsStateObserver(TwinCAT.Ads.AdsClient)`
+###### `M:IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions.AdsStateObserver(TwinCAT.Ads.AdsClient)`
 
 ```csharp
 public static System.IObservable<TwinCAT.Ads.StateInfo> AdsStateObserver(TwinCAT.Ads.AdsClient client)
@@ -3644,7 +3644,7 @@ Polls ADS state from the client.
 - Parameter `client`: The ADS client.
 - Returns: The ADS state observable sequence.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.AssemblyLoad(System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions.AssemblyLoad(System.String)`
 
 ```csharp
 public static System.Reflection.Assembly AssemblyLoad(string dllFullName)
@@ -3654,7 +3654,7 @@ Loads an assembly from a DLL file path.
 - Parameter `dllFullName`: The full DLL path.
 - Returns: The loaded assembly.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.GetType(System.String,System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions.GetType(System.String,System.String)`
 
 ```csharp
 public static System.Type GetType(string dllFullName, string engineType)
@@ -3665,7 +3665,7 @@ Gets a type from an assembly file.
 - Parameter `engineType`: The type name.
 - Returns: The resolved type.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.OnErrorRetry``1(System.IObservable`1{``0})`
+###### `M:IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions.OnErrorRetry``1(System.IObservable`1{``0})`
 
 ```csharp
 public static System.IObservable<TSource> OnErrorRetry<TSource>(System.IObservable<TSource> source)
@@ -3675,7 +3675,7 @@ Executes the `OnErrorRetry` operation.
 - Parameter `source`: The `source` value.
 - Returns: A `System.IObservable<TSource>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.OnErrorRetry``2(System.IObservable`1{``0},System.Action`1{``1})`
+###### `M:IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions.OnErrorRetry``2(System.IObservable`1{``0},System.Action`1{``1})`
 
 ```csharp
 public static System.IObservable<TSource> OnErrorRetry<TSource, TException>(System.IObservable<TSource> source, System.Action<TException> onError)
@@ -3686,7 +3686,7 @@ Executes the `OnErrorRetry` operation.
 - Parameter `onError`: The `onError` value.
 - Returns: A `System.IObservable<TSource>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.OnErrorRetry``2(System.IObservable`1{``0},System.Action`1{``1},System.Int32)`
+###### `M:IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions.OnErrorRetry``2(System.IObservable`1{``0},System.Action`1{``1},System.Int32)`
 
 ```csharp
 public static System.IObservable<TSource> OnErrorRetry<TSource, TException>(System.IObservable<TSource> source, System.Action<TException> onError, int retryCount)
@@ -3698,7 +3698,7 @@ Executes the `OnErrorRetry` operation.
 - Parameter `retryCount`: The `retryCount` value.
 - Returns: A `System.IObservable<TSource>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.OnErrorRetry``2(System.IObservable`1{``0},System.Action`1{``1},System.Int32,System.TimeSpan)`
+###### `M:IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions.OnErrorRetry``2(System.IObservable`1{``0},System.Action`1{``1},System.Int32,System.TimeSpan)`
 
 ```csharp
 public static System.IObservable<TSource> OnErrorRetry<TSource, TException>(System.IObservable<TSource> source, System.Action<TException> onError, int retryCount, System.TimeSpan delay)
@@ -3711,7 +3711,7 @@ Executes the `OnErrorRetry` operation.
 - Parameter `delay`: The `delay` value.
 - Returns: A `System.IObservable<TSource>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.OnErrorRetry``2(System.IObservable`1{``0},System.Action`1{``1},System.Int32,System.TimeSpan,ReactiveUI.Primitives.Concurrency.ISequencer)`
+###### `M:IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions.OnErrorRetry``2(System.IObservable`1{``0},System.Action`1{``1},System.Int32,System.TimeSpan,ReactiveUI.Primitives.Concurrency.ISequencer)`
 
 ```csharp
 public static System.IObservable<TSource> OnErrorRetry<TSource, TException>(System.IObservable<TSource> source, System.Action<TException> onError, int retryCount, System.TimeSpan delay, ReactiveUI.Primitives.Concurrency.ISequencer delaySequencer)
@@ -3725,7 +3725,7 @@ Executes the `OnErrorRetry` operation.
 - Parameter `delaySequencer`: The `delaySequencer` value.
 - Returns: A `System.IObservable<TSource>` result.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions.OnErrorRetry``2(System.IObservable`1{``0},System.Action`1{``1},System.TimeSpan)`
+###### `M:IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions.OnErrorRetry``2(System.IObservable`1{``0},System.Action`1{``1},System.TimeSpan)`
 
 ```csharp
 public static System.IObservable<TSource> OnErrorRetry<TSource, TException>(System.IObservable<TSource> source, System.Action<TException> onError, System.TimeSpan delay)
@@ -3737,37 +3737,37 @@ Executes the `OnErrorRetry` operation.
 - Parameter `delay`: The `delay` value.
 - Returns: A `System.IObservable<TSource>` result.
 
-#### `T:IoT.DriverCore.TwinCATRx.Core.UnsuportedTypeException`
+#### `T:IoT.Driver.TwinCATRx.Core.UnsuportedTypeException`
 
 ```csharp
-public class IoT.DriverCore.TwinCATRx.Core.UnsuportedTypeException
+public class IoT.Driver.TwinCATRx.Core.UnsuportedTypeException
 ```
 Exception thrown when a simple type is not supported.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.UnsuportedTypeException.#ctor`
+###### `M:IoT.Driver.TwinCATRx.Core.UnsuportedTypeException.#ctor`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.Core.UnsuportedTypeException()
+public IoT.Driver.TwinCATRx.Core.UnsuportedTypeException()
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.Core.UnsuportedTypeException` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.Core.UnsuportedTypeException` class.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.UnsuportedTypeException.#ctor(System.String)`
+###### `M:IoT.Driver.TwinCATRx.Core.UnsuportedTypeException.#ctor(System.String)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.Core.UnsuportedTypeException(string message)
+public IoT.Driver.TwinCATRx.Core.UnsuportedTypeException(string message)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.Core.UnsuportedTypeException` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.Core.UnsuportedTypeException` class.
 
 - Parameter `message`: The message that describes the error.
 
-###### `M:IoT.DriverCore.TwinCATRx.Core.UnsuportedTypeException.#ctor(System.String,System.Exception)`
+###### `M:IoT.Driver.TwinCATRx.Core.UnsuportedTypeException.#ctor(System.String,System.Exception)`
 
 ```csharp
-public IoT.DriverCore.TwinCATRx.Core.UnsuportedTypeException(string message, System.Exception innerException)
+public IoT.Driver.TwinCATRx.Core.UnsuportedTypeException(string message, System.Exception innerException)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.TwinCATRx.Core.UnsuportedTypeException` class.
+Initializes a new instance of the `T:IoT.Driver.TwinCATRx.Core.UnsuportedTypeException` class.
 
 - Parameter `message`: The error message that explains the reason for the exception.
 - Parameter `innerException`: The exception that caused this exception, or null when no inner exception is specified.

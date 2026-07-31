@@ -6,23 +6,23 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Channels;
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Requests;
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Responses;
-using IoT.DriverCore.OmronPlcRx.Reactive.Enums;
-using IoT.DriverCore.OmronPlcRx.Reactive.Results;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Channels;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Requests;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Responses;
+using IoT.Driver.OmronPlcRx.Reactive.Enums;
+using IoT.Driver.OmronPlcRx.Reactive.Results;
 #else
-using IoT.DriverCore.OmronPlcRx.Core.Channels;
-using IoT.DriverCore.OmronPlcRx.Core.Requests;
-using IoT.DriverCore.OmronPlcRx.Core.Responses;
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Results;
+using IoT.Driver.OmronPlcRx.Core.Channels;
+using IoT.Driver.OmronPlcRx.Core.Requests;
+using IoT.Driver.OmronPlcRx.Core.Responses;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Results;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core;
+namespace IoT.Driver.OmronPlcRx.Core;
 #endif
 
 /// <summary>Provides Omron FINS operations over supported transports.</summary>
@@ -102,10 +102,7 @@ internal sealed partial class OmronPLCConnection : IDisposable
         string? controllerVersion,
         bool isInitialized)
     {
-        if (options is null)
-        {
-            throw new ArgumentNullException(nameof(options));
-        }
+        OmronArgumentGuards.ThrowIfNull(options, nameof(options));
 
         OmronPLCConnectionMetadata.ValidateNodeIdentifiers(
             options.LocalNodeId,
@@ -146,7 +143,6 @@ internal sealed partial class OmronPLCConnection : IDisposable
     void IDisposable.Dispose()
     {
         Dispose();
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>Gets the local node id value.</summary>
@@ -309,17 +305,8 @@ internal sealed partial class OmronPLCConnection : IDisposable
     {
         ThrowIfNotInitialized();
 
-        if (startBitIndex > ProtocolConstants.Fifteen)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(startBitIndex),
-                "The Start Bit Index cannot be greater than 15");
-        }
-
-        if (length == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(length), "The Length cannot be Zero");
-        }
+        OmronArgumentGuards.ThrowIfGreaterThan(startBitIndex, ProtocolConstants.Fifteen, nameof(startBitIndex));
+        OmronArgumentGuards.ThrowIfZero(length, nameof(length));
 
         if (startBitIndex + length > ProtocolConstants.Sixteen)
         {
@@ -384,17 +371,8 @@ internal sealed partial class OmronPLCConnection : IDisposable
     {
         ThrowIfNotInitialized();
 
-        if (length == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(length), "The Length cannot be Zero");
-        }
-
-        if (length > MaximumReadWordLength)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(length),
-                $"The Length cannot be greater than {MaximumReadWordLength}");
-        }
+        OmronArgumentGuards.ThrowIfZero(length, nameof(length));
+        OmronArgumentGuards.ThrowIfGreaterThan(length, MaximumReadWordLength, nameof(length));
 
         if (!ValidateWordDataType(dataType))
         {
@@ -499,10 +477,7 @@ internal sealed partial class OmronPLCConnection : IDisposable
         MemoryWordDataType dataType,
         CancellationToken cancellationToken)
     {
-        if (values is null)
-        {
-            throw new ArgumentNullException(nameof(values));
-        }
+        OmronArgumentGuards.ThrowIfNull(values, nameof(values));
 
         ThrowIfNotInitialized();
 
@@ -614,17 +589,8 @@ internal sealed partial class OmronPLCConnection : IDisposable
                 $"The Date Time Value cannot be greater than '{maxDateTime}'");
         }
 
-        if (newDayOfWeek < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(newDayOfWeek), "The Day of Week Value cannot be less than 0");
-        }
-
-        if (newDayOfWeek > ProtocolConstants.Six)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(newDayOfWeek),
-                "The Day of Week Value cannot be greater than 6");
-        }
+        OmronArgumentGuards.ThrowIfNegative(newDayOfWeek, nameof(newDayOfWeek));
+        OmronArgumentGuards.ThrowIfGreaterThan(newDayOfWeek, ProtocolConstants.Six, nameof(newDayOfWeek));
 
         var request = WriteClockRequest.CreateNew(this, newDateTime.DateTime, (byte)newDayOfWeek);
 

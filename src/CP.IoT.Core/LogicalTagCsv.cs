@@ -4,7 +4,7 @@
 
 using System.Text;
 
-namespace IoT.DriverCore.Core;
+namespace IoT.Driver.Core;
 
 /// <summary>Imports and exports logical tags as RFC 4180 CSV.</summary>
 public static class LogicalTagCsv
@@ -190,11 +190,11 @@ public static class LogicalTagCsv
 
         var scanInterval = ParseScanInterval(row[7], rowNumber);
 
-        return new LogicalTag(
+        return new(
             row[0],
             row[1],
             row[2],
-            new LogicalTagOptions
+            new()
             {
                 GroupName = row[3],
                 Description = row[4],
@@ -240,7 +240,19 @@ public static class LogicalTagCsv
         char delimiter,
         CancellationToken cancellationToken)
     {
-        var escaped = string.Join(delimiter.ToString(), fields.Select(field => Escape(field ?? string.Empty, delimiter)));
+        var escaped = new StringBuilder();
+        var firstField = true;
+        foreach (var field in fields)
+        {
+            if (!firstField)
+            {
+                _ = escaped.Append(delimiter);
+            }
+
+            _ = escaped.Append(Escape(field ?? string.Empty, delimiter));
+            firstField = false;
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
         await writer.WriteAsync($"{escaped}\r\n").ConfigureAwait(false);
     }

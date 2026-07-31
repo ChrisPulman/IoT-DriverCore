@@ -4,10 +4,10 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiUdpTests type.</summary>
@@ -16,15 +16,18 @@ internal sealed class MitsubishiUdpTests
     /// <summary>Stores the number of words read in the UDP test.</summary>
     private const int WordCount = 2;
 
+    /// <summary>Stores the expected UDP read values.</summary>
+    private static readonly ushort[] ExpectedWords = [0x0042, 0x5678];
+
     /// <summary>Executes the ReadWordsAsyncAsciiUdpRoundTripsThroughDynamicResponse operation.</summary>
     /// <returns>The ReadWordsAsyncAsciiUdpRoundTripsThroughDynamicResponse operation result.</returns>
     [Test]
     internal async Task ReadWordsAsyncAsciiUdpRoundTripsThroughDynamicResponseAsync()
     {
-        await using var transport = new FakeTransport(request =>
+        await using var transport = new FakeTransport(static request =>
         {
             _ = System.Text.Encoding.ASCII.GetString(request.Payload);
-            return System.Text.Encoding.ASCII.GetBytes("D00000FF03FF000006000000425678");
+            return "D00000FF03FF000006000000425678"u8.ToArray();
         });
 
         var options = new MitsubishiClientOptions(
@@ -43,7 +46,7 @@ internal sealed class MitsubishiUdpTests
         }
 
         await Assert.That(result.IsSucceed).IsTrue();
-        await Assert.That(result.Value!.Select(static value => (int)value).ToArray()).IsEquivalentTo([0x0042, 0x5678]);
+        await Assert.That(result.Value!).IsEquivalentTo(ExpectedWords);
         await Assert.That(transport.Requests[0].Description).IsEqualTo("Read words D100");
     }
 }

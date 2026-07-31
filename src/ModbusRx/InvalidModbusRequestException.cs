@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive;
+namespace IoT.Driver.ModbusRx.Reactive;
 #else
-namespace IoT.DriverCore.ModbusRx;
+namespace IoT.Driver.ModbusRx;
 #endif
 
 /// <summary>An exception that provides the exception code sent in response to an invalid Modbus request.</summary>

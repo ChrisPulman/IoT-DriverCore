@@ -8,9 +8,9 @@ using System.ServiceProcess;
 #if !NETFRAMEWORK
 using System.Runtime.Versioning;
 #endif
-using IoT.DriverCore.TwinCATRx;
+using IoT.Driver.TwinCATRx;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Non-live lifecycle tests for the observable service-controller wrapper.</summary>
 #if !NETFRAMEWORK
@@ -99,7 +99,7 @@ public class LeanServiceControllerCoverageTests
         await TUnitAssert.That(invalidStatuses.Errors).Count().IsEqualTo(1);
         await TUnitAssert.That(win32Statuses.Errors).Count().IsEqualTo(1);
         await TUnitAssert.That(services.Values).Count().IsEqualTo(1);
-        await TUnitAssert.That(services.Values.Single().ServiceName).IsEqualTo(TwinCatServiceName);
+        await TUnitAssert.That(services.Values[0].ServiceName).IsEqualTo(TwinCatServiceName);
         await TUnitAssert.That(unsupported.Completed).IsTrue();
     }
 

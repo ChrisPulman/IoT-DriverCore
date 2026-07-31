@@ -5,15 +5,15 @@
 using System.Diagnostics;
 using System.Net;
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Message;
+using IoT.Driver.ModbusRx.Reactive.Message;
 #else
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Message;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.IO;
+namespace IoT.Driver.ModbusRx.Reactive.IO;
 #else
-namespace IoT.DriverCore.ModbusRx.IO;
+namespace IoT.Driver.ModbusRx.IO;
 #endif
 
 /// <summary>Transport for Internet protocols.</summary>
@@ -86,7 +86,7 @@ internal sealed class ModbusIpTransport : ModbusTransport
     internal static byte[] GetMbapHeader(IModbusMessage message)
     {
         var transactionId = BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)message.TransactionId));
-        var length = BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)(message.ProtocolDataUnit.Length + 1)));
+        var length = BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)(message.ToProtocolDataUnit().Length + 1)));
 
         using var stream = new MemoryStream(Seven);
         stream.Write(transactionId, 0, transactionId.Length);
@@ -144,7 +144,7 @@ internal sealed class ModbusIpTransport : ModbusTransport
     internal override byte[] BuildMessageFrame(IModbusMessage message)
     {
         var header = GetMbapHeader(message);
-        var pdu = message.ProtocolDataUnit;
+        var pdu = message.ToProtocolDataUnit();
         using var messageBody = new MemoryStream(header.Length + pdu.Length);
 
         messageBody.Write(header, 0, header.Length);

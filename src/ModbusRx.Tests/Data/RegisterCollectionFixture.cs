@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Data;
+namespace IoT.Driver.ModbusRx.UnitTests.Data;
 
 /// <summary>Tests the RegisterCollectionFixture behavior.</summary>
 public class RegisterCollectionFixture
@@ -44,7 +44,7 @@ public class RegisterCollectionFixture
     public void RegisterCollectionNetworkBytes()
     {
         var col = new RegisterCollection(Num.Value5, Num.Value3, Num.Value4, Num.Value6);
-        var bytes = col.NetworkBytes;
+        var bytes = col.ToNetworkBytes();
         _ = Assert.NotNull(bytes);
         Assert.Equal(Num.Value8, bytes.Length);
         Assert.Equal([0, Num.Value5, 0, Num.Value3, 0, Num.Value4, 0, Num.Value6], bytes);
@@ -56,7 +56,7 @@ public class RegisterCollectionFixture
     {
         var col = new RegisterCollection();
         _ = Assert.NotNull(col);
-        Assert.Empty(col.NetworkBytes);
+        Assert.Empty(col.ToNetworkBytes());
     }
 
     /// <summary>Modifies the register.</summary>

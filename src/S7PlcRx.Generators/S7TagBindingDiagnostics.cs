@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace IoT.DriverCore.S7PlcRx.SourceGenerators;
+namespace IoT.Driver.S7PlcRx.SourceGenerators;
 
 /// <summary>Generates strongly typed PLC property binding hooks from S7 tag attributes.</summary>
 public sealed partial class S7TagBindingSourceGenerator
@@ -59,9 +59,12 @@ public sealed partial class S7TagBindingSourceGenerator
 
         var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
         AddClassDiagnostic(diagnostics, classSyntax, classSymbol);
-        foreach (var propertySyntax in classSyntax.Members.OfType<PropertyDeclarationSyntax>())
+        foreach (var member in classSyntax.Members)
         {
-            AddPropertyDiagnostics(context, diagnostics, propertySyntax);
+            if (member is PropertyDeclarationSyntax propertySyntax)
+            {
+                AddPropertyDiagnostics(context, diagnostics, propertySyntax);
+            }
         }
 
         return diagnostics.ToImmutable();
@@ -76,9 +79,12 @@ public sealed partial class S7TagBindingSourceGenerator
         ClassDeclarationSyntax classSyntax,
         INamedTypeSymbol classSymbol)
     {
-        if (classSyntax.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.PartialKeyword)))
+        foreach (var modifier in classSyntax.Modifiers)
         {
-            return;
+            if (modifier.IsKind(SyntaxKind.PartialKeyword))
+            {
+                return;
+            }
         }
 
         diagnostics.Add(Diagnostic.Create(
@@ -107,7 +113,8 @@ public sealed partial class S7TagBindingSourceGenerator
             return;
         }
 
-        if (!HasPartialModifier(propertySyntax.Modifiers))
+        var modifiers = propertySyntax.Modifiers;
+        if (!HasPartialModifier(in modifiers))
         {
             diagnostics.Add(Diagnostic.Create(
                 BindingPropertyMustBePartial,
@@ -129,7 +136,7 @@ public sealed partial class S7TagBindingSourceGenerator
         IPropertySymbol propertySymbol,
         AttributeData attribute)
     {
-        var address = attribute.ConstructorArguments.Length > 0
+        var address = !attribute.ConstructorArguments.IsEmpty
             ? attribute.ConstructorArguments[0].Value?.ToString()
             : null;
         if (!string.IsNullOrWhiteSpace(address))

@@ -4,7 +4,7 @@
 
 using System.Buffers.Binary;
 
-namespace IoT.DriverCore.S7PlcRx.TestApp;
+namespace IoT.Driver.S7PlcRx.TestApp;
 
 /// <summary>Builds the mock data-block payload while registering its logical tags.</summary>
 internal sealed class GlobalVariableSeedBuilder

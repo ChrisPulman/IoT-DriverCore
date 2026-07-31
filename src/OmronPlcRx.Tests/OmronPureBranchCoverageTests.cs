@@ -4,14 +4,14 @@
 
 using System;
 using System.Reflection;
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Core.Converters;
-using IoT.DriverCore.OmronPlcRx.Core.Requests;
-using IoT.DriverCore.OmronPlcRx.Core.Responses;
-using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Core.Converters;
+using IoT.Driver.OmronPlcRx.Core.Requests;
+using IoT.Driver.OmronPlcRx.Core.Responses;
+using IoT.Driver.OmronPlcRx.Enums;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Exercises deterministic response and conversion guard branches without device I/O.</summary>
 public sealed class OmronPureBranchCoverageTests
@@ -48,8 +48,8 @@ public sealed class OmronPureBranchCoverageTests
     [Test]
     public async Task BcdConverter_ValidatesPrivateBoundsAndNegativeDigitsAsync()
     {
-        var zeroLengthException = CaptureInnerException(() => ConvertBcdBytes([]));
-        var oversizedLengthException = CaptureInnerException(() => ConvertBcdBytes([0, 0, 0, 0, 0]));
+        var zeroLengthException = CaptureInnerException(static () => ConvertBcdBytes([]));
+        var oversizedLengthException = CaptureInnerException(static () => ConvertBcdBytes([0, 0, 0, 0, 0]));
 
         await Assert.That(zeroLengthException).IsTypeOf<ArgumentOutOfRangeException>();
         await Assert.That(oversizedLengthException).IsTypeOf<ArgumentOutOfRangeException>();

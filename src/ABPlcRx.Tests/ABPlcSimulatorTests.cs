@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 using TUnit.Assertions;
 using TUnit.Core;
 
-namespace IoT.DriverCore.ABPlcRx.Tests;
+namespace IoT.Driver.ABPlcRx.Tests;
 
 /// <summary>Exercises the deterministic Allen-Bradley simulator through its public and native surfaces.</summary>
 public sealed class ABPlcSimulatorTests
@@ -273,10 +273,10 @@ public sealed class ABPlcSimulatorTests
         };
 
         var writes = await client.WriteManyAsync(values);
-        var reads = await client.ReadManyAsync(definitions.Select(static tag => tag.Name).ToArray());
+        var reads = await client.ReadManyAsync(GetTagNames(definitions));
 
-        await Assert.That(writes.All(static result => result.Succeeded)).IsTrue();
-        await Assert.That(reads.All(static result => result.Succeeded)).IsTrue();
+        await Assert.That(AllMatch(writes, static result => result.Succeeded)).IsTrue();
+        await Assert.That(AllMatch(reads, static result => result.Succeeded)).IsTrue();
         await Assert.That(simulator.GetTagValue<bool>("BoolTag", default)).IsTrue();
         await Assert.That(simulator.GetTagValue<byte>("ByteTag", default)).IsEqualTo(SampleByte);
         await Assert.That(simulator.GetTagValue<sbyte>("SByteTag", default)).IsEqualTo(SampleSByte);
@@ -291,7 +291,7 @@ public sealed class ABPlcSimulatorTests
         await Assert.That(simulator.GetTagValue<string>("StringTag", default)).IsEqualTo("simulated");
         await Assert.That(simulator.ActiveHandleCount).IsEqualTo(definitions.Length);
         await Assert.That(simulator.OperationLog.Count).IsGreaterThan(definitions.Length);
-        await Assert.That(simulator.TagStatuses.Values.All(static status => status == PlcTagStatus.StatusOK)).IsTrue();
+        await Assert.That(AllMatch(simulator.TagStatuses.Values, static status => status == PlcTagStatus.StatusOK)).IsTrue();
     }
 
     /// <summary>Exercises bit projection, access validation, duplicates, missing tags, and lifecycle changes.</summary>
@@ -416,7 +416,7 @@ public sealed class ABPlcSimulatorTests
     private static void RegisterValidationTags(ABPlcSimulator simulator, ABLogicalTagClient client)
     {
         client.RegisterTag(
-            new LogicalTag(
+            new(
                 BitTagName,
                 FlagsTagName,
                 "bool",
@@ -429,13 +429,13 @@ public sealed class ABPlcSimulatorTests
                     },
                 }));
         client.RegisterTag(
-            new LogicalTag(
+            new(
                 ReadOnlyTagName,
                 ReadOnlyPhysicalTagName,
                 "int",
                 new LogicalTagOptions { AccessMode = LogicalTagAccessMode.Read }));
         client.RegisterTag(
-            new LogicalTag(
+            new(
                 WriteOnlyTagName,
                 "WriteOnlyPhysical",
                 "int",
@@ -466,10 +466,10 @@ public sealed class ABPlcSimulatorTests
         ABLogicalTagClient client)
     {
         var now = TimeProvider.System.GetUtcNow();
-        var bitWrite = await client.WriteAsync(new LogicalTagValue(BitTagName, true, now));
+        var bitWrite = await client.WriteAsync(new(BitTagName, true, now));
         var bitRead = await client.ReadAsync(BitTagName);
-        var invalidBitWrite = await client.WriteAsync(new LogicalTagValue(BitTagName, 1, now));
-        var deniedWrite = await client.WriteAsync(new LogicalTagValue(ReadOnlyTagName, DeniedWriteValue, now));
+        var invalidBitWrite = await client.WriteAsync(new(BitTagName, 1, now));
+        var deniedWrite = await client.WriteAsync(new(ReadOnlyTagName, DeniedWriteValue, now));
         var deniedRead = await client.ReadAsync(WriteOnlyTagName);
         var missingRead = await client.ReadAsync(MissingTagName);
         var duplicates = await client.WriteManyAsync(
@@ -489,9 +489,9 @@ public sealed class ABPlcSimulatorTests
         await Assert.That(deniedWrite.Succeeded).IsFalse();
         await Assert.That(deniedRead.Succeeded).IsFalse();
         await Assert.That(missingRead.Succeeded).IsFalse();
-        await Assert.That(duplicates.All(static result => !result.Succeeded)).IsTrue();
+        await Assert.That(AllMatch(duplicates, static result => !result.Succeeded)).IsTrue();
         await Assert.That(mixedReads.Count).IsEqualTo(DeniedWriteValue);
-        await Assert.That(mixedReads.Count(static result => result.Succeeded)).IsEqualTo(ExpectedPairCount);
+        await Assert.That(CountMatches(mixedReads, static result => result.Succeeded)).IsEqualTo(ExpectedPairCount);
     }
 
     /// <summary>Asserts scripted faults, disconnects, reconnects, and ping behavior.</summary>
@@ -608,8 +608,8 @@ public sealed class ABPlcSimulatorTests
         using var errorSubscription = simulator.ObserveErrors().Subscribe(
             new CaptureObserver<PlcTagResult>(value => observedError.TrySetResult(value)));
 
-        _ = simulator.Read().ToArray();
-        _ = simulator.Write().ToArray();
+        Drain(simulator.Read());
+        Drain(simulator.Write());
         simulator.QueueFault(ABPlcSimulatorOperation.Read, PlcTagStatus.ErrRead, 1, CounterPhysicalTagName);
         _ = simulator.Read(CounterTagName);
         await Assert.That(await AwaitObservationAsync(observedValue.Task)).IsEqualTo(TypedCounterValue);
@@ -720,7 +720,7 @@ public sealed class ABPlcSimulatorTests
         await Assert.That(api.Write(-1, NativeTimeout)).IsEqualTo(PlcTagStatus.ErrNotFound);
         await Assert.That(api.Abort(-1)).IsEqualTo(PlcTagStatus.ErrNotFound);
 
-        var createFaultName = "CreateFault";
+        const string createFaultName = "CreateFault";
         native.QueueFault(ABPlcSimulatorOperation.Create, PlcTagStatus.ErrCreate, 1, createFaultName);
         var createFault = api.Create(
             $"protocol=ab_eip&name={createFaultName}&elem_size=4&elem_count=1",
@@ -774,6 +774,20 @@ public sealed class ABPlcSimulatorTests
     private static ABPlcSimulator CreateSimulator() =>
         new(PlcType.LGX, ShortInterval, OperationTimeout, "1,0", TimeProvider.System);
 
+    /// <summary>Gets the names of logical tag definitions.</summary>
+    /// <param name="definitions">The definitions to inspect.</param>
+    /// <returns>The definition names.</returns>
+    private static string[] GetTagNames(LogicalTag[] definitions)
+    {
+        var names = new string[definitions.Length];
+        for (var index = 0; index < definitions.Length; index++)
+        {
+            names[index] = definitions[index].Name;
+        }
+
+        return names;
+    }
+
     /// <summary>Awaits an observable value with a deterministic timeout.</summary>
     /// <typeparam name="T">The observed type.</typeparam>
     /// <param name="task">The observation task.</param>
@@ -784,6 +798,54 @@ public sealed class ABPlcSimulatorTests
         return completed == task
             ? await task
             : throw new TimeoutException("The simulator did not emit the expected value.");
+    }
+
+    /// <summary>Determines whether every value satisfies a predicate.</summary>
+    /// <typeparam name="T">The value type.</typeparam>
+    /// <param name="values">The values to inspect.</param>
+    /// <param name="predicate">The predicate to apply.</param>
+    /// <returns><see langword="true"/> when every value matches; otherwise, <see langword="false"/>.</returns>
+    private static bool AllMatch<T>(IEnumerable<T> values, Func<T, bool> predicate)
+    {
+        foreach (var value in values)
+        {
+            if (!predicate(value))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Counts values that satisfy a predicate.</summary>
+    /// <typeparam name="T">The value type.</typeparam>
+    /// <param name="values">The values to inspect.</param>
+    /// <param name="predicate">The predicate to apply.</param>
+    /// <returns>The number of matching values.</returns>
+    private static int CountMatches<T>(IEnumerable<T> values, Func<T, bool> predicate)
+    {
+        var count = 0;
+        foreach (var value in values)
+        {
+            if (predicate(value))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>Enumerates a sequence to exercise its observable side effects.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="values">The sequence to enumerate.</param>
+    private static void Drain<T>(IEnumerable<T> values)
+    {
+        foreach (var value in values)
+        {
+            GC.KeepAlive(value);
+        }
     }
 
     /// <summary>Observer that forwards values to an action.</summary>

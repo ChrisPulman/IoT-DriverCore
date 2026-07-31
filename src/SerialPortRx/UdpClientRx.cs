@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.Serial.Reactive;
+namespace IoT.Driver.Serial.Reactive;
 #else
-namespace IoT.DriverCore.Serial;
+namespace IoT.Driver.Serial;
 #endif
 
 /// <summary>Provides a reactive wrapper around <see cref="UdpClient"/>.</summary>
@@ -232,44 +232,10 @@ public class UdpClientRx : IReceiveBatchPortRx
     /// <param name="buffer">The buffer.</param>
     /// <param name="offset">The offset.</param>
     /// <param name="count">The count.</param>
-    public void Write(byte[]? buffer, int offset, int count)
+    public void Write(byte[] buffer, int offset, int count)
     {
-#if NETFRAMEWORK
-        if (buffer is null)
-        {
-            throw new ArgumentNullException(nameof(buffer));
-        }
-#else
         ArgumentGuard.ThrowIfNull(buffer, nameof(buffer));
-#endif
-
-        if (offset < 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(offset),
-                "Argument offset must be greater than or equal to 0.");
-        }
-
-        if (offset > buffer.Length)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(offset),
-                "Argument offset cannot be greater than the length of buffer.");
-        }
-
-        if (count < 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(count),
-                "Argument count must be greater than or equal to 0.");
-        }
-
-        if (count > buffer.Length - offset)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(count),
-                "Argument count cannot be greater than the length of buffer minus offset.");
-        }
+        SerialPortBufferGuard.Validate(buffer.Length, offset, count);
 
         // Avoid allocations by sending directly from the buffer with offset
         _ = Client.Send(buffer, offset, count, SocketFlags.None);
@@ -288,44 +254,10 @@ public class UdpClientRx : IReceiveBatchPortRx
     /// <param name="offset">The offset.</param>
     /// <param name="count">The count.</param>
     /// <returns>A int.</returns>
-    public Task<int> ReadAsync(byte[]? buffer, int offset, int count)
+    public Task<int> ReadAsync(byte[] buffer, int offset, int count)
     {
-#if NETFRAMEWORK
-        if (buffer is null)
-        {
-            throw new ArgumentNullException(nameof(buffer));
-        }
-#else
         ArgumentGuard.ThrowIfNull(buffer, nameof(buffer));
-#endif
-
-        if (offset < 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(offset),
-                "Argument offset must be greater than or equal to 0.");
-        }
-
-        if (offset > buffer.Length)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(offset),
-                "Argument offset cannot be greater than the length of buffer.");
-        }
-
-        if (count < 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(count),
-                "Argument count must be greater than or equal to 0.");
-        }
-
-        if (count > buffer.Length - offset)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(count),
-                "Argument count cannot be greater than the length of buffer minus offset.");
-        }
+        SerialPortBufferGuard.Validate(buffer.Length, offset, count);
 
         // Use a background task to avoid blocking the caller on frameworks without cancellation-aware UDP receive APIs.
         return Task.Run(
@@ -397,7 +329,13 @@ public class UdpClientRx : IReceiveBatchPortRx
 
     /// <summary>Creates the connection observable that drives the UDP receive loop.</summary>
     /// <returns>An observable that signals when the receive loop has started.</returns>
-    private IObservable<Unit> Connect() => Observable.Create<Unit>(obs =>
+    private IObservable<Unit> Connect() =>
+        Observable.CreateWithState<Unit, UdpClientRx>(this, static (owner, observer) => owner.ConnectCore(observer));
+
+    /// <summary>Starts a cancellation-aware UDP receive loop for one observable subscription.</summary>
+    /// <param name="observer">The observer to notify of connection errors and startup.</param>
+    /// <returns>A disposable that cancels the receive loop.</returns>
+    private IDisposable ConnectCore(IObserver<Unit> observer)
     {
         var cts = new CancellationTokenSource();
         var token = cts.Token;
@@ -405,61 +343,72 @@ public class UdpClientRx : IReceiveBatchPortRx
         // Dedicated loop to continuously receive datagrams and publish per-byte and as chunks
         _ = Task.Factory
             .StartNew(
-                async () =>
+                static state =>
                 {
-                    try
-                    {
-                        obs.OnNext(Unit.Default);
-
-                        while (!token.IsCancellationRequested)
-                        {
-                            UdpReceiveResult result;
-                            try
-                            {
-                                result = await _udpClient.ReceiveAsync().ConfigureAwait(false);
-                            }
-                            catch (ObjectDisposedException)
-                            {
-                                break;
-                            }
-                            catch (SocketException)
-                            {
-                                // transient network error -> break and surface via retry upstream if used
-                                break;
-                            }
-
-                            var datagram = result.Buffer;
-
-                            // Per-byte stream
-                            for (var i = 0; i < datagram.Length; i++)
-                            {
-                                _dataReceived.OnNext(datagram[i]);
-                            }
-
-                            // ReceiveAsync owns this right-sized array for the completed datagram.
-                            // publishing it directly avoids an otherwise redundant per-datagram copy.
-                            _dataChunks.OnNext(datagram);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        obs.OnError(ex);
-                    }
+                    var (owner, observer, cancellationToken) =
+                        ((UdpClientRx, IObserver<Unit>, CancellationToken))state!;
+                    return owner.ReceiveLoopAsync(observer, cancellationToken);
                 },
+                (Owner: this, Observer: observer, Token: token),
                 token,
                 TaskCreationOptions.DenyChildAttach,
                 TaskScheduler.Default)
             .Unwrap()
             .ContinueWith(
-                t => _ = t.Exception,
+                static task => _ = task.Exception,
                 CancellationToken.None,
                 TaskContinuationOptions.OnlyOnFaulted,
                 TaskScheduler.Default);
 
-        return Disposable.Create(() =>
+        return Disposable.Create(cts, static source =>
         {
-            cts.Cancel();
-            cts.Dispose();
+            source.Cancel();
+            source.Dispose();
         });
-    });
+    }
+
+    /// <summary>Receives and publishes UDP datagrams until cancellation or socket shutdown.</summary>
+    /// <param name="observer">The observer to notify of connection errors and startup.</param>
+    /// <param name="token">The cancellation token for the receive loop.</param>
+    /// <returns>A task that completes when the receive loop ends.</returns>
+    private async Task ReceiveLoopAsync(IObserver<Unit> observer, CancellationToken token)
+    {
+        try
+        {
+            observer.OnNext(Unit.Default);
+
+            while (!token.IsCancellationRequested)
+            {
+                UdpReceiveResult result;
+                try
+                {
+#if NETFRAMEWORK
+                    result = await _udpClient.ReceiveAsync().ConfigureAwait(false);
+#else
+                    result = await _udpClient.ReceiveAsync(token).ConfigureAwait(false);
+#endif
+                }
+                catch (ObjectDisposedException)
+                {
+                    break;
+                }
+                catch (SocketException)
+                {
+                    break;
+                }
+
+                var datagram = result.Buffer;
+                for (var i = 0; i < datagram.Length; i++)
+                {
+                    _dataReceived.OnNext(datagram[i]);
+                }
+
+                _dataChunks.OnNext(datagram);
+            }
+        }
+        catch (Exception ex)
+        {
+            observer.OnError(ex);
+        }
+    }
 }

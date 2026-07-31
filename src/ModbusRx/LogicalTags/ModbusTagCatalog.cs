@@ -2,12 +2,12 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.LogicalTags;
+namespace IoT.Driver.ModbusRx.Reactive.LogicalTags;
 #else
-namespace IoT.DriverCore.ModbusRx.LogicalTags;
+namespace IoT.Driver.ModbusRx.LogicalTags;
 #endif
 
 /// <summary>Provides strongly typed Modbus access over a common logical-tag catalog.</summary>
@@ -34,7 +34,15 @@ public sealed class ModbusTagCatalog : IDisposable
     /// <param name="ownsCatalog">Whether this wrapper owns the catalog.</param>
     private ModbusTagCatalog(ILogicalTagCatalog catalog, bool ownsCatalog)
     {
-        CoreCatalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(catalog);
+#else
+        if (catalog is null)
+        {
+            throw new ArgumentNullException(nameof(catalog));
+        }
+#endif
+        CoreCatalog = catalog;
         _ownsCatalog = ownsCatalog;
     }
 
@@ -52,10 +60,14 @@ public sealed class ModbusTagCatalog : IDisposable
     /// <returns>True when the definition was added.</returns>
     public bool TryAdd(ModbusLogicalTag tag)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(tag);
+#else
         if (tag is null)
         {
             throw new ArgumentNullException(nameof(tag));
         }
+#endif
 
         return CoreCatalog.TryAdd(tag.ToLogicalTag());
     }
@@ -64,10 +76,14 @@ public sealed class ModbusTagCatalog : IDisposable
     /// <param name="tag">The definition to add or replace.</param>
     public void Upsert(ModbusLogicalTag tag)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(tag);
+#else
         if (tag is null)
         {
             throw new ArgumentNullException(nameof(tag));
         }
+#endif
 
         CoreCatalog.Upsert(tag.ToLogicalTag());
     }
@@ -106,8 +122,17 @@ public sealed class ModbusTagCatalog : IDisposable
 
     /// <summary>Returns a stable logical-name-ordered snapshot.</summary>
     /// <returns>The current definitions.</returns>
-    public IReadOnlyList<ModbusLogicalTag> List() =>
-        CoreCatalog.List().Select(ModbusLogicalTag.FromLogicalTag).ToArray();
+    public IReadOnlyList<ModbusLogicalTag> List()
+    {
+        var logicalTags = CoreCatalog.List();
+        var result = new ModbusLogicalTag[logicalTags.Count];
+        for (var index = 0; index < logicalTags.Count; index++)
+        {
+            result[index] = ModbusLogicalTag.FromLogicalTag(logicalTags[index]);
+        }
+
+        return result;
+    }
 
     /// <summary>Imports common RFC 4180 CSV definitions into this catalog.</summary>
     /// <param name="reader">The CSV reader.</param>
@@ -139,13 +164,22 @@ public sealed class ModbusTagCatalog : IDisposable
         LogicalTagSqliteStore store,
         CancellationToken cancellationToken)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(store);
+#else
         if (store is null)
         {
             throw new ArgumentNullException(nameof(store));
         }
+#endif
 
         var loaded = await store.ListTagsAsync(cancellationToken).ConfigureAwait(false);
-        var converted = loaded.Select(ModbusLogicalTag.FromLogicalTag).ToArray();
+        var converted = new ModbusLogicalTag[loaded.Count];
+        for (var index = 0; index < loaded.Count; index++)
+        {
+            converted[index] = ModbusLogicalTag.FromLogicalTag(loaded[index]);
+        }
+
         foreach (var existing in CoreCatalog.List())
         {
             _ = CoreCatalog.TryRemove(existing.Name, out _);

@@ -3,11 +3,11 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics;
-using IoT.DriverCore.S7PlcRx.Advanced;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.Mock;
+using IoT.Driver.S7PlcRx.Advanced;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Mock;
 
-namespace IoT.DriverCore.S7PlcRx.Benchmarks;
+namespace IoT.Driver.S7PlcRx.Benchmarks;
 
 /// <summary>Runs repeatable PLC operation benchmarks against the mock server.</summary>
 internal static class PerfHarness
@@ -32,10 +32,9 @@ internal static class PerfHarness
         var benchmarkTag = new LogicalTagKey<ushort>(BenchmarkTagName);
         _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), BenchmarkTagName, "DB1.DBW0")
             .SetPolling(false);
-        var connectionStopwatch = Stopwatch.StartNew();
+        var connectionStartTimestamp = Stopwatch.GetTimestamp();
         await plc.IsConnected.Where(static x => x).FirstAsync();
-        connectionStopwatch.Stop();
-        Trace.WriteLine($"Connect time: {connectionStopwatch.ElapsedMilliseconds} ms");
+        Trace.WriteLine($"Connect time: {Stopwatch.GetElapsedTime(connectionStartTimestamp).TotalMilliseconds:F0} ms");
         var tagNames = RegisterTags(plc, TagCount, BenchmarkTagName);
         await WarmUpAsync(plc, benchmarkTag, WarmUpIterations);
         var readElapsed = await MeasureReadAsync(plc, benchmarkTag, Iterations);
@@ -58,7 +57,7 @@ internal static class PerfHarness
     /// <returns>The elapsed time.</returns>
     private static async Task<TimeSpan> MeasureBatchWriteAsync(RxS7 plc, string[] tagNames, int iterations)
     {
-        var stopwatch = Stopwatch.StartNew();
+        var startTimestamp = Stopwatch.GetTimestamp();
         for (var iteration = 0; iteration < iterations; iteration++)
         {
             var values = new Dictionary<string, ushort>(tagNames.Length);
@@ -70,8 +69,7 @@ internal static class PerfHarness
             await AdvancedExtensions.ValueBatchAsync(plc, values);
         }
 
-        stopwatch.Stop();
-        return stopwatch.Elapsed;
+        return Stopwatch.GetElapsedTime(startTimestamp);
     }
 
     /// <summary>Measures single writes and reads across all benchmark tags.</summary>
@@ -81,7 +79,7 @@ internal static class PerfHarness
     /// <returns>The elapsed time.</returns>
     private static async Task<TimeSpan> MeasureMultiTagAsync(RxS7 plc, string[] tagNames, int iterations)
     {
-        var stopwatch = Stopwatch.StartNew();
+        var startTimestamp = Stopwatch.GetTimestamp();
         for (var iteration = 0; iteration < iterations; iteration++)
         {
             for (var index = 0; index < tagNames.Length; index++)
@@ -95,8 +93,7 @@ internal static class PerfHarness
             }
         }
 
-        stopwatch.Stop();
-        return stopwatch.Elapsed;
+        return Stopwatch.GetElapsedTime(startTimestamp);
     }
 
     /// <summary>Measures repeated reads.</summary>
@@ -109,14 +106,13 @@ internal static class PerfHarness
         LogicalTagKey<ushort> tag,
         int iterations)
     {
-        var stopwatch = Stopwatch.StartNew();
+        var startTimestamp = Stopwatch.GetTimestamp();
         for (var iteration = 0; iteration < iterations; iteration++)
         {
             _ = await plc.ReadAsync(tag);
         }
 
-        stopwatch.Stop();
-        return stopwatch.Elapsed;
+        return Stopwatch.GetElapsedTime(startTimestamp);
     }
 
     /// <summary>Measures repeated write-and-read cycles.</summary>
@@ -129,15 +125,14 @@ internal static class PerfHarness
         LogicalTagKey<ushort> tag,
         int iterations)
     {
-        var stopwatch = Stopwatch.StartNew();
+        var startTimestamp = Stopwatch.GetTimestamp();
         for (var iteration = 0; iteration < iterations; iteration++)
         {
             plc.Value(tag.Name, (ushort)iteration);
             _ = await plc.ReadAsync(tag);
         }
 
-        stopwatch.Stop();
-        return stopwatch.Elapsed;
+        return Stopwatch.GetElapsedTime(startTimestamp);
     }
 
     /// <summary>Measures repeated writes.</summary>
@@ -147,14 +142,13 @@ internal static class PerfHarness
     /// <returns>The elapsed time.</returns>
     private static TimeSpan MeasureWrite(RxS7 plc, string tagName, int iterations)
     {
-        var stopwatch = Stopwatch.StartNew();
+        var startTimestamp = Stopwatch.GetTimestamp();
         for (var iteration = 0; iteration < iterations; iteration++)
         {
             plc.Value(tagName, (ushort)iteration);
         }
 
-        stopwatch.Stop();
-        return stopwatch.Elapsed;
+        return Stopwatch.GetElapsedTime(startTimestamp);
     }
 
     /// <summary>Calculates the average operation time.</summary>

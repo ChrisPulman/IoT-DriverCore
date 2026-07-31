@@ -3,18 +3,21 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+#if NET5_0_OR_GREATER
+using System.Runtime.InteropServices;
+#endif
 using Timer = System.Threading.Timer;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+using IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-using IoT.DriverCore.S7PlcRx.PlcTypes;
+using IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Binding;
+namespace IoT.Driver.S7PlcRx.Reactive.Binding;
 
 #else
-namespace IoT.DriverCore.S7PlcRx.Binding;
+namespace IoT.Driver.S7PlcRx.Binding;
 
 #endif
 
@@ -198,7 +201,7 @@ public sealed class S7TagRuntimeBinding : IDisposable
         }
 
         var byteLength = GetByteLength(definition, dbPart[..DataBlockTypePrefixLength]);
-        return new S7TagRuntimeAddress(db, startByte, null, byteLength);
+        return new(db, startByte, null, byteLength);
     }
 
     /// <summary>Parses a bit tag definition into its runtime address.</summary>
@@ -296,7 +299,7 @@ public sealed class S7TagRuntimeBinding : IDisposable
             }
             else
             {
-                ranges.Add(new S7TagRange(item.Value.Db, item.Value.StartByte, endByte, [item]));
+                ranges.Add(new(item.Value.Db, item.Value.StartByte, endByte, [item]));
             }
         }
 
@@ -503,11 +506,22 @@ public sealed class S7TagRuntimeBinding : IDisposable
                 continue;
             }
 
+            #if NET5_0_OR_GREATER
+            ref var value = ref CollectionsMarshal.GetValueRefOrAddDefault(
+                intervals,
+                definition.PollIntervalMs,
+                out var exists);
+            if (!exists || value is null)
+            {
+                value = [];
+            }
+            #else
             if (!intervals.TryGetValue(definition.PollIntervalMs, out var value))
             {
                 value = [];
-                intervals[definition.PollIntervalMs] = value;
+                intervals.Add(definition.PollIntervalMs, value);
             }
+            #endif
 
             value.Add(definition);
         }
@@ -515,7 +529,7 @@ public sealed class S7TagRuntimeBinding : IDisposable
         foreach (var interval in intervals)
         {
             _timers.Add(
-                new Timer(PollInterval, interval.Value.ToArray(), interval.Key, interval.Key));
+                new(PollInterval, interval.Value.ToArray(), interval.Key, interval.Key));
         }
     }
 
@@ -600,7 +614,7 @@ public sealed class S7TagRuntimeBinding : IDisposable
                     _pendingWrites.TryRemove(entry.Key, out var value)
                     && _definitionsByName.TryGetValue(entry.Key, out var definition))
                 {
-                    pending.Add(new KeyValuePair<S7TagDefinition, object?>(definition, value));
+                    pending.Add(new(definition, value));
                 }
             }
 

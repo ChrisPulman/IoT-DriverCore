@@ -4,11 +4,11 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -20,7 +20,11 @@ namespace IoT.DriverCore.MitsubishiRx;
 public sealed class MitsubishiSimulatorMemory
 {
     /// <summary>Synchronizes the memory image and version.</summary>
+#if NET9_0_OR_GREATER
+    private readonly System.Threading.Lock _gate = new();
+#else
     private readonly object _gate = new();
+#endif
 
     /// <summary>Stores values by device symbol and numeric address.</summary>
     private readonly Dictionary<DeviceKey, ushort> _values = [];
@@ -185,7 +189,14 @@ public sealed class MitsubishiSimulatorMemory
     {
         ValidateAddress(address, DeviceValueKind.Bit);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(points);
-        return ReadValues(address, points).Select(static value => value != 0).ToArray();
+        var words = ReadValues(address, points);
+        var result = new bool[words.Length];
+        for (var index = 0; index < words.Length; index++)
+        {
+            result[index] = words[index] != 0;
+        }
+
+        return result;
     }
 
     /// <summary>Writes one bit device.</summary>
@@ -239,7 +250,13 @@ public sealed class MitsubishiSimulatorMemory
             throw new ArgumentException("At least one value must be supplied.", nameof(values));
         }
 
-        WriteValues(address, values.Select(static value => value ? (ushort)1 : (ushort)0).ToArray());
+        var words = new ushort[values.Count];
+        for (var index = 0; index < values.Count; index++)
+        {
+            words[index] = values[index] ? (ushort)1 : (ushort)0;
+        }
+
+        WriteValues(address, words);
     }
 
     /// <summary>Gets a deterministic detached snapshot of the populated memory image.</summary>
@@ -248,15 +265,26 @@ public sealed class MitsubishiSimulatorMemory
     {
         lock (_gate)
         {
-            return _values
-                .OrderBy(static pair => pair.Key.Symbol, StringComparer.Ordinal)
-                .ThenBy(static pair => pair.Key.Number)
-                .Select(static pair => new MitsubishiSimulatorDeviceValue(
+            var snapshot = new MitsubishiSimulatorDeviceValue[_values.Count];
+            var index = 0;
+            foreach (var pair in _values)
+            {
+                snapshot[index] = new(
                     pair.Key.Symbol,
                     pair.Key.Number,
                     MitsubishiDeviceAddress.Metadata[pair.Key.Symbol].Kind,
-                    pair.Value))
-                .ToArray();
+                    pair.Value);
+                index++;
+            }
+
+            Array.Sort(snapshot, static (left, right) =>
+            {
+                var symbolComparison = StringComparer.Ordinal.Compare(left.Symbol, right.Symbol);
+                return symbolComparison != 0
+                    ? symbolComparison
+                    : left.Number.CompareTo(right.Number);
+            });
+            return snapshot;
         }
     }
 
@@ -287,7 +315,7 @@ public sealed class MitsubishiSimulatorMemory
             for (var offset = 0; offset < points; offset++)
             {
                 _ = _values.TryGetValue(
-                    new DeviceKey(address.Symbol, checked(address.Number + offset)),
+                    new(address.Symbol, checked(address.Number + offset)),
                     out result[offset]);
             }
         }
@@ -304,7 +332,7 @@ public sealed class MitsubishiSimulatorMemory
         {
             for (var offset = 0; offset < values.Count; offset++)
             {
-                _values[new DeviceKey(address.Symbol, checked(address.Number + offset))] =
+                _values[new(address.Symbol, checked(address.Number + offset))] =
                     values[offset];
             }
 

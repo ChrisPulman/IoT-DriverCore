@@ -6,22 +6,45 @@ using System.Diagnostics;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Enums;
-using IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+using IoT.Driver.S7PlcRx.Reactive.Enums;
+using IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.PlcTypes;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Core;
+namespace IoT.Driver.S7PlcRx.Reactive.Core;
 #else
-namespace IoT.DriverCore.S7PlcRx.Core;
+namespace IoT.Driver.S7PlcRx.Core;
 #endif
 
 /// <summary>Provides S7 socket connection functionality.</summary>
 internal partial class S7SocketRx
 {
+    /// <summary>Creates the initial and continuation SZL request packets.</summary>
+    /// <returns>The initial and continuation packets.</returns>
+    internal static (byte[] First, byte[] Continuation) CreateSzlRequestPackets() =>
+    (
+        [
+            TpktVersion, 0, 0, SzlTelegramLength,
+            CotpDataHeaderSize, CotpDataPduType, CotpEndOfTransmissionUnit,
+            S7ProtocolIdentifier, S7UserDataMessageType, 0, 0, SzlFirstPduReference,
+            0, 0, SzlFirstParameterLength, 0, SzlFirstDataLength,
+            0, 1, S7UserDataParameterHead, SzlFirstParameterPayloadLength, SzlReadRequest,
+            SzlFunctionGroup, SzlSubfunction, 0, S7ReturnCodeSuccess, S7OctetStringTransportSize,
+            0, SzlRequestDataLength, 0, 0, 0, 0
+        ],
+        [
+            TpktVersion, 0, 0, SzlTelegramLength,
+            CotpDataHeaderSize, CotpDataPduType, CotpEndOfTransmissionUnit,
+            S7ProtocolIdentifier, S7UserDataMessageType, 0, 0, SzlContinuationPduReference,
+            0, 0, SzlContinuationParameterLength, 0, SzlContinuationDataLength,
+            0, 1, S7UserDataParameterHead, SzlContinuationParameterPayloadLength, SzlReadResponse,
+            SzlFunctionGroup, SzlSubfunction, SzlContinuationFlag, 0, 0, 0, 0,
+            SzlContinuationDataBitLength, 0, 0, 0
+        ]);
+
     /// <summary>Retrieves System-Zustandsliste (SZL) data from the PLC for the specified SZL area and index.</summary>
     /// <remarks>This method performs a low-level SZL read operation using enhanced communication protocols.
     /// The returned data format depends on the specified SZL area and index. If the requested SZL area or index is not
@@ -170,7 +193,7 @@ internal partial class S7SocketRx
         _metricsTimer?.Dispose();
         CloseSocketOptimized(_socket, _timeProvider);
         _socket = null;
-        DrainBackgroundTasks(backgroundTasks, _timeProvider);
+        _ = DrainBackgroundTasksAsync(backgroundTasks, _timeProvider);
 
         try
         {
@@ -190,23 +213,35 @@ internal partial class S7SocketRx
     /// <summary>Waits briefly for owned background work to observe cancellation and finish.</summary>
     /// <param name="backgroundTasks">The tasks captured when disposal started.</param>
     /// <param name="timeProvider">The time provider used for diagnostics.</param>
-    private static void DrainBackgroundTasks(IEnumerable<Task> backgroundTasks, TimeProvider timeProvider)
+    /// <returns>A task that completes when the drain has completed or timed out.</returns>
+    private static async Task DrainBackgroundTasksAsync(IEnumerable<Task> backgroundTasks, TimeProvider timeProvider)
     {
         var currentTaskId = Task.CurrentId;
-        var activeTasks = backgroundTasks
-            .Where(task => !task.IsCompleted && task.Id != currentTaskId)
-            .Distinct()
-            .ToArray();
-        if (activeTasks.Length == 0)
+        var activeTasks = new List<Task>();
+        foreach (var task in backgroundTasks)
+        {
+            if (!task.IsCompleted && task.Id != currentTaskId && !activeTasks.Contains(task))
+            {
+                activeTasks.Add(task);
+            }
+        }
+
+        if (activeTasks.Count == 0)
         {
             return;
         }
 
         try
         {
-            if (!Task.WaitAll(activeTasks, BackgroundShutdownTimeoutMilliseconds))
+            var completion = Task.WhenAll(activeTasks);
+            var timeout = Task.Delay(BackgroundShutdownTimeoutMilliseconds);
+            if (await Task.WhenAny(completion, timeout).ConfigureAwait(false) != completion)
             {
                 LogError("Timed out while stopping S7 background work.", timeProvider);
+            }
+            else
+            {
+                await completion.ConfigureAwait(false);
             }
         }
         catch (AggregateException ex)
@@ -463,29 +498,6 @@ internal partial class S7SocketRx
         return bodyRead <= 0 ? headerRead : headerRead + bodyRead;
     }
 #endif
-
-    /// <summary>Creates the initial and continuation SZL request packets.</summary>
-    /// <returns>The initial and continuation packets.</returns>
-    private (byte[] First, byte[] Continuation) CreateSzlRequestPackets() =>
-    (
-        [
-            TpktVersion, 0, 0, SzlTelegramLength,
-            CotpDataHeaderSize, CotpDataPduType, CotpEndOfTransmissionUnit,
-            S7ProtocolIdentifier, S7UserDataMessageType, 0, 0, SzlFirstPduReference,
-            0, 0, SzlFirstParameterLength, 0, SzlFirstDataLength,
-            0, 1, S7UserDataParameterHead, SzlFirstParameterPayloadLength, SzlReadRequest,
-            SzlFunctionGroup, SzlSubfunction, 0, S7ReturnCodeSuccess, S7OctetStringTransportSize,
-            0, SzlRequestDataLength, 0, 0, 0, 0
-        ],
-        [
-            TpktVersion, 0, 0, SzlTelegramLength,
-            CotpDataHeaderSize, CotpDataPduType, CotpEndOfTransmissionUnit,
-            S7ProtocolIdentifier, S7UserDataMessageType, 0, 0, SzlContinuationPduReference,
-            0, 0, SzlContinuationParameterLength, 0, SzlContinuationDataLength,
-            0, 1, S7UserDataParameterHead, SzlContinuationParameterPayloadLength, SzlReadResponse,
-            SzlFunctionGroup, SzlSubfunction, SzlContinuationFlag, 0, 0, 0, 0,
-            SzlContinuationDataBitLength, 0, 0, 0
-        ]);
 
     /// <summary>Receives and validates an ISO packet header.</summary>
     /// <param name="tag">The related PLC tag.</param>

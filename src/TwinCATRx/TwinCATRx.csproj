@@ -4,11 +4,8 @@
     <TargetFrameworks>$(CoreTargetFrameworks);net8.0-windows10.0.19041.0;net9.0-windows10.0.19041.0;net10.0-windows10.0.19041.0;net11.0-windows10.0.19041.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <PackageId>CP.TwinCATRx</PackageId>
     <Title>TwinCATRx</Title>
-    <RootNamespace>IoT.DriverCore.TwinCATRx</RootNamespace>
-    <TwinCATGeneratorAssemblyPath>..\TwinCATRx.Generators\bin\$(Configuration)\netstandard2.0\TwinCATRx.Generators.dll</TwinCATGeneratorAssemblyPath>
-    <TwinCATGeneratorAssemblyPath Condition="'$(UseArtifactsOutput)' == 'true'">$(ArtifactsPath)\bin\TwinCATRx.Generators\$([System.String]::Copy('$(Configuration)').ToLowerInvariant())\TwinCATRx.Generators.dll</TwinCATGeneratorAssemblyPath>
+    <RootNamespace>IoT.Driver.TwinCATRx</RootNamespace>
   </PropertyGroup>
   
   <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
@@ -43,7 +40,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TwinCATRx.Core\TwinCATRx.Core.csproj" />
-    <ProjectReference Include="..\TwinCATRx.Generators\TwinCATRx.Generators.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\TwinCATRx.Generators\TwinCATRx.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\CP.IoT.Core\CP.IoT.Core.csproj" />
   </ItemGroup>
 
@@ -57,15 +54,7 @@
     <Using Include="ReactiveUI.Primitives.RxVoid" Alias="Unit" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="$(TwinCATGeneratorAssemblyPath)"
-          Pack="true"
-          PackagePath="analyzers/dotnet/cs"
-          Visible="false"
-          Condition="Exists('$(TwinCATGeneratorAssemblyPath)')" />
-  </ItemGroup>
-
-  <Import Project="..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets"
-          Condition="Exists('..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets')" />
+  <Import Project="..\CP.IoT.Core\buildTransitive\IoT-Driver.Core.targets"
+          Condition="Exists('..\CP.IoT.Core\buildTransitive\IoT-Driver.Core.targets')" />
 
 </Project>

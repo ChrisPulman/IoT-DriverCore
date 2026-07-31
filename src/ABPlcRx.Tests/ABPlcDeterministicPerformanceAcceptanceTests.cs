@@ -5,7 +5,7 @@
 using TUnit.Assertions;
 using TUnit.Core;
 
-namespace IoT.DriverCore.ABPlcRx.Tests;
+namespace IoT.Driver.ABPlcRx.Tests;
 
 /// <summary>Provides deterministic native-operation acceptance coverage for Allen-Bradley bulk transfers.</summary>
 public sealed class ABPlcDeterministicPerformanceAcceptanceTests
@@ -24,21 +24,6 @@ public sealed class ABPlcDeterministicPerformanceAcceptanceTests
 
     /// <summary>The fourth value written through the bulk pipeline.</summary>
     private const int FourthValue = 40;
-
-    /// <summary>The first native operation sequence value.</summary>
-    private const long FirstSequence = 1L;
-
-    /// <summary>The second native operation sequence value.</summary>
-    private const long SecondSequence = 2L;
-
-    /// <summary>The third native operation sequence value.</summary>
-    private const long ThirdSequence = 3L;
-
-    /// <summary>The fourth native operation sequence value.</summary>
-    private const long FourthSequence = 4L;
-
-    /// <summary>The expected sequence after a cleared operation log.</summary>
-    private static readonly long[] ExpectedSequences = [FirstSequence, SecondSequence, ThirdSequence, FourthSequence];
 
     /// <summary>The per-operation status that denotes native success.</summary>
     private static readonly int SuccessStatus = PlcTagStatus.StatusOK;
@@ -72,18 +57,19 @@ public sealed class ABPlcDeterministicPerformanceAcceptanceTests
         var writeLog = simulator.OperationLog;
 
         await Assert.That(writes.Count).IsEqualTo(LogicalValueCount);
-        await Assert.That(writes.All(static result => result.StatusCode == SuccessStatus)).IsTrue();
         await Assert.That(writeMetrics.TotalOperations).IsEqualTo((long)LogicalValueCount);
         await Assert.That(writeMetrics.WriteOperations).IsEqualTo((long)LogicalValueCount);
         await Assert.That(writeMetrics.ReadOperations).IsEqualTo(0L);
         await Assert.That(writeMetrics.CreateOperations).IsEqualTo(0L);
         await Assert.That(writeMetrics.FailedOperations).IsEqualTo(0L);
-        await Assert.That(writeLog.Select(static entry => entry.Sequence))
-            .IsEquivalentTo(ExpectedSequences);
-        await Assert.That(writeLog.Select(static entry => entry.Operation))
-            .IsEquivalentTo(Enumerable.Repeat(ABPlcSimulatorOperation.Write, LogicalValueCount));
-        await Assert.That(writeLog.Select(static entry => entry.TagName ?? string.Empty))
-            .IsEquivalentTo(physicalTags);
+        await Assert.That(writeLog.Count).IsEqualTo(LogicalValueCount);
+        for (var index = 0; index < LogicalValueCount; index++)
+        {
+            await Assert.That(writes[index].StatusCode).IsEqualTo(SuccessStatus);
+            await Assert.That(writeLog[index].Sequence).IsEqualTo(index + 1L);
+            await Assert.That(writeLog[index].Operation).IsEqualTo(ABPlcSimulatorOperation.Write);
+            await Assert.That(writeLog[index].TagName ?? string.Empty).IsEqualTo(physicalTags[index]);
+        }
 
         simulator.ClearOperationLog();
         var reads = await simulator.ReadManyAsync(variables, CancellationToken.None);
@@ -91,16 +77,18 @@ public sealed class ABPlcDeterministicPerformanceAcceptanceTests
         var readLog = simulator.OperationLog;
 
         await Assert.That(reads.Count).IsEqualTo(LogicalValueCount);
-        await Assert.That(reads.All(static result => result.StatusCode == SuccessStatus)).IsTrue();
         await Assert.That(readMetrics.TotalOperations).IsEqualTo((long)LogicalValueCount);
         await Assert.That(readMetrics.ReadOperations).IsEqualTo((long)LogicalValueCount);
         await Assert.That(readMetrics.WriteOperations).IsEqualTo(0L);
         await Assert.That(readMetrics.CreateOperations).IsEqualTo(0L);
         await Assert.That(readMetrics.FailedOperations).IsEqualTo(0L);
-        await Assert.That(readLog.Select(static entry => entry.Sequence))
-            .IsEquivalentTo(ExpectedSequences);
-        await Assert.That(readLog.Select(static entry => entry.Operation))
-            .IsEquivalentTo(Enumerable.Repeat(ABPlcSimulatorOperation.Read, LogicalValueCount));
-        await Assert.That(readLog.Select(static entry => entry.TagName ?? string.Empty)).IsEquivalentTo(physicalTags);
+        await Assert.That(readLog.Count).IsEqualTo(LogicalValueCount);
+        for (var index = 0; index < LogicalValueCount; index++)
+        {
+            await Assert.That(reads[index].StatusCode).IsEqualTo(SuccessStatus);
+            await Assert.That(readLog[index].Sequence).IsEqualTo(index + 1L);
+            await Assert.That(readLog[index].Operation).IsEqualTo(ABPlcSimulatorOperation.Read);
+            await Assert.That(readLog[index].TagName ?? string.Empty).IsEqualTo(physicalTags[index]);
+        }
     }
 }

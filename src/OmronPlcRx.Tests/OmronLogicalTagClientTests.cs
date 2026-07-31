@@ -2,12 +2,12 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Tags;
 using ReactiveUI.Primitives;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Tests the composed logical-tag adapter and modern generated property bindings.</summary>
 public sealed class OmronLogicalTagClientTests
@@ -64,7 +64,8 @@ public sealed class OmronLogicalTagClientTests
         plc.Publish(RunningTagName, true);
         var read = await client.ReadAsync(new LogicalTagKey<short>(speedTag.TagName), CancellationToken.None);
         var bulk = await client.ReadManyAsync([SpeedTagName, RunningTagName], CancellationToken.None);
-        var write = await client.WriteAsync(new LogicalTagKey<short>(SpeedTagName), WrittenSpeed, CancellationToken.None);
+        LogicalTagKey<short> speedTagKey = new(SpeedTagName);
+        var write = await client.WriteAsync(speedTagKey, WrittenSpeed, CancellationToken.None);
         var bulkWrite = await client.WriteManyAsync(
             [
                 new LogicalTagValue(SpeedTagName, BulkWrittenSpeed, TimeProvider.System.GetUtcNow()),
@@ -81,9 +82,17 @@ public sealed class OmronLogicalTagClientTests
         await Assert.That(read.Succeeded).IsTrue();
         await Assert.That(read.Value).IsEqualTo(InitialSpeed);
         await Assert.That(bulk.Count).IsEqualTo(ExpectedTagCount);
-        await Assert.That(bulk.All(static result => result.Succeeded)).IsTrue();
+        foreach (var result in bulk)
+        {
+            await Assert.That(result.Succeeded).IsTrue();
+        }
+
         await Assert.That(write.Succeeded).IsTrue();
-        await Assert.That(bulkWrite.All(static result => result.Succeeded)).IsTrue();
+        foreach (var result in bulkWrite)
+        {
+            await Assert.That(result.Succeeded).IsTrue();
+        }
+
         await Assert.That(moved).IsTrue();
         await Assert.That(values.Current.Value).IsEqualTo(BulkWrittenSpeed);
     }
@@ -109,7 +118,7 @@ public sealed class OmronLogicalTagClientTests
             using (var stored = new OmronLogicalTagClient(plc, connectionString))
             {
                 await stored.InitializeStoreAsync(CancellationToken.None);
-                await stored.UpsertGroupAsync(new LogicalTagGroup("Process"), CancellationToken.None);
+                await stored.UpsertGroupAsync(new("Process"), CancellationToken.None);
                 await stored.UpsertTagAsync(imported[0], CancellationToken.None);
                 var tagOpts = imported[0].CurrentOptions();
                 tagOpts.Description = "Process temperature";

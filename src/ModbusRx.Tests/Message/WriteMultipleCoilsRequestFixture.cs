@@ -3,10 +3,10 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
+namespace IoT.Driver.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the WriteMultipleCoilsRequestFixture behavior.</summary>
 public class WriteMultipleCoilsRequestFixture
@@ -22,13 +22,13 @@ public class WriteMultipleCoilsRequestFixture
         Assert.Equal(Num.Value45, request.StartAddress);
         Assert.Equal(Num.Value9, request.NumberOfPoints);
         Assert.Equal(Num.Value2, request.ByteCount);
-        Assert.Equal(col.NetworkBytes, request.Data.NetworkBytes);
+        Assert.Equal(col.ToNetworkBytes(), request.Data.ToNetworkBytes());
     }
 
     /// <summary>Creates the write multiple coils request too much data.</summary>
     [TUnit.Core.Test]
     public void CreateWriteMultipleCoilsRequestTooMuchData() =>
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        Assert.Throws<ArgumentOutOfRangeException>(static () =>
             _ = new WriteMultipleCoilsRequest(
                 1,
                 Num.Value2,

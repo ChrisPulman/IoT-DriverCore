@@ -7,16 +7,16 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+using IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-using IoT.DriverCore.S7PlcRx.PlcTypes;
+using IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 using TimeSpan = System.TimeSpan;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Core;
+namespace IoT.Driver.S7PlcRx.Reactive.Core;
 #else
-namespace IoT.DriverCore.S7PlcRx.Core;
+namespace IoT.Driver.S7PlcRx.Core;
 #endif
 
 /// <summary>Provides S7 socket connection functionality.</summary>
@@ -322,7 +322,12 @@ internal partial class S7SocketRx
         CancellationToken cancellationToken)
     {
         using var cancellationRegistration = cancellationToken.Register(
-            () => CloseSocketOptimized(socket, _timeProvider));
+            static state =>
+            {
+                var (registeredSocket, timeProvider) = ((Socket, TimeProvider))state!;
+                CloseSocketOptimized(registeredSocket, timeProvider);
+            },
+            (socket, _timeProvider));
         var connectTask = Task.Run(() =>
         {
             try
@@ -465,7 +470,7 @@ internal partial class S7SocketRx
             ProgrammingDeviceSourceTsapHighByte,
             DefaultSourceTsapLowByte,
             DefaultDestinationTsapHighByte,
-            (rack, slot) => (byte)((rack * RackAddressMultiplier * SlotsPerRackAddressUnit) + slot),
+            static (rack, slot) => (byte)((rack * RackAddressMultiplier * SlotsPerRackAddressUnit) + slot),
             nameof(PG));
 
         /// <summary>Gets the TSAP profile for the "OP" (Operator Panel) communication type.</summary>
@@ -476,7 +481,7 @@ internal partial class S7SocketRx
             OperatorPanelSourceTsapHighByte,
             DefaultSourceTsapLowByte,
             DefaultDestinationTsapHighByte,
-            (rack, slot) => (byte)((rack * RackAddressMultiplier * SlotsPerRackAddressUnit) + slot),
+            static (rack, slot) => (byte)((rack * RackAddressMultiplier * SlotsPerRackAddressUnit) + slot),
             nameof(OP));
 
         /// <summary>Gets the TSAP profile for the PGAlt (Programming Device Alternative) connection type.</summary>
@@ -484,7 +489,7 @@ internal partial class S7SocketRx
             AlternateProgrammingDeviceSourceTsapHighByte,
             DefaultSourceTsapLowByte,
             DefaultDestinationTsapHighByte,
-            (rack, slot) => (byte)((rack * RackAddressMultiplier * SlotsPerRackAddressUnit) + slot),
+            static (rack, slot) => (byte)((rack * RackAddressMultiplier * SlotsPerRackAddressUnit) + slot),
             nameof(PGAlt));
     }
 }

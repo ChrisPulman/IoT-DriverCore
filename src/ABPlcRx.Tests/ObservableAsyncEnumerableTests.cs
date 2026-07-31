@@ -5,7 +5,7 @@
 using TUnit.Assertions;
 using TUnit.Core;
 
-namespace IoT.DriverCore.ABPlcRx.Tests;
+namespace IoT.Driver.ABPlcRx.Tests;
 
 /// <summary>Tests classic observable consumption through asynchronous enumeration.</summary>
 public sealed class ObservableAsyncEnumerableTests

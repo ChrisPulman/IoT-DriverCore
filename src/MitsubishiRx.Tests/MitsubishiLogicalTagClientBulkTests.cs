@@ -2,15 +2,15 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 #endif
 
@@ -99,7 +99,17 @@ internal sealed class MitsubishiLogicalTagClientBulkTests
             [LastTagName, FirstTagName, SignedTagName],
             CancellationToken.None);
 
-        await Assert.That(reads.Select(static result => result.Succeeded).All(static value => value))
+        var readsSucceeded = true;
+        foreach (var result in reads)
+        {
+            if (!result.Succeeded)
+            {
+                readsSucceeded = false;
+                break;
+            }
+        }
+
+        await Assert.That(readsSucceeded)
             .IsTrue();
         await Assert.That(reads[0].Value!.Value).IsEqualTo(LastReadValue);
         await Assert.That(reads[1].Value!.Value).IsEqualTo(FirstReadValue);
@@ -107,24 +117,7 @@ internal sealed class MitsubishiLogicalTagClientBulkTests
         await Assert.That(simulator.Requests).Count().IsEqualTo(1);
         await Assert.That(simulator.Requests[0].Description).IsEqualTo("Read words D100");
 
-        simulator.ClearRequests();
-        var writes = await logical.WriteManyAsync(
-        [
-            CreateValue(LastTagName, LastWriteValue),
-            CreateValue(FirstTagName, FirstWriteValue),
-            CreateValue(SignedTagName, SignedWordValue),
-        ],
-            CancellationToken.None);
-
-        var expected = MitsubishiProtocolEncoding.EncodeDeviceBatchWrite(
-            options,
-            MitsubishiDeviceAddress.Parse("D100", options.XyNotation),
-            [FirstWriteValue, unchecked((ushort)SignedWordValue), LastWriteValue],
-            bitUnits: false);
-        await Assert.That(writes.Select(static result => result.Succeeded).All(static value => value))
-            .IsTrue();
-        await Assert.That(simulator.Requests).Count().IsEqualTo(1);
-        await Assert.That(simulator.Requests[0].Payload.SequenceEqual(expected)).IsTrue();
+        await AssertGappedWritesAsync(logical, simulator, options);
     }
 
     /// <summary>Verifies gaps use random commands while different device areas remain separate.</summary>
@@ -141,18 +134,7 @@ internal sealed class MitsubishiLogicalTagClientBulkTests
         using var logical = owner.CreateLogicalTagClient(null, null, null);
         RegisterGappedTags(logical);
 
-        var reads = await logical.ReadManyAsync(
-            ["D20", "W1", "D10", "D11"],
-            CancellationToken.None);
-
-        await Assert.That(reads.Select(static result => result.Succeeded).All(static value => value))
-            .IsTrue();
-        await Assert.That(reads[0].Value!.Value).IsEqualTo(D20Value);
-        await Assert.That(reads[1].Value!.Value).IsEqualTo(W1Value);
-        await Assert.That(reads[2].Value!.Value).IsEqualTo(D10Value);
-        await Assert.That(reads[3].Value!.Value).IsEqualTo(SignedWordValue);
-        await Assert.That(simulator.Requests.Select(static request => request.Description))
-            .IsEquivalentTo(["Random read words", "Read words W1"]);
+        await AssertGappedReadsAsync(logical, simulator);
 
         simulator.ClearRequests();
         var writes = await logical.WriteManyAsync(
@@ -177,7 +159,17 @@ internal sealed class MitsubishiLogicalTagClientBulkTests
                 MitsubishiDeviceAddress.Parse("D11", options.XyNotation),
                 unchecked((ushort)SignedWordValue)),
         ]);
-        await Assert.That(writes.Select(static result => result.Succeeded).All(static value => value))
+        var writesSucceeded = true;
+        foreach (var result in writes)
+        {
+            if (!result.Succeeded)
+            {
+                writesSucceeded = false;
+                break;
+            }
+        }
+
+        await Assert.That(writesSucceeded)
             .IsTrue();
         await Assert.That(simulator.Requests).Count().IsEqualTo(GroupedRequestCount);
         await Assert.That(simulator.Requests[0].Payload.SequenceEqual(expectedRandom)).IsTrue();
@@ -239,8 +231,13 @@ internal sealed class MitsubishiLogicalTagClientBulkTests
 
         await Assert.That(reads[0].Value!.Value).IsEqualTo(D20Value);
         await Assert.That(reads[1].Value!.Value).IsEqualTo(D10Value);
-        await Assert.That(simulator.Requests.Select(static request => request.Description))
-            .IsEquivalentTo(["Read words D10", "Read words D20"]);
+        var requestDescriptions = new string[simulator.Requests.Count];
+        for (var index = 0; index < simulator.Requests.Count; index++)
+        {
+            requestDescriptions[index] = simulator.Requests[index].Description;
+        }
+
+        await Assert.That(requestDescriptions).IsEquivalentTo(["Read words D10", "Read words D20"]);
     }
 
     /// <summary>
@@ -269,9 +266,21 @@ internal sealed class MitsubishiLogicalTagClientBulkTests
             CancellationToken.None);
         var metrics = logical.BulkOperationMetrics;
 
-        await TUnit.Assertions.Assert.That(first.Select(static result => result.Value!.TagName))
+        var firstTagNames = new string[first.Count];
+        for (var index = 0; index < first.Count; index++)
+        {
+            firstTagNames[index] = first[index].Value!.TagName;
+        }
+
+        var secondTagNames = new string[second.Count];
+        for (var index = 0; index < second.Count; index++)
+        {
+            secondTagNames[index] = second[index].Value!.TagName;
+        }
+
+        await TUnit.Assertions.Assert.That(firstTagNames)
             .IsEquivalentTo([LastTagName, FirstTagName, SignedTagName]);
-        await TUnit.Assertions.Assert.That(second.Select(static result => result.Value!.TagName))
+        await TUnit.Assertions.Assert.That(secondTagNames)
             .IsEquivalentTo([SignedTagName, LastTagName, FirstTagName]);
         await TUnit.Assertions.Assert.That(metrics.Read.PlanCount).IsEqualTo(GroupedRequestCount);
         await TUnit.Assertions.Assert.That(metrics.Read.ItemCount).IsEqualTo(RepeatedContiguousItemCount);
@@ -305,12 +314,97 @@ internal sealed class MitsubishiLogicalTagClientBulkTests
         var reads = await logical.ReadManyAsync(["D20", "D10", "D11"], CancellationToken.None);
         var metrics = logical.BulkOperationMetrics;
 
-        await TUnit.Assertions.Assert.That(reads.Select(static result => result.Succeeded).All(static succeeded => succeeded))
+        var readsSucceeded = true;
+        foreach (var result in reads)
+        {
+            if (!result.Succeeded)
+            {
+                readsSucceeded = false;
+                break;
+            }
+        }
+
+        await TUnit.Assertions.Assert.That(readsSucceeded)
             .IsTrue();
         await TUnit.Assertions.Assert.That(metrics.Read.ItemCount).IsEqualTo(RandomGroupedItemCount);
         await TUnit.Assertions.Assert.That(metrics.Read.RangeCount).IsEqualTo(GroupedRequestCount);
         await TUnit.Assertions.Assert.That(metrics.Read.ProtocolCallCount).IsEqualTo(1);
         await TUnit.Assertions.Assert.That(simulator.Requests).Count().IsEqualTo(1);
+    }
+
+    /// <summary>Verifies gapped bulk writes issue a random command and a separate-area command.</summary>
+    /// <param name="logical">The logical tag client.</param>
+    /// <param name="simulator">The deterministic simulator transport.</param>
+    /// <param name="options">The Mitsubishi client options.</param>
+    /// <returns>A task that represents the asynchronous assertion.</returns>
+    private static async Task AssertGappedWritesAsync(
+        MitsubishiLogicalTagClient logical,
+        MitsubishiSimulatorTransport simulator,
+        MitsubishiClientOptions options)
+    {
+        simulator.ClearRequests();
+        var writes = await logical.WriteManyAsync(
+        [
+            CreateValue(LastTagName, LastWriteValue),
+            CreateValue(FirstTagName, FirstWriteValue),
+            CreateValue(SignedTagName, SignedWordValue),
+        ],
+            CancellationToken.None);
+
+        var expected = MitsubishiProtocolEncoding.EncodeDeviceBatchWrite(
+            options,
+            MitsubishiDeviceAddress.Parse("D100", options.XyNotation),
+            [FirstWriteValue, unchecked((ushort)SignedWordValue), LastWriteValue],
+            bitUnits: false);
+        var writesSucceeded = true;
+        foreach (var result in writes)
+        {
+            if (!result.Succeeded)
+            {
+                writesSucceeded = false;
+                break;
+            }
+        }
+
+        await Assert.That(writesSucceeded)
+            .IsTrue();
+        await Assert.That(simulator.Requests).Count().IsEqualTo(1);
+        await Assert.That(simulator.Requests[0].Payload.SequenceEqual(expected)).IsTrue();
+    }
+
+    /// <summary>Verifies the gapped read values and command grouping.</summary>
+    /// <param name="logical">The logical tag client.</param>
+    /// <param name="simulator">The deterministic simulator transport.</param>
+    /// <returns>A task that represents the asynchronous assertion.</returns>
+    private static async Task AssertGappedReadsAsync(
+        MitsubishiLogicalTagClient logical,
+        MitsubishiSimulatorTransport simulator)
+    {
+        var reads = await logical.ReadManyAsync(
+            ["D20", "W1", "D10", "D11"],
+            CancellationToken.None);
+        var readsSucceeded = true;
+        foreach (var result in reads)
+        {
+            if (!result.Succeeded)
+            {
+                readsSucceeded = false;
+                break;
+            }
+        }
+
+        await Assert.That(readsSucceeded).IsTrue();
+        await Assert.That(reads[0].Value!.Value).IsEqualTo(D20Value);
+        await Assert.That(reads[1].Value!.Value).IsEqualTo(W1Value);
+        await Assert.That(reads[2].Value!.Value).IsEqualTo(D10Value);
+        await Assert.That(reads[3].Value!.Value).IsEqualTo(SignedWordValue);
+        var requestDescriptions = new string[simulator.Requests.Count];
+        for (var index = 0; index < simulator.Requests.Count; index++)
+        {
+            requestDescriptions[index] = simulator.Requests[index].Description;
+        }
+
+        await Assert.That(requestDescriptions).IsEquivalentTo(["Random read words", "Read words W1"]);
     }
 
     /// <summary>Creates deterministic Ethernet MC options.</summary>

@@ -5,19 +5,19 @@
 using System.Diagnostics;
 using System.Globalization;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Core;
-using IoT.DriverCore.S7PlcRx.Reactive.Enums;
-using IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+using IoT.Driver.S7PlcRx.Reactive.Core;
+using IoT.Driver.S7PlcRx.Reactive.Enums;
+using IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-using IoT.DriverCore.S7PlcRx.Core;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.PlcTypes;
+using IoT.Driver.S7PlcRx.Core;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive;
+namespace IoT.Driver.S7PlcRx.Reactive;
 #else
-namespace IoT.DriverCore.S7PlcRx;
+namespace IoT.Driver.S7PlcRx;
 #endif
 
 /// <summary>Contains multi-variable operation members for <see cref="RxS7"/>.</summary>
@@ -87,7 +87,7 @@ public partial class RxS7
 
             varTypes[i] = varType;
             arrayLengths[i] = tag.ArrayLength!.Value;
-            items.Add(new S7MultiVar.ReadItem(DataType.DataBlock, db, startByte, countBytes, tag.Name!));
+            items.Add(new(DataType.DataBlock, db, startByte, countBytes, tag.Name!));
         }
 
         return true;
@@ -118,7 +118,7 @@ public partial class RxS7
                 return false;
             }
 
-            items.Add(new S7MultiVar.WriteItem(
+            items.Add(new(
                 DataType.DataBlock,
                 db,
                 startByte,

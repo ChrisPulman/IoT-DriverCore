@@ -7,9 +7,9 @@ using System.Net;
 using System.Text;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Utility;
+namespace IoT.Driver.ModbusRx.Reactive.Utility;
 #else
-namespace IoT.DriverCore.ModbusRx.Utility;
+namespace IoT.Driver.ModbusRx.Utility;
 #endif
 
 /// <summary>Modbus utility methods with high-performance optimizations.</summary>
@@ -171,10 +171,7 @@ public static class ModbusUtility
     /// <exception cref="FormatException">Thrown when networkBytes length is not even.</exception>
     public static ushort[] NetworkBytesToHostUInt16(byte[] networkBytes)
     {
-        if (networkBytes is null)
-        {
-            throw new ArgumentNullException(nameof(networkBytes));
-        }
+        networkBytes = ModbusGuard.NotNull(networkBytes, nameof(networkBytes));
 
         if (networkBytes.Length % Two != 0)
         {
@@ -230,10 +227,7 @@ public static class ModbusUtility
     /// <exception cref="FormatException">Thrown when hex length is not even.</exception>
     public static byte[] HexToBytes(string hex)
     {
-        if (hex is null)
-        {
-            throw new ArgumentNullException(nameof(hex));
-        }
+        hex = ModbusGuard.NotNull(hex, nameof(hex));
 
         if (hex.Length % Two != 0)
         {
@@ -270,10 +264,7 @@ public static class ModbusUtility
     /// <exception cref="ArgumentNullException">Thrown when data is null.</exception>
     public static byte CalculateLrc(byte[] data)
     {
-        if (data is null)
-        {
-            throw new ArgumentNullException(nameof(data));
-        }
+        data = ModbusGuard.NotNull(data, nameof(data));
 
         byte lrc = 0;
 
@@ -315,10 +306,7 @@ public static class ModbusUtility
     /// <exception cref="ArgumentNullException">Thrown when data is null.</exception>
     public static byte[] CalculateCrc(byte[] data)
     {
-        if (data is null)
-        {
-            throw new ArgumentNullException(nameof(data));
-        }
+        data = ModbusGuard.NotNull(data, nameof(data));
 
         var crc = ushort.MaxValue;
 

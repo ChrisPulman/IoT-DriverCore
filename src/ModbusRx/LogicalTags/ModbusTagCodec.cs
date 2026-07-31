@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.LogicalTags;
+namespace IoT.Driver.ModbusRx.Reactive.LogicalTags;
 #else
-namespace IoT.DriverCore.ModbusRx.LogicalTags;
+namespace IoT.Driver.ModbusRx.LogicalTags;
 #endif
 
 /// <summary>Converts supported CLR values to and from raw Modbus points.</summary>
@@ -87,7 +87,7 @@ internal static class ModbusTagCodec
         {
             return tag.ClrDataType == typeof(bool)
                 ? [(bool)nonNullValue]
-                : ((bool[])nonNullValue).ToArray();
+                : CopyBooleanValues((bool[])nonNullValue);
         }
 
         var registers = new ushort[tag.Count];
@@ -127,6 +127,16 @@ internal static class ModbusTagCodec
             : throw new ArgumentException(
                 $"Tag '{tag.Name}' requires exactly {tag.Count / pointsPerValue} value(s).",
                 nameof(value));
+    }
+
+    /// <summary>Copies Boolean values without relying on a LINQ enumeration.</summary>
+    /// <param name="values">The source values.</param>
+    /// <returns>A distinct array containing the source values.</returns>
+    private static bool[] CopyBooleanValues(bool[] values)
+    {
+        var result = new bool[values.Length];
+        Array.Copy(values, result, values.Length);
+        return result;
     }
 
     /// <summary>Gets the scalar element type represented by a CLR type.</summary>

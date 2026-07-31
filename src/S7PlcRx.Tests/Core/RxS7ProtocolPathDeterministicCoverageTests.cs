@@ -2,12 +2,12 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.Mock;
-using S7DInt = IoT.DriverCore.S7PlcRx.PlcTypes.DInt;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Mock;
+using S7DInt = IoT.Driver.S7PlcRx.PlcTypes.DInt;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Core;
+namespace IoT.Driver.S7PlcRx.Tests.Core;
 
 /// <summary>Provides deterministic coverage for RxS7 read, write, and multi-variable protocol paths.</summary>
 [NotInParallel]
@@ -144,9 +144,11 @@ public sealed class RxS7ProtocolPathDeterministicCoverageTests
         var nullValue = new Tag("Null", FirstDataBlockByteAddress, typeof(byte));
         var badAddress = CreateWriteTag("BadAddress", "MB0", byte.MaxValue);
         var unsupported = CreateWriteTag("Unsupported", FirstDataBlockByteAddress, decimal.MaxValue);
-        var oversized = Enumerable.Range(0, OversizedItemCount)
-            .Select(index => CreateWriteTag($"Oversized{index}", FirstDataBlockByteAddress, byte.MaxValue))
-            .ToArray();
+        var oversized = new Tag[OversizedItemCount];
+        for (var index = 0; index < oversized.Length; index++)
+        {
+            oversized[index] = CreateWriteTag($"Oversized{index}", FirstDataBlockByteAddress, byte.MaxValue);
+        }
 
         await TUnitAssert.That(plc.ReadMultiVar(null!)).IsNull();
         await TUnitAssert.That(plc.ReadMultiVar([])).IsNull();
@@ -247,7 +249,7 @@ public sealed class RxS7ProtocolPathDeterministicCoverageTests
         using var plc = CreatePlc();
         RegisterTag<int>(plc, "UnsupportedDbKind", "DB1.DBT0");
         var errorTask = plc.LastErrorCode
-            .Where(error => error == ErrorCode.WrongVarFormat)
+            .Where(static error => error == ErrorCode.WrongVarFormat)
             .Take(1)
             .Timeout(OperationTimeout)
             .FirstAsync();
@@ -284,12 +286,12 @@ public sealed class RxS7ProtocolPathDeterministicCoverageTests
         RegisterTag<byte>(plc, FaultedSingleWriteTagName, FirstDataBlockByteAddress);
         await WaitUntilConnectedAsync(plc);
         var codeTask = plc.LastErrorCode
-            .Where(error => error == ErrorCode.WriteData)
+            .Where(static error => error == ErrorCode.WriteData)
             .Take(1)
             .Timeout(OperationTimeout)
             .FirstAsync();
         var textTask = plc.LastError
-            .Where(text => text.Contains(FaultedSingleWriteTagName, StringComparison.Ordinal))
+            .Where(static text => text.Contains(FaultedSingleWriteTagName, StringComparison.Ordinal))
             .Take(1)
             .Timeout(OperationTimeout)
             .FirstAsync();
@@ -321,7 +323,7 @@ public sealed class RxS7ProtocolPathDeterministicCoverageTests
         ((Tag)registration.Tag!).ArrayLength = null;
         await WaitUntilConnectedAsync(plc);
         var errorTask = plc.LastError
-            .Where(text => !string.IsNullOrEmpty(text))
+            .Where(static text => !string.IsNullOrEmpty(text))
             .Take(1)
             .Timeout(OperationTimeout)
             .FirstAsync();
@@ -370,7 +372,7 @@ public sealed class RxS7ProtocolPathDeterministicCoverageTests
     /// <param name="plc">The PLC instance.</param>
     /// <returns>A task that represents the wait.</returns>
     private static async Task WaitUntilConnectedAsync(RxS7 plc) =>
-        _ = await plc.IsConnected.Where(connected => connected).Timeout(OperationTimeout).FirstAsync();
+        _ = await plc.IsConnected.Where(static connected => connected).Timeout(OperationTimeout).FirstAsync();
 
     /// <summary>Queues alternating failed and successful SZL operations for both CPU records.</summary>
     /// <param name="server">The managed simulator.</param>
@@ -443,14 +445,21 @@ public sealed class RxS7ProtocolPathDeterministicCoverageTests
     private static async Task WaitUntilMemoryWritesCompleteAsync(MockServer server)
     {
         using var cancellation = new CancellationTokenSource(OperationTimeout);
+#if NET6_0_OR_GREATER
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(PollingIntervalMilliseconds));
+        while (await timer.WaitForNextTickAsync(cancellation.Token))
+#else
         while (!cancellation.IsCancellationRequested)
+#endif
         {
             if (AllMemoryWritesCompleted(server))
             {
                 return;
             }
 
+#if !NET6_0_OR_GREATER
             await Task.Delay(PollingIntervalMilliseconds, cancellation.Token);
+#endif
         }
     }
 

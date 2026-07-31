@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Optimization;
+namespace IoT.Driver.S7PlcRx.Reactive.Optimization;
 #else
-namespace IoT.DriverCore.S7PlcRx.Optimization;
+namespace IoT.Driver.S7PlcRx.Optimization;
 #endif
 
 /// <summary>Represents a request for tag optimization, including its type, priority, and associated metadata.</summary>

@@ -7,11 +7,11 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 #endif
 
@@ -112,6 +112,30 @@ internal sealed class MitsubishiResidualBranchCoverageTests
     /// <summary>Stores a two-byte loopback length.</summary>
     private const int LoopbackLength = 2;
 
+    /// <summary>Stores the defensive two-word test payload.</summary>
+    private static readonly ushort[] DefensiveTwoWordPayload = [1, 0];
+
+    /// <summary>Stores a single unsigned word with all bits set.</summary>
+    private static readonly ushort[] UnsignedMaxWord = [0xFFFF];
+
+    /// <summary>Stores the representative unsigned 32-bit word payload.</summary>
+    private static readonly ushort[] UInt32WordPayload = [0x1122, 0x3344];
+
+    /// <summary>Stores the little-endian string word payload.</summary>
+    private static readonly ushort[] LittleEndianStringWordPayload = [0x4241];
+
+    /// <summary>Stores the big-endian string word payload.</summary>
+    private static readonly ushort[] BigEndianStringWordPayload = [0x4142];
+
+    /// <summary>Stores the single bit word payload.</summary>
+    private static readonly ushort[] BitWordPayload = [1];
+
+    /// <summary>Stores the populated word block payload.</summary>
+    private static readonly ushort[] PopulatedWordBlockPayload = [1];
+
+    /// <summary>Stores the populated bit block payload.</summary>
+    private static readonly bool[] PopulatedBitBlockPayload = [true];
+
     /// <summary>Stores every valid scalar type and representative raw words.</summary>
     private static readonly (string? DataType, object Value, ushort[] Words)[] ScalarCases =
     [
@@ -145,12 +169,10 @@ internal sealed class MitsubishiResidualBranchCoverageTests
     ];
 
     /// <summary>Invokes the simulator's span-based availability guard without reflection boxing.</summary>
-    /// <param name="simulator">The simulator instance.</param>
     /// <param name="bytes">The available bytes.</param>
     /// <param name="offset">The requested offset.</param>
     /// <param name="length">The requested length.</param>
     private delegate void EnsureAvailableInvoker(
-        MitsubishiSimulatorTransport simulator,
         ReadOnlySpan<byte> bytes,
         int offset,
         int length);
@@ -206,7 +228,7 @@ internal sealed class MitsubishiResidualBranchCoverageTests
                     typeof(MitsubishiRx),
                     ReadNumericTagValueMethod,
                     tag,
-                    new ushort[] { 1, 0 }));
+                    DefensiveTwoWordPayload));
             _ = Assert.Throws<TargetInvocationException>(
                 () => InvokeStatic(typeof(MitsubishiRx), "GetWordCountForScaledRead", tag));
 
@@ -214,7 +236,7 @@ internal sealed class MitsubishiResidualBranchCoverageTests
                 typeof(MitsubishiRx),
                 "ConvertTagWordsToObject",
                 tag,
-                new ushort[] { 1, 0 });
+                DefensiveTwoWordPayload);
             await Assert.That(converted).IsEqualTo((ushort)1);
 
             var writeTask = InvokeInstance(
@@ -222,7 +244,7 @@ internal sealed class MitsubishiResidualBranchCoverageTests
                 "CreateWriteTagValueTask",
                 "Missing",
                 tag,
-                new object(),
+                new(),
                 CancellationToken.None);
             await Assert.That(writeTask).IsNull();
         }
@@ -286,7 +308,7 @@ internal sealed class MitsubishiResidualBranchCoverageTests
         var binaryType = (Responce<MitsubishiTypeName>)InvokeInstance(
             binaryClient,
             ParseTypeNameMethod,
-            new Responce<byte[]>(Encoding.ASCII.GetBytes("CPU\0\x34\x12")))!;
+            new Responce<byte[]>("CPU\0\x34\x12"u8.ToArray()))!;
         await Assert.That(failedType.IsSucceed).IsFalse();
         await Assert.That(shortBinaryType.Value!.ModelCode).IsEqualTo((ushort)0);
         await Assert.That(binaryType.Value!.ModelCode).IsEqualTo((ushort)0x1234);
@@ -297,11 +319,11 @@ internal sealed class MitsubishiResidualBranchCoverageTests
         var shortAsciiType = (Responce<MitsubishiTypeName>)InvokeInstance(
             asciiClient,
             ParseTypeNameMethod,
-            new Responce<byte[]>(Encoding.ASCII.GetBytes("CPU")))!;
+            new Responce<byte[]>("CPU"u8.ToArray()))!;
         var asciiType = (Responce<MitsubishiTypeName>)InvokeInstance(
             asciiClient,
             ParseTypeNameMethod,
-            new Responce<byte[]>(Encoding.ASCII.GetBytes("CPU1234")))!;
+            new Responce<byte[]>("CPU1234"u8.ToArray()))!;
         await Assert.That(shortAsciiType.Value!.ModelCode).IsEqualTo((ushort)0);
         await Assert.That(asciiType.Value!.ModelCode).IsEqualTo((ushort)0x1234);
 
@@ -331,9 +353,9 @@ internal sealed class MitsubishiResidualBranchCoverageTests
             MitsubishiReactiveWriteMode.Coalescing,
             static _ => Task.FromResult(new Responce()),
             TimeSpan.Zero);
-        _ = InvokeInstance(queued, "DrainQueued");
-        _ = InvokeInstance(latest, "DrainLatestWins");
-        _ = InvokeInstance(coalescing, "FlushCoalesced");
+        await Assert.That(await (Task<Unit>)InvokeInstance(queued, "DrainQueuedAsync")!).IsEqualTo(Unit.Default);
+        await Assert.That(await (Task<Unit>)InvokeInstance(latest, "DrainLatestWinsAsync")!).IsEqualTo(Unit.Default);
+        await Assert.That(await (Task<Unit>)InvokeInstance(coalescing, "FlushCoalescedAsync")!).IsEqualTo(Unit.Default);
         queued.Dispose();
         await Assert.That(queued.Mode).IsEqualTo(MitsubishiReactiveWriteMode.Queued);
 
@@ -378,8 +400,8 @@ internal sealed class MitsubishiResidualBranchCoverageTests
     {
         var emptyBlocks = new MitsubishiBlockRequest();
         var populatedBlocks = new MitsubishiBlockRequest(
-            [new(MitsubishiDeviceAddress.Parse("D0", XyAddressNotation.Octal), new ushort[] { 1 })],
-            [new(MitsubishiDeviceAddress.Parse("M0", XyAddressNotation.Octal), new bool[] { true })]);
+            [new(MitsubishiDeviceAddress.Parse("D0", XyAddressNotation.Octal), PopulatedWordBlockPayload)],
+            [new(MitsubishiDeviceAddress.Parse("M0", XyAddressNotation.Octal), PopulatedBitBlockPayload)]);
         await Assert.That(emptyBlocks.ResolvedWordBlocks).IsEmpty();
         await Assert.That(emptyBlocks.ResolvedBitBlocks).IsEmpty();
         await Assert.That(populatedBlocks.ResolvedWordBlocks).Count().IsEqualTo(1);
@@ -396,7 +418,7 @@ internal sealed class MitsubishiResidualBranchCoverageTests
         _ = Assert.Throws<InvalidOperationException>(() => _ = defaults.ResolvedSerial);
         await Assert.That(configured.ResolvedSerial.PortName).IsEqualTo("COM1");
         _ = Assert.Throws<FormatException>(
-            () => MitsubishiDeviceAddress.Parse("D!", XyAddressNotation.Octal));
+            static () => MitsubishiDeviceAddress.Parse("D!", XyAddressNotation.Octal));
 
         var variable = new MitsubishiDeviceMetadata(
             "X",
@@ -427,7 +449,7 @@ internal sealed class MitsubishiResidualBranchCoverageTests
         foreach (var tag in tags)
         {
             var read = await client.ReadTagAsync(tag.Name, CancellationToken.None);
-            var invalidWrite = await client.WriteTagAsync(tag.Name, new object(), CancellationToken.None);
+            var invalidWrite = await client.WriteTagAsync(tag.Name, new(), CancellationToken.None);
             await Assert.That(read.IsSucceed).IsTrue();
             await Assert.That(invalidWrite.IsSucceed).IsFalse();
         }
@@ -457,9 +479,9 @@ internal sealed class MitsubishiResidualBranchCoverageTests
             ConvertPointCountMethod,
             MaximumLegacyPointCount)!).IsEqualTo((byte)0);
         _ = Assert.Throws<TargetInvocationException>(
-            () => InvokeStatic(typeof(MitsubishiProtocolEncoding), ConvertPointCountMethod, 0));
+            static () => InvokeStatic(typeof(MitsubishiProtocolEncoding), ConvertPointCountMethod, 0));
         _ = Assert.Throws<TargetInvocationException>(
-            () => InvokeStatic(
+            static () => InvokeStatic(
                 typeof(MitsubishiProtocolEncoding),
                 ConvertPointCountMethod,
                 InvalidLegacyPointCount));
@@ -536,7 +558,7 @@ internal sealed class MitsubishiResidualBranchCoverageTests
         {
             var payload = new byte[4];
             payload[0] = command;
-            var decoded = InvokeInstance(simulator, "DecodeLegacyMcRequest", options, payload);
+            var decoded = InvokeStatic(typeof(MitsubishiSimulatorTransport), "DecodeLegacyMcRequest", options, payload);
             await Assert.That(decoded).IsNotNull();
         }
 
@@ -600,33 +622,33 @@ internal sealed class MitsubishiResidualBranchCoverageTests
     {
         _ = Assert.Throws<TargetInvocationException>(
             () => InvokeInstance(simulator, "ExecuteMonitor"));
-        var legacyLoopback = (byte[])InvokeInstance(
-            simulator,
+        var legacyLoopback = (byte[])InvokeStatic(
+            typeof(MitsubishiSimulatorTransport),
             "ExecuteLoopback",
             CreateDecodedSimulatorRequest(
                 MitsubishiCommandCodes.LoopbackTest,
-                body: Encoding.ASCII.GetBytes("02AB"),
+                body: "02AB"u8.ToArray(),
                 isAscii: true,
                 isLegacy: true))!;
-        var modernLoopback = (byte[])InvokeInstance(
-            simulator,
+        var modernLoopback = (byte[])InvokeStatic(
+            typeof(MitsubishiSimulatorTransport),
             "ExecuteLoopback",
             CreateDecodedSimulatorRequest(
                 MitsubishiCommandCodes.LoopbackTest,
-                body: Encoding.ASCII.GetBytes("0002AB"),
+                body: "0002AB"u8.ToArray(),
                 isAscii: true))!;
         await Assert.That(Encoding.ASCII.GetString(legacyLoopback)).IsEqualTo("AB");
         await Assert.That(Encoding.ASCII.GetString(modernLoopback)).IsEqualTo("AB");
 
         _ = Assert.Throws<TargetInvocationException>(
-            () => InvokeInstance(
-                simulator,
+            () => InvokeStatic(
+                typeof(MitsubishiSimulatorTransport),
                 "DecodeMcRequest",
                 options with { FrameType = MitsubishiFrameType.ThreeC },
                 Array.Empty<byte>()));
         _ = Assert.Throws<TargetInvocationException>(
-            () => InvokeInstance(
-                simulator,
+            () => InvokeStatic(
+                typeof(MitsubishiSimulatorTransport),
                 "ReadDeviceAddress",
                 options,
                 CreateDecodedSimulatorRequest(
@@ -634,8 +656,8 @@ internal sealed class MitsubishiResidualBranchCoverageTests
                     body: [0, 0, 0, 0x7F]),
                 0));
         _ = Assert.Throws<TargetInvocationException>(
-            () => InvokeInstance(
-                simulator,
+            () => InvokeStatic(
+                typeof(MitsubishiSimulatorTransport),
                 "ReadDeviceAddress",
                 options with { FrameType = MitsubishiFrameType.OneE },
                 CreateDecodedSimulatorRequest(
@@ -644,7 +666,7 @@ internal sealed class MitsubishiResidualBranchCoverageTests
                     isLegacy: true,
                     legacyCommand: 0),
                 0));
-        ExerciseAvailabilityGuards(simulator);
+        ExerciseAvailabilityGuards();
     }
 
     /// <summary>Exercises transport selection, encoding, observation, and rollout-policy guards.</summary>
@@ -720,20 +742,19 @@ internal sealed class MitsubishiResidualBranchCoverageTests
     }
 
     /// <summary>Exercises every operand of the simulator's span availability guard.</summary>
-    /// <param name="simulator">The simulator instance.</param>
-    private static void ExerciseAvailabilityGuards(MitsubishiSimulatorTransport simulator)
+    private static void ExerciseAvailabilityGuards()
     {
         var ensureMethod = typeof(MitsubishiSimulatorTransport).GetMethod(
             "EnsureAvailable",
-            PrivateInstance)
+            PrivateStatic)
             ?? throw new MissingMethodException(
                 typeof(MitsubishiSimulatorTransport).FullName,
                 "EnsureAvailable");
         var ensureAvailable = ensureMethod.CreateDelegate<EnsureAvailableInvoker>();
-        ensureAvailable(simulator, [], 0, 0);
-        _ = Assert.Throws<InvalidDataException>(() => ensureAvailable(simulator, [], -1, 0));
-        _ = Assert.Throws<InvalidDataException>(() => ensureAvailable(simulator, [], 0, -1));
-        _ = Assert.Throws<InvalidDataException>(() => ensureAvailable(simulator, [], 1, 0));
+        ensureAvailable([], 0, 0);
+        _ = Assert.Throws<InvalidDataException>(() => ensureAvailable([], -1, 0));
+        _ = Assert.Throws<InvalidDataException>(() => ensureAvailable([], 0, -1));
+        _ = Assert.Throws<InvalidDataException>(() => ensureAvailable([], 1, 0));
     }
 
     /// <summary>Exercises decision paths surrounding every decoded simulator command.</summary>
@@ -766,7 +787,12 @@ internal sealed class MitsubishiResidualBranchCoverageTests
             MitsubishiCommandCodes.ClearError,
             MitsubishiCommandCodes.LoopbackTest,
         ];
-        var commandSet = decodedCommands.ToHashSet();
+        var commandSet = new HashSet<ushort>();
+        foreach (ushort decodedCommand in decodedCommands)
+        {
+            _ = commandSet.Add(decodedCommand);
+        }
+
         foreach (ushort command in decodedCommands)
         {
             foreach (ushort nearMiss in new[] { unchecked((ushort)(command - 1)), unchecked((ushort)(command + 1)) })
@@ -790,20 +816,30 @@ internal sealed class MitsubishiResidualBranchCoverageTests
     /// <returns>The non-matching data type values.</returns>
     private static string[] CreateDataTypeNearMisses()
     {
-        string[] dataTypes = ScalarCases
-            .Select(static scalar => scalar.DataType)
-            .Where(static dataType => dataType is not null)
-            .Cast<string>()
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+        var dataTypes = new List<string>();
+        var seenDataTypes = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var scalar in ScalarCases)
+        {
+            if (scalar.DataType is { } dataType && seenDataTypes.Add(dataType))
+            {
+                dataTypes.Add(dataType);
+            }
+        }
+
         var nearMisses = new List<string>();
         foreach (string dataType in dataTypes)
         {
             for (var characterIndex = 0; characterIndex < dataType.Length; characterIndex++)
             {
-                char[] characters = dataType.ToCharArray();
-                characters[characterIndex] = characters[characterIndex] == '?' ? '!' : '?';
-                nearMisses.Add(new string(characters));
+                nearMisses.Add(string.Create(
+                    dataType.Length,
+                    (dataType, characterIndex),
+                    static (characters, state) =>
+                    {
+                        state.dataType.AsSpan().CopyTo(characters);
+                        characters[state.characterIndex] =
+                            characters[state.characterIndex] == '?' ? '!' : '?';
+                    }));
             }
         }
 
@@ -904,15 +940,15 @@ internal sealed class MitsubishiResidualBranchCoverageTests
         var shortAscii = (Responce<byte[]>)InvokeInstance(
             serialAsciiClient,
             ParseLoopbackMethod,
-            new Responce<byte[]>(Encoding.ASCII.GetBytes("001")))!;
+            new Responce<byte[]>("001"u8.ToArray()))!;
         var invalidAsciiLength = (Responce<byte[]>)InvokeInstance(
             serialAsciiClient,
             ParseLoopbackMethod,
-            new Responce<byte[]>(Encoding.ASCII.GetBytes("ZZZZDATA")))!;
+            new Responce<byte[]>("ZZZZDATA"u8.ToArray()))!;
         var emptyAscii = (Responce<byte[]>)InvokeInstance(
             serialAsciiClient,
             ParseLoopbackMethod,
-            new Responce<byte[]>(Encoding.ASCII.GetBytes("0000")))!;
+            new Responce<byte[]>("0000"u8.ToArray()))!;
         await Assert.That(shortBinary.IsSucceed).IsFalse();
         await Assert.That(binary.Value).IsEquivalentTo((byte[])[1]);
         await Assert.That(shortAscii.IsSucceed).IsFalse();
@@ -955,9 +991,13 @@ internal sealed class MitsubishiResidualBranchCoverageTests
     /// <summary>Exercises numeric conversion branches that are not observable through valid public inputs.</summary>
     private static void ExerciseNumericConversionBranches()
     {
-        foreach (var scalar in ScalarCases.Where(
-                     static item => item.DataType != "Bit" && item.DataType != StringDataType))
+        foreach (var scalar in ScalarCases)
         {
+            if (scalar.DataType is "Bit" or StringDataType)
+            {
+                continue;
+            }
+
             _ = InvokeStatic(
                 typeof(MitsubishiRx),
                 ReadNumericTagValueMethod,
@@ -969,16 +1009,16 @@ internal sealed class MitsubishiResidualBranchCoverageTests
             typeof(MitsubishiRx),
             ReadNumericTagValueMethod,
             CreateTag("Word", signed: true),
-            new ushort[] { 0xFFFF });
+            UnsignedMaxWord);
         _ = InvokeStatic(
             typeof(MitsubishiRx),
             "ConvertToUInt32",
-            new ushort[] { 0x1122, 0x3344 },
+            UInt32WordPayload,
             CreateTag(UInt32DataType));
         _ = InvokeStatic(
             typeof(MitsubishiRx),
             "ConvertToUInt32",
-            new ushort[] { 0x1122, 0x3344 },
+            UInt32WordPayload,
             CreateTag(UInt32DataType, byteOrder: MitsubishiMessages.BigEndian));
         _ = InvokeStatic(
             typeof(MitsubishiRx),
@@ -993,19 +1033,19 @@ internal sealed class MitsubishiResidualBranchCoverageTests
         _ = InvokeStatic(
             typeof(MitsubishiRx),
             "DecodeStringFromWords",
-            new ushort[] { 0x4241 },
+            LittleEndianStringWordPayload,
             CreateTag(StringDataType));
         _ = InvokeStatic(
             typeof(MitsubishiRx),
             "DecodeStringFromWords",
-            new ushort[] { 0x4142 },
+            BigEndianStringWordPayload,
             CreateTag(StringDataType, byteOrder: MitsubishiMessages.BigEndian));
         _ = Assert.Throws<TargetInvocationException>(
-            () => InvokeStatic(
+            static () => InvokeStatic(
                 typeof(MitsubishiRx),
                 ReadNumericTagValueMethod,
                 CreateTag("Bit"),
-                new ushort[] { 1 }));
+                BitWordPayload));
     }
 
     /// <summary>Exercises one ASCII serial decoder with deterministic text shapes.</summary>

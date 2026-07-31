@@ -4,15 +4,15 @@
 
 using System.Text;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Enums;
+using IoT.Driver.S7PlcRx.Reactive.Enums;
 #else
-using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace IoT.DriverCore.S7PlcRx.PlcTypes;
+namespace IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>Encodes and decodes S7 strings in the S7 protocol format.</summary>
@@ -111,9 +111,9 @@ public static class S7String
     /// of <paramref name="reservedLength"/> + 2.</returns>
     public static byte[] ToByteArray(string? value, int reservedLength)
     {
-        Span<byte> buffer = stackalloc byte[HeaderLengthInBytes + reservedLength];
-        var bytesWritten = ToSpan(value, reservedLength, buffer);
-        return buffer.Slice(0, bytesWritten).ToArray();
+        var buffer = new byte[HeaderLengthInBytes + reservedLength];
+        var bytesWritten = ToSpan(value!, reservedLength, buffer);
+        return buffer.AsSpan(0, bytesWritten).ToArray();
     }
 
     /// <summary>Converts a string to S7 string format in the specified span.</summary>
@@ -127,12 +127,9 @@ public static class S7String
     /// or
     /// Destination span is too small.
     /// </exception>
-    public static int ToSpan(string? value, int reservedLength, Span<byte> destination)
+    public static int ToSpan(string value, int reservedLength, Span<byte> destination)
     {
-        if (value is null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
+        Guard.NotNull(value, nameof(value));
 
         if (reservedLength > MaximumReservedLength)
         {

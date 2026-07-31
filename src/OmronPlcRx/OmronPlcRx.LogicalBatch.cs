@@ -4,21 +4,20 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Core;
-using IoT.DriverCore.OmronPlcRx.Reactive.Enums;
+using IoT.Driver.OmronPlcRx.Reactive.Core;
+using IoT.Driver.OmronPlcRx.Reactive.Enums;
 #else
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive;
+namespace IoT.Driver.OmronPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.OmronPlcRx;
+namespace IoT.Driver.OmronPlcRx;
 #endif
 
 /// <summary>Provides native grouped FINS memory operations for logical tags.</summary>
@@ -55,7 +54,12 @@ public sealed partial class OmronPlcRx : IOmronLogicalBatchOperations
         IReadOnlyList<OmronLogicalBatchResult> results,
         bool publishUnchanged)
     {
-        var itemsByIndex = items.ToDictionary(static item => item.InputIndex);
+        var itemsByIndex = new Dictionary<int, OmronLogicalBatchItem>(items.Count);
+        foreach (var item in items)
+        {
+            itemsByIndex.Add(item.InputIndex, item);
+        }
+
         foreach (var result in results)
         {
             if (!result.Succeeded

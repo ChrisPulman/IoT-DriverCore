@@ -3,25 +3,25 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Data;
+using IoT.Driver.ModbusRx.Reactive.Data;
 #else
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Device;
+using IoT.Driver.ModbusRx.Reactive.Device;
 #else
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Device;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Utility;
+using IoT.Driver.ModbusRx.Reactive.Utility;
 #else
-using IoT.DriverCore.ModbusRx.Utility;
+using IoT.Driver.ModbusRx.Utility;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive;
+namespace IoT.Driver.ModbusRx.Reactive;
 #else
-namespace IoT.DriverCore.ModbusRx;
+namespace IoT.Driver.ModbusRx;
 #endif
     /// <summary>Provides ModbusRx functionality.</summary>
     public static partial class Create
@@ -141,7 +141,7 @@ namespace IoT.DriverCore.ModbusRx;
             Observable.FromEventPattern<DataStoreEventArgs>(
                 handler => slave.DataStore.DataStoreReadFrom += handler,
                 handler => slave.DataStore.DataStoreReadFrom -= handler)
-                .Select(pattern => pattern.EventArgs);
+                .Select(static pattern => pattern.EventArgs);
 
         /// <summary>Observes the data store written to.</summary>
         /// <param name="slave">The slave.</param>
@@ -150,7 +150,7 @@ namespace IoT.DriverCore.ModbusRx;
             Observable.FromEventPattern<DataStoreEventArgs>(
                 handler => slave.DataStore.DataStoreWrittenTo += handler,
                 handler => slave.DataStore.DataStoreWrittenTo -= handler)
-                .Select(pattern => pattern.EventArgs);
+                .Select(static pattern => pattern.EventArgs);
 
         /// <summary>Observes the request.</summary>
         /// <param name="slave">The slave.</param>
@@ -159,7 +159,7 @@ namespace IoT.DriverCore.ModbusRx;
             Observable.FromEventPattern<ModbusSlaveRequestEventArgs>(
                 handler => slave.ModbusSlaveRequestReceived += handler,
                 handler => slave.ModbusSlaveRequestReceived -= handler)
-                .Select(pattern => pattern.EventArgs);
+                .Select(static pattern => pattern.EventArgs);
 
         /// <summary>Observes the write complete.</summary>
         /// <param name="slave">The slave.</param>
@@ -168,5 +168,5 @@ namespace IoT.DriverCore.ModbusRx;
             Observable.FromEventPattern<ModbusSlaveRequestEventArgs>(
                 handler => slave.WriteComplete += handler,
                 handler => slave.WriteComplete -= handler)
-                .Select(pattern => pattern.EventArgs);
+                .Select(static pattern => pattern.EventArgs);
 }

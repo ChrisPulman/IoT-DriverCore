@@ -10,14 +10,14 @@ using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using CP.Collections;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx.Core;
 using TwinCAT.Ads;
 using TwinCAT.TypeSystem;
-using CoreTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions;
-using ObservableBridge = IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions;
-using RuntimeTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.TwinCatRxExtensions;
+using CoreTwinCatRxExtensions = IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions;
+using ObservableBridge = IoT.Driver.TwinCATRx.ObservableBridgeExtensions;
+using RuntimeTwinCatRxExtensions = IoT.Driver.TwinCATRx.TwinCatRxExtensions;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Live ADS integration tests for a TwinCAT 3 PLC.</summary>
 [Category("LiveAds")]

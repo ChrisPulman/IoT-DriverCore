@@ -2,19 +2,19 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Core.Channels;
-using IoT.DriverCore.OmronPlcRx.Core.Requests;
-using IoT.DriverCore.OmronPlcRx.Core.Responses;
-using IoT.DriverCore.OmronPlcRx.Core.Results;
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Tags;
-using CoreTcpClient = IoT.DriverCore.OmronPlcRx.Core.TcpClient;
-using CoreUdpClient = IoT.DriverCore.OmronPlcRx.Core.UdpClient;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Core.Channels;
+using IoT.Driver.OmronPlcRx.Core.Requests;
+using IoT.Driver.OmronPlcRx.Core.Responses;
+using IoT.Driver.OmronPlcRx.Core.Results;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Tags;
+using CoreTcpClient = IoT.Driver.OmronPlcRx.Core.TcpClient;
+using CoreUdpClient = IoT.Driver.OmronPlcRx.Core.UdpClient;
 using NetTcpListener = System.Net.Sockets.TcpListener;
 using NetUdpClient = System.Net.Sockets.UdpClient;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Provides shared test fixtures and assertions for core protocol coverage.</summary>
 public sealed partial class CoreProtocolCoverageTests
@@ -71,25 +71,41 @@ public sealed partial class CoreProtocolCoverageTests
     /// <param name="host">The remote host.</param>
     /// <param name="port">The remote port.</param>
     /// <returns>The TCP client.</returns>
-    private static CoreTcpClient CreateTcpClient(string host, int port) => new(host, port);
+    private static CoreTcpClient CreateTcpClient(string host, int port) =>
+        CreateSocketClient(static (endpoint, targetPort) => new CoreTcpClient(endpoint, targetPort), host, port);
 
     /// <summary>Creates a TCP client for constructor validation tests.</summary>
     /// <param name="address">The remote address.</param>
     /// <param name="port">The remote port.</param>
     /// <returns>The TCP client.</returns>
-    private static CoreTcpClient CreateTcpClient(System.Net.IPAddress address, int port) => new(address, port);
+    private static CoreTcpClient CreateTcpClient(System.Net.IPAddress address, int port) =>
+        CreateSocketClient(static (endpoint, targetPort) => new CoreTcpClient(endpoint, targetPort), address, port);
 
     /// <summary>Creates a UDP client for constructor validation tests.</summary>
     /// <param name="host">The remote host.</param>
     /// <param name="port">The remote port.</param>
     /// <returns>The UDP client.</returns>
-    private static CoreUdpClient CreateUdpClient(string host, int port) => new CoreUdpClient(host, port);
+    private static CoreUdpClient CreateUdpClient(string host, int port) =>
+        CreateSocketClient(static (endpoint, targetPort) => new CoreUdpClient(endpoint, targetPort), host, port);
 
     /// <summary>Creates a UDP client for constructor validation tests.</summary>
     /// <param name="address">The remote address.</param>
     /// <param name="port">The remote port.</param>
     /// <returns>The UDP client.</returns>
-    private static CoreUdpClient CreateUdpClient(System.Net.IPAddress address, int port) => new CoreUdpClient(address, port);
+    private static CoreUdpClient CreateUdpClient(System.Net.IPAddress address, int port) =>
+        CreateSocketClient(static (endpoint, targetPort) => new CoreUdpClient(endpoint, targetPort), address, port);
+
+    /// <summary>Creates a socket client from a strongly typed endpoint.</summary>
+    /// <typeparam name="TEndpoint">The endpoint type accepted by the client constructor.</typeparam>
+    /// <typeparam name="TClient">The socket client type to create.</typeparam>
+    /// <param name="factory">The client factory.</param>
+    /// <param name="endpoint">The remote endpoint.</param>
+    /// <param name="port">The remote port.</param>
+    /// <returns>The created socket client.</returns>
+    private static TClient CreateSocketClient<TEndpoint, TClient>(
+        Func<TEndpoint, int, TClient> factory,
+        TEndpoint endpoint,
+        int port) => factory(endpoint, port);
 
     /// <summary>Echoes a TCP message using the core TCP socket wrapper.</summary>
     /// <param name="listener">The TCP listener.</param>

@@ -4,11 +4,11 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -110,10 +110,6 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
             cancellationToken);
     }
 
-    /// <summary>Executes the Open operation.</summary>
-    /// <returns>The Open operation result.</returns>
-    public Responce Open() => OpenAsync(CancellationToken.None).GetAwaiter().GetResult();
-
     /// <summary>Executes the OpenAsync operation.</summary>
     /// <param name="cancellationToken">The cancellationToken parameter.</param>
     /// <returns>The OpenAsync operation result.</returns>
@@ -132,10 +128,6 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
             return result.Fail(ex.Message, exception: ex);
         }
     }
-
-    /// <summary>Executes the Close operation.</summary>
-    /// <returns>The Close operation result.</returns>
-    public Responce Close() => CloseAsync(CancellationToken.None).GetAwaiter().GetResult();
 
     /// <summary>Executes the CloseAsync operation.</summary>
     /// <param name="cancellationToken">The cancellationToken parameter.</param>
@@ -158,24 +150,34 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         }
     }
 
-    /// <summary>Executes the SendPackage operation.</summary>
+    /// <summary>Asynchronously sends a pre-encoded package with a fixed response length.</summary>
     /// <param name="command">The command parameter.</param>
     /// <param name="receiveCount">The receiveCount parameter.</param>
-    /// <returns>The SendPackage operation result.</returns>
-    public Responce<byte[]> SendPackage(byte[] command, int receiveCount) =>
-        ExecuteEncodedAsync(command, receiveCount, "Legacy raw package").GetAwaiter().GetResult();
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The SendPackageAsync operation result.</returns>
+    public Task<Responce<byte[]>> SendPackageAsync(
+        byte[] command,
+        int receiveCount,
+        CancellationToken cancellationToken) =>
+        ExecuteEncodedAsync(command, receiveCount, "Legacy raw package", cancellationToken: cancellationToken);
 
-    /// <summary>Executes the SendPackageSingle operation.</summary>
+    /// <summary>Asynchronously sends a pre-encoded package with a variable-length response.</summary>
     /// <param name="command">The command parameter.</param>
-    /// <returns>The SendPackageSingle operation result.</returns>
-    public Responce<byte[]> SendPackageSingle(byte[] command) =>
-        ExecuteEncodedAsync(command, null, "Legacy raw package single").GetAwaiter().GetResult();
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The SendPackageSingleAsync operation result.</returns>
+    public Task<Responce<byte[]>> SendPackageSingleAsync(
+        byte[] command,
+        CancellationToken cancellationToken) =>
+        ExecuteEncodedAsync(command, null, "Legacy raw package single", cancellationToken: cancellationToken);
 
-    /// <summary>Executes the SendPackageReliable operation.</summary>
+    /// <summary>Asynchronously sends a pre-encoded package using the reliable package route.</summary>
     /// <param name="command">The command parameter.</param>
-    /// <returns>The SendPackageReliable operation result.</returns>
-    public Responce<byte[]> SendPackageReliable(byte[] command) =>
-        ExecuteEncodedAsync(command, null, "Legacy raw package reliable").GetAwaiter().GetResult();
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The SendPackageReliableAsync operation result.</returns>
+    public Task<Responce<byte[]>> SendPackageReliableAsync(
+        byte[] command,
+        CancellationToken cancellationToken) =>
+        ExecuteEncodedAsync(command, null, "Legacy raw package reliable", cancellationToken: cancellationToken);
 
     /// <summary>Executes the ExecuteRawAsync operation.</summary>
     /// <param name="request">The request parameter.</param>
@@ -286,16 +288,22 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        var addressArray = addresses.ToArray();
+        var addressList = new List<string>(addresses);
+
+        var addressArray = new string[addressList.Count];
+        addressList.CopyTo(addressArray);
         if (IsSerialOneC())
         {
             return await RandomReadWordsOneCAsync(addressArray, cancellationToken)
                 .ConfigureAwait(false);
         }
 
-        var parsed = addressArray
-            .Select(address => MitsubishiDeviceAddress.Parse(address, Options.XyNotation))
-            .ToArray();
+        var parsed = new MitsubishiDeviceAddress[addressArray.Length];
+        for (var index = 0; index < addressArray.Length; index++)
+        {
+            parsed[index] = MitsubishiDeviceAddress.Parse(addressArray[index], Options.XyNotation);
+        }
+
         var raw = await ExecuteObservableAsync(
                 () =>
                     Options.TransportKind == MitsubishiTransportKind.Serial
@@ -317,18 +325,25 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(values);
-        var valueArray = values.ToArray();
+        var valueList = new List<KeyValuePair<string, ushort>>(values);
+
+        var valueArray = new KeyValuePair<string, ushort>[valueList.Count];
+        valueList.CopyTo(valueArray);
         if (IsSerialOneC())
         {
             return await RandomWriteWordsOneCAsync(valueArray, cancellationToken)
                 .ConfigureAwait(false);
         }
 
-        var payload = valueArray
-            .Select(pair => new MitsubishiDeviceValue(
+        var payload = new MitsubishiDeviceValue[valueArray.Length];
+        for (var index = 0; index < valueArray.Length; index++)
+        {
+            var pair = valueArray[index];
+            payload[index] = new(
                 MitsubishiDeviceAddress.Parse(pair.Key, Options.XyNotation),
-                pair.Value))
-            .ToArray();
+                pair.Value);
+        }
+
         var raw = await ExecuteObservableAsync(
                 () =>
                     Options.TransportKind == MitsubishiTransportKind.Serial
@@ -352,15 +367,21 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        var addressArray = addresses.ToArray();
+        var addressList = new List<string>(addresses);
+
+        var addressArray = new string[addressList.Count];
+        addressList.CopyTo(addressArray);
         if (IsSerialOneC())
         {
             return RegisterMonitorOneC(addressArray);
         }
 
-        var payload = addressArray
-            .Select(address => MitsubishiDeviceAddress.Parse(address, Options.XyNotation))
-            .ToArray();
+        var payload = new MitsubishiDeviceAddress[addressArray.Length];
+        for (var index = 0; index < addressArray.Length; index++)
+        {
+            payload[index] = MitsubishiDeviceAddress.Parse(addressArray[index], Options.XyNotation);
+        }
+
         var raw = await ExecuteObservableAsync(
                 () =>
                     Options.TransportKind == MitsubishiTransportKind.Serial

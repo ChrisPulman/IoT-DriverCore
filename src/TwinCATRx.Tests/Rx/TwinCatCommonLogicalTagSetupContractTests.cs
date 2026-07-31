@@ -5,9 +5,9 @@
 #if NET9_0_OR_GREATER
 using System.Diagnostics.CodeAnalysis;
 #endif
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Validates TwinCAT adoption of the common logical-tag setup contract.</summary>
 public sealed class TwinCatCommonLogicalTagSetupContractTests
@@ -50,7 +50,11 @@ public sealed class TwinCatCommonLogicalTagSetupContractTests
                 "Name;Address;DataType;GroupName;Description;Metadata;AccessMode;ScanIntervalMilliseconds\r\n" +
                 "Enabled;.Machine.Enabled;BOOL;Process;Enabled state;;ReadWrite;\r\n");
             var imported = await concrete.ImportCsvAsync(reader, ';', CancellationToken.None);
+#if NET8_0_OR_GREATER
+            await using var writer = new StringWriter();
+#else
             using var writer = new StringWriter();
+#endif
             await concrete.ExportCsvAsync(writer, ';', CancellationToken.None);
 
             await TUnitAssert.That(imported.Count).IsEqualTo(1);

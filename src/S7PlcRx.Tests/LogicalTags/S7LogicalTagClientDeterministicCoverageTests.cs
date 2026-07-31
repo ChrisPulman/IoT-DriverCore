@@ -2,10 +2,10 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.S7PlcRx.LogicalTags;
+using IoT.Driver.Core;
+using IoT.Driver.S7PlcRx.LogicalTags;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.LogicalTags;
+namespace IoT.Driver.S7PlcRx.Tests.LogicalTags;
 
 /// <summary>Provides deterministic coverage of the logical-tag client's public composition surface.</summary>
 public sealed class S7LogicalTagClientDeterministicCoverageTests
@@ -73,6 +73,9 @@ public sealed class S7LogicalTagClientDeterministicCoverageTests
     /// <summary>Defines the expected number of bulk writes.</summary>
     private const int BulkWriteCount = 3;
 
+    /// <summary>Defines the fixed array value used by fallback conversion tests.</summary>
+    private static readonly ushort[] ArrayValues = [InitialReadValue, ReadOnlyValue];
+
     /// <summary>Verifies public catalog registration, removal, import, and export operations.</summary>
     /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
@@ -87,11 +90,16 @@ public sealed class S7LogicalTagClientDeterministicCoverageTests
             $"Name,Address,DataType,GroupName,Description,Metadata,AccessMode,ScanIntervalMilliseconds\r\n{CommaImportedTagName},DB1.DBW6,WORD,Process,Imported tag,,ReadWrite,100\r\n");
         using var semicolonReader = new StringReader(
             $"Name;Address;DataType;GroupName;Description;Metadata;AccessMode;ScanIntervalMilliseconds\r\n{SemicolonImportedTagName};DB1.DBW8;WORD;Process;Imported tag;;ReadWrite;100\r\n");
+#if NET8_0_OR_GREATER
+        await using var commaWriter = new StringWriter();
+        await using var semicolonWriter = new StringWriter();
+#else
         using var commaWriter = new StringWriter();
         using var semicolonWriter = new StringWriter();
+#endif
 
         var created = client.CreateTag(transient);
-        client.RegisterTag(new LogicalTag(registeredTagName, "DB1.DBW4", "WORD"));
+        client.RegisterTag(new(registeredTagName, "DB1.DBW4", "WORD"));
         var commaImported = await client.ImportCsvAsync(commaReader);
         var semicolonImported = await client.ImportCsvAsync(semicolonReader, ';');
         await client.ExportCsvAsync(commaWriter);
@@ -117,7 +125,7 @@ public sealed class S7LogicalTagClientDeterministicCoverageTests
         var databasePath = Path.Combine(Path.GetTempPath(), $"s7-logical-tags-{Guid.NewGuid():N}.db");
         try
         {
-            using var plc = new S7PlcRxAsyncExtensionsTests.TestPlc();
+            using S7PlcRxAsyncExtensionsTests.TestPlc plc = new();
             using var catalog = new LogicalTagCatalog();
             using var client = new S7LogicalTagClient(plc, catalog, TimeProvider.System);
             var store = new LogicalTagSqliteStore($"Data Source={databasePath};Pooling=False");
@@ -125,7 +133,7 @@ public sealed class S7LogicalTagClientDeterministicCoverageTests
             var edited = CreateEditedTag(persisted);
 
             await client.InitializeStoreAsync(store);
-            await client.UpsertGroupAsync(new LogicalTagGroup(ProcessGroupName, "Production values"));
+            await client.UpsertGroupAsync(new(ProcessGroupName, "Production values"));
             await client.UpsertTagAsync(persisted);
 
             await TUnit.Assertions.Assert.That(
@@ -176,16 +184,16 @@ public sealed class S7LogicalTagClientDeterministicCoverageTests
             [ReadTagName, MissingTagName, WriteOnlyTagName, ReadOnlyTagName],
             CancellationToken.None);
         var write = await client.WriteAsync(
-            new LogicalTagValue(WriteTagName, FirstWriteValue.ToString(), timestamp),
+            new(WriteTagName, FirstWriteValue.ToString(), timestamp),
             CancellationToken.None);
         var invalidWrite = await client.WriteAsync(
-            new LogicalTagValue(WriteTagName, "not-a-word", timestamp),
+            new(WriteTagName, "not-a-word", timestamp),
             CancellationToken.None);
         var writes = await client.WriteManyAsync(
             [
-                new LogicalTagValue(WriteTagName, BulkWriteValue.ToString(), timestamp),
-                new LogicalTagValue(ReadOnlyTagName, ReadOnlyValue, timestamp),
-                new LogicalTagValue(MissingTagName, FirstWriteValue, timestamp),
+                new(WriteTagName, BulkWriteValue.ToString(), timestamp),
+                new(ReadOnlyTagName, ReadOnlyValue, timestamp),
+                new(MissingTagName, FirstWriteValue, timestamp),
             ],
             CancellationToken.None);
 
@@ -294,10 +302,10 @@ public sealed class S7LogicalTagClientDeterministicCoverageTests
         Func<Task> missingStore = async () => _ = await client.ListTagsAsync();
 
         catalog.Upsert(arrayTag);
-        plc.SetAsyncValue(ArrayTagName, new ushort[] { InitialReadValue, ReadOnlyValue });
+        plc.SetAsyncValue(ArrayTagName, ArrayValues);
         var arrayRead = await client.ReadAsync(ArrayTagName, CancellationToken.None);
         var invalidArrayWrite = await client.WriteAsync(
-            new LogicalTagValue(ArrayTagName, InvalidArrayPayload, TimeProvider.System.GetUtcNow()),
+            new(ArrayTagName, InvalidArrayPayload, TimeProvider.System.GetUtcNow()),
             CancellationToken.None);
         plc.SetAsyncFactory(
             ArrayTagName,
@@ -307,7 +315,7 @@ public sealed class S7LogicalTagClientDeterministicCoverageTests
         await TUnit.Assertions.Assert.That(missingStore).Throws<InvalidOperationException>();
         await TUnit.Assertions.Assert.That(arrayRead.Succeeded).IsTrue();
         await TUnit.Assertions.Assert.That(arrayRead.Value?.Value).IsEquivalentTo(
-            new ushort[] { InitialReadValue, ReadOnlyValue });
+            ArrayValues);
         await TUnit.Assertions.Assert.That(invalidArrayWrite.Succeeded).IsFalse();
         await TUnit.Assertions.Assert.That(faultedRead.Succeeded).IsFalse();
 
@@ -341,14 +349,14 @@ public sealed class S7LogicalTagClientDeterministicCoverageTests
     private static LogicalTagCatalog CreateCatalog()
     {
         var catalog = new LogicalTagCatalog();
-        catalog.Upsert(new LogicalTag(ReadTagName, "DB1.DBW0", "WORD"));
-        catalog.Upsert(new LogicalTag(WriteTagName, "DB1.DBW2", "WORD"));
-        catalog.Upsert(new LogicalTag(
+        catalog.Upsert(new(ReadTagName, "DB1.DBW0", "WORD"));
+        catalog.Upsert(new(WriteTagName, "DB1.DBW2", "WORD"));
+        catalog.Upsert(new(
             ReadOnlyTagName,
             "DB1.DBW4",
             "WORD",
             new LogicalTagOptions { AccessMode = LogicalTagAccessMode.Read }));
-        catalog.Upsert(new LogicalTag(
+        catalog.Upsert(new(
             WriteOnlyTagName,
             "DB1.DBW6",
             "WORD",
@@ -365,7 +373,7 @@ public sealed class S7LogicalTagClientDeterministicCoverageTests
     {
         foreach (var definition in catalog.List())
         {
-            plc.TagList.Add(new Tag(definition.Name, definition.Address, typeof(ushort)));
+            plc.TagList.Add(new(definition.Name, definition.Address, typeof(ushort)));
         }
     }
 }

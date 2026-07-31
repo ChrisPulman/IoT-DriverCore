@@ -5,11 +5,11 @@
 #if !NETFRAMEWORK
 using System.Net;
 using System.Net.Sockets;
-using IoT.DriverCore.S7PlcRx.Core;
-using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Core;
+using IoT.Driver.S7PlcRx.Enums;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Core;
+namespace IoT.Driver.S7PlcRx.Tests.Core;
 
 /// <summary>Provides deterministic coverage for the S7 connection pool, metrics, and socket transport.</summary>
 public sealed partial class S7TransportCoreDeterministicCoverageTests

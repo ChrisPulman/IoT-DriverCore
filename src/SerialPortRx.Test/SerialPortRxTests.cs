@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.Serial.Tests;
+namespace IoT.Driver.Serial.Tests;
 
 /// <summary>Deterministic tests for <see cref="SerialPortRx"/> over its in-memory connection seam.</summary>
 [NotInParallel]
@@ -90,7 +90,9 @@ public sealed class SerialPortRxTests
         byte[] expectedBytes = [1, Two, Three];
 
         await Assert.That(read).IsEqualTo(Three);
-        await Assert.That(buffer.Skip(1).Take(Three)).IsEquivalentTo(expectedBytes);
+        await Assert.That(buffer[1]).IsEqualTo(expectedBytes[0]);
+        await Assert.That(buffer[2]).IsEqualTo(expectedBytes[1]);
+        await Assert.That(buffer[3]).IsEqualTo(expectedBytes[2]);
         await Assert.That(bytes).IsEquivalentTo([1, Two, Three]);
         await Assert.That(batches).IsEmpty();
     }
@@ -119,39 +121,58 @@ public sealed class SerialPortRxTests
         byte[] expectedHighBytes = [0x80, 0xff];
 
         await Assert.That(lines).IsEquivalentTo([HelloText]);
-        await Assert.That(characters.Take(HelloText.Length)).IsEquivalentTo(HelloText.ToCharArray());
-        await Assert.That(bytes.Take(HelloText.Length)).IsEquivalentTo(Encoding.ASCII.GetBytes(HelloText));
-        await Assert.That(bytes.TakeLast(Two)).IsEquivalentTo(expectedHighBytes);
+        await Assert.That(characters[0]).IsEqualTo('H');
+        await Assert.That(characters[1]).IsEqualTo('e');
+        await Assert.That(characters[2]).IsEqualTo('l');
+        await Assert.That(characters[3]).IsEqualTo('l');
+        await Assert.That(characters[4]).IsEqualTo('o');
+        await Assert.That(bytes[0]).IsEqualTo(ByteLetterH);
+        await Assert.That(bytes[1]).IsEqualTo((byte)'e');
+        await Assert.That(bytes[2]).IsEqualTo((byte)'l');
+        await Assert.That(bytes[3]).IsEqualTo((byte)'l');
+        await Assert.That(bytes[4]).IsEqualTo((byte)'o');
+        await Assert.That(bytes[bytes.Count - Two]).IsEqualTo(expectedHighBytes[0]);
+        await Assert.That(bytes[bytes.Count - 1]).IsEqualTo(expectedHighBytes[1]);
         await Assert.That(batches.Count).IsEqualTo(Two);
-        await Assert.That(batches[0]).IsEquivalentTo(Encoding.ASCII.GetBytes($"{HelloText}\r\n"));
+        await Assert.That(batches[0]).IsEquivalentTo([ByteLetterH, (byte)'e', (byte)'l', (byte)'l', (byte)'o', (byte)'\r', (byte)'\n']);
         await Assert.That(batches[1]).IsEquivalentTo(expectedHighBytes);
     }
 
-    /// <summary>Verifies synchronous byte, character, line, delimiter, and existing-data reads.</summary>
+    /// <summary>Verifies byte, character, line, delimiter, and existing-data reads.</summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Test]
-    public async Task ManualReceive_SupportsAllSynchronousReadFormsAsync()
+    public async Task ManualReceive_SupportsAllReadFormsAsync()
     {
+        using (var streamPair = new InMemoryPortRxPair())
+        {
+            streamPair.First.NewLine = "\r\n";
+            streamPair.Second.NewLine = "\r\n";
+            streamPair.Second.ReadTimeout = Thousand;
+            await streamPair.First.OpenAsync();
+            await streamPair.Second.OpenAsync();
+
+            var lineTask = streamPair.Second.ReadLineAsync();
+            streamPair.First.WriteLine("line");
+            await Assert.That(await lineTask).IsEqualTo("line");
+
+            var delimiterTask = streamPair.Second.ReadToAsync(">");
+            streamPair.First.Write("A>");
+            await Assert.That(await delimiterTask).IsEqualTo("A");
+        }
+
         using var pair = new InMemoryPortRxPair();
         pair.First.EnableAutoDataReceive = false;
         pair.Second.EnableAutoDataReceive = false;
-        pair.First.NewLine = "\r\n";
-        pair.Second.NewLine = "\r\n";
-        pair.Second.ReadTimeout = Thousand;
         await pair.First.OpenAsync();
         await pair.Second.OpenAsync();
 
-        pair.First.WriteLine("line");
-        await Assert.That(pair.Second.ReadLine()).IsEqualTo("line");
-
-        pair.First.Write("A>B");
-        await Assert.That(pair.Second.ReadTo(">")).IsEqualTo("A");
+        pair.First.Write("B");
         await Assert.That(pair.Second.ReadChar()).IsEqualTo(LetterB);
 
-        pair.First.Write([1, Two, Three], 0, Three);
         var bytes = new byte[Three];
         byte[] expectedBytes = [1, Two, Three];
-        await Assert.That(pair.Second.Read(bytes, 0, Three)).IsEqualTo(Three);
+        pair.First.Write(expectedBytes, 0, Three);
+        await Assert.That(await pair.Second.ReadAsync(bytes, 0, Three)).IsEqualTo(Three);
         await Assert.That(bytes).IsEquivalentTo(expectedBytes);
 
         pair.First.Write("XYZ");
@@ -260,11 +281,11 @@ public sealed class SerialPortRxTests
         byte[] empty = [];
         byte[] single = [1];
         await Assert.That(() => pair.First.Write(empty, 0, 0)).ThrowsNothing();
-        await Assert.That(() => pair.First.Write((byte[]?)null, 0, 0)).Throws<ArgumentNullException>();
+        await Assert.That(() => pair.First.Write((byte[])null!, 0, 0)).Throws<ArgumentNullException>();
         pair.First.Write(single, -1, 1);
         pair.First.Write(single, 0, Two);
         await Assert.That(errors.Count).IsEqualTo(Two);
-        await Assert.That(errors.All(error => error is ArgumentOutOfRangeException)).IsTrue();
+        await Assert.That(errors.TrueForAll(static error => error is ArgumentOutOfRangeException)).IsTrue();
     }
 
     /// <summary>Verifies constructors, defaults, observable caching, and unopened operations.</summary>

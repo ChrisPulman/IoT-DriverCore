@@ -3,12 +3,12 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Net.Sockets;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.IO;
-using IoT.DriverCore.Serial;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx.IO;
+using IoT.Driver.Serial;
 using NativeAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Deterministic coverage for serial factories and the serial stream bridge.</summary>
 public sealed class SerialFactoryCoverageTests
@@ -83,13 +83,13 @@ public sealed class SerialFactoryCoverageTests
         await NativeAssert.That(ascii.UnitId).IsEqualTo(UnitId);
         await NativeAssert.That(rtuStream.UnitId).IsEqualTo(UnitId);
         await NativeAssert.That(asciiStream.UnitId).IsEqualTo(UnitId);
-        await NativeAssert.That(() => ModbusSerialSlave.CreateRtu(UnitId, (SerialPortRx)null!))
+        await NativeAssert.That(static () => ModbusSerialSlave.CreateRtu(UnitId, (SerialPortRx)null!))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => ModbusSerialSlave.CreateAscii(UnitId, (SerialPortRx)null!))
+        await NativeAssert.That(static () => ModbusSerialSlave.CreateAscii(UnitId, (SerialPortRx)null!))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => ModbusSerialSlave.CreateRtu(UnitId, (IStreamResource)null!))
+        await NativeAssert.That(static () => ModbusSerialSlave.CreateRtu(UnitId, (IStreamResource)null!))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => ModbusSerialSlave.CreateAscii(UnitId, (IStreamResource)null!))
+        await NativeAssert.That(static () => ModbusSerialSlave.CreateAscii(UnitId, (IStreamResource)null!))
             .Throws<ArgumentNullException>();
     }
 
@@ -125,36 +125,36 @@ public sealed class SerialFactoryCoverageTests
         await NativeAssert.That(responseRead).IsEqualTo(PayloadLength);
         await NativeAssert.That(peerBuffer).IsEquivalentTo(request);
         await NativeAssert.That(responseBuffer).IsEquivalentTo(request);
-        await NativeAssert.That(() => new SerialPortAdapter(null!)).Throws<ArgumentNullException>();
+        await NativeAssert.That(static () => new SerialPortAdapter(null!)).Throws<ArgumentNullException>();
     }
 
     /// <summary>Asserts the null guard on every serial-master factory overload.</summary>
     /// <returns>A task representing the asynchronous assertions.</returns>
     private static async Task AssertMasterNullGuardsAsync()
     {
-        await NativeAssert.That(() => ModbusSerialMaster.CreateRtu((SerialPortRx)null!))
+        await NativeAssert.That(static () => ModbusSerialMaster.CreateRtu((SerialPortRx)null!))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => ModbusSerialMaster.CreateAscii((SerialPortRx)null!))
+        await NativeAssert.That(static () => ModbusSerialMaster.CreateAscii((SerialPortRx)null!))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => ModbusSerialMaster.CreateRtu((TcpClientRx)null!))
+        await NativeAssert.That(static () => ModbusSerialMaster.CreateRtu((TcpClientRx)null!))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => ModbusSerialMaster.CreateAscii((TcpClientRx)null!))
+        await NativeAssert.That(static () => ModbusSerialMaster.CreateAscii((TcpClientRx)null!))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => ModbusSerialMaster.CreateRtu((UdpClientRx)null!))
+        await NativeAssert.That(static () => ModbusSerialMaster.CreateRtu((UdpClientRx)null!))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => ModbusSerialMaster.CreateAscii((UdpClientRx)null!))
+        await NativeAssert.That(static () => ModbusSerialMaster.CreateAscii((UdpClientRx)null!))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => ModbusSerialMaster.CreateRtu((IStreamResource)null!))
+        await NativeAssert.That(static () => ModbusSerialMaster.CreateRtu((IStreamResource)null!))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => ModbusSerialMaster.CreateAscii((IStreamResource)null!))
+        await NativeAssert.That(static () => ModbusSerialMaster.CreateAscii((IStreamResource)null!))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => ModbusIpMaster.CreateIp((SerialPortRx)null!))
+        await NativeAssert.That(static () => ModbusIpMaster.CreateIp((SerialPortRx)null!))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => ModbusIpMaster.CreateIp((TcpClientRx)null!))
+        await NativeAssert.That(static () => ModbusIpMaster.CreateIp((TcpClientRx)null!))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => ModbusIpMaster.CreateIp((UdpClientRx)null!))
+        await NativeAssert.That(static () => ModbusIpMaster.CreateIp((UdpClientRx)null!))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => ModbusIpMaster.CreateIp((IStreamResource)null!))
+        await NativeAssert.That(static () => ModbusIpMaster.CreateIp((IStreamResource)null!))
             .Throws<ArgumentNullException>();
     }
 

@@ -2,10 +2,10 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Verifies logical observation lifecycle and subscription failure behavior.</summary>
 public sealed class OmronLogicalObservationCoverageTests
@@ -125,7 +125,7 @@ public sealed class OmronLogicalObservationCoverageTests
         foreach (var tagName in tagNames)
         {
             client.RegisterTag(
-                new LogicalTag(tagName, BooleanAddress, typeof(bool).FullName!));
+                new(tagName, BooleanAddress, typeof(bool).FullName!));
         }
 
         return client;

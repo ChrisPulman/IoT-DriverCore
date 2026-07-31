@@ -2,13 +2,13 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Results;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Results;
+using IoT.Driver.OmronPlcRx.Tags;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Covers grouped FINS validation, conversion, and transport-failure paths.</summary>
 public sealed class OmronLogicalBatchCoverageTests
@@ -150,35 +150,35 @@ public sealed class OmronLogicalBatchCoverageTests
         await Assert.That(textLength.BaseAddress).IsEqualTo("D1[text]");
         await Assert.That(textLength.Length).IsEqualTo(DefaultStringLength);
         await Assert.That(
-            Throws<FormatException>(() => OmronLogicalBatchCodec.ParseAddress("D1[4")))
+            Throws<FormatException>(static () => OmronLogicalBatchCodec.ParseAddress("D1[4")))
             .IsTrue();
         await Assert.That(
             Throws<NotSupportedException>(
-                () => OmronLogicalBatchCodec.GetReadWordCount(typeof(DateTime), 0)))
+                static () => OmronLogicalBatchCodec.GetReadWordCount(typeof(DateTime), 0)))
             .IsTrue();
         await Assert.That(
             Throws<NotSupportedException>(
-                () => OmronLogicalBatchCodec.GetWriteWords(
+                static () => OmronLogicalBatchCodec.GetWriteWords(
                     NewItem(0, "Unsupported", "D1", typeof(DateTime), default(DateTime)),
                     0)))
             .IsTrue();
         await Assert.That(
-            Throws<FormatException>(() => OmronLogicalBatchCodec.ParseAddress("DM")))
+            Throws<FormatException>(static () => OmronLogicalBatchCodec.ParseAddress("DM")))
             .IsTrue();
         await Assert.That(
-            Throws<FormatException>(() => OmronLogicalBatchCodec.ParseAddress("D70000")))
+            Throws<FormatException>(static () => OmronLogicalBatchCodec.ParseAddress("D70000")))
             .IsTrue();
         await Assert.That(
-            Throws<FormatException>(() => OmronLogicalBatchCodec.ParseAddress("D1.bad")))
+            Throws<FormatException>(static () => OmronLogicalBatchCodec.ParseAddress("D1.bad")))
             .IsTrue();
         await Assert.That(
-            Throws<FormatException>(() => OmronLogicalBatchCodec.ParseAddress("D1.16")))
+            Throws<FormatException>(static () => OmronLogicalBatchCodec.ParseAddress("D1.16")))
             .IsTrue();
         await Assert.That(
-            Throws<ArgumentOutOfRangeException>(() => OmronLogicalBatchCodec.ToWordType("Z")))
+            Throws<ArgumentOutOfRangeException>(static () => OmronLogicalBatchCodec.ToWordType("Z")))
             .IsTrue();
         await Assert.That(
-            Throws<ArgumentOutOfRangeException>(() => OmronLogicalBatchCodec.ToBitType("Z")))
+            Throws<ArgumentOutOfRangeException>(static () => OmronLogicalBatchCodec.ToBitType("Z")))
             .IsTrue();
     }
 
@@ -256,10 +256,8 @@ public sealed class OmronLogicalBatchCoverageTests
         ],
             CancellationToken.None);
 
-        await Assert.That(reads.All(static result => !result.Succeeded)).IsTrue();
-        await Assert.That(reads.All(static result => result.Error == "read failed")).IsTrue();
-        await Assert.That(writes.All(static result => !result.Succeeded)).IsTrue();
-        await Assert.That(writes.All(static result => result.Error == "write failed")).IsTrue();
+        await Assert.That(ResultsMatch(reads, false, "read failed")).IsTrue();
+        await Assert.That(ResultsMatch(writes, false, "write failed")).IsTrue();
         await Assert.That(memory.ReadWordsCount).IsEqualTo(1);
         await Assert.That(memory.WriteWordsCount).IsEqualTo(1);
     }
@@ -272,7 +270,11 @@ public sealed class OmronLogicalBatchCoverageTests
         var memory = new MemoryAreaDouble();
         var executor = new OmronLogicalBatchExecutor(memory);
         using var source = new CancellationTokenSource();
+#if NETFRAMEWORK
         source.Cancel();
+#else
+        await source.CancelAsync();
+#endif
         var token = source.Token;
 
         await Assert.That(
@@ -297,7 +299,7 @@ public sealed class OmronLogicalBatchCoverageTests
         var executor = new OmronLogicalBatchExecutor(new MemoryAreaDouble());
 
         await Assert.That(
-            Throws<ArgumentNullException>(() => _ = new OmronLogicalBatchExecutor(null!)))
+            Throws<ArgumentNullException>(static () => _ = new OmronLogicalBatchExecutor(null!)))
             .IsTrue();
         await Assert.That(
             await ThrowsAsync<ArgumentNullException>(
@@ -343,15 +345,15 @@ public sealed class OmronLogicalBatchCoverageTests
             invalidWrites,
             CancellationToken.None);
         using var source = new CancellationTokenSource();
+#if NETFRAMEWORK
         source.Cancel();
+#else
+        await source.CancelAsync();
+#endif
 
-        await Assert.That(readFailures.All(static result => !result.Succeeded)).IsTrue();
-        await Assert.That(readFailures.All(static result => result.Error == "batch read failed"))
-            .IsTrue();
-        await Assert.That(writeFailures.All(static result => !result.Succeeded)).IsTrue();
-        await Assert.That(writeFailures.All(static result => result.Error == "batch write failed"))
-            .IsTrue();
-        await Assert.That(validationFailures.All(static result => !result.Succeeded)).IsTrue();
+        await Assert.That(OperationResultsMatch(readFailures, false, "batch read failed")).IsTrue();
+        await Assert.That(OperationResultsMatch(writeFailures, false, "batch write failed")).IsTrue();
+        await Assert.That(OperationResultsMatch(validationFailures, false, null)).IsTrue();
         await Assert.That(validationFailures[0].Error).Contains("null entries");
         await Assert.That(validationFailures[1].Error).Contains("not registered");
         await Assert.That(
@@ -439,6 +441,48 @@ public sealed class OmronLogicalBatchCoverageTests
         {
             return true;
         }
+    }
+
+    /// <summary>Reports whether every batch result has the expected status and optional error.</summary>
+    /// <param name="results">Results to inspect.</param>
+    /// <param name="succeeded">Expected success state.</param>
+    /// <param name="error">Optional expected error text.</param>
+    /// <returns><see langword="true"/> when every result matches.</returns>
+    private static bool ResultsMatch(
+        IReadOnlyList<OmronLogicalBatchResult> results,
+        bool succeeded,
+        string? error)
+    {
+        foreach (var result in results)
+        {
+            if (result.Succeeded != succeeded || (error is not null && result.Error != error))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Reports whether every logical tag operation result has the expected status and error.</summary>
+    /// <param name="results">Results to inspect.</param>
+    /// <param name="succeeded">Expected success state.</param>
+    /// <param name="error">Optional expected error text.</param>
+    /// <returns><see langword="true"/> when every result matches.</returns>
+    private static bool OperationResultsMatch(
+        IReadOnlyList<TagOperationResult<LogicalTagValue>> results,
+        bool succeeded,
+        string? error)
+    {
+        foreach (var result in results)
+        {
+            if (result.Succeeded != succeeded || (error is not null && result.Error != error))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>Configurable native FINS memory-area test double.</summary>
@@ -610,12 +654,18 @@ public sealed class OmronLogicalBatchCoverageTests
                 CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return ReadBatchException is null
-                ? Task.FromResult<IReadOnlyList<OmronLogicalBatchResult>>(
-                    items
-                        .Select(static item => OmronLogicalBatchResult.Success(item.InputIndex, null))
-                        .ToArray())
-                : Task.FromException<IReadOnlyList<OmronLogicalBatchResult>>(ReadBatchException);
+            if (ReadBatchException is not null)
+            {
+                return Task.FromException<IReadOnlyList<OmronLogicalBatchResult>>(ReadBatchException);
+            }
+
+            var results = new OmronLogicalBatchResult[items.Count];
+            for (var index = 0; index < items.Count; index++)
+            {
+                results[index] = OmronLogicalBatchResult.Success(items[index].InputIndex, null);
+            }
+
+            return Task.FromResult<IReadOnlyList<OmronLogicalBatchResult>>(results);
         }
 
         /// <inheritdoc />
@@ -625,14 +675,19 @@ public sealed class OmronLogicalBatchCoverageTests
                 CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return WriteBatchException is null
-                ? Task.FromResult<IReadOnlyList<OmronLogicalBatchResult>>(
-                    items
-                        .Select(
-                            static item =>
-                                OmronLogicalBatchResult.Success(item.InputIndex, item.Value))
-                        .ToArray())
-                : Task.FromException<IReadOnlyList<OmronLogicalBatchResult>>(WriteBatchException);
+            if (WriteBatchException is not null)
+            {
+                return Task.FromException<IReadOnlyList<OmronLogicalBatchResult>>(WriteBatchException);
+            }
+
+            var results = new OmronLogicalBatchResult[items.Count];
+            for (var index = 0; index < items.Count; index++)
+            {
+                var item = items[index];
+                results[index] = OmronLogicalBatchResult.Success(item.InputIndex, item.Value);
+            }
+
+            return Task.FromResult<IReadOnlyList<OmronLogicalBatchResult>>(results);
         }
     }
 }

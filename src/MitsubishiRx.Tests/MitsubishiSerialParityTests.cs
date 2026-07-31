@@ -7,10 +7,10 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiSerialParityTests type.</summary>
@@ -24,6 +24,9 @@ internal sealed class MitsubishiSerialParityTests
 
     /// <summary>Stores the serial timeout in seconds.</summary>
     private const int SerialTimeoutSeconds = 2;
+
+    /// <summary>Stores the expected two-word memory response.</summary>
+    private static readonly ushort[] ExpectedMemoryWords = [0x1234, 0x5678];
 
     /// <summary>Verifies serial 3C TypeName response parsing.</summary>
     /// <returns>The ReadTypeNameAsyncSerial3CFormat1EncodesExpectedRequestAndParsesResponse operation result.</returns>
@@ -56,7 +59,7 @@ internal sealed class MitsubishiSerialParityTests
     internal async Task ReadTypeNameAsyncSerial4CFormat5EncodesExpectedRequestAndParsesResponseAsync()
     {
         await using var transport = new FakeTransport(
-            [BuildBinaryDataResponse([.. Encoding.ASCII.GetBytes("FX5U"), 0x01, 0x00])]);
+            [BuildBinaryDataResponse([.. "FX5U"u8, 0x01, 0x00])]);
         var options = CreateSerialOptions(
             MitsubishiFrameType.FourC,
             CommunicationDataCode.Binary,
@@ -90,7 +93,7 @@ internal sealed class MitsubishiSerialParityTests
             MitsubishiSerialMessageFormat.Format1);
         await using var client = new MitsubishiRx(options, transport, Scheduler.Immediate);
 
-        var result = await client.LoopbackAsync(Encoding.ASCII.GetBytes("PING"), CancellationToken.None);
+        var result = await client.LoopbackAsync("PING"u8.ToArray(), CancellationToken.None);
 
         await Assert.That(result.IsSucceed).IsTrue();
         await Assert.That(Encoding.ASCII.GetString(result.Value!)).IsEqualTo("PING");
@@ -106,14 +109,14 @@ internal sealed class MitsubishiSerialParityTests
     internal async Task LoopbackAsyncSerial4CFormat5EncodesExpectedRequestAndReturnsEchoedPayloadAsync()
     {
         await using var transport = new FakeTransport(
-            [BuildBinaryDataResponse([0x04, 0x00, .. Encoding.ASCII.GetBytes("PING")])]);
+            [BuildBinaryDataResponse([0x04, 0x00, .. "PING"u8])]);
         var options = CreateSerialOptions(
             MitsubishiFrameType.FourC,
             CommunicationDataCode.Binary,
             MitsubishiSerialMessageFormat.Format5);
         await using var client = new MitsubishiRx(options, transport, Scheduler.Immediate);
 
-        var result = await client.LoopbackAsync(Encoding.ASCII.GetBytes("PING"), CancellationToken.None);
+        var result = await client.LoopbackAsync("PING"u8.ToArray(), CancellationToken.None);
 
         await Assert.That(result.IsSucceed).IsTrue();
         await Assert.That(Encoding.ASCII.GetString(result.Value!)).IsEqualTo("PING");
@@ -144,7 +147,7 @@ internal sealed class MitsubishiSerialParityTests
             CancellationToken.None);
 
         await Assert.That(result.IsSucceed).IsTrue();
-        await Assert.That(result.Value!.Select(static value => (int)value).ToArray()).IsEquivalentTo([0x1234, 0x5678]);
+        await Assert.That(result.Value!).IsEquivalentTo(ExpectedMemoryWords);
         await Assert.That(Encoding.ASCII.GetString(transport.Requests[0].Payload))
             .IsEqualTo("\u0005F90000FF00061300002000000239");
     }
@@ -168,7 +171,7 @@ internal sealed class MitsubishiSerialParityTests
             CancellationToken.None);
 
         await Assert.That(result.IsSucceed).IsTrue();
-        await Assert.That(result.Value!.Select(static value => (int)value).ToArray()).IsEquivalentTo([0x1234, 0x5678]);
+        await Assert.That(result.Value!).IsEquivalentTo(ExpectedMemoryWords);
         await Assert.That(Convert.ToHexString(transport.Requests[0].Payload))
             .IsEqualTo("10021000F80000FFFF030000130600000020020010033434");
     }
@@ -239,10 +242,10 @@ internal sealed class MitsubishiSerialParityTests
         await using var client = new MitsubishiRx(options, transport, Scheduler.Immediate);
 
         var result = await client.ExecuteRawAsync(
-            new MitsubishiRawCommandRequest(
+            new(
                 0x1234,
                 0xABCD,
-                Encoding.ASCII.GetBytes("BEEF"),
+                "BEEF"u8.ToArray(),
                 "Custom raw"),
             CancellationToken.None);
 
@@ -265,7 +268,7 @@ internal sealed class MitsubishiSerialParityTests
         await using var client = new MitsubishiRx(options, transport, Scheduler.Immediate);
 
         var result = await client.ExecuteRawAsync(
-            new MitsubishiRawCommandRequest(
+            new(
                 0x1234,
                 0xABCD,
                 [0xDE, 0xAD, 0xBE, 0xEF],
@@ -387,13 +390,13 @@ internal sealed class MitsubishiSerialParityTests
         var numberOfDataBytes = checked((ushort)(frame.Count - BinaryLengthFieldByteCount));
         var prefix = new List<byte> { 0x10, 0x02, (byte)(numberOfDataBytes & 0xFF), (byte)(numberOfDataBytes >> 8) };
         prefix.AddRange(frame);
-        prefix.AddRange(
-            Encoding.ASCII.GetBytes(
-                (prefix
-                    .Skip(BinaryLengthFieldByteCount)
-                    .Take(BinaryLengthFieldByteCount + numberOfDataBytes)
-                    .Aggregate(0, static (sum, value) => sum + value) & 0xFF)
-                    .ToString("X2")));
+        var checksum = 0;
+        for (var index = BinaryLengthFieldByteCount; index < BinaryLengthFieldByteCount + numberOfDataBytes; index++)
+        {
+            checksum += prefix[index];
+        }
+
+        prefix.AddRange(Encoding.ASCII.GetBytes((checksum & 0xFF).ToString("X2")));
         return prefix.ToArray();
     }
 
@@ -401,5 +404,13 @@ internal sealed class MitsubishiSerialParityTests
     /// <param name="body">The body parameter.</param>
     /// <returns>The ComputeChecksum operation result.</returns>
     private static string ComputeChecksum(string body)
-        => (Encoding.ASCII.GetBytes(body).Aggregate(0, static (sum, value) => sum + value) & 0xFF).ToString("X2");
+    {
+        var checksum = 0;
+        foreach (var value in Encoding.ASCII.GetBytes(body))
+        {
+            checksum += value;
+        }
+
+        return (checksum & 0xFF).ToString("X2");
+    }
 }

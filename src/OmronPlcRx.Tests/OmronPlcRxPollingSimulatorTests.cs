@@ -3,14 +3,14 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Net;
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Tags;
 using ReactiveUI.Primitives;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Exercises facade polling, asynchronous SetValue, and connection delegate paths.</summary>
 public sealed class OmronPlcRxPollingSimulatorTests
@@ -115,18 +115,18 @@ public sealed class OmronPlcRxPollingSimulatorTests
             value => errors.TrySetResult(value),
             errors.SetException);
 
-        driver.SetValue(new LogicalTagKey<short>("Set"), ShortValue);
+        driver.SetValue(new("Set"), ShortValue);
         await WaitUntilAsync(() => channel.SendCount > 0);
         await driver.WriteValueAsync(
             new LogicalTagKey<string>("Null"),
             null,
             CancellationToken.None);
         await driver.WriteValueAsync(
-            new LogicalTagKey<decimal>("Unsupported"),
+            new("Unsupported"),
             decimal.One,
             CancellationToken.None);
         driver.AddUpdateTagItem(new PlcTag<short>("Bad", "INVALID"));
-        driver.SetValue(new LogicalTagKey<short>("Bad"), ShortValue);
+        driver.SetValue(new("Bad"), ShortValue);
         var error = await errors.Task.WaitAsync(
             TimeSpan.FromMilliseconds(TestCompletionTimeoutMilliseconds));
 
@@ -135,24 +135,25 @@ public sealed class OmronPlcRxPollingSimulatorTests
         await AssertThrowsAsync<ArgumentNullException>(
             () => Task.Run(() => driver.SetValue(null!, ShortValue)));
         await AssertThrowsAsync<KeyNotFoundException>(
-            () => Task.Run(() => driver.SetValue(new LogicalTagKey<short>("Missing"), ShortValue)));
+            () => Task.Run(() => driver.SetValue(new("Missing"), ShortValue)));
     }
 
     /// <summary>Verifies the serial facade constructor rejects a null options object.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
-    public async Task Driver_SerialConstructorRejectsNullOptionsAsync()
-    {
-        await AssertThrowsAsync<ArgumentNullException>(
-            () => Task.Run(
-                () => new OmronPlcRx(
+    public Task Driver_SerialConstructorRejectsNullOptionsAsync() =>
+        AssertThrowsAsync<ArgumentNullException>(
+            static () =>
+            {
+                _ = new OmronPlcRx(
                     LocalNode,
                     RemoteNode,
                     null!,
                     TimeoutMilliseconds,
                     0,
-                    TimeSpan.FromMilliseconds(PollIntervalMilliseconds))));
-    }
+                    TimeSpan.FromMilliseconds(PollIntervalMilliseconds));
+                return Task.CompletedTask;
+            });
 
     /// <summary>Verifies the public options constructor owns its transport and polling lifecycle.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
@@ -208,9 +209,10 @@ public sealed class OmronPlcRxPollingSimulatorTests
     {
         using var timeout = new CancellationTokenSource(
             TimeSpan.FromMilliseconds(TestCompletionTimeoutMilliseconds));
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(1));
         while (!condition())
         {
-            await Task.Delay(1, timeout.Token);
+            await timer.WaitForNextTickAsync(timeout.Token);
         }
     }
 

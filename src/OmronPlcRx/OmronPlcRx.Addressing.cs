@@ -4,15 +4,15 @@
 
 using System;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Enums;
+using IoT.Driver.OmronPlcRx.Reactive.Enums;
 #else
-using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive;
+namespace IoT.Driver.OmronPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.OmronPlcRx;
+namespace IoT.Driver.OmronPlcRx;
 #endif
 
 /// <summary>Contains PLC tag address parsing helpers.</summary>
@@ -34,7 +34,7 @@ public sealed partial class OmronPlcRx
         {
             case null:
                 throw new ArgumentNullException(paramName);
-            case var text when text.Trim().Length == 0:
+            case var text when string.IsNullOrWhiteSpace(text):
                 throw new ArgumentException("The value cannot be empty or whitespace.", paramName);
         }
     }

@@ -8,20 +8,20 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Types;
-using IoT.DriverCore.OmronPlcRx.Reactive.Tags;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Types;
+using IoT.Driver.OmronPlcRx.Reactive.Tags;
 #else
-using IoT.DriverCore.OmronPlcRx.Core.Types;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.OmronPlcRx.Core.Types;
+using IoT.Driver.OmronPlcRx.Tags;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive;
+namespace IoT.Driver.OmronPlcRx.Reactive;
 
 #else
-namespace IoT.DriverCore.OmronPlcRx;
+namespace IoT.Driver.OmronPlcRx;
 
 #endif
 
@@ -94,6 +94,144 @@ public sealed partial class OmronLogicalTagClient
         }
     }
 
+    /// <summary>Registers a logical tag with the typed Omron API.</summary>
+    /// <param name="plc">Omron PLC facade that owns the registration.</param>
+    /// <param name="tag">Logical tag to register.</param>
+    private static void RegisterWithPlc(IOmronPlcRx plc, LogicalTag tag)
+    {
+        _ = GetTypeKey(tag) switch
+        {
+            "BOOLEAN" or "BOOL" => RegisterTyped<bool>(plc, tag),
+            "BYTE" => RegisterTyped<byte>(plc, tag),
+            "INT16" or "SHORT" => RegisterTyped<short>(plc, tag),
+            "UINT16" or "USHORT" => RegisterTyped<ushort>(plc, tag),
+            "INT32" or "INT" => RegisterTyped<int>(plc, tag),
+            "UINT32" or "UINT" => RegisterTyped<uint>(plc, tag),
+            "SINGLE" or "FLOAT" => RegisterTyped<float>(plc, tag),
+            "DOUBLE" => RegisterTyped<double>(plc, tag),
+            "STRING" => RegisterTyped<string>(plc, tag),
+            "BCD16" => RegisterTyped<Bcd16>(plc, tag),
+            "BCDU16" => RegisterTyped<BcdU16>(plc, tag),
+            "BCD32" => RegisterTyped<Bcd32>(plc, tag),
+            "BCDU32" => RegisterTyped<BcdU32>(plc, tag),
+            _ => throw new NotSupportedException(
+                $"Logical tag data type '{tag.DataType}' is not supported by OmronPlcRx."),
+        };
+    }
+
+    /// <summary>Registers one typed logical tag.</summary>
+    /// <typeparam name="T">PLC value type.</typeparam>
+    /// <param name="plc">Omron PLC facade that owns the registration.</param>
+    /// <param name="tag">Logical tag to register.</param>
+    /// <returns>True after registration completes.</returns>
+    private static bool RegisterTyped<T>(IOmronPlcRx plc, LogicalTag tag)
+    {
+        plc.AddUpdateTagItem(new PlcTag<T>(tag.Name, tag.Address));
+        return true;
+    }
+
+    /// <summary>Observes a typed value from the Omron API.</summary>
+    /// <param name="plc">Omron PLC facade that provides the observable.</param>
+    /// <param name="timeProvider">Time provider used to stamp observed values.</param>
+    /// <param name="tag">Logical tag to observe.</param>
+    /// <returns>The logical value stream.</returns>
+    private static IObservable<LogicalTagValue> ObserveFromPlc(
+        IOmronPlcRx plc,
+        TimeProvider timeProvider,
+        LogicalTag tag) =>
+        GetTypeKey(tag) switch
+        {
+            "BOOLEAN" or "BOOL" => ObserveTyped<bool>(plc, timeProvider, tag),
+            "BYTE" => ObserveTyped<byte>(plc, timeProvider, tag),
+            "INT16" or "SHORT" => ObserveTyped<short>(plc, timeProvider, tag),
+            "UINT16" or "USHORT" => ObserveTyped<ushort>(plc, timeProvider, tag),
+            "INT32" or "INT" => ObserveTyped<int>(plc, timeProvider, tag),
+            "UINT32" or "UINT" => ObserveTyped<uint>(plc, timeProvider, tag),
+            "SINGLE" or "FLOAT" => ObserveTyped<float>(plc, timeProvider, tag),
+            "DOUBLE" => ObserveTyped<double>(plc, timeProvider, tag),
+            "STRING" => ObserveTyped<string>(plc, timeProvider, tag),
+            "BCD16" => ObserveTyped<Bcd16>(plc, timeProvider, tag),
+            "BCDU16" => ObserveTyped<BcdU16>(plc, timeProvider, tag),
+            "BCD32" => ObserveTyped<Bcd32>(plc, timeProvider, tag),
+            "BCDU32" => ObserveTyped<BcdU32>(plc, timeProvider, tag),
+            _ => throw new NotSupportedException(
+                $"Logical tag data type '{tag.DataType}' is not supported by OmronPlcRx."),
+        };
+
+    /// <summary>Adapts a typed PLC stream to logical values.</summary>
+    /// <typeparam name="T">PLC value type.</typeparam>
+    /// <param name="plc">Omron PLC facade that provides the observable.</param>
+    /// <param name="timeProvider">Time provider used to stamp observed values.</param>
+    /// <param name="tag">Logical tag to observe.</param>
+    /// <returns>The adapted observable.</returns>
+    private static TagValueObservable<T> ObserveTyped<T>(
+        IOmronPlcRx plc,
+        TimeProvider timeProvider,
+        LogicalTag tag) =>
+        new(plc.Observe(new LogicalTagKey<T>(tag.Name)), tag.Name, timeProvider);
+
+    /// <summary>Writes a converted logical value through the typed Omron API.</summary>
+    /// <param name="plc">Omron PLC facade used to write the value.</param>
+    /// <param name="tag">Logical tag to write.</param>
+    /// <param name="value">Logical value.</param>
+    /// <param name="cancellationToken">Token used to cancel the write.</param>
+    /// <returns>The boxed written value.</returns>
+    private static Task<object?> WriteToPlcAsync(
+        IOmronPlcRx plc,
+        LogicalTag tag,
+        object? value,
+        CancellationToken cancellationToken) =>
+        GetTypeKey(tag) switch
+        {
+            "BOOLEAN" or "BOOL" => WriteConvertedAsync<bool>(plc, tag, value, cancellationToken),
+            "BYTE" => WriteConvertedAsync<byte>(plc, tag, value, cancellationToken),
+            "INT16" or "SHORT" => WriteConvertedAsync<short>(plc, tag, value, cancellationToken),
+            "UINT16" or "USHORT" => WriteConvertedAsync<ushort>(plc, tag, value, cancellationToken),
+            "INT32" or "INT" => WriteConvertedAsync<int>(plc, tag, value, cancellationToken),
+            "UINT32" or "UINT" => WriteConvertedAsync<uint>(plc, tag, value, cancellationToken),
+            "SINGLE" or "FLOAT" => WriteConvertedAsync<float>(plc, tag, value, cancellationToken),
+            "DOUBLE" => WriteConvertedAsync<double>(plc, tag, value, cancellationToken),
+            "STRING" => WriteConvertedAsync<string>(plc, tag, value, cancellationToken),
+            "BCD16" => WriteConvertedAsync<Bcd16>(plc, tag, value, cancellationToken),
+            "BCDU16" => WriteConvertedAsync<BcdU16>(plc, tag, value, cancellationToken),
+            "BCD32" => WriteConvertedAsync<Bcd32>(plc, tag, value, cancellationToken),
+            "BCDU32" => WriteConvertedAsync<BcdU32>(plc, tag, value, cancellationToken),
+            _ => throw new NotSupportedException(
+                $"Logical tag data type '{tag.DataType}' is not supported by OmronPlcRx."),
+        };
+
+    /// <summary>Writes one typed PLC value.</summary>
+    /// <typeparam name="T">PLC value type.</typeparam>
+    /// <param name="plc">Omron PLC facade used to write the value.</param>
+    /// <param name="tag">Logical tag to write.</param>
+    /// <param name="value">Value to write.</param>
+    /// <param name="cancellationToken">Token used to cancel the write.</param>
+    /// <returns>The boxed written value.</returns>
+    private static async Task<object?> WriteTypedAsync<T>(
+        IOmronPlcRx plc,
+        LogicalTag tag,
+        T? value,
+        CancellationToken cancellationToken)
+    {
+        await plc
+            .WriteValueAsync(new(tag.Name), value, cancellationToken)
+            .ConfigureAwait(false);
+        return value;
+    }
+
+    /// <summary>Converts and writes one PLC value.</summary>
+    /// <typeparam name="T">PLC value type.</typeparam>
+    /// <param name="plc">Omron PLC facade used to write the value.</param>
+    /// <param name="tag">Logical tag to write.</param>
+    /// <param name="value">Logical value to convert.</param>
+    /// <param name="cancellationToken">Token used to cancel the write.</param>
+    /// <returns>The boxed written value.</returns>
+    private static Task<object?> WriteConvertedAsync<T>(
+        IOmronPlcRx plc,
+        LogicalTag tag,
+        object? value,
+        CancellationToken cancellationToken) => WriteTypedAsync(plc, tag, ConvertValue<T>(value), cancellationToken);
+
     /// <summary>Resolves and validates a logical tag.</summary>
     /// <param name="tagName">Logical tag name.</param>
     /// <param name="requested">Requested access mode.</param>
@@ -122,40 +260,6 @@ public sealed partial class OmronLogicalTagClient
         }
 
         failure = TagOperationResult<LogicalTagValue>.Failure("The operation was not executed.");
-        return true;
-    }
-
-    /// <summary>Registers a logical tag with the typed Omron API.</summary>
-    /// <param name="tag">Logical tag to register.</param>
-    private void RegisterWithPlc(LogicalTag tag)
-    {
-        _ = GetTypeKey(tag) switch
-        {
-            "BOOLEAN" or "BOOL" => RegisterTyped<bool>(tag),
-            "BYTE" => RegisterTyped<byte>(tag),
-            "INT16" or "SHORT" => RegisterTyped<short>(tag),
-            "UINT16" or "USHORT" => RegisterTyped<ushort>(tag),
-            "INT32" or "INT" => RegisterTyped<int>(tag),
-            "UINT32" or "UINT" => RegisterTyped<uint>(tag),
-            "SINGLE" or "FLOAT" => RegisterTyped<float>(tag),
-            "DOUBLE" => RegisterTyped<double>(tag),
-            "STRING" => RegisterTyped<string>(tag),
-            "BCD16" => RegisterTyped<Bcd16>(tag),
-            "BCDU16" => RegisterTyped<BcdU16>(tag),
-            "BCD32" => RegisterTyped<Bcd32>(tag),
-            "BCDU32" => RegisterTyped<BcdU32>(tag),
-            _ => throw new NotSupportedException(
-                $"Logical tag data type '{tag.DataType}' is not supported by OmronPlcRx."),
-        };
-    }
-
-    /// <summary>Registers one typed logical tag.</summary>
-    /// <typeparam name="T">PLC value type.</typeparam>
-    /// <param name="tag">Logical tag to register.</param>
-    /// <returns>True after registration completes.</returns>
-    private bool RegisterTyped<T>(LogicalTag tag)
-    {
-        _plc.AddUpdateTagItem(new PlcTag<T>(tag.Name, tag.Address));
         return true;
     }
 
@@ -197,92 +301,6 @@ public sealed partial class OmronLogicalTagClient
                     $"Logical tag data type '{tag.DataType}' is not supported by OmronPlcRx.")),
         };
 
-    /// <summary>Writes a converted logical value through the typed Omron API.</summary>
-    /// <param name="tag">Logical tag to write.</param>
-    /// <param name="value">Logical value.</param>
-    /// <param name="cancellationToken">Token used to cancel the write.</param>
-    /// <returns>The boxed written value.</returns>
-    private Task<object?> WriteToPlcAsync(
-        LogicalTag tag,
-        object? value,
-        CancellationToken cancellationToken) =>
-        GetTypeKey(tag) switch
-        {
-            "BOOLEAN" or "BOOL" => WriteConvertedAsync<bool>(tag, value, cancellationToken),
-            "BYTE" => WriteConvertedAsync<byte>(tag, value, cancellationToken),
-            "INT16" or "SHORT" => WriteConvertedAsync<short>(tag, value, cancellationToken),
-            "UINT16" or "USHORT" => WriteConvertedAsync<ushort>(tag, value, cancellationToken),
-            "INT32" or "INT" => WriteConvertedAsync<int>(tag, value, cancellationToken),
-            "UINT32" or "UINT" => WriteConvertedAsync<uint>(tag, value, cancellationToken),
-            "SINGLE" or "FLOAT" => WriteConvertedAsync<float>(tag, value, cancellationToken),
-            "DOUBLE" => WriteConvertedAsync<double>(tag, value, cancellationToken),
-            "STRING" => WriteConvertedAsync<string>(tag, value, cancellationToken),
-            "BCD16" => WriteConvertedAsync<Bcd16>(tag, value, cancellationToken),
-            "BCDU16" => WriteConvertedAsync<BcdU16>(tag, value, cancellationToken),
-            "BCD32" => WriteConvertedAsync<Bcd32>(tag, value, cancellationToken),
-            "BCDU32" => WriteConvertedAsync<BcdU32>(tag, value, cancellationToken),
-            _ => throw new NotSupportedException(
-                $"Logical tag data type '{tag.DataType}' is not supported by OmronPlcRx."),
-        };
-
-    /// <summary>Observes a typed value from the Omron API.</summary>
-    /// <param name="tag">Logical tag to observe.</param>
-    /// <returns>The logical value stream.</returns>
-    private IObservable<LogicalTagValue> ObserveFromPlc(LogicalTag tag) =>
-        GetTypeKey(tag) switch
-        {
-            "BOOLEAN" or "BOOL" => ObserveTyped<bool>(tag),
-            "BYTE" => ObserveTyped<byte>(tag),
-            "INT16" or "SHORT" => ObserveTyped<short>(tag),
-            "UINT16" or "USHORT" => ObserveTyped<ushort>(tag),
-            "INT32" or "INT" => ObserveTyped<int>(tag),
-            "UINT32" or "UINT" => ObserveTyped<uint>(tag),
-            "SINGLE" or "FLOAT" => ObserveTyped<float>(tag),
-            "DOUBLE" => ObserveTyped<double>(tag),
-            "STRING" => ObserveTyped<string>(tag),
-            "BCD16" => ObserveTyped<Bcd16>(tag),
-            "BCDU16" => ObserveTyped<BcdU16>(tag),
-            "BCD32" => ObserveTyped<Bcd32>(tag),
-            "BCDU32" => ObserveTyped<BcdU32>(tag),
-            _ => throw new NotSupportedException(
-                $"Logical tag data type '{tag.DataType}' is not supported by OmronPlcRx."),
-        };
-
-    /// <summary>Adapts a typed PLC stream to logical values.</summary>
-    /// <typeparam name="T">PLC value type.</typeparam>
-    /// <param name="tag">Logical tag to observe.</param>
-    /// <returns>The adapted observable.</returns>
-    private TagValueObservable<T> ObserveTyped<T>(LogicalTag tag) =>
-        new(_plc.Observe(new LogicalTagKey<T>(tag.Name)), tag.Name, _timeProvider);
-
-    /// <summary>Writes one typed PLC value.</summary>
-    /// <typeparam name="T">PLC value type.</typeparam>
-    /// <param name="tag">Logical tag to write.</param>
-    /// <param name="value">Value to write.</param>
-    /// <param name="cancellationToken">Token used to cancel the write.</param>
-    /// <returns>The boxed written value.</returns>
-    private async Task<object?> WriteTypedAsync<T>(
-        LogicalTag tag,
-        T? value,
-        CancellationToken cancellationToken)
-    {
-        await _plc
-            .WriteValueAsync(new LogicalTagKey<T>(tag.Name), value, cancellationToken)
-            .ConfigureAwait(false);
-        return value;
-    }
-
-    /// <summary>Converts and writes one PLC value.</summary>
-    /// <typeparam name="T">PLC value type.</typeparam>
-    /// <param name="tag">Logical tag to write.</param>
-    /// <param name="value">Logical value to convert.</param>
-    /// <param name="cancellationToken">Token used to cancel the write.</param>
-    /// <returns>The boxed written value.</returns>
-    private Task<object?> WriteConvertedAsync<T>(
-        LogicalTag tag,
-        object? value,
-        CancellationToken cancellationToken) => WriteTypedAsync(tag, ConvertValue<T>(value), cancellationToken);
-
     /// <summary>Gets the configured SQLite store.</summary>
     /// <returns>The configured store.</returns>
     private LogicalTagSqliteStore GetStore()
@@ -315,10 +333,7 @@ public sealed partial class OmronLogicalTagClient
         /// <inheritdoc />
         public IDisposable Subscribe(IObserver<LogicalTagValue> observer)
         {
-            if (observer is null)
-            {
-                throw new ArgumentNullException(nameof(observer));
-            }
+            ThrowIfNull(observer, nameof(observer));
 
             return source.Subscribe(new TagValueObserver<T>(observer, tagName, timeProvider));
         }
@@ -340,7 +355,7 @@ public sealed partial class OmronLogicalTagClient
 
         /// <inheritdoc />
         public void OnNext(T? value) =>
-            observer.OnNext(new LogicalTagValue(tagName, value, timeProvider.GetUtcNow()));
+            observer.OnNext(new(tagName, value, timeProvider.GetUtcNow()));
     }
 
     /// <summary>Writes observer notifications to an asynchronous channel.</summary>

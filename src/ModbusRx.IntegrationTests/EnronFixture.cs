@@ -3,14 +3,14 @@
 // See the LICENSE file in the project root for full license information.
 
 #if SERIAL
-using IoT.DriverCore.ModbusRx.Extensions.Enron;
+using IoT.Driver.ModbusRx.Extensions.Enron;
 
-namespace IoT.DriverCore.ModbusRx.IntegrationTests;
+namespace IoT.Driver.ModbusRx.IntegrationTests;
 
 /// <summary>
 /// EnronFixture.
 /// </summary>
-/// <seealso cref="IoT.DriverCore.ModbusRx.IntegrationTests.NModbusSerialRtuMasterDl06SlaveFixture" />
+/// <seealso cref="IoT.Driver.ModbusRx.IntegrationTests.NModbusSerialRtuMasterDl06SlaveFixture" />
 public class EnronFixture : NModbusSerialRtuMasterDl06SlaveFixture
 {
     /// <summary>

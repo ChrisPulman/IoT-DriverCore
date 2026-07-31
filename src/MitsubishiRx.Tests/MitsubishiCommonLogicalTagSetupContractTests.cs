@@ -2,15 +2,15 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 #endif
 
@@ -92,7 +92,7 @@ internal sealed class MitsubishiCommonLogicalTagSetupContractTests
             "Name;Address;DataType;GroupName;Description;Metadata;AccessMode;ScanIntervalMilliseconds\r\n"
             + "Enabled;M10;Bit;Process;Enabled state;;ReadWrite;\r\n");
         var imported = await managed.ImportCsvAsync(reader, ';', CancellationToken.None);
-        using var writer = new StringWriter();
+        await using var writer = new StringWriter();
         await managed.ExportCsvAsync(writer, ';', CancellationToken.None);
 
         await Assert.That(imported).Count().IsEqualTo(1);

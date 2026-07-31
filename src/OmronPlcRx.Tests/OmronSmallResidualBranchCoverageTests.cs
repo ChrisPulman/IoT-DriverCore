@@ -4,13 +4,13 @@
 
 using System.Net.Sockets;
 using System.Reflection;
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Core.Enums;
-using IoT.DriverCore.OmronPlcRx.Core.Responses;
-using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Core.Enums;
+using IoT.Driver.OmronPlcRx.Core.Responses;
+using IoT.Driver.OmronPlcRx.Enums;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Closes small defensive branches across Omron value and metadata types.</summary>
 public sealed class OmronSmallResidualBranchCoverageTests
@@ -39,24 +39,24 @@ public sealed class OmronSmallResidualBranchCoverageTests
     public async Task Constructors_RejectNullAndReservedValuesAsync()
     {
         await AssertThrowsAsync<ArgumentNullException>(
-            () => Task.Run(
-                () => _ = new OmronConnectionOptions(
+            static () => Task.Run(
+                static () => _ = new OmronConnectionOptions(
                     LocalNode,
                     RemoteNode,
                     ConnectionMethod.UDP,
                     null!)));
         await AssertThrowsAsync<ArgumentNullException>(
-            () => Task.Run(
-                () => _ = new OmronLogicalBatchItem(0, null!, "D0", typeof(int), null)));
+            static () => Task.Run(
+                static () => _ = new OmronLogicalBatchItem(0, null!, "D0", typeof(int), null)));
         await AssertThrowsAsync<ArgumentNullException>(
-            () => Task.Run(
-                () => _ = new OmronLogicalBatchItem(0, "Tag", null!, typeof(int), null)));
+            static () => Task.Run(
+                static () => _ = new OmronLogicalBatchItem(0, "Tag", null!, typeof(int), null)));
         await AssertThrowsAsync<ArgumentNullException>(
-            () => Task.Run(
-                () => _ = new OmronLogicalBatchItem(0, "Tag", "D0", null!, null)));
+            static () => Task.Run(
+                static () => _ = new OmronLogicalBatchItem(0, "Tag", "D0", null!, null)));
         await AssertThrowsAsync<ArgumentOutOfRangeException>(
-            () => Task.Run(
-                () => OmronPLCConnectionMetadata.ValidateNodeIdentifiers(
+            static () => Task.Run(
+                static () => OmronPLCConnectionMetadata.ValidateNodeIdentifiers(
                     ReservedNode,
                     LocalNode,
                     ConnectionMethod.UDP)));
@@ -93,12 +93,14 @@ public sealed class OmronSmallResidualBranchCoverageTests
             SubFunctionNameMethod,
             BindingFlags.NonPublic | BindingFlags.Static)
             ?? throw new InvalidOperationException("FINS function-name helper was not found.");
-        var values = typeof(FunctionCode)
-            .GetFields(BindingFlags.Public | BindingFlags.Static)
-            .Select(
-                static field => (FunctionCode)(field.GetValue(null)
-                    ?? throw new InvalidOperationException("FINS function code has no value.")))
-            .ToArray();
+        var fields = typeof(FunctionCode).GetFields(BindingFlags.Public | BindingFlags.Static);
+        var values = new FunctionCode[fields.Length];
+        for (var index = 0; index < fields.Length; index++)
+        {
+            values[index] = (FunctionCode)(fields[index].GetValue(null)
+                ?? throw new InvalidOperationException("FINS function code has no value."));
+        }
+
         foreach (var value in values)
         {
             _ = method.Invoke(null, [(byte)value, byte.MinValue]);
@@ -118,7 +120,19 @@ public sealed class OmronSmallResidualBranchCoverageTests
         var words = PlcTagValueCodec.GetStringWords(null!, OddStringLength);
 
         await Assert.That(words.Length).IsEqualTo(ExpectedStringWordCount);
-        await Assert.That(words.All(static word => word == 0)).IsTrue();
+        var allWordsAreZero = true;
+        foreach (var word in words)
+        {
+            if (word == 0)
+            {
+                continue;
+            }
+
+            allWordsAreZero = false;
+            break;
+        }
+
+        await Assert.That(allWordsAreZero).IsTrue();
     }
 
     /// <summary>Captures and verifies an asynchronous exception.</summary>

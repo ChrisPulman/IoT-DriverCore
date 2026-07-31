@@ -4,7 +4,7 @@
 
 using System.Buffers.Binary;
 
-namespace IoT.DriverCore.ModbusRx.DriverTest;
+namespace IoT.Driver.ModbusRx.DriverTest;
 
 /// <summary>Handles Modbus RTU request frames for the test emulator.</summary>
 /// <remarks>

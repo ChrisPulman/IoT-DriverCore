@@ -3,11 +3,12 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Globalization;
+using System.Text;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace IoT.DriverCore.S7PlcRx.PlcTypes;
+namespace IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>Provides binary and numeric conversion helpers.</summary>
@@ -15,6 +16,9 @@ internal static class ConversionExtensions
 {
     /// <summary>Defines the highest zero-based bit index in a byte.</summary>
     private const int MaximumBitIndex = 7;
+
+    /// <summary>Defines the number of bits in a signed short.</summary>
+    private const int ShortBitCount = 16;
 
     /// <summary>Defines the radix used for binary conversion.</summary>
     private const int BinaryRadix = 2;
@@ -70,13 +74,13 @@ internal static class ConversionExtensions
     internal static string ValToBinString(short input)
     {
         var longValue = (long)input;
-        var text = string.Empty;
+        var text = new StringBuilder(ShortBitCount);
         for (var bit = 15; bit >= 0; bit--)
         {
-            text += (longValue & (long)Math.Pow(BinaryRadix, bit)) > 0 ? "1" : "0";
+            _ = text.Append((longValue & (long)Math.Pow(BinaryRadix, bit)) > 0 ? '1' : '0');
         }
 
-        return text;
+        return text.ToString();
     }
 
     /// <summary>Converts a binary string to a signed integer.</summary>

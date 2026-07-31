@@ -8,7 +8,7 @@
 
 `OmronPlcRx` is a typed, reactive .NET driver for Omron FINS over TCP, UDP, Host Link FINS serial, and Toolbus serial. Register a `PlcTag<T>`, address it through a `LogicalTagKey<T>`, then read, write, or observe it. The base package uses `ReactiveUI.Primitives`; `OmronPlcRx.Reactive` is the equivalent System.Reactive-oriented surface. Both are shared-source builds.
 
-The public namespaces are `IoT.DriverCore.OmronPlcRx` and its `.Core`, `.Core.Types`, `.Enums`, `.Results`, `.Tags`, and `.Async` children. The reactive package replaces the root with `IoT.DriverCore.OmronPlcRx.Reactive`.
+The public namespaces are `IoT.Driver.OmronPlcRx` and its `.Core`, `.Core.Types`, `.Enums`, `.Results`, `.Tags`, and `.Async` children. The reactive package replaces the root with `IoT.Driver.OmronPlcRx.Reactive`.
 
 ## Safety
 
@@ -18,18 +18,20 @@ PLC writes can change machinery state. Validate addresses, types, interlocks, ow
 
 | Package | Use |
 | --- | --- |
-| `OmronPlcRx` | Base API using ReactiveUI.Primitives and BCL `IObservable<T>`. |
-| `OmronPlcRx.Reactive` | Same driver shape for System.Reactive consumers; namespaces end in `.Reactive`. |
-| `OmronPlcRx.Generators` | Roslyn generator package; the runtime packages reference it as an analyzer. |
+| `IoT-Driver.OmronPlcRx` | Base API using ReactiveUI.Primitives and BCL `IObservable<T>`. |
+| `IoT-Driver.OmronPlcRx.Reactive` | Same driver shape for System.Reactive consumers; namespaces end in `.Reactive`. |
+| `IoT-Driver.OmronPlcRx.Generators` | Standalone Roslyn generator package. |
 
 All runtime packages target `net462`, `net472`, `net481`, `net8.0`, `net9.0`, `net10.0`, and `net11.0`.
 
 ## Install
 
 ```bash
-dotnet add package OmronPlcRx
+dotnet add package IoT-Driver.OmronPlcRx
 # Or, for System.Reactive applications:
-dotnet add package OmronPlcRx.Reactive
+dotnet add package IoT-Driver.OmronPlcRx.Reactive
+# Add separately when using source-generated bindings:
+dotnet add package IoT-Driver.OmronPlcRx.Generators
 ```
 
 ## Quick start
@@ -37,10 +39,10 @@ dotnet add package OmronPlcRx.Reactive
 The public network constructor takes `OmronConnectionOptions` and an explicit nullable poll interval.
 
 ```csharp
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx;
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Tags;
 
 var motorRun = new PlcTag<bool>("MotorRun", "D100.0");
 var temperature = new PlcTag<short>("Temperature", "D200");
@@ -69,7 +71,7 @@ Create `OmronConnectionOptions(localNodeId, remoteNodeId, connectionMethod, remo
 For serial, use the dedicated constructor and supply every parameter:
 
 ```csharp
-using IoT.DriverCore.OmronPlcRx;
+using IoT.Driver.OmronPlcRx;
 
 var serial = OmronSerialOptions.CreateToolbus("COM3");
 using var plc = new OmronPlcRx(11, 0, serial, 2000, 1, TimeSpan.FromMilliseconds(250));
@@ -86,8 +88,8 @@ FINS addresses supported by the typed tag codec include bit forms such as `D100.
 `ObserveAll` emits changed `IPlcTag` instances and `Errors` emits `OmronPLCException`. Use a logical key whose type exactly matches the registered tag.
 
 ```csharp
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Tags;
 
 var level = new PlcTag<float>("TankLevel", "D400");
 plc.AddUpdateTagItem(level);
@@ -122,19 +124,19 @@ Console.WriteLine($"min={cycle.MinimumCycleTime}, max={cycle.MaximumCycleTime}")
 
 ### Source-generated bindings
 
-Apply `PlcTagAttribute` to a field in a partial class. The included analyzer generates registration, observation, and optional write helpers. Its configurable members are `TagName`, `Register`, `Observe`, and `Writable`; `PlcTagBindingAttribute` marks a binding target. Treat generated member names as analyzer output and keep the containing type partial.
+After installing `IoT-Driver.OmronPlcRx.Generators`, apply `PlcTagAttribute` to a field in a partial class. The analyzer generates registration, observation, and optional write helpers. Its configurable members are `TagName`, `Register`, `Observe`, and `Writable`; `PlcTagBindingAttribute` marks a binding target. Treat generated member names as analyzer output and keep the containing type partial.
 
 ## Exhaustive feature guide and worked workflows
 
-The driver uses a *definition* (`PlcTag<T>`) and a *lookup key* (`LogicalTagKey<T>`). A definition has a logical `TagName` and FINS `Address`; a key contains only the logical name and must use the same `T`. This makes wrong address/type combinations visible at registration rather than allowing untyped strings to flow through every command. The reactive package has the same shape beneath `IoT.DriverCore.OmronPlcRx.Reactive`; do not mix base and reactive tag/key types.
+The driver uses a *definition* (`PlcTag<T>`) and a *lookup key* (`LogicalTagKey<T>`). A definition has a logical `TagName` and FINS `Address`; a key contains only the logical name and must use the same `T`. This makes wrong address/type combinations visible at registration rather than allowing untyped strings to flow through every command. The reactive package has the same shape beneath `IoT.Driver.OmronPlcRx.Reactive`; do not mix base and reactive tag/key types.
 
 ### Network constructors, serial constructors, and options validation
 
 `OmronConnectionOptions` is the network constructor input: local node ID, remote node ID, `ConnectionMethod.TCP` or `UDP`, remote host, optional port, timeout, retry count, and optional serial options. Its values are immutable after construction except through the initializer, so build and validate it before creating a long-lived client. The serial constructor takes `(localNodeId, remoteNodeId, OmronSerialOptions, timeout, retries, pollInterval)`. `pollInterval` is nullable: provide a positive interval for automatic tag polling; use `null` only when the application performs direct reads deliberately.
 
 ```csharp
-using IoT.DriverCore.OmronPlcRx;
-using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx;
+using IoT.Driver.OmronPlcRx.Enums;
 
 var options = new OmronConnectionOptions(11, 1, ConnectionMethod.TCP, "192.168.250.1")
 {
@@ -158,9 +160,9 @@ using var serialPlc = new OmronPlcRx(11, 0, serialOptions, 2_000, 1,
 Use FINS addresses with the data area prefix: `D100.0` is one data-memory bit, `D200` one word, and `D600[20]` a string region. Match the tag generic type to the physical storage. Supported codecs include `bool`, signed/unsigned integral types, `float`, `double`, `string`, and `Bcd16`, `BcdU16`, `Bcd32`, `BcdU32`. BCD wrappers state that a value is decimal packed BCD rather than a normal signed binary integer; construct them from the logical numeric value. `BCDConverter` is the explicit conversion utility when an application must inspect raw BCD words. `MemoryBitDataType` and `MemoryWordDataType` describe areas used by lower-level FINS operations, while `PlcType` is detected controller metadata.
 
 ```csharp
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Core.Types;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Core.Types;
+using IoT.Driver.OmronPlcRx.Tags;
 
 plc.AddUpdateTagItem(new PlcTag<bool>("PumpEnabled", "D100.0"));
 plc.AddUpdateTagItem(new PlcTag<int>("BatchCount", "D300"));
@@ -178,8 +180,8 @@ Console.WriteLine(displayed?.Value);
 `AddUpdateTagItem(PlcTag<T>)` registers or updates the logical definition. `RemoveTagItem(name)` returns `true` only if a definition existed. `GetValue(key)` is cached and therefore never a substitute for a command read. `Observe(key)` emits changed values for one registered definition, while `ObserveAll` emits every changed `IPlcTag`. `SetValue(key, value)` starts a background write to preserve compatibility with reactive UIs; it has no completion result. Use `WriteValueAsync` for a command that requires acknowledgement, cancellation, or a catchable failure. `ReadValueAsync` directly reads and updates the cache. Keep `Errors` subscribed for polling/queued-write failures; error streams and subscriptions must be disposed independently of the facade.
 
 ```csharp
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Tags;
 
 var pump = new LogicalTagKey<bool>("PumpEnabled");
 var batch = new LogicalTagKey<int>("BatchCount");
@@ -236,9 +238,9 @@ await foreach (var value in plc.ObserveValuesAsync(new LogicalTagKey<int>("Batch
 When an application is already built on `IObservableAsync<T>`, convert individual values, all-tag changes, or driver errors with `OmronPlcRxAsyncObservableExtensions`. Convert back with `ObservableAsyncBridgeExtensions.ToObservable` only at the boundary where a classic `IObservable<T>` subscriber is required. The async stream does not turn a queued `SetValue` into an acknowledged command; use `WriteValueAsync` for that.
 
 ```csharp
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Async;
-using IoT.DriverCore.Serial;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Async;
+using IoT.Driver.Serial;
 
 var levelKey = new LogicalTagKey<float>("TankLevel");
 var asyncLevels = plc.ObserveAsAsyncObservable(levelKey);
@@ -264,7 +266,7 @@ await foreach (float? level in plc.ObserveValuesAsync(levelKey, stop.Token))
 `HostLinkFinsFrameCodec` and `ToolbusFinsFrameCodec` are framing utilities for serial adapters and protocol tests. Normal application traffic should use `OmronPlcRx` with `OmronSerialOptions`; do not send codec output through an arbitrary serial port without the expected serial protocol. Host Link validates FCS/unit/header/end-code on decode; Toolbus validates start byte, declared length, checksum, and the FINS response header.
 
 ```csharp
-using IoT.DriverCore.OmronPlcRx;
+using IoT.Driver.OmronPlcRx;
 
 var hostLinkOptions = new OmronSerialOptions("COM3")
 {
@@ -302,7 +304,7 @@ Memory<byte> toolbusReply = ToolbusFinsFrameCodec.DecodeResponse(toolbusResponse
 `Bcd16`, `BcdU16`, `Bcd32`, and `BcdU32` are strongly typed PLC tag values. `BCDConverter` is for an explicit boundary conversion when a command or capture supplies raw BCD bytes/words. The value `0x0235` represents decimal `235`, not binary `565`; reject malformed BCD instead of treating it as a normal integer.
 
 ```csharp
-using IoT.DriverCore.OmronPlcRx.Core.Converters;
+using IoT.Driver.OmronPlcRx.Core.Converters;
 
 short encoded = BCDConverter.GetBCDWord(235);
 short decoded = BCDConverter.ToInt16(encoded);
@@ -318,7 +320,7 @@ Console.WriteLine(decoded32);
 Construct `OmronLogicalTagClient` with a SQLite connection string when the reviewed tag map must persist. Initialize the store before CRUD, and remember that `UpsertTagAsync` also registers the tag with the PLC facade. `ReadManyAsync` / `WriteManyAsync` preserve caller order and use grouped FINS operations where the facade supports them; they are not a PLC transaction.
 
 ```csharp
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 var database = $"Data Source={Path.Combine(AppContext.BaseDirectory, "omron-tags.db")}";
 using var tags = new OmronLogicalTagClient(plc, database);
@@ -378,8 +380,8 @@ simulator.Disconnect(); // retains registrations and seeded memory
 Faults can deliberately disconnect the simulator. Handle the expected exception, call `ReconnectAsync`, and then repeat an awaited command; `ReconnectCount` and `Operations` make this recovery path assertable in application tests.
 
 ```csharp
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Tags;
 
 using var simulator = new OmronPlcSimulator(initiallyConnected: true);
 var speed = new PlcTag<short>("Speed", "D100");
@@ -433,10 +435,10 @@ if (verify?.Value != 180) throw new InvalidOperationException("Recipe verificati
 
 ### Complete generator workflow
 
-Install `OmronPlcRx.Generators` explicitly when a project needs analyzer pinning; runtime packages also carry the matching analyzer. Decorate a partial model with binding metadata and fields annotated by `PlcTagAttribute`. `TagName` selects the logical name; `Register` controls registration, `Observe` controls generated observation, and `Writable` requests write helpers. For each tag it generates the current value property, `<Property>Observable`, and—on .NET 8+—`<Property>ObservableAsync`; it also generates `Read<Property>Async`, `Write<Property>`, and `Write<Property>Async` for writable tags. Dispose the binding returned by `BindPlcTags`.
+Install `IoT-Driver.OmronPlcRx.Generators` explicitly when a project needs source-generated bindings. Runtime packages never carry the generator assembly. Decorate a partial model with binding metadata and fields annotated by `PlcTagAttribute`. `TagName` selects the logical name; `Register` controls registration, `Observe` controls generated observation, and `Writable` requests write helpers. For each tag it generates the current value property, `<Property>Observable`, and—on .NET 8+—`<Property>ObservableAsync`; it also generates `Read<Property>Async`, `Write<Property>`, and `Write<Property>Async` for writable tags. Dispose the binding returned by `BindPlcTags`.
 
 ```csharp
-using IoT.DriverCore.OmronPlcRx;
+using IoT.Driver.OmronPlcRx;
 
 [PlcTagBinding]
 public partial class MixerTags
@@ -463,7 +465,7 @@ using var asyncSpeed = ObservableAsyncBridgeExtensions.ToObservable(model.MixerS
 
 ## Complete public API reference
 
-The reactive package has the same inventory under `IoT.DriverCore.OmronPlcRx.Reactive`.
+The reactive package has the same inventory under `IoT.Driver.OmronPlcRx.Reactive`.
 
 | Area | Public types and primary members |
 | --- | --- |
@@ -525,39 +527,39 @@ This catalogue is generated from the packaged runtime assemblies and their XML d
 
 Exported public types: 35; declared public members: 352.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Async.OmronPlcRxAsyncObservableExtensions`
+#### `T:IoT.Driver.OmronPlcRx.Async.OmronPlcRxAsyncObservableExtensions`
 
 ```csharp
-public class IoT.DriverCore.OmronPlcRx.Async.OmronPlcRxAsyncObservableExtensions
+public class IoT.Driver.OmronPlcRx.Async.OmronPlcRxAsyncObservableExtensions
 ```
 Bridges Omron PLC classic Rx streams into ReactiveUI.Primitives.Async observables.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.Async.OmronPlcRxAsyncObservableExtensions.ErrorsAsAsyncObservable(IoT.DriverCore.OmronPlcRx.IOmronPlcRx)`
+###### `M:IoT.Driver.OmronPlcRx.Async.OmronPlcRxAsyncObservableExtensions.ErrorsAsAsyncObservable(IoT.Driver.OmronPlcRx.IOmronPlcRx)`
 
 ```csharp
-public static ReactiveUI.Primitives.Async.IObservableAsync<IoT.DriverCore.OmronPlcRx.OmronPLCException> ErrorsAsAsyncObservable(IoT.DriverCore.OmronPlcRx.IOmronPlcRx plc)
+public static ReactiveUI.Primitives.Async.IObservableAsync<IoT.Driver.OmronPlcRx.OmronPLCException> ErrorsAsAsyncObservable(IoT.Driver.OmronPlcRx.IOmronPlcRx plc)
 ```
 Observes PLC operational errors as an async observable.
 
 - Parameter `plc`: The PLC reactive facade.
 - Returns: An async observable of PLC errors.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Async.OmronPlcRxAsyncObservableExtensions.ObserveAllAsAsyncObservable(IoT.DriverCore.OmronPlcRx.IOmronPlcRx)`
+###### `M:IoT.Driver.OmronPlcRx.Async.OmronPlcRxAsyncObservableExtensions.ObserveAllAsAsyncObservable(IoT.Driver.OmronPlcRx.IOmronPlcRx)`
 
 ```csharp
-public static ReactiveUI.Primitives.Async.IObservableAsync<IoT.DriverCore.OmronPlcRx.Tags.IPlcTag> ObserveAllAsAsyncObservable(IoT.DriverCore.OmronPlcRx.IOmronPlcRx plc)
+public static ReactiveUI.Primitives.Async.IObservableAsync<IoT.Driver.OmronPlcRx.Tags.IPlcTag> ObserveAllAsAsyncObservable(IoT.Driver.OmronPlcRx.IOmronPlcRx plc)
 ```
 Observes every changed PLC tag as an async observable.
 
 - Parameter `plc`: The PLC reactive facade.
 - Returns: An async observable of all changed tags.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Async.OmronPlcRxAsyncObservableExtensions.ObserveAsAsyncObservable``1(IoT.DriverCore.OmronPlcRx.IOmronPlcRx,IoT.DriverCore.Core.LogicalTagKey`1{``0})`
+###### `M:IoT.Driver.OmronPlcRx.Async.OmronPlcRxAsyncObservableExtensions.ObserveAsAsyncObservable``1(IoT.Driver.OmronPlcRx.IOmronPlcRx,IoT.Driver.Core.LogicalTagKey`1{``0})`
 
 ```csharp
-public static ReactiveUI.Primitives.Async.IObservableAsync<T> ObserveAsAsyncObservable<T>(IoT.DriverCore.OmronPlcRx.IOmronPlcRx plc, IoT.DriverCore.Core.LogicalTagKey<T> tag)
+public static ReactiveUI.Primitives.Async.IObservableAsync<T> ObserveAsAsyncObservable<T>(IoT.Driver.OmronPlcRx.IOmronPlcRx plc, IoT.Driver.Core.LogicalTagKey<T> tag)
 ```
 Executes the `ObserveAsAsyncObservable` operation.
 
@@ -565,10 +567,10 @@ Executes the `ObserveAsAsyncObservable` operation.
 - Parameter `tag`: The `tag` value.
 - Returns: A `ReactiveUI.Primitives.Async.IObservableAsync<T>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Async.OmronPlcRxAsyncObservableExtensions.ObserveValuesAsync``1(IoT.DriverCore.OmronPlcRx.IOmronPlcRx,IoT.DriverCore.Core.LogicalTagKey`1{``0},System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.Async.OmronPlcRxAsyncObservableExtensions.ObserveValuesAsync``1(IoT.Driver.OmronPlcRx.IOmronPlcRx,IoT.Driver.Core.LogicalTagKey`1{``0},System.Threading.CancellationToken)`
 
 ```csharp
-public static System.Collections.Generic.IAsyncEnumerable<T> ObserveValuesAsync<T>(IoT.DriverCore.OmronPlcRx.IOmronPlcRx plc, IoT.DriverCore.Core.LogicalTagKey<T> tag, System.Threading.CancellationToken cancellationToken)
+public static System.Collections.Generic.IAsyncEnumerable<T> ObserveValuesAsync<T>(IoT.Driver.OmronPlcRx.IOmronPlcRx plc, IoT.Driver.Core.LogicalTagKey<T> tag, System.Threading.CancellationToken cancellationToken)
 ```
 Executes the `ObserveValuesAsync` operation.
 
@@ -577,16 +579,16 @@ Executes the `ObserveValuesAsync` operation.
 - Parameter `cancellationToken`: The `cancellationToken` value.
 - Returns: A `System.Collections.Generic.IAsyncEnumerable<T>` result.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter`
+#### `T:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter`
 
 ```csharp
-public class IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter
+public class IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter
 ```
 Converts between BCD encoded values and numeric values.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.GetBCDByte(System.Byte)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.GetBCDByte(System.Byte)`
 
 ```csharp
 public static byte GetBCDByte(byte binaryValue)
@@ -596,7 +598,7 @@ Gets the BCD byte.
 - Parameter `binaryValue`: The binary value.
 - Returns: A BCD-encoded byte.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.GetBCDBytes(System.Int16)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.GetBCDBytes(System.Int16)`
 
 ```csharp
 public static byte[] GetBCDBytes(short binaryValue)
@@ -606,7 +608,7 @@ Gets the BCD bytes.
 - Parameter `binaryValue`: The binary value.
 - Returns: A BCD-encoded byte array.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.GetBCDBytes(System.Int32)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.GetBCDBytes(System.Int32)`
 
 ```csharp
 public static byte[] GetBCDBytes(int binaryValue)
@@ -616,7 +618,7 @@ Gets the BCD bytes.
 - Parameter `binaryValue`: The binary value.
 - Returns: A BCD-encoded byte array.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.GetBCDBytes(System.UInt16)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.GetBCDBytes(System.UInt16)`
 
 ```csharp
 public static byte[] GetBCDBytes(ushort binaryValue)
@@ -626,7 +628,7 @@ Gets the BCD bytes.
 - Parameter `binaryValue`: The binary value.
 - Returns: A BCD-encoded byte array.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.GetBCDBytes(System.UInt32)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.GetBCDBytes(System.UInt32)`
 
 ```csharp
 public static byte[] GetBCDBytes(uint binaryValue)
@@ -636,7 +638,7 @@ Gets the BCD bytes.
 - Parameter `binaryValue`: The binary value.
 - Returns: A BCD-encoded byte array.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.GetBCDWord(System.Int16)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.GetBCDWord(System.Int16)`
 
 ```csharp
 public static short GetBCDWord(short binaryValue)
@@ -646,7 +648,7 @@ Gets the BCD word.
 - Parameter `binaryValue`: The binary value.
 - Returns: A BCD-encoded word.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.GetBCDWord(System.UInt16)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.GetBCDWord(System.UInt16)`
 
 ```csharp
 public static short GetBCDWord(ushort binaryValue)
@@ -656,7 +658,7 @@ Gets the BCD word.
 - Parameter `binaryValue`: The binary value.
 - Returns: A BCD-encoded word.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.GetBCDWords(System.Int32)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.GetBCDWords(System.Int32)`
 
 ```csharp
 public static short[] GetBCDWords(int binaryValue)
@@ -666,7 +668,7 @@ Gets the BCD words.
 - Parameter `binaryValue`: The binary value.
 - Returns: An array of two BCD-encoded words.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.GetBCDWords(System.UInt32)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.GetBCDWords(System.UInt32)`
 
 ```csharp
 public static short[] GetBCDWords(uint binaryValue)
@@ -676,7 +678,7 @@ Gets the BCD words.
 - Parameter `binaryValue`: The binary value.
 - Returns: An array of two BCD-encoded words.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.ToByte(System.Byte)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.ToByte(System.Byte)`
 
 ```csharp
 public static byte ToByte(byte bcdByte)
@@ -686,7 +688,7 @@ Converts to byte.
 - Parameter `bcdByte`: The BCD byte.
 - Returns: A byte representing the converted value.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.ToInt16(System.Byte[])`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.ToInt16(System.Byte[])`
 
 ```csharp
 public static short ToInt16(byte[] bcdBytes)
@@ -696,7 +698,7 @@ Converts to int16.
 - Parameter `bcdBytes`: The BCD bytes.
 - Returns: A short.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.ToInt16(System.Int16)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.ToInt16(System.Int16)`
 
 ```csharp
 public static short ToInt16(short bcdWord)
@@ -706,7 +708,7 @@ Converts to int16.
 - Parameter `bcdWord`: The BCD word.
 - Returns: A short.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.ToInt32(System.Byte[])`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.ToInt32(System.Byte[])`
 
 ```csharp
 public static int ToInt32(byte[] bcdBytes)
@@ -716,7 +718,7 @@ Converts to int32.
 - Parameter `bcdBytes`: The BCD bytes.
 - Returns: An int.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.ToInt32(System.Int16,System.Int16)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.ToInt32(System.Int16,System.Int16)`
 
 ```csharp
 public static int ToInt32(short bcdWord1, short bcdWord2)
@@ -727,7 +729,7 @@ Converts to int32.
 - Parameter `bcdWord2`: The BCD word2.
 - Returns: An int.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.ToUInt16(System.Byte[])`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.ToUInt16(System.Byte[])`
 
 ```csharp
 public static ushort ToUInt16(byte[] bcdBytes)
@@ -737,7 +739,7 @@ Converts to uint16.
 - Parameter `bcdBytes`: The BCD bytes.
 - Returns: A ushort.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.ToUInt16(System.Int16)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.ToUInt16(System.Int16)`
 
 ```csharp
 public static ushort ToUInt16(short bcdWord)
@@ -747,7 +749,7 @@ Converts to uint16.
 - Parameter `bcdWord`: The BCD word.
 - Returns: A ushort.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.ToUInt32(System.Byte[])`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.ToUInt32(System.Byte[])`
 
 ```csharp
 public static uint ToUInt32(byte[] bcdBytes)
@@ -757,7 +759,7 @@ Converts to uint32.
 - Parameter `bcdBytes`: The BCD bytes.
 - Returns: A uint.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Converters.BCDConverter.ToUInt32(System.Int16,System.Int16)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Converters.BCDConverter.ToUInt32(System.Int16,System.Int16)`
 
 ```csharp
 public static uint ToUInt32(short bcdWord1, short bcdWord2)
@@ -768,35 +770,35 @@ Converts to uint32.
 - Parameter `bcdWord2`: The BCD word2.
 - Returns: A uint.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16`
+#### `T:IoT.Driver.OmronPlcRx.Core.Types.Bcd16`
 
 ```csharp
-public struct IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16
+public struct IoT.Driver.OmronPlcRx.Core.Types.Bcd16
 ```
 Signed 16-bit BCD numeric wrapper.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16.#ctor(System.Int16)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.Bcd16.#ctor(System.Int16)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16(short value)
+public IoT.Driver.OmronPlcRx.Core.Types.Bcd16(short value)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16` struct.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.Core.Types.Bcd16` struct.
 
 - Parameter `value`: The signed value.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16.Equals(IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.Bcd16.Equals(IoT.Driver.OmronPlcRx.Core.Types.Bcd16)`
 
 ```csharp
-public bool Equals(IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16 other)
+public bool Equals(IoT.Driver.OmronPlcRx.Core.Types.Bcd16 other)
 ```
 Determines whether the supplied value is equal to the current value.
 
 - Parameter `other`: The `other` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16.Equals(System.Object)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.Bcd16.Equals(System.Object)`
 
 ```csharp
 public bool Equals(object obj)
@@ -806,7 +808,7 @@ Determines whether the supplied value is equal to the current value.
 - Parameter `obj`: The `obj` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16.GetHashCode`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.Bcd16.GetHashCode`
 
 ```csharp
 public int GetHashCode()
@@ -815,7 +817,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Returns: A `int` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16.ToString`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.Bcd16.ToString`
 
 ```csharp
 public string ToString()
@@ -824,10 +826,10 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Returns: A `string` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16.op_Equality(IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16,IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.Bcd16.op_Equality(IoT.Driver.OmronPlcRx.Core.Types.Bcd16,IoT.Driver.OmronPlcRx.Core.Types.Bcd16)`
 
 ```csharp
-public static bool op_Equality(IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16 left, IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16 right)
+public static bool op_Equality(IoT.Driver.OmronPlcRx.Core.Types.Bcd16 left, IoT.Driver.OmronPlcRx.Core.Types.Bcd16 right)
 ```
 Determines whether the two supplied values are equal.
 
@@ -835,10 +837,10 @@ Determines whether the two supplied values are equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16.op_Inequality(IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16,IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.Bcd16.op_Inequality(IoT.Driver.OmronPlcRx.Core.Types.Bcd16,IoT.Driver.OmronPlcRx.Core.Types.Bcd16)`
 
 ```csharp
-public static bool op_Inequality(IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16 left, IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16 right)
+public static bool op_Inequality(IoT.Driver.OmronPlcRx.Core.Types.Bcd16 left, IoT.Driver.OmronPlcRx.Core.Types.Bcd16 right)
 ```
 Determines whether the two supplied values are not equal.
 
@@ -846,7 +848,7 @@ Determines whether the two supplied values are not equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd16.Value`
+###### `P:IoT.Driver.OmronPlcRx.Core.Types.Bcd16.Value`
 
 ```csharp
 public short Value { get; }
@@ -855,35 +857,35 @@ Gets the numeric value.
 
 - Value: The `Value` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32`
+#### `T:IoT.Driver.OmronPlcRx.Core.Types.Bcd32`
 
 ```csharp
-public struct IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32
+public struct IoT.Driver.OmronPlcRx.Core.Types.Bcd32
 ```
 Signed 32-bit BCD numeric wrapper.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32.#ctor(System.Int32)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.Bcd32.#ctor(System.Int32)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32(int value)
+public IoT.Driver.OmronPlcRx.Core.Types.Bcd32(int value)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32` struct.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.Core.Types.Bcd32` struct.
 
 - Parameter `value`: The signed value.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32.Equals(IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.Bcd32.Equals(IoT.Driver.OmronPlcRx.Core.Types.Bcd32)`
 
 ```csharp
-public bool Equals(IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32 other)
+public bool Equals(IoT.Driver.OmronPlcRx.Core.Types.Bcd32 other)
 ```
 Determines whether the supplied value is equal to the current value.
 
 - Parameter `other`: The `other` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32.Equals(System.Object)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.Bcd32.Equals(System.Object)`
 
 ```csharp
 public bool Equals(object obj)
@@ -893,7 +895,7 @@ Determines whether the supplied value is equal to the current value.
 - Parameter `obj`: The `obj` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32.GetHashCode`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.Bcd32.GetHashCode`
 
 ```csharp
 public int GetHashCode()
@@ -902,7 +904,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Returns: A `int` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32.ToString`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.Bcd32.ToString`
 
 ```csharp
 public string ToString()
@@ -911,10 +913,10 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Returns: A `string` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32.op_Equality(IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32,IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.Bcd32.op_Equality(IoT.Driver.OmronPlcRx.Core.Types.Bcd32,IoT.Driver.OmronPlcRx.Core.Types.Bcd32)`
 
 ```csharp
-public static bool op_Equality(IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32 left, IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32 right)
+public static bool op_Equality(IoT.Driver.OmronPlcRx.Core.Types.Bcd32 left, IoT.Driver.OmronPlcRx.Core.Types.Bcd32 right)
 ```
 Determines whether the two supplied values are equal.
 
@@ -922,10 +924,10 @@ Determines whether the two supplied values are equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32.op_Inequality(IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32,IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.Bcd32.op_Inequality(IoT.Driver.OmronPlcRx.Core.Types.Bcd32,IoT.Driver.OmronPlcRx.Core.Types.Bcd32)`
 
 ```csharp
-public static bool op_Inequality(IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32 left, IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32 right)
+public static bool op_Inequality(IoT.Driver.OmronPlcRx.Core.Types.Bcd32 left, IoT.Driver.OmronPlcRx.Core.Types.Bcd32 right)
 ```
 Determines whether the two supplied values are not equal.
 
@@ -933,7 +935,7 @@ Determines whether the two supplied values are not equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Core.Types.Bcd32.Value`
+###### `P:IoT.Driver.OmronPlcRx.Core.Types.Bcd32.Value`
 
 ```csharp
 public int Value { get; }
@@ -942,35 +944,35 @@ Gets the numeric value.
 
 - Value: The `Value` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16`
+#### `T:IoT.Driver.OmronPlcRx.Core.Types.BcdU16`
 
 ```csharp
-public struct IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16
+public struct IoT.Driver.OmronPlcRx.Core.Types.BcdU16
 ```
 Unsigned 16-bit BCD numeric wrapper.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16.#ctor(System.UInt16)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.BcdU16.#ctor(System.UInt16)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16(ushort value)
+public IoT.Driver.OmronPlcRx.Core.Types.BcdU16(ushort value)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16` struct.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.Core.Types.BcdU16` struct.
 
 - Parameter `value`: The unsigned value.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16.Equals(IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.BcdU16.Equals(IoT.Driver.OmronPlcRx.Core.Types.BcdU16)`
 
 ```csharp
-public bool Equals(IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16 other)
+public bool Equals(IoT.Driver.OmronPlcRx.Core.Types.BcdU16 other)
 ```
 Determines whether the supplied value is equal to the current value.
 
 - Parameter `other`: The `other` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16.Equals(System.Object)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.BcdU16.Equals(System.Object)`
 
 ```csharp
 public bool Equals(object obj)
@@ -980,7 +982,7 @@ Determines whether the supplied value is equal to the current value.
 - Parameter `obj`: The `obj` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16.GetHashCode`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.BcdU16.GetHashCode`
 
 ```csharp
 public int GetHashCode()
@@ -989,7 +991,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Returns: A `int` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16.ToString`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.BcdU16.ToString`
 
 ```csharp
 public string ToString()
@@ -998,10 +1000,10 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Returns: A `string` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16.op_Equality(IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16,IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.BcdU16.op_Equality(IoT.Driver.OmronPlcRx.Core.Types.BcdU16,IoT.Driver.OmronPlcRx.Core.Types.BcdU16)`
 
 ```csharp
-public static bool op_Equality(IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16 left, IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16 right)
+public static bool op_Equality(IoT.Driver.OmronPlcRx.Core.Types.BcdU16 left, IoT.Driver.OmronPlcRx.Core.Types.BcdU16 right)
 ```
 Determines whether the two supplied values are equal.
 
@@ -1009,10 +1011,10 @@ Determines whether the two supplied values are equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16.op_Inequality(IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16,IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.BcdU16.op_Inequality(IoT.Driver.OmronPlcRx.Core.Types.BcdU16,IoT.Driver.OmronPlcRx.Core.Types.BcdU16)`
 
 ```csharp
-public static bool op_Inequality(IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16 left, IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16 right)
+public static bool op_Inequality(IoT.Driver.OmronPlcRx.Core.Types.BcdU16 left, IoT.Driver.OmronPlcRx.Core.Types.BcdU16 right)
 ```
 Determines whether the two supplied values are not equal.
 
@@ -1020,7 +1022,7 @@ Determines whether the two supplied values are not equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU16.Value`
+###### `P:IoT.Driver.OmronPlcRx.Core.Types.BcdU16.Value`
 
 ```csharp
 public ushort Value { get; }
@@ -1029,35 +1031,35 @@ Gets the numeric value.
 
 - Value: The `Value` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32`
+#### `T:IoT.Driver.OmronPlcRx.Core.Types.BcdU32`
 
 ```csharp
-public struct IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32
+public struct IoT.Driver.OmronPlcRx.Core.Types.BcdU32
 ```
 Unsigned 32-bit BCD numeric wrapper.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32.#ctor(System.UInt32)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.BcdU32.#ctor(System.UInt32)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32(uint value)
+public IoT.Driver.OmronPlcRx.Core.Types.BcdU32(uint value)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32` struct.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.Core.Types.BcdU32` struct.
 
 - Parameter `value`: The unsigned value.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32.Equals(IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.BcdU32.Equals(IoT.Driver.OmronPlcRx.Core.Types.BcdU32)`
 
 ```csharp
-public bool Equals(IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32 other)
+public bool Equals(IoT.Driver.OmronPlcRx.Core.Types.BcdU32 other)
 ```
 Determines whether the supplied value is equal to the current value.
 
 - Parameter `other`: The `other` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32.Equals(System.Object)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.BcdU32.Equals(System.Object)`
 
 ```csharp
 public bool Equals(object obj)
@@ -1067,7 +1069,7 @@ Determines whether the supplied value is equal to the current value.
 - Parameter `obj`: The `obj` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32.GetHashCode`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.BcdU32.GetHashCode`
 
 ```csharp
 public int GetHashCode()
@@ -1076,7 +1078,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Returns: A `int` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32.ToString`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.BcdU32.ToString`
 
 ```csharp
 public string ToString()
@@ -1085,10 +1087,10 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Returns: A `string` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32.op_Equality(IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32,IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.BcdU32.op_Equality(IoT.Driver.OmronPlcRx.Core.Types.BcdU32,IoT.Driver.OmronPlcRx.Core.Types.BcdU32)`
 
 ```csharp
-public static bool op_Equality(IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32 left, IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32 right)
+public static bool op_Equality(IoT.Driver.OmronPlcRx.Core.Types.BcdU32 left, IoT.Driver.OmronPlcRx.Core.Types.BcdU32 right)
 ```
 Determines whether the two supplied values are equal.
 
@@ -1096,10 +1098,10 @@ Determines whether the two supplied values are equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32.op_Inequality(IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32,IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32)`
+###### `M:IoT.Driver.OmronPlcRx.Core.Types.BcdU32.op_Inequality(IoT.Driver.OmronPlcRx.Core.Types.BcdU32,IoT.Driver.OmronPlcRx.Core.Types.BcdU32)`
 
 ```csharp
-public static bool op_Inequality(IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32 left, IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32 right)
+public static bool op_Inequality(IoT.Driver.OmronPlcRx.Core.Types.BcdU32 left, IoT.Driver.OmronPlcRx.Core.Types.BcdU32 right)
 ```
 Determines whether the two supplied values are not equal.
 
@@ -1107,7 +1109,7 @@ Determines whether the two supplied values are not equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Core.Types.BcdU32.Value`
+###### `P:IoT.Driver.OmronPlcRx.Core.Types.BcdU32.Value`
 
 ```csharp
 public uint Value { get; }
@@ -1116,292 +1118,292 @@ Gets the numeric value.
 
 - Value: The `Value` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Enums.ConnectionMethod`
+#### `T:IoT.Driver.OmronPlcRx.Enums.ConnectionMethod`
 
 ```csharp
-public enum IoT.DriverCore.OmronPlcRx.Enums.ConnectionMethod
+public enum IoT.Driver.OmronPlcRx.Enums.ConnectionMethod
 ```
 Transport protocol used for communication with the PLC.
 
 ##### Declared public members
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.ConnectionMethod.Serial`
+###### `F:IoT.Driver.OmronPlcRx.Enums.ConnectionMethod.Serial`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.ConnectionMethod Serial
+public static const IoT.Driver.OmronPlcRx.Enums.ConnectionMethod Serial
 ```
 Serial FINS protocol using Host Link FINS or Toolbus framing.
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.ConnectionMethod.TCP`
+###### `F:IoT.Driver.OmronPlcRx.Enums.ConnectionMethod.TCP`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.ConnectionMethod TCP
+public static const IoT.Driver.OmronPlcRx.Enums.ConnectionMethod TCP
 ```
 Transmission Control Protocol.
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.ConnectionMethod.UDP`
+###### `F:IoT.Driver.OmronPlcRx.Enums.ConnectionMethod.UDP`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.ConnectionMethod UDP
+public static const IoT.Driver.OmronPlcRx.Enums.ConnectionMethod UDP
 ```
 User Datagram Protocol.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Enums.MemoryBitDataType`
+#### `T:IoT.Driver.OmronPlcRx.Enums.MemoryBitDataType`
 
 ```csharp
-public enum IoT.DriverCore.OmronPlcRx.Enums.MemoryBitDataType
+public enum IoT.Driver.OmronPlcRx.Enums.MemoryBitDataType
 ```
 Bit-addressable PLC memory areas.
 
 ##### Declared public members
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.MemoryBitDataType.Auxiliary`
+###### `F:IoT.Driver.OmronPlcRx.Enums.MemoryBitDataType.Auxiliary`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.MemoryBitDataType Auxiliary
+public static const IoT.Driver.OmronPlcRx.Enums.MemoryBitDataType Auxiliary
 ```
 Auxiliary area (A).
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.MemoryBitDataType.CommonIO`
+###### `F:IoT.Driver.OmronPlcRx.Enums.MemoryBitDataType.CommonIO`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.MemoryBitDataType CommonIO
+public static const IoT.Driver.OmronPlcRx.Enums.MemoryBitDataType CommonIO
 ```
 Common I/O area (CIO).
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.MemoryBitDataType.DataMemory`
+###### `F:IoT.Driver.OmronPlcRx.Enums.MemoryBitDataType.DataMemory`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.MemoryBitDataType DataMemory
+public static const IoT.Driver.OmronPlcRx.Enums.MemoryBitDataType DataMemory
 ```
 Data memory area (DM).
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.MemoryBitDataType.Holding`
+###### `F:IoT.Driver.OmronPlcRx.Enums.MemoryBitDataType.Holding`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.MemoryBitDataType Holding
+public static const IoT.Driver.OmronPlcRx.Enums.MemoryBitDataType Holding
 ```
 Holding area (H).
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.MemoryBitDataType.None`
+###### `F:IoT.Driver.OmronPlcRx.Enums.MemoryBitDataType.None`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.MemoryBitDataType None
+public static const IoT.Driver.OmronPlcRx.Enums.MemoryBitDataType None
 ```
 No bit-addressable memory area.
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.MemoryBitDataType.Work`
+###### `F:IoT.Driver.OmronPlcRx.Enums.MemoryBitDataType.Work`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.MemoryBitDataType Work
+public static const IoT.Driver.OmronPlcRx.Enums.MemoryBitDataType Work
 ```
 Work area (W).
 
-#### `T:IoT.DriverCore.OmronPlcRx.Enums.MemoryWordDataType`
+#### `T:IoT.Driver.OmronPlcRx.Enums.MemoryWordDataType`
 
 ```csharp
-public enum IoT.DriverCore.OmronPlcRx.Enums.MemoryWordDataType
+public enum IoT.Driver.OmronPlcRx.Enums.MemoryWordDataType
 ```
 Word-addressable PLC memory areas.
 
 ##### Declared public members
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.MemoryWordDataType.Auxiliary`
+###### `F:IoT.Driver.OmronPlcRx.Enums.MemoryWordDataType.Auxiliary`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.MemoryWordDataType Auxiliary
+public static const IoT.Driver.OmronPlcRx.Enums.MemoryWordDataType Auxiliary
 ```
 Auxiliary area (A).
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.MemoryWordDataType.CommonIO`
+###### `F:IoT.Driver.OmronPlcRx.Enums.MemoryWordDataType.CommonIO`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.MemoryWordDataType CommonIO
+public static const IoT.Driver.OmronPlcRx.Enums.MemoryWordDataType CommonIO
 ```
 Common I/O area (CIO).
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.MemoryWordDataType.DataMemory`
+###### `F:IoT.Driver.OmronPlcRx.Enums.MemoryWordDataType.DataMemory`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.MemoryWordDataType DataMemory
+public static const IoT.Driver.OmronPlcRx.Enums.MemoryWordDataType DataMemory
 ```
 Data memory area (DM).
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.MemoryWordDataType.Holding`
+###### `F:IoT.Driver.OmronPlcRx.Enums.MemoryWordDataType.Holding`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.MemoryWordDataType Holding
+public static const IoT.Driver.OmronPlcRx.Enums.MemoryWordDataType Holding
 ```
 Holding area (H).
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.MemoryWordDataType.None`
+###### `F:IoT.Driver.OmronPlcRx.Enums.MemoryWordDataType.None`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.MemoryWordDataType None
+public static const IoT.Driver.OmronPlcRx.Enums.MemoryWordDataType None
 ```
 No word-addressable memory area.
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.MemoryWordDataType.Work`
+###### `F:IoT.Driver.OmronPlcRx.Enums.MemoryWordDataType.Work`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.MemoryWordDataType Work
+public static const IoT.Driver.OmronPlcRx.Enums.MemoryWordDataType Work
 ```
 Work area (W).
 
-#### `T:IoT.DriverCore.OmronPlcRx.Enums.PlcType`
+#### `T:IoT.Driver.OmronPlcRx.Enums.PlcType`
 
 ```csharp
-public enum IoT.DriverCore.OmronPlcRx.Enums.PlcType
+public enum IoT.Driver.OmronPlcRx.Enums.PlcType
 ```
 Supported Omron PLC types used to adjust message capabilities and limits.
 
 ##### Declared public members
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.PlcType.CJ2`
+###### `F:IoT.Driver.OmronPlcRx.Enums.PlcType.CJ2`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.PlcType CJ2
+public static const IoT.Driver.OmronPlcRx.Enums.PlcType CJ2
 ```
 Omron CJ2 series.
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.PlcType.CP1`
+###### `F:IoT.Driver.OmronPlcRx.Enums.PlcType.CP1`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.PlcType CP1
+public static const IoT.Driver.OmronPlcRx.Enums.PlcType CP1
 ```
 Omron CP1 series.
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.PlcType.C_Series`
+###### `F:IoT.Driver.OmronPlcRx.Enums.PlcType.C_Series`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.PlcType C_Series
+public static const IoT.Driver.OmronPlcRx.Enums.PlcType C_Series
 ```
 Omron C-series (legacy).
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.PlcType.NJ101`
+###### `F:IoT.Driver.OmronPlcRx.Enums.PlcType.NJ101`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.PlcType NJ101
+public static const IoT.Driver.OmronPlcRx.Enums.PlcType NJ101
 ```
 Omron NJ101 series.
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.PlcType.NJ301`
+###### `F:IoT.Driver.OmronPlcRx.Enums.PlcType.NJ301`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.PlcType NJ301
+public static const IoT.Driver.OmronPlcRx.Enums.PlcType NJ301
 ```
 Omron NJ301 series.
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.PlcType.NJ501`
+###### `F:IoT.Driver.OmronPlcRx.Enums.PlcType.NJ501`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.PlcType NJ501
+public static const IoT.Driver.OmronPlcRx.Enums.PlcType NJ501
 ```
 Omron NJ501 series.
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.PlcType.NJ_NX_NY_Series`
+###### `F:IoT.Driver.OmronPlcRx.Enums.PlcType.NJ_NX_NY_Series`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.PlcType NJ_NX_NY_Series
+public static const IoT.Driver.OmronPlcRx.Enums.PlcType NJ_NX_NY_Series
 ```
 Generic NJ/NX/NY series.
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.PlcType.NX102`
+###### `F:IoT.Driver.OmronPlcRx.Enums.PlcType.NX102`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.PlcType NX102
+public static const IoT.Driver.OmronPlcRx.Enums.PlcType NX102
 ```
 Omron NX102 series.
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.PlcType.NX1P2`
+###### `F:IoT.Driver.OmronPlcRx.Enums.PlcType.NX1P2`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.PlcType NX1P2
+public static const IoT.Driver.OmronPlcRx.Enums.PlcType NX1P2
 ```
 Omron NX1P2 series.
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.PlcType.NX701`
+###### `F:IoT.Driver.OmronPlcRx.Enums.PlcType.NX701`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.PlcType NX701
+public static const IoT.Driver.OmronPlcRx.Enums.PlcType NX701
 ```
 Omron NX701 series.
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.PlcType.NY512`
+###### `F:IoT.Driver.OmronPlcRx.Enums.PlcType.NY512`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.PlcType NY512
+public static const IoT.Driver.OmronPlcRx.Enums.PlcType NY512
 ```
 Omron NY512 series.
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.PlcType.NY532`
+###### `F:IoT.Driver.OmronPlcRx.Enums.PlcType.NY532`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.PlcType NY532
+public static const IoT.Driver.OmronPlcRx.Enums.PlcType NY532
 ```
 Omron NY532 series.
 
-###### `F:IoT.DriverCore.OmronPlcRx.Enums.PlcType.Unknown`
+###### `F:IoT.Driver.OmronPlcRx.Enums.PlcType.Unknown`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.Enums.PlcType Unknown
+public static const IoT.Driver.OmronPlcRx.Enums.PlcType Unknown
 ```
 Unknown or not yet identified.
 
-#### `T:IoT.DriverCore.OmronPlcRx.FINSException`
+#### `T:IoT.Driver.OmronPlcRx.FINSException`
 
 ```csharp
-public class IoT.DriverCore.OmronPlcRx.FINSException
+public class IoT.Driver.OmronPlcRx.FINSException
 ```
 An exception that represents a FINS protocol error or invalid response.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.FINSException.#ctor`
+###### `M:IoT.Driver.OmronPlcRx.FINSException.#ctor`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.FINSException()
+public IoT.Driver.OmronPlcRx.FINSException()
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.FINSException` class.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.FINSException` class.
 
-###### `M:IoT.DriverCore.OmronPlcRx.FINSException.#ctor(System.String)`
+###### `M:IoT.Driver.OmronPlcRx.FINSException.#ctor(System.String)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.FINSException(string message)
+public IoT.Driver.OmronPlcRx.FINSException(string message)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.FINSException` class with a message.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.FINSException` class with a message.
 
 - Parameter `message`: The message that describes the error.
 
-###### `M:IoT.DriverCore.OmronPlcRx.FINSException.#ctor(System.String,System.Exception)`
+###### `M:IoT.Driver.OmronPlcRx.FINSException.#ctor(System.String,System.Exception)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.FINSException(string message, System.Exception innerException)
+public IoT.Driver.OmronPlcRx.FINSException(string message, System.Exception innerException)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.FINSException` class.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.FINSException` class.
 
 - Parameter `message`: The error message that explains the reason for the exception.
 - Parameter `innerException`: The exception that caused the current exception.
 
-#### `T:IoT.DriverCore.OmronPlcRx.HostLinkFinsFrameCodec`
+#### `T:IoT.Driver.OmronPlcRx.HostLinkFinsFrameCodec`
 
 ```csharp
-public class IoT.DriverCore.OmronPlcRx.HostLinkFinsFrameCodec
+public class IoT.Driver.OmronPlcRx.HostLinkFinsFrameCodec
 ```
 Encodes and decodes Omron FINS frames carried in Host Link serial frames.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.HostLinkFinsFrameCodec.#ctor(IoT.DriverCore.OmronPlcRx.OmronSerialOptions)`
+###### `M:IoT.Driver.OmronPlcRx.HostLinkFinsFrameCodec.#ctor(IoT.Driver.OmronPlcRx.OmronSerialOptions)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.HostLinkFinsFrameCodec(IoT.DriverCore.OmronPlcRx.OmronSerialOptions options)
+public IoT.Driver.OmronPlcRx.HostLinkFinsFrameCodec(IoT.Driver.OmronPlcRx.OmronSerialOptions options)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.HostLinkFinsFrameCodec` class.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.HostLinkFinsFrameCodec` class.
 
 - Parameter `options`: Serial Host Link options.
 
-###### `M:IoT.DriverCore.OmronPlcRx.HostLinkFinsFrameCodec.CalculateFcs(System.String)`
+###### `M:IoT.Driver.OmronPlcRx.HostLinkFinsFrameCodec.CalculateFcs(System.String)`
 
 ```csharp
 public static string CalculateFcs(string frameText)
@@ -1411,7 +1413,7 @@ Calculates the Host Link frame-check sequence.
 - Parameter `frameText`: Frame text from @ through the final text character, excluding FCS and terminator.
 - Returns: Two-character uppercase hexadecimal FCS.
 
-###### `M:IoT.DriverCore.OmronPlcRx.HostLinkFinsFrameCodec.DecodeResponse(System.String)`
+###### `M:IoT.Driver.OmronPlcRx.HostLinkFinsFrameCodec.DecodeResponse(System.String)`
 
 ```csharp
 public System.Memory<byte> DecodeResponse(string frame)
@@ -1421,7 +1423,7 @@ Decodes an ASCII Host Link FINS response into a binary FINS response message.
 - Parameter `frame`: ASCII Host Link FINS response frame including FCS and terminator.
 - Returns: Binary FINS response message.
 
-###### `M:IoT.DriverCore.OmronPlcRx.HostLinkFinsFrameCodec.EncodeRequest(System.ReadOnlyMemory`1{System.Byte})`
+###### `M:IoT.Driver.OmronPlcRx.HostLinkFinsFrameCodec.EncodeRequest(System.ReadOnlyMemory`1{System.Byte})`
 
 ```csharp
 public string EncodeRequest(System.ReadOnlyMemory<byte> finsMessage)
@@ -1431,68 +1433,68 @@ Executes the `EncodeRequest` operation.
 - Parameter `finsMessage`: The `finsMessage` value.
 - Returns: A `string` result.
 
-#### `T:IoT.DriverCore.OmronPlcRx.IOmronPlcRx`
+#### `T:IoT.Driver.OmronPlcRx.IOmronPlcRx`
 
 ```csharp
-public interface IoT.DriverCore.OmronPlcRx.IOmronPlcRx
+public interface IoT.Driver.OmronPlcRx.IOmronPlcRx
 ```
 Defines high-level Omron PLC operations and tag access.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.IOmronPlcRx.AddUpdateTagItem``1(IoT.DriverCore.OmronPlcRx.Tags.PlcTag`1{``0})`
+###### `M:IoT.Driver.OmronPlcRx.IOmronPlcRx.AddUpdateTagItem``1(IoT.Driver.OmronPlcRx.Tags.PlcTag`1{``0})`
 
 ```csharp
-public void AddUpdateTagItem<T>(IoT.DriverCore.OmronPlcRx.Tags.PlcTag<T> tag)
+public void AddUpdateTagItem<T>(IoT.Driver.OmronPlcRx.Tags.PlcTag<T> tag)
 ```
 Executes the `AddUpdateTagItem` operation.
 
 - Parameter `tag`: The `tag` value.
 
-###### `M:IoT.DriverCore.OmronPlcRx.IOmronPlcRx.GetValue``1(IoT.DriverCore.Core.LogicalTagKey`1{``0})`
+###### `M:IoT.Driver.OmronPlcRx.IOmronPlcRx.GetValue``1(IoT.Driver.Core.LogicalTagKey`1{``0})`
 
 ```csharp
-public T GetValue<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag)
+public T GetValue<T>(IoT.Driver.Core.LogicalTagKey<T> tag)
 ```
 Executes the `GetValue` operation.
 
 - Parameter `tag`: The `tag` value.
 - Returns: A `T` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.IOmronPlcRx.Observe``1(IoT.DriverCore.Core.LogicalTagKey`1{``0})`
+###### `M:IoT.Driver.OmronPlcRx.IOmronPlcRx.Observe``1(IoT.Driver.Core.LogicalTagKey`1{``0})`
 
 ```csharp
-public System.IObservable<T> Observe<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag)
+public System.IObservable<T> Observe<T>(IoT.Driver.Core.LogicalTagKey<T> tag)
 ```
 Executes the `Observe` operation.
 
 - Parameter `tag`: The `tag` value.
 - Returns: A `System.IObservable<T>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.IOmronPlcRx.ReadClockAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.IOmronPlcRx.ReadClockAsync(System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.OmronPlcRx.Results.ReadClockResult> ReadClockAsync(System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.OmronPlcRx.Results.ReadClockResult> ReadClockAsync(System.Threading.CancellationToken cancellationToken)
 ```
 Reads the PLC real-time clock.
 
 - Parameter `cancellationToken`: Cancellation token.
 - Returns: Clock read result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.IOmronPlcRx.ReadCycleTimeAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.IOmronPlcRx.ReadCycleTimeAsync(System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult> ReadCycleTimeAsync(System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult> ReadCycleTimeAsync(System.Threading.CancellationToken cancellationToken)
 ```
 Reads PLC scan cycle time statistics.
 
 - Parameter `cancellationToken`: Cancellation token.
 - Returns: Cycle time statistics.
 
-###### `M:IoT.DriverCore.OmronPlcRx.IOmronPlcRx.ReadValueAsync``1(IoT.DriverCore.Core.LogicalTagKey`1{``0},System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.IOmronPlcRx.ReadValueAsync``1(IoT.Driver.Core.LogicalTagKey`1{``0},System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<T> ReadValueAsync<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<T> ReadValueAsync<T>(IoT.Driver.Core.LogicalTagKey<T> tag, System.Threading.CancellationToken cancellationToken)
 ```
 Executes the `ReadValueAsync` operation.
 
@@ -1500,7 +1502,7 @@ Executes the `ReadValueAsync` operation.
 - Parameter `cancellationToken`: The `cancellationToken` value.
 - Returns: A `System.Threading.Tasks.Task<T>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.IOmronPlcRx.RemoveTagItem(System.String)`
+###### `M:IoT.Driver.OmronPlcRx.IOmronPlcRx.RemoveTagItem(System.String)`
 
 ```csharp
 public bool RemoveTagItem(string tagName)
@@ -1510,20 +1512,20 @@ Removes a registered tag definition.
 - Parameter `tagName`: Logical tag name.
 - Returns: when a tag was removed.
 
-###### `M:IoT.DriverCore.OmronPlcRx.IOmronPlcRx.SetValue``1(IoT.DriverCore.Core.LogicalTagKey`1{``0},``0)`
+###### `M:IoT.Driver.OmronPlcRx.IOmronPlcRx.SetValue``1(IoT.Driver.Core.LogicalTagKey`1{``0},``0)`
 
 ```csharp
-public void SetValue<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag, T value)
+public void SetValue<T>(IoT.Driver.Core.LogicalTagKey<T> tag, T value)
 ```
 Executes the `SetValue` operation.
 
 - Parameter `tag`: The `tag` value.
 - Parameter `value`: The `value` value.
 
-###### `M:IoT.DriverCore.OmronPlcRx.IOmronPlcRx.WriteClockAsync(System.DateTimeOffset,System.Int32,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.IOmronPlcRx.WriteClockAsync(System.DateTimeOffset,System.Int32,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.OmronPlcRx.Results.WriteClockResult> WriteClockAsync(System.DateTimeOffset newDateTime, int newDayOfWeek, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.OmronPlcRx.Results.WriteClockResult> WriteClockAsync(System.DateTimeOffset newDateTime, int newDayOfWeek, System.Threading.CancellationToken cancellationToken)
 ```
 Writes the PLC real-time clock with explicit day-of-week.
 
@@ -1532,10 +1534,10 @@ Writes the PLC real-time clock with explicit day-of-week.
 - Parameter `cancellationToken`: Cancellation token.
 - Returns: Clock write result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.IOmronPlcRx.WriteClockAsync(System.DateTimeOffset,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.IOmronPlcRx.WriteClockAsync(System.DateTimeOffset,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.OmronPlcRx.Results.WriteClockResult> WriteClockAsync(System.DateTimeOffset newDateTime, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.OmronPlcRx.Results.WriteClockResult> WriteClockAsync(System.DateTimeOffset newDateTime, System.Threading.CancellationToken cancellationToken)
 ```
 Writes the PLC real-time clock (day-of-week inferred from date).
 
@@ -1543,10 +1545,10 @@ Writes the PLC real-time clock (day-of-week inferred from date).
 - Parameter `cancellationToken`: Cancellation token.
 - Returns: Clock write result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.IOmronPlcRx.WriteValueAsync``1(IoT.DriverCore.Core.LogicalTagKey`1{``0},``0,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.IOmronPlcRx.WriteValueAsync``1(IoT.Driver.Core.LogicalTagKey`1{``0},``0,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task WriteValueAsync<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag, T value, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task WriteValueAsync<T>(IoT.Driver.Core.LogicalTagKey<T> tag, T value, System.Threading.CancellationToken cancellationToken)
 ```
 Executes the `WriteValueAsync` operation.
 
@@ -1555,7 +1557,7 @@ Executes the `WriteValueAsync` operation.
 - Parameter `cancellationToken`: The `cancellationToken` value.
 - Returns: A `System.Threading.Tasks.Task` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.IOmronPlcRx.ControllerModel`
+###### `P:IoT.Driver.OmronPlcRx.IOmronPlcRx.ControllerModel`
 
 ```csharp
 public string ControllerModel { get; }
@@ -1564,7 +1566,7 @@ Gets the PLC controller model string.
 
 - Value: The `ControllerModel` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.IOmronPlcRx.ControllerVersion`
+###### `P:IoT.Driver.OmronPlcRx.IOmronPlcRx.ControllerVersion`
 
 ```csharp
 public string ControllerVersion { get; }
@@ -1573,46 +1575,46 @@ Gets the PLC controller version string.
 
 - Value: The `ControllerVersion` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.IOmronPlcRx.Errors`
+###### `P:IoT.Driver.OmronPlcRx.IOmronPlcRx.Errors`
 
 ```csharp
-public System.IObservable<IoT.DriverCore.OmronPlcRx.OmronPLCException> Errors { get; }
+public System.IObservable<IoT.Driver.OmronPlcRx.OmronPLCException> Errors { get; }
 ```
 Gets an observable of operational errors.
 
 - Value: The `Errors` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.IOmronPlcRx.ObserveAll`
+###### `P:IoT.Driver.OmronPlcRx.IOmronPlcRx.ObserveAll`
 
 ```csharp
-public System.IObservable<IoT.DriverCore.OmronPlcRx.Tags.IPlcTag> ObserveAll { get; }
+public System.IObservable<IoT.Driver.OmronPlcRx.Tags.IPlcTag> ObserveAll { get; }
 ```
 Gets an observable of all tag change events.
 
 - Value: The `ObserveAll` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.IOmronPlcRx.PlcType`
+###### `P:IoT.Driver.OmronPlcRx.IOmronPlcRx.PlcType`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.Enums.PlcType PlcType { get; }
+public IoT.Driver.OmronPlcRx.Enums.PlcType PlcType { get; }
 ```
 Gets the detected PLC type.
 
 - Value: The `PlcType` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.OmronConnectionOptions`
+#### `T:IoT.Driver.OmronPlcRx.OmronConnectionOptions`
 
 ```csharp
-public class IoT.DriverCore.OmronPlcRx.OmronConnectionOptions
+public class IoT.Driver.OmronPlcRx.OmronConnectionOptions
 ```
 Configures an Omron PLC transport connection.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronConnectionOptions.#ctor(System.Byte,System.Byte,IoT.DriverCore.OmronPlcRx.Enums.ConnectionMethod,System.String)`
+###### `M:IoT.Driver.OmronPlcRx.OmronConnectionOptions.#ctor(System.Byte,System.Byte,IoT.Driver.OmronPlcRx.Enums.ConnectionMethod,System.String)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronConnectionOptions(byte localNodeId, byte remoteNodeId, IoT.DriverCore.OmronPlcRx.Enums.ConnectionMethod connectionMethod, string remoteHost)
+public IoT.Driver.OmronPlcRx.OmronConnectionOptions(byte localNodeId, byte remoteNodeId, IoT.Driver.OmronPlcRx.Enums.ConnectionMethod connectionMethod, string remoteHost)
 ```
 Configures an Omron PLC transport connection.
 
@@ -1621,16 +1623,16 @@ Configures an Omron PLC transport connection.
 - Parameter `connectionMethod`: Transport to use.
 - Parameter `remoteHost`: PLC hostname, IP address, or serial port name.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronConnectionOptions.ConnectionMethod`
+###### `P:IoT.Driver.OmronPlcRx.OmronConnectionOptions.ConnectionMethod`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.Enums.ConnectionMethod ConnectionMethod { get; }
+public IoT.Driver.OmronPlcRx.Enums.ConnectionMethod ConnectionMethod { get; }
 ```
 Gets the transport to use.
 
 - Value: The `ConnectionMethod` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronConnectionOptions.LocalNodeId`
+###### `P:IoT.Driver.OmronPlcRx.OmronConnectionOptions.LocalNodeId`
 
 ```csharp
 public byte LocalNodeId { get; }
@@ -1639,7 +1641,7 @@ Gets the local FINS node identifier.
 
 - Value: The `LocalNodeId` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronConnectionOptions.Port`
+###### `P:IoT.Driver.OmronPlcRx.OmronConnectionOptions.Port`
 
 ```csharp
 public int Port { get; set; }
@@ -1648,7 +1650,7 @@ Gets or initializes the network service port.
 
 - Value: The `Port` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronConnectionOptions.RemoteHost`
+###### `P:IoT.Driver.OmronPlcRx.OmronConnectionOptions.RemoteHost`
 
 ```csharp
 public string RemoteHost { get; }
@@ -1657,7 +1659,7 @@ Gets the PLC hostname, IP address, or serial port name.
 
 - Value: The `RemoteHost` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronConnectionOptions.RemoteNodeId`
+###### `P:IoT.Driver.OmronPlcRx.OmronConnectionOptions.RemoteNodeId`
 
 ```csharp
 public byte RemoteNodeId { get; }
@@ -1666,7 +1668,7 @@ Gets the remote PLC FINS node identifier.
 
 - Value: The `RemoteNodeId` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronConnectionOptions.Retries`
+###### `P:IoT.Driver.OmronPlcRx.OmronConnectionOptions.Retries`
 
 ```csharp
 public int Retries { get; set; }
@@ -1675,16 +1677,16 @@ Gets or initializes the transient retry count.
 
 - Value: The `Retries` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronConnectionOptions.SerialOptions`
+###### `P:IoT.Driver.OmronPlcRx.OmronConnectionOptions.SerialOptions`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronSerialOptions SerialOptions { get; set; }
+public IoT.Driver.OmronPlcRx.OmronSerialOptions SerialOptions { get; set; }
 ```
 Gets or initializes serial transport settings.
 
 - Value: The `SerialOptions` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronConnectionOptions.Timeout`
+###### `P:IoT.Driver.OmronPlcRx.OmronConnectionOptions.Timeout`
 
 ```csharp
 public int Timeout { get; set; }
@@ -1693,92 +1695,92 @@ Gets or initializes the request timeout in milliseconds.
 
 - Value: The `Timeout` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.OmronHostLinkFinsFrameMode`
+#### `T:IoT.Driver.OmronPlcRx.OmronHostLinkFinsFrameMode`
 
 ```csharp
-public enum IoT.DriverCore.OmronPlcRx.OmronHostLinkFinsFrameMode
+public enum IoT.Driver.OmronPlcRx.OmronHostLinkFinsFrameMode
 ```
 Specifies the Host Link FINS frame layout used over serial communications.
 
 ##### Declared public members
 
-###### `F:IoT.DriverCore.OmronPlcRx.OmronHostLinkFinsFrameMode.Direct`
+###### `F:IoT.Driver.OmronPlcRx.OmronHostLinkFinsFrameMode.Direct`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.OmronHostLinkFinsFrameMode Direct
+public static const IoT.Driver.OmronPlcRx.OmronHostLinkFinsFrameMode Direct
 ```
 Directly connected host-computer-to-CPU format using ICF/DA2/SA2/SID fields.
 
-###### `F:IoT.DriverCore.OmronPlcRx.OmronHostLinkFinsFrameMode.Network`
+###### `F:IoT.Driver.OmronPlcRx.OmronHostLinkFinsFrameMode.Network`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.OmronHostLinkFinsFrameMode Network
+public static const IoT.Driver.OmronPlcRx.OmronHostLinkFinsFrameMode Network
 ```
 Network-capable format using the complete FINS header.
 
-#### `T:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient`
+#### `T:IoT.Driver.OmronPlcRx.OmronLogicalTagClient`
 
 ```csharp
-public class IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient
+public class IoT.Driver.OmronPlcRx.OmronLogicalTagClient
 ```
 Contains grouped FINS operations for the logical-tag client.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.#ctor(IoT.DriverCore.OmronPlcRx.IOmronPlcRx)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.#ctor(IoT.Driver.OmronPlcRx.IOmronPlcRx)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient(IoT.DriverCore.OmronPlcRx.IOmronPlcRx plc)
+public IoT.Driver.OmronPlcRx.OmronLogicalTagClient(IoT.Driver.OmronPlcRx.IOmronPlcRx plc)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient` class.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.OmronLogicalTagClient` class.
 
 - Parameter `plc`: Omron PLC facade used for protocol operations.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.#ctor(IoT.DriverCore.OmronPlcRx.IOmronPlcRx,IoT.DriverCore.Core.ILogicalTagCatalog)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.#ctor(IoT.Driver.OmronPlcRx.IOmronPlcRx,IoT.Driver.Core.ILogicalTagCatalog)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient(IoT.DriverCore.OmronPlcRx.IOmronPlcRx plc, IoT.DriverCore.Core.ILogicalTagCatalog catalog)
+public IoT.Driver.OmronPlcRx.OmronLogicalTagClient(IoT.Driver.OmronPlcRx.IOmronPlcRx plc, IoT.Driver.Core.ILogicalTagCatalog catalog)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient` class.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.OmronLogicalTagClient` class.
 
 - Parameter `plc`: Omron PLC facade used for protocol operations.
 - Parameter `catalog`: Logical-tag catalog.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.#ctor(IoT.DriverCore.OmronPlcRx.IOmronPlcRx,IoT.DriverCore.Core.ILogicalTagCatalog,IoT.DriverCore.Core.LogicalTagSqliteStore)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.#ctor(IoT.Driver.OmronPlcRx.IOmronPlcRx,IoT.Driver.Core.ILogicalTagCatalog,IoT.Driver.Core.LogicalTagSqliteStore)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient(IoT.DriverCore.OmronPlcRx.IOmronPlcRx plc, IoT.DriverCore.Core.ILogicalTagCatalog catalog, IoT.DriverCore.Core.LogicalTagSqliteStore store)
+public IoT.Driver.OmronPlcRx.OmronLogicalTagClient(IoT.Driver.OmronPlcRx.IOmronPlcRx plc, IoT.Driver.Core.ILogicalTagCatalog catalog, IoT.Driver.Core.LogicalTagSqliteStore store)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient` class.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.OmronLogicalTagClient` class.
 
 - Parameter `plc`: Omron PLC facade used for protocol operations.
 - Parameter `catalog`: Logical-tag catalog.
 - Parameter `store`: Optional SQLite store.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.#ctor(IoT.DriverCore.OmronPlcRx.IOmronPlcRx,System.String)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.#ctor(IoT.Driver.OmronPlcRx.IOmronPlcRx,System.String)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient(IoT.DriverCore.OmronPlcRx.IOmronPlcRx plc, string sqliteConnectionString)
+public IoT.Driver.OmronPlcRx.OmronLogicalTagClient(IoT.Driver.OmronPlcRx.IOmronPlcRx plc, string sqliteConnectionString)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient` class.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.OmronLogicalTagClient` class.
 
 - Parameter `plc`: Omron PLC facade used for protocol operations.
 - Parameter `sqliteConnectionString`: SQLite connection string.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.CreateTag``1(IoT.DriverCore.OmronPlcRx.Tags.PlcTag`1{``0})`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.CreateTag``1(IoT.Driver.OmronPlcRx.Tags.PlcTag`1{``0})`
 
 ```csharp
-public IoT.DriverCore.Core.LogicalTag CreateTag<T>(IoT.DriverCore.OmronPlcRx.Tags.PlcTag<T> tag)
+public IoT.Driver.Core.LogicalTag CreateTag<T>(IoT.Driver.OmronPlcRx.Tags.PlcTag<T> tag)
 ```
 Executes the `CreateTag` operation.
 
 - Parameter `tag`: The `tag` value.
-- Returns: A `IoT.DriverCore.Core.LogicalTag` result.
+- Returns: A `IoT.Driver.Core.LogicalTag` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.CreateTag``1(IoT.DriverCore.OmronPlcRx.Tags.PlcTag`1{``0},System.String,System.String,System.Collections.Generic.IReadOnlyDictionary`2{System.String,System.String},IoT.DriverCore.Core.LogicalTagAccessMode,System.Nullable`1{System.TimeSpan})`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.CreateTag``1(IoT.Driver.OmronPlcRx.Tags.PlcTag`1{``0},System.String,System.String,System.Collections.Generic.IReadOnlyDictionary`2{System.String,System.String},IoT.Driver.Core.LogicalTagAccessMode,System.Nullable`1{System.TimeSpan})`
 
 ```csharp
-public IoT.DriverCore.Core.LogicalTag CreateTag<T>(IoT.DriverCore.OmronPlcRx.Tags.PlcTag<T> tag, string groupName, string description, System.Collections.Generic.IReadOnlyDictionary<string, string> metadata, IoT.DriverCore.Core.LogicalTagAccessMode accessMode, System.Nullable<System.TimeSpan> scanInterval)
+public IoT.Driver.Core.LogicalTag CreateTag<T>(IoT.Driver.OmronPlcRx.Tags.PlcTag<T> tag, string groupName, string description, System.Collections.Generic.IReadOnlyDictionary<string, string> metadata, IoT.Driver.Core.LogicalTagAccessMode accessMode, System.Nullable<System.TimeSpan> scanInterval)
 ```
 Executes the `CreateTag` operation.
 
@@ -1788,9 +1790,9 @@ Executes the `CreateTag` operation.
 - Parameter `metadata`: The `metadata` value.
 - Parameter `accessMode`: The `accessMode` value.
 - Parameter `scanInterval`: The `scanInterval` value.
-- Returns: A `IoT.DriverCore.Core.LogicalTag` result.
+- Returns: A `IoT.Driver.Core.LogicalTag` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.DeleteGroupAsync(System.String,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.DeleteGroupAsync(System.String,System.Threading.CancellationToken)`
 
 ```csharp
 public System.Threading.Tasks.Task<bool> DeleteGroupAsync(string name, System.Threading.CancellationToken cancellationToken)
@@ -1801,7 +1803,7 @@ Deletes a persisted tag group.
 - Parameter `cancellationToken`: Token used to cancel the operation.
 - Returns: True when the persisted group existed; otherwise false.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.DeleteTagAsync(System.String,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.DeleteTagAsync(System.String,System.Threading.CancellationToken)`
 
 ```csharp
 public System.Threading.Tasks.Task<bool> DeleteTagAsync(string name, System.Threading.CancellationToken cancellationToken)
@@ -1812,17 +1814,17 @@ Deletes a persisted and registered tag.
 - Parameter `cancellationToken`: Token used to cancel the operation.
 - Returns: True when the persisted tag existed; otherwise false.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.Dispose`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.Dispose`
 
 ```csharp
 public void Dispose()
 ```
 Inherits XML documentation from its implemented or overridden member.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.EditTagAsync(IoT.DriverCore.Core.LogicalTag,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.EditTagAsync(IoT.Driver.Core.LogicalTag,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<bool> EditTagAsync(IoT.DriverCore.Core.LogicalTag tag, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<bool> EditTagAsync(IoT.Driver.Core.LogicalTag tag, System.Threading.CancellationToken cancellationToken)
 ```
 Edits an existing persisted tag and refreshes its registration.
 
@@ -1830,7 +1832,7 @@ Edits an existing persisted tag and refreshes its registration.
 - Parameter `cancellationToken`: Token used to cancel the operation.
 - Returns: True when the persisted tag existed; otherwise false.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.ExportCsvAsync(System.IO.TextWriter,System.Char,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.ExportCsvAsync(System.IO.TextWriter,System.Char,System.Threading.CancellationToken)`
 
 ```csharp
 public System.Threading.Tasks.Task ExportCsvAsync(System.IO.TextWriter writer, char delimiter, System.Threading.CancellationToken cancellationToken)
@@ -1842,10 +1844,10 @@ Exports the current catalog as RFC 4180 CSV.
 - Parameter `cancellationToken`: Token used to cancel the export.
 - Returns: A task representing the export.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.GetGroupAsync(System.String,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.GetGroupAsync(System.String,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.Core.LogicalTagGroup> GetGroupAsync(string name, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.Core.LogicalTagGroup> GetGroupAsync(string name, System.Threading.CancellationToken cancellationToken)
 ```
 Gets a persisted tag group.
 
@@ -1853,10 +1855,10 @@ Gets a persisted tag group.
 - Parameter `cancellationToken`: Token used to cancel the query.
 - Returns: The matching group when present; otherwise null.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.GetTagAsync(System.String,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.GetTagAsync(System.String,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.Core.LogicalTag> GetTagAsync(string name, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.Core.LogicalTag> GetTagAsync(string name, System.Threading.CancellationToken cancellationToken)
 ```
 Gets a persisted tag by name.
 
@@ -1864,10 +1866,10 @@ Gets a persisted tag by name.
 - Parameter `cancellationToken`: Token used to cancel the query.
 - Returns: The matching tag when present; otherwise null.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.ImportCsvAsync(System.IO.TextReader,System.Char,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.ImportCsvAsync(System.IO.TextReader,System.Char,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> ImportCsvAsync(System.IO.TextReader reader, char delimiter, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTag>> ImportCsvAsync(System.IO.TextReader reader, char delimiter, System.Threading.CancellationToken cancellationToken)
 ```
 Imports RFC 4180 CSV definitions and registers them dynamically.
 
@@ -1876,7 +1878,7 @@ Imports RFC 4180 CSV definitions and registers them dynamically.
 - Parameter `cancellationToken`: Token used to cancel the import.
 - Returns: The imported logical tags.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.InitializeStoreAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.InitializeStoreAsync(System.Threading.CancellationToken)`
 
 ```csharp
 public System.Threading.Tasks.Task InitializeStoreAsync(System.Threading.CancellationToken cancellationToken)
@@ -1886,110 +1888,110 @@ Initializes the configured SQLite store.
 - Parameter `cancellationToken`: Token used to cancel initialization.
 - Returns: A task representing initialization.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.ListGroupsAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.ListGroupsAsync(System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTagGroup>> ListGroupsAsync(System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTagGroup>> ListGroupsAsync(System.Threading.CancellationToken cancellationToken)
 ```
 Lists persisted tag groups.
 
 - Parameter `cancellationToken`: Token used to cancel the query.
 - Returns: The persisted groups.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.ListTagsAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.ListTagsAsync(System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> ListTagsAsync(System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTag>> ListTagsAsync(System.Threading.CancellationToken cancellationToken)
 ```
 Lists persisted tags.
 
 - Parameter `cancellationToken`: Token used to cancel the query.
 - Returns: The persisted logical tags.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.LoadTagsAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.LoadTagsAsync(System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.LogicalTag>> LoadTagsAsync(System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.LogicalTag>> LoadTagsAsync(System.Threading.CancellationToken cancellationToken)
 ```
 Loads and dynamically registers all tags from the configured SQLite store.
 
 - Parameter `cancellationToken`: Token used to cancel the load.
 - Returns: The loaded logical tags.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.Observe(System.String)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.Observe(System.String)`
 
 ```csharp
-public System.IObservable<IoT.DriverCore.Core.LogicalTagValue> Observe(string tagName)
+public System.IObservable<IoT.Driver.Core.LogicalTagValue> Observe(string tagName)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `tagName`: The `tagName` value.
-- Returns: A `System.IObservable<IoT.DriverCore.Core.LogicalTagValue>` result.
+- Returns: A `System.IObservable<IoT.Driver.Core.LogicalTagValue>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.ObserveAsync(System.String,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.ObserveAsync(System.String,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Collections.Generic.IAsyncEnumerable<IoT.DriverCore.Core.LogicalTagValue> ObserveAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+public System.Collections.Generic.IAsyncEnumerable<IoT.Driver.Core.LogicalTagValue> ObserveAsync(string tagName, System.Threading.CancellationToken cancellationToken)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `tagName`: The `tagName` value.
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Collections.Generic.IAsyncEnumerable<IoT.DriverCore.Core.LogicalTagValue>` result.
+- Returns: A `System.Collections.Generic.IAsyncEnumerable<IoT.Driver.Core.LogicalTagValue>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.ObserveMany(System.Collections.Generic.IReadOnlyCollection`1{System.String})`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.ObserveMany(System.Collections.Generic.IReadOnlyCollection`1{System.String})`
 
 ```csharp
-public System.IObservable<IoT.DriverCore.Core.LogicalTagValue> ObserveMany(System.Collections.Generic.IReadOnlyCollection<string> tagNames)
+public System.IObservable<IoT.Driver.Core.LogicalTagValue> ObserveMany(System.Collections.Generic.IReadOnlyCollection<string> tagNames)
 ```
 Executes the `ObserveMany` operation.
 
 - Parameter `tagNames`: The `tagNames` value.
-- Returns: A `System.IObservable<IoT.DriverCore.Core.LogicalTagValue>` result.
+- Returns: A `System.IObservable<IoT.Driver.Core.LogicalTagValue>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.ObserveManyAsync(System.Collections.Generic.IReadOnlyCollection`1{System.String},System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.ObserveManyAsync(System.Collections.Generic.IReadOnlyCollection`1{System.String},System.Threading.CancellationToken)`
 
 ```csharp
-public System.Collections.Generic.IAsyncEnumerable<IoT.DriverCore.Core.LogicalTagValue> ObserveManyAsync(System.Collections.Generic.IReadOnlyCollection<string> tagNames, System.Threading.CancellationToken cancellationToken)
+public System.Collections.Generic.IAsyncEnumerable<IoT.Driver.Core.LogicalTagValue> ObserveManyAsync(System.Collections.Generic.IReadOnlyCollection<string> tagNames, System.Threading.CancellationToken cancellationToken)
 ```
 Executes the `ObserveManyAsync` operation.
 
 - Parameter `tagNames`: The `tagNames` value.
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Collections.Generic.IAsyncEnumerable<IoT.DriverCore.Core.LogicalTagValue>` result.
+- Returns: A `System.Collections.Generic.IAsyncEnumerable<IoT.Driver.Core.LogicalTagValue>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.ReadAsync(System.String,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.ReadAsync(System.String,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>> ReadAsync(string tagName, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.Core.TagOperationResult<IoT.Driver.Core.LogicalTagValue>> ReadAsync(string tagName, System.Threading.CancellationToken cancellationToken)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `tagName`: The `tagName` value.
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>` result.
+- Returns: A `System.Threading.Tasks.Task<IoT.Driver.Core.TagOperationResult<IoT.Driver.Core.LogicalTagValue>>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.ReadManyAsync(System.Collections.Generic.IReadOnlyCollection`1{System.String},System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.ReadManyAsync(System.Collections.Generic.IReadOnlyCollection`1{System.String},System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>> ReadManyAsync(System.Collections.Generic.IReadOnlyCollection<string> tagNames, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.TagOperationResult<IoT.Driver.Core.LogicalTagValue>>> ReadManyAsync(System.Collections.Generic.IReadOnlyCollection<string> tagNames, System.Threading.CancellationToken cancellationToken)
 ```
 Executes the `ReadManyAsync` operation.
 
 - Parameter `tagNames`: The `tagNames` value.
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>>` result.
+- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.TagOperationResult<IoT.Driver.Core.LogicalTagValue>>>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.RegisterTag(IoT.DriverCore.Core.LogicalTag)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.RegisterTag(IoT.Driver.Core.LogicalTag)`
 
 ```csharp
-public void RegisterTag(IoT.DriverCore.Core.LogicalTag tag)
+public void RegisterTag(IoT.Driver.Core.LogicalTag tag)
 ```
 Registers or replaces a logical tag in both the Omron facade and catalog.
 
 - Parameter `tag`: Logical tag to register.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.RemoveTag(System.String)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.RemoveTag(System.String)`
 
 ```csharp
 public bool RemoveTag(string name)
@@ -1999,10 +2001,10 @@ Removes a logical tag from the Omron facade and catalog.
 - Parameter `name`: Logical tag name.
 - Returns: True when either registration was removed; otherwise false.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.UpsertGroupAsync(IoT.DriverCore.Core.LogicalTagGroup,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.UpsertGroupAsync(IoT.Driver.Core.LogicalTagGroup,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task UpsertGroupAsync(IoT.DriverCore.Core.LogicalTagGroup group, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task UpsertGroupAsync(IoT.Driver.Core.LogicalTagGroup group, System.Threading.CancellationToken cancellationToken)
 ```
 Upserts a persisted tag group.
 
@@ -2010,10 +2012,10 @@ Upserts a persisted tag group.
 - Parameter `cancellationToken`: Token used to cancel the operation.
 - Returns: A task representing the operation.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.UpsertTagAsync(IoT.DriverCore.Core.LogicalTag,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.UpsertTagAsync(IoT.Driver.Core.LogicalTag,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task UpsertTagAsync(IoT.DriverCore.Core.LogicalTag tag, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task UpsertTagAsync(IoT.Driver.Core.LogicalTag tag, System.Threading.CancellationToken cancellationToken)
 ```
 Upserts a persisted tag and registers the resulting definition.
 
@@ -2021,97 +2023,97 @@ Upserts a persisted tag and registers the resulting definition.
 - Parameter `cancellationToken`: Token used to cancel the operation.
 - Returns: A task representing the operation.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.WriteAsync(IoT.DriverCore.Core.LogicalTagValue,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.WriteAsync(IoT.Driver.Core.LogicalTagValue,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>> WriteAsync(IoT.DriverCore.Core.LogicalTagValue value, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.Core.TagOperationResult<IoT.Driver.Core.LogicalTagValue>> WriteAsync(IoT.Driver.Core.LogicalTagValue value, System.Threading.CancellationToken cancellationToken)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `value`: The `value` value.
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>` result.
+- Returns: A `System.Threading.Tasks.Task<IoT.Driver.Core.TagOperationResult<IoT.Driver.Core.LogicalTagValue>>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.WriteManyAsync(System.Collections.Generic.IReadOnlyCollection`1{IoT.DriverCore.Core.LogicalTagValue},System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.WriteManyAsync(System.Collections.Generic.IReadOnlyCollection`1{IoT.Driver.Core.LogicalTagValue},System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>> WriteManyAsync(System.Collections.Generic.IReadOnlyCollection<IoT.DriverCore.Core.LogicalTagValue> values, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.TagOperationResult<IoT.Driver.Core.LogicalTagValue>>> WriteManyAsync(System.Collections.Generic.IReadOnlyCollection<IoT.Driver.Core.LogicalTagValue> values, System.Threading.CancellationToken cancellationToken)
 ```
 Executes the `WriteManyAsync` operation.
 
 - Parameter `values`: The `values` value.
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.DriverCore.Core.TagOperationResult<IoT.DriverCore.Core.LogicalTagValue>>>` result.
+- Returns: A `System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<IoT.Driver.Core.TagOperationResult<IoT.Driver.Core.LogicalTagValue>>>` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronLogicalTagClient.Catalog`
+###### `P:IoT.Driver.OmronPlcRx.OmronLogicalTagClient.Catalog`
 
 ```csharp
-public IoT.DriverCore.Core.ILogicalTagCatalog Catalog { get; }
+public IoT.Driver.Core.ILogicalTagCatalog Catalog { get; }
 ```
 Gets the logical-tag catalog composed by this client.
 
 - Value: The `Catalog` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.OmronPLCException`
+#### `T:IoT.Driver.OmronPlcRx.OmronPLCException`
 
 ```csharp
-public class IoT.DriverCore.OmronPlcRx.OmronPLCException
+public class IoT.Driver.OmronPlcRx.OmronPLCException
 ```
 Represents errors that occur during Omron PLC communication or processing.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPLCException.#ctor`
+###### `M:IoT.Driver.OmronPlcRx.OmronPLCException.#ctor`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronPLCException()
+public IoT.Driver.OmronPlcRx.OmronPLCException()
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.OmronPLCException` class.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.OmronPLCException` class.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPLCException.#ctor(System.String)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPLCException.#ctor(System.String)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronPLCException(string message)
+public IoT.Driver.OmronPlcRx.OmronPLCException(string message)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.OmronPLCException` class.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.OmronPLCException` class.
 
 - Parameter `message`: The message that describes the error.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPLCException.#ctor(System.String,System.Exception)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPLCException.#ctor(System.String,System.Exception)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronPLCException(string message, System.Exception innerException)
+public IoT.Driver.OmronPlcRx.OmronPLCException(string message, System.Exception innerException)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.OmronPLCException` class.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.OmronPLCException` class.
 
 - Parameter `message`: The error message that explains the reason for the exception.
 - Parameter `innerException`: The exception that is the cause of the current exception.
 
-#### `T:IoT.DriverCore.OmronPlcRx.OmronPlcRx`
+#### `T:IoT.Driver.OmronPlcRx.OmronPlcRx`
 
 ```csharp
-public class IoT.DriverCore.OmronPlcRx.OmronPlcRx
+public class IoT.Driver.OmronPlcRx.OmronPlcRx
 ```
 Contains PLC tag address parsing helpers.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcRx.#ctor(IoT.DriverCore.OmronPlcRx.OmronConnectionOptions,System.Nullable`1{System.TimeSpan})`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcRx.#ctor(IoT.Driver.OmronPlcRx.OmronConnectionOptions,System.Nullable`1{System.TimeSpan})`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronPlcRx(IoT.DriverCore.OmronPlcRx.OmronConnectionOptions options, System.Nullable<System.TimeSpan> pollInterval)
+public IoT.Driver.OmronPlcRx.OmronPlcRx(IoT.Driver.OmronPlcRx.OmronConnectionOptions options, System.Nullable<System.TimeSpan> pollInterval)
 ```
-Initializes a new instance of `IoT.DriverCore.OmronPlcRx.OmronPlcRx`.
+Initializes a new instance of `IoT.Driver.OmronPlcRx.OmronPlcRx`.
 
 - Parameter `options`: The `options` value.
 - Parameter `pollInterval`: The `pollInterval` value.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcRx.#ctor(System.Byte,System.Byte,IoT.DriverCore.OmronPlcRx.OmronSerialOptions,System.Int32,System.Int32,System.Nullable`1{System.TimeSpan})`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcRx.#ctor(System.Byte,System.Byte,IoT.Driver.OmronPlcRx.OmronSerialOptions,System.Int32,System.Int32,System.Nullable`1{System.TimeSpan})`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronPlcRx(byte localNodeId, byte remoteNodeId, IoT.DriverCore.OmronPlcRx.OmronSerialOptions serialOptions, int timeout, int retries, System.Nullable<System.TimeSpan> pollInterval)
+public IoT.Driver.OmronPlcRx.OmronPlcRx(byte localNodeId, byte remoteNodeId, IoT.Driver.OmronPlcRx.OmronSerialOptions serialOptions, int timeout, int retries, System.Nullable<System.TimeSpan> pollInterval)
 ```
-Initializes a new instance of `IoT.DriverCore.OmronPlcRx.OmronPlcRx`.
+Initializes a new instance of `IoT.Driver.OmronPlcRx.OmronPlcRx`.
 
 - Parameter `localNodeId`: The `localNodeId` value.
 - Parameter `remoteNodeId`: The `remoteNodeId` value.
@@ -2120,66 +2122,66 @@ Initializes a new instance of `IoT.DriverCore.OmronPlcRx.OmronPlcRx`.
 - Parameter `retries`: The `retries` value.
 - Parameter `pollInterval`: The `pollInterval` value.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcRx.AddUpdateTagItem``1(IoT.DriverCore.OmronPlcRx.Tags.PlcTag`1{``0})`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcRx.AddUpdateTagItem``1(IoT.Driver.OmronPlcRx.Tags.PlcTag`1{``0})`
 
 ```csharp
-public void AddUpdateTagItem<T>(IoT.DriverCore.OmronPlcRx.Tags.PlcTag<T> tag)
+public void AddUpdateTagItem<T>(IoT.Driver.OmronPlcRx.Tags.PlcTag<T> tag)
 ```
 Executes the `AddUpdateTagItem` operation.
 
 - Parameter `tag`: The `tag` value.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcRx.Dispose`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcRx.Dispose`
 
 ```csharp
 public void Dispose()
 ```
 Dispose pattern.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcRx.GetValue``1(IoT.DriverCore.Core.LogicalTagKey`1{``0})`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcRx.GetValue``1(IoT.Driver.Core.LogicalTagKey`1{``0})`
 
 ```csharp
-public T GetValue<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag)
+public T GetValue<T>(IoT.Driver.Core.LogicalTagKey<T> tag)
 ```
 Executes the `GetValue` operation.
 
 - Parameter `tag`: The `tag` value.
 - Returns: A `T` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcRx.Observe``1(IoT.DriverCore.Core.LogicalTagKey`1{``0})`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcRx.Observe``1(IoT.Driver.Core.LogicalTagKey`1{``0})`
 
 ```csharp
-public System.IObservable<T> Observe<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag)
+public System.IObservable<T> Observe<T>(IoT.Driver.Core.LogicalTagKey<T> tag)
 ```
 Executes the `Observe` operation.
 
 - Parameter `tag`: The `tag` value.
 - Returns: A `System.IObservable<T>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcRx.ReadClockAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcRx.ReadClockAsync(System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.OmronPlcRx.Results.ReadClockResult> ReadClockAsync(System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.OmronPlcRx.Results.ReadClockResult> ReadClockAsync(System.Threading.CancellationToken cancellationToken)
 ```
 Reads the PLC real-time clock via the underlying connection.
 
 - Parameter `cancellationToken`: Cancellation token.
 - Returns: Clock read result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcRx.ReadCycleTimeAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcRx.ReadCycleTimeAsync(System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult> ReadCycleTimeAsync(System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult> ReadCycleTimeAsync(System.Threading.CancellationToken cancellationToken)
 ```
 Reads PLC scan cycle time statistics via the underlying connection.
 
 - Parameter `cancellationToken`: Cancellation token.
 - Returns: Cycle time statistics.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcRx.ReadValueAsync``1(IoT.DriverCore.Core.LogicalTagKey`1{``0},System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcRx.ReadValueAsync``1(IoT.Driver.Core.LogicalTagKey`1{``0},System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<T> ReadValueAsync<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<T> ReadValueAsync<T>(IoT.Driver.Core.LogicalTagKey<T> tag, System.Threading.CancellationToken cancellationToken)
 ```
 Executes the `ReadValueAsync` operation.
 
@@ -2187,7 +2189,7 @@ Executes the `ReadValueAsync` operation.
 - Parameter `cancellationToken`: The `cancellationToken` value.
 - Returns: A `System.Threading.Tasks.Task<T>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcRx.RemoveTagItem(System.String)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcRx.RemoveTagItem(System.String)`
 
 ```csharp
 public bool RemoveTagItem(string tagName)
@@ -2197,20 +2199,20 @@ Inherits XML documentation from its implemented or overridden member.
 - Parameter `tagName`: The `tagName` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcRx.SetValue``1(IoT.DriverCore.Core.LogicalTagKey`1{``0},``0)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcRx.SetValue``1(IoT.Driver.Core.LogicalTagKey`1{``0},``0)`
 
 ```csharp
-public void SetValue<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag, T value)
+public void SetValue<T>(IoT.Driver.Core.LogicalTagKey<T> tag, T value)
 ```
 Executes the `SetValue` operation.
 
 - Parameter `tag`: The `tag` value.
 - Parameter `value`: The `value` value.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcRx.WriteClockAsync(System.DateTimeOffset,System.Int32,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcRx.WriteClockAsync(System.DateTimeOffset,System.Int32,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.OmronPlcRx.Results.WriteClockResult> WriteClockAsync(System.DateTimeOffset newDateTime, int newDayOfWeek, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.OmronPlcRx.Results.WriteClockResult> WriteClockAsync(System.DateTimeOffset newDateTime, int newDayOfWeek, System.Threading.CancellationToken cancellationToken)
 ```
 Writes the PLC real-time clock with explicit day-of-week via the underlying connection.
 
@@ -2219,10 +2221,10 @@ Writes the PLC real-time clock with explicit day-of-week via the underlying conn
 - Parameter `cancellationToken`: Cancellation token.
 - Returns: Clock write result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcRx.WriteClockAsync(System.DateTimeOffset,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcRx.WriteClockAsync(System.DateTimeOffset,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.OmronPlcRx.Results.WriteClockResult> WriteClockAsync(System.DateTimeOffset newDateTime, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.OmronPlcRx.Results.WriteClockResult> WriteClockAsync(System.DateTimeOffset newDateTime, System.Threading.CancellationToken cancellationToken)
 ```
 Writes the PLC real-time clock (day-of-week inferred) via the underlying connection.
 
@@ -2230,10 +2232,10 @@ Writes the PLC real-time clock (day-of-week inferred) via the underlying connect
 - Parameter `cancellationToken`: Cancellation token.
 - Returns: Clock write result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcRx.WriteValueAsync``1(IoT.DriverCore.Core.LogicalTagKey`1{``0},``0,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcRx.WriteValueAsync``1(IoT.Driver.Core.LogicalTagKey`1{``0},``0,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task WriteValueAsync<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag, T value, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task WriteValueAsync<T>(IoT.Driver.Core.LogicalTagKey<T> tag, T value, System.Threading.CancellationToken cancellationToken)
 ```
 Executes the `WriteValueAsync` operation.
 
@@ -2242,7 +2244,7 @@ Executes the `WriteValueAsync` operation.
 - Parameter `cancellationToken`: The `cancellationToken` value.
 - Returns: A `System.Threading.Tasks.Task` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcRx.ControllerModel`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcRx.ControllerModel`
 
 ```csharp
 public string ControllerModel { get; }
@@ -2251,7 +2253,7 @@ Gets the controller model value.
 
 - Value: The `ControllerModel` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcRx.ControllerVersion`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcRx.ControllerVersion`
 
 ```csharp
 public string ControllerVersion { get; }
@@ -2260,16 +2262,16 @@ Gets the controller version value.
 
 - Value: The `ControllerVersion` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcRx.Errors`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcRx.Errors`
 
 ```csharp
-public System.IObservable<IoT.DriverCore.OmronPlcRx.OmronPLCException> Errors { get; }
+public System.IObservable<IoT.Driver.OmronPlcRx.OmronPLCException> Errors { get; }
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `Errors` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcRx.IsDisposed`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcRx.IsDisposed`
 
 ```csharp
 public bool IsDisposed { get; }
@@ -2278,46 +2280,46 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `IsDisposed` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcRx.ObserveAll`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcRx.ObserveAll`
 
 ```csharp
-public System.IObservable<IoT.DriverCore.OmronPlcRx.Tags.IPlcTag> ObserveAll { get; }
+public System.IObservable<IoT.Driver.OmronPlcRx.Tags.IPlcTag> ObserveAll { get; }
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `ObserveAll` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcRx.PlcType`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcRx.PlcType`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.Enums.PlcType PlcType { get; }
+public IoT.Driver.OmronPlcRx.Enums.PlcType PlcType { get; }
 ```
 Gets the plc type value.
 
 - Value: The type of the PLC.
 
-#### `T:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator`
+#### `T:IoT.Driver.OmronPlcRx.OmronPlcSimulator`
 
 ```csharp
-public class IoT.DriverCore.OmronPlcRx.OmronPlcSimulator
+public class IoT.Driver.OmronPlcRx.OmronPlcSimulator
 ```
-Provides a deterministic, in-memory Omron PLC through `T:IoT.DriverCore.OmronPlcRx.IOmronPlcRx` .
+Provides a deterministic, in-memory Omron PLC through `T:IoT.Driver.OmronPlcRx.IOmronPlcRx` .
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.#ctor`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.#ctor`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronPlcSimulator()
+public IoT.Driver.OmronPlcRx.OmronPlcSimulator()
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator` class.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.OmronPlcSimulator` class.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.#ctor(IoT.DriverCore.OmronPlcRx.Enums.PlcType,System.String,System.String,System.Boolean,System.DateTimeOffset)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.#ctor(IoT.Driver.OmronPlcRx.Enums.PlcType,System.String,System.String,System.Boolean,System.DateTimeOffset)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronPlcSimulator(IoT.DriverCore.OmronPlcRx.Enums.PlcType plcType, string controllerModel, string controllerVersion, bool initiallyConnected, System.DateTimeOffset initialClock)
+public IoT.Driver.OmronPlcRx.OmronPlcSimulator(IoT.Driver.OmronPlcRx.Enums.PlcType plcType, string controllerModel, string controllerVersion, bool initiallyConnected, System.DateTimeOffset initialClock)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator` class.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.OmronPlcSimulator` class.
 
 - Parameter `plcType`: PLC model family reported to callers.
 - Parameter `controllerModel`: Controller model reported to callers.
@@ -2325,25 +2327,25 @@ Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator
 - Parameter `initiallyConnected`: Whether the simulated transport starts connected.
 - Parameter `initialClock`: Optional deterministic initial clock.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.#ctor(System.Boolean)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.#ctor(System.Boolean)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronPlcSimulator(bool initiallyConnected)
+public IoT.Driver.OmronPlcRx.OmronPlcSimulator(bool initiallyConnected)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator` class.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.OmronPlcSimulator` class.
 
 - Parameter `initiallyConnected`: Whether the simulated transport starts connected.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.AddUpdateTagItem``1(IoT.DriverCore.OmronPlcRx.Tags.PlcTag`1{``0})`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.AddUpdateTagItem``1(IoT.Driver.OmronPlcRx.Tags.PlcTag`1{``0})`
 
 ```csharp
-public void AddUpdateTagItem<T>(IoT.DriverCore.OmronPlcRx.Tags.PlcTag<T> tag)
+public void AddUpdateTagItem<T>(IoT.Driver.OmronPlcRx.Tags.PlcTag<T> tag)
 ```
 Executes the `AddUpdateTagItem` operation.
 
 - Parameter `tag`: The `tag` value.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.ConnectAsync`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.ConnectAsync`
 
 ```csharp
 public System.Threading.Tasks.Task ConnectAsync()
@@ -2352,7 +2354,7 @@ Connects the simulated transport.
 
 - Returns: A task that represents the operation.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.ConnectAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.ConnectAsync(System.Threading.CancellationToken)`
 
 ```csharp
 public System.Threading.Tasks.Task ConnectAsync(System.Threading.CancellationToken cancellationToken)
@@ -2362,54 +2364,54 @@ Connects the simulated transport.
 - Parameter `cancellationToken`: Cancellation token.
 - Returns: A task that represents the operation.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.Disconnect`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.Disconnect`
 
 ```csharp
 public void Disconnect()
 ```
 Disconnects the simulated transport while retaining memory and registrations.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.Dispose`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.Dispose`
 
 ```csharp
 public void Dispose()
 ```
 Inherits XML documentation from its implemented or overridden member.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.GetValue``1(IoT.DriverCore.Core.LogicalTagKey`1{``0})`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.GetValue``1(IoT.Driver.Core.LogicalTagKey`1{``0})`
 
 ```csharp
-public T GetValue<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag)
+public T GetValue<T>(IoT.Driver.Core.LogicalTagKey<T> tag)
 ```
 Executes the `GetValue` operation.
 
 - Parameter `tag`: The `tag` value.
 - Returns: A `T` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.Observe``1(IoT.DriverCore.Core.LogicalTagKey`1{``0})`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.Observe``1(IoT.Driver.Core.LogicalTagKey`1{``0})`
 
 ```csharp
-public System.IObservable<T> Observe<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag)
+public System.IObservable<T> Observe<T>(IoT.Driver.Core.LogicalTagKey<T> tag)
 ```
 Executes the `Observe` operation.
 
 - Parameter `tag`: The `tag` value.
 - Returns: A `System.IObservable<T>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.QueueFault(IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation,System.Exception)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.QueueFault(IoT.Driver.OmronPlcRx.OmronSimulatorOperation,System.Exception)`
 
 ```csharp
-public void QueueFault(IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation operation, System.Exception exception)
+public void QueueFault(IoT.Driver.OmronPlcRx.OmronSimulatorOperation operation, System.Exception exception)
 ```
 Queues one disconnecting failure for the selected operation.
 
 - Parameter `operation`: Operation to fail.
 - Parameter `exception`: Failure to wrap and publish.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.QueueFault(IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation,System.Exception,System.Int32,System.Boolean)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.QueueFault(IoT.Driver.OmronPlcRx.OmronSimulatorOperation,System.Exception,System.Int32,System.Boolean)`
 
 ```csharp
-public void QueueFault(IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation operation, System.Exception exception, int occurrences, bool disconnect)
+public void QueueFault(IoT.Driver.OmronPlcRx.OmronSimulatorOperation operation, System.Exception exception, int occurrences, bool disconnect)
 ```
 Queues deterministic failures for the selected operation.
 
@@ -2418,30 +2420,30 @@ Queues deterministic failures for the selected operation.
 - Parameter `occurrences`: Number of consecutive failures to queue.
 - Parameter `disconnect`: Whether each failure disconnects the simulated transport.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.ReadClockAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.ReadClockAsync(System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.OmronPlcRx.Results.ReadClockResult> ReadClockAsync(System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.OmronPlcRx.Results.ReadClockResult> ReadClockAsync(System.Threading.CancellationToken cancellationToken)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.OmronPlcRx.Results.ReadClockResult>` result.
+- Returns: A `System.Threading.Tasks.Task<IoT.Driver.OmronPlcRx.Results.ReadClockResult>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.ReadCycleTimeAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.ReadCycleTimeAsync(System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult> ReadCycleTimeAsync(System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult> ReadCycleTimeAsync(System.Threading.CancellationToken cancellationToken)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult>` result.
+- Returns: A `System.Threading.Tasks.Task<IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.ReadValueAsync``1(IoT.DriverCore.Core.LogicalTagKey`1{``0},System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.ReadValueAsync``1(IoT.Driver.Core.LogicalTagKey`1{``0},System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<T> ReadValueAsync<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<T> ReadValueAsync<T>(IoT.Driver.Core.LogicalTagKey<T> tag, System.Threading.CancellationToken cancellationToken)
 ```
 Executes the `ReadValueAsync` operation.
 
@@ -2449,7 +2451,7 @@ Executes the `ReadValueAsync` operation.
 - Parameter `cancellationToken`: The `cancellationToken` value.
 - Returns: A `System.Threading.Tasks.Task<T>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.ReconnectAsync`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.ReconnectAsync`
 
 ```csharp
 public System.Threading.Tasks.Task ReconnectAsync()
@@ -2458,7 +2460,7 @@ Reconnects the simulated transport while retaining memory and registrations.
 
 - Returns: A task that represents the operation.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.ReconnectAsync(System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.ReconnectAsync(System.Threading.CancellationToken)`
 
 ```csharp
 public System.Threading.Tasks.Task ReconnectAsync(System.Threading.CancellationToken cancellationToken)
@@ -2468,7 +2470,7 @@ Reconnects the simulated transport while retaining memory and registrations.
 - Parameter `cancellationToken`: Cancellation token.
 - Returns: A task that represents the operation.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.RemoveTagItem(System.String)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.RemoveTagItem(System.String)`
 
 ```csharp
 public bool RemoveTagItem(string tagName)
@@ -2478,53 +2480,53 @@ Inherits XML documentation from its implemented or overridden member.
 - Parameter `tagName`: The `tagName` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.Seed``1(IoT.DriverCore.OmronPlcRx.Tags.PlcTag`1{``0},``0)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.Seed``1(IoT.Driver.OmronPlcRx.Tags.PlcTag`1{``0},``0)`
 
 ```csharp
-public void Seed<T>(IoT.DriverCore.OmronPlcRx.Tags.PlcTag<T> tag, T value)
+public void Seed<T>(IoT.Driver.OmronPlcRx.Tags.PlcTag<T> tag, T value)
 ```
 Executes the `Seed` operation.
 
 - Parameter `tag`: The `tag` value.
 - Parameter `value`: The `value` value.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.SetValue``1(IoT.DriverCore.Core.LogicalTagKey`1{``0},``0)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.SetValue``1(IoT.Driver.Core.LogicalTagKey`1{``0},``0)`
 
 ```csharp
-public void SetValue<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag, T value)
+public void SetValue<T>(IoT.Driver.Core.LogicalTagKey<T> tag, T value)
 ```
 Executes the `SetValue` operation.
 
 - Parameter `tag`: The `tag` value.
 - Parameter `value`: The `value` value.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.WriteClockAsync(System.DateTimeOffset,System.Int32,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.WriteClockAsync(System.DateTimeOffset,System.Int32,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.OmronPlcRx.Results.WriteClockResult> WriteClockAsync(System.DateTimeOffset newDateTime, int newDayOfWeek, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.OmronPlcRx.Results.WriteClockResult> WriteClockAsync(System.DateTimeOffset newDateTime, int newDayOfWeek, System.Threading.CancellationToken cancellationToken)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `newDateTime`: The `newDateTime` value.
 - Parameter `newDayOfWeek`: The `newDayOfWeek` value.
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.OmronPlcRx.Results.WriteClockResult>` result.
+- Returns: A `System.Threading.Tasks.Task<IoT.Driver.OmronPlcRx.Results.WriteClockResult>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.WriteClockAsync(System.DateTimeOffset,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.WriteClockAsync(System.DateTimeOffset,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task<IoT.DriverCore.OmronPlcRx.Results.WriteClockResult> WriteClockAsync(System.DateTimeOffset newDateTime, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task<IoT.Driver.OmronPlcRx.Results.WriteClockResult> WriteClockAsync(System.DateTimeOffset newDateTime, System.Threading.CancellationToken cancellationToken)
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Parameter `newDateTime`: The `newDateTime` value.
 - Parameter `cancellationToken`: The `cancellationToken` value.
-- Returns: A `System.Threading.Tasks.Task<IoT.DriverCore.OmronPlcRx.Results.WriteClockResult>` result.
+- Returns: A `System.Threading.Tasks.Task<IoT.Driver.OmronPlcRx.Results.WriteClockResult>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.WriteValueAsync``1(IoT.DriverCore.Core.LogicalTagKey`1{``0},``0,System.Threading.CancellationToken)`
+###### `M:IoT.Driver.OmronPlcRx.OmronPlcSimulator.WriteValueAsync``1(IoT.Driver.Core.LogicalTagKey`1{``0},``0,System.Threading.CancellationToken)`
 
 ```csharp
-public System.Threading.Tasks.Task WriteValueAsync<T>(IoT.DriverCore.Core.LogicalTagKey<T> tag, T value, System.Threading.CancellationToken cancellationToken)
+public System.Threading.Tasks.Task WriteValueAsync<T>(IoT.Driver.Core.LogicalTagKey<T> tag, T value, System.Threading.CancellationToken cancellationToken)
 ```
 Executes the `WriteValueAsync` operation.
 
@@ -2533,7 +2535,7 @@ Executes the `WriteValueAsync` operation.
 - Parameter `cancellationToken`: The `cancellationToken` value.
 - Returns: A `System.Threading.Tasks.Task` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.AverageCycleTime`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcSimulator.AverageCycleTime`
 
 ```csharp
 public double AverageCycleTime { get; set; }
@@ -2542,7 +2544,7 @@ Gets or sets simulated average cycle time in milliseconds.
 
 - Value: The `AverageCycleTime` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.ControllerModel`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcSimulator.ControllerModel`
 
 ```csharp
 public string ControllerModel { get; }
@@ -2551,7 +2553,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `ControllerModel` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.ControllerVersion`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcSimulator.ControllerVersion`
 
 ```csharp
 public string ControllerVersion { get; }
@@ -2560,16 +2562,16 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `ControllerVersion` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.Errors`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcSimulator.Errors`
 
 ```csharp
-public System.IObservable<IoT.DriverCore.OmronPlcRx.OmronPLCException> Errors { get; }
+public System.IObservable<IoT.Driver.OmronPlcRx.OmronPLCException> Errors { get; }
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `Errors` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.IsConnected`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcSimulator.IsConnected`
 
 ```csharp
 public bool IsConnected { get; }
@@ -2578,7 +2580,7 @@ Gets a value indicating whether the simulated transport is connected.
 
 - Value: The `IsConnected` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.IsDisposed`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcSimulator.IsDisposed`
 
 ```csharp
 public bool IsDisposed { get; }
@@ -2587,7 +2589,7 @@ Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `IsDisposed` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.MaximumCycleTime`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcSimulator.MaximumCycleTime`
 
 ```csharp
 public double MaximumCycleTime { get; set; }
@@ -2596,7 +2598,7 @@ Gets or sets simulated maximum cycle time in milliseconds.
 
 - Value: The `MaximumCycleTime` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.MinimumCycleTime`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcSimulator.MinimumCycleTime`
 
 ```csharp
 public double MinimumCycleTime { get; set; }
@@ -2605,34 +2607,34 @@ Gets or sets simulated minimum cycle time in milliseconds.
 
 - Value: The `MinimumCycleTime` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.ObserveAll`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcSimulator.ObserveAll`
 
 ```csharp
-public System.IObservable<IoT.DriverCore.OmronPlcRx.Tags.IPlcTag> ObserveAll { get; }
+public System.IObservable<IoT.Driver.OmronPlcRx.Tags.IPlcTag> ObserveAll { get; }
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `ObserveAll` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.Operations`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcSimulator.Operations`
 
 ```csharp
-public System.Collections.Generic.IReadOnlyList<IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord> Operations { get; }
+public System.Collections.Generic.IReadOnlyList<IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord> Operations { get; }
 ```
 Gets a snapshot of completed simulator operations.
 
 - Value: The `Operations` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.PlcType`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcSimulator.PlcType`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.Enums.PlcType PlcType { get; }
+public IoT.Driver.OmronPlcRx.Enums.PlcType PlcType { get; }
 ```
 Inherits XML documentation from its implemented or overridden member.
 
 - Value: The `PlcType` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator.ReconnectCount`
+###### `P:IoT.Driver.OmronPlcRx.OmronPlcSimulator.ReconnectCount`
 
 ```csharp
 public int ReconnectCount { get; }
@@ -2641,45 +2643,45 @@ Gets the number of successful reconnections.
 
 - Value: The `ReconnectCount` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.OmronSerialOptions`
+#### `T:IoT.Driver.OmronPlcRx.OmronSerialOptions`
 
 ```csharp
-public class IoT.DriverCore.OmronPlcRx.OmronSerialOptions
+public class IoT.Driver.OmronPlcRx.OmronSerialOptions
 ```
 Gets or sets the omron serial options value.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.#ctor(System.String)`
+###### `M:IoT.Driver.OmronPlcRx.OmronSerialOptions.#ctor(System.String)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronSerialOptions(string portName)
+public IoT.Driver.OmronPlcRx.OmronSerialOptions(string portName)
 ```
-Initializes a new instance of the `T:IoT.DriverCore.OmronPlcRx.OmronSerialOptions` class.
+Initializes a new instance of the `T:IoT.Driver.OmronPlcRx.OmronSerialOptions` class.
 
 - Parameter `portName`: Serial port name, e.g. COM1 or /dev/ttyUSB0.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.CreateToolbus(System.String)`
+###### `M:IoT.Driver.OmronPlcRx.OmronSerialOptions.CreateToolbus(System.String)`
 
 ```csharp
-public static IoT.DriverCore.OmronPlcRx.OmronSerialOptions CreateToolbus(string portName)
+public static IoT.Driver.OmronPlcRx.OmronSerialOptions CreateToolbus(string portName)
 ```
 Creates Toolbus serial options using common Omron Toolbus port settings.
 
 - Parameter `portName`: Serial port name, e.g. COM1 or /dev/ttyUSB0.
 - Returns: Serial options configured for Toolbus FINS framing.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.Equals(IoT.DriverCore.OmronPlcRx.OmronSerialOptions)`
+###### `M:IoT.Driver.OmronPlcRx.OmronSerialOptions.Equals(IoT.Driver.OmronPlcRx.OmronSerialOptions)`
 
 ```csharp
-public bool Equals(IoT.DriverCore.OmronPlcRx.OmronSerialOptions other)
+public bool Equals(IoT.Driver.OmronPlcRx.OmronSerialOptions other)
 ```
 Determines whether the supplied value is equal to the current value.
 
 - Parameter `other`: The `other` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.Equals(System.Object)`
+###### `M:IoT.Driver.OmronPlcRx.OmronSerialOptions.Equals(System.Object)`
 
 ```csharp
 public bool Equals(object obj)
@@ -2689,7 +2691,7 @@ Determines whether the supplied value is equal to the current value.
 - Parameter `obj`: The `obj` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.GetHashCode`
+###### `M:IoT.Driver.OmronPlcRx.OmronSerialOptions.GetHashCode`
 
 ```csharp
 public int GetHashCode()
@@ -2698,7 +2700,7 @@ Returns the hash code for the current value.
 
 - Returns: A `int` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.ToString`
+###### `M:IoT.Driver.OmronPlcRx.OmronSerialOptions.ToString`
 
 ```csharp
 public string ToString()
@@ -2707,17 +2709,17 @@ Returns a string representation of the current value.
 
 - Returns: A `string` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.Validate`
+###### `M:IoT.Driver.OmronPlcRx.OmronSerialOptions.Validate`
 
 ```csharp
 public void Validate()
 ```
 Validates this options instance.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.op_Equality(IoT.DriverCore.OmronPlcRx.OmronSerialOptions,IoT.DriverCore.OmronPlcRx.OmronSerialOptions)`
+###### `M:IoT.Driver.OmronPlcRx.OmronSerialOptions.op_Equality(IoT.Driver.OmronPlcRx.OmronSerialOptions,IoT.Driver.OmronPlcRx.OmronSerialOptions)`
 
 ```csharp
-public static bool op_Equality(IoT.DriverCore.OmronPlcRx.OmronSerialOptions left, IoT.DriverCore.OmronPlcRx.OmronSerialOptions right)
+public static bool op_Equality(IoT.Driver.OmronPlcRx.OmronSerialOptions left, IoT.Driver.OmronPlcRx.OmronSerialOptions right)
 ```
 Determines whether the two supplied values are equal.
 
@@ -2725,10 +2727,10 @@ Determines whether the two supplied values are equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.op_Inequality(IoT.DriverCore.OmronPlcRx.OmronSerialOptions,IoT.DriverCore.OmronPlcRx.OmronSerialOptions)`
+###### `M:IoT.Driver.OmronPlcRx.OmronSerialOptions.op_Inequality(IoT.Driver.OmronPlcRx.OmronSerialOptions,IoT.Driver.OmronPlcRx.OmronSerialOptions)`
 
 ```csharp
-public static bool op_Inequality(IoT.DriverCore.OmronPlcRx.OmronSerialOptions left, IoT.DriverCore.OmronPlcRx.OmronSerialOptions right)
+public static bool op_Inequality(IoT.Driver.OmronPlcRx.OmronSerialOptions left, IoT.Driver.OmronPlcRx.OmronSerialOptions right)
 ```
 Determines whether the two supplied values are not equal.
 
@@ -2736,7 +2738,7 @@ Determines whether the two supplied values are not equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.BaudRate`
+###### `P:IoT.Driver.OmronPlcRx.OmronSerialOptions.BaudRate`
 
 ```csharp
 public int BaudRate { get; set; }
@@ -2745,7 +2747,7 @@ Gets or sets the baud rate value.
 
 - Value: The `BaudRate` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.DataBits`
+###### `P:IoT.Driver.OmronPlcRx.OmronSerialOptions.DataBits`
 
 ```csharp
 public int DataBits { get; set; }
@@ -2754,7 +2756,7 @@ Gets or sets the data bits value.
 
 - Value: The `DataBits` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.DtrEnable`
+###### `P:IoT.Driver.OmronPlcRx.OmronSerialOptions.DtrEnable`
 
 ```csharp
 public bool DtrEnable { get; set; }
@@ -2763,16 +2765,16 @@ Gets or sets the dtr enable value.
 
 - Value: The `DtrEnable` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.FrameMode`
+###### `P:IoT.Driver.OmronPlcRx.OmronSerialOptions.FrameMode`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronHostLinkFinsFrameMode FrameMode { get; set; }
+public IoT.Driver.OmronPlcRx.OmronHostLinkFinsFrameMode FrameMode { get; set; }
 ```
 Gets or sets the frame mode value.
 
 - Value: The `FrameMode` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.Handshake`
+###### `P:IoT.Driver.OmronPlcRx.OmronSerialOptions.Handshake`
 
 ```csharp
 public System.IO.Ports.Handshake Handshake { get; set; }
@@ -2781,7 +2783,7 @@ Gets or sets the handshake value.
 
 - Value: The `Handshake` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.HostLinkUnitNumber`
+###### `P:IoT.Driver.OmronPlcRx.OmronSerialOptions.HostLinkUnitNumber`
 
 ```csharp
 public byte HostLinkUnitNumber { get; set; }
@@ -2790,7 +2792,7 @@ Gets or sets the host link unit number value.
 
 - Value: The `HostLinkUnitNumber` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.MaximumFrameLength`
+###### `P:IoT.Driver.OmronPlcRx.OmronSerialOptions.MaximumFrameLength`
 
 ```csharp
 public int MaximumFrameLength { get; set; }
@@ -2799,7 +2801,7 @@ Gets or sets the maximum frame length value.
 
 - Value: The `MaximumFrameLength` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.Parity`
+###### `P:IoT.Driver.OmronPlcRx.OmronSerialOptions.Parity`
 
 ```csharp
 public System.IO.Ports.Parity Parity { get; set; }
@@ -2808,7 +2810,7 @@ Gets or sets the parity value.
 
 - Value: The `Parity` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.PortName`
+###### `P:IoT.Driver.OmronPlcRx.OmronSerialOptions.PortName`
 
 ```csharp
 public string PortName { get; set; }
@@ -2817,16 +2819,16 @@ Gets or sets the port name value.
 
 - Value: The `PortName` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.Protocol`
+###### `P:IoT.Driver.OmronPlcRx.OmronSerialOptions.Protocol`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronSerialProtocol Protocol { get; set; }
+public IoT.Driver.OmronPlcRx.OmronSerialProtocol Protocol { get; set; }
 ```
 Gets or sets the protocol value.
 
 - Value: The `Protocol` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.ResponseWaitTime`
+###### `P:IoT.Driver.OmronPlcRx.OmronSerialOptions.ResponseWaitTime`
 
 ```csharp
 public byte ResponseWaitTime { get; set; }
@@ -2835,7 +2837,7 @@ Gets or sets the response wait time value.
 
 - Value: The `ResponseWaitTime` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.RtsEnable`
+###### `P:IoT.Driver.OmronPlcRx.OmronSerialOptions.RtsEnable`
 
 ```csharp
 public bool RtsEnable { get; set; }
@@ -2844,7 +2846,7 @@ Gets or sets the rts enable value.
 
 - Value: The `RtsEnable` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSerialOptions.StopBits`
+###### `P:IoT.Driver.OmronPlcRx.OmronSerialOptions.StopBits`
 
 ```csharp
 public System.IO.Ports.StopBits StopBits { get; set; }
@@ -2853,93 +2855,93 @@ Gets or sets the stop bits value.
 
 - Value: The `StopBits` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.OmronSerialProtocol`
+#### `T:IoT.Driver.OmronPlcRx.OmronSerialProtocol`
 
 ```csharp
-public enum IoT.DriverCore.OmronPlcRx.OmronSerialProtocol
+public enum IoT.Driver.OmronPlcRx.OmronSerialProtocol
 ```
 Specifies the serial protocol used to carry FINS messages.
 
 ##### Declared public members
 
-###### `F:IoT.DriverCore.OmronPlcRx.OmronSerialProtocol.HostLinkFins`
+###### `F:IoT.Driver.OmronPlcRx.OmronSerialProtocol.HostLinkFins`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.OmronSerialProtocol HostLinkFins
+public static const IoT.Driver.OmronPlcRx.OmronSerialProtocol HostLinkFins
 ```
 Host Link FINS using ASCII FA frames.
 
-###### `F:IoT.DriverCore.OmronPlcRx.OmronSerialProtocol.Toolbus`
+###### `F:IoT.Driver.OmronPlcRx.OmronSerialProtocol.Toolbus`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.OmronSerialProtocol Toolbus
+public static const IoT.Driver.OmronPlcRx.OmronSerialProtocol Toolbus
 ```
 Omron Toolbus using binary 0xAB frames carrying binary FINS messages.
 
-#### `T:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation`
+#### `T:IoT.Driver.OmronPlcRx.OmronSimulatorOperation`
 
 ```csharp
-public enum IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation
+public enum IoT.Driver.OmronPlcRx.OmronSimulatorOperation
 ```
-Identifies an operation that can be faulted by `T:IoT.DriverCore.OmronPlcRx.OmronPlcSimulator` .
+Identifies an operation that can be faulted by `T:IoT.Driver.OmronPlcRx.OmronPlcSimulator` .
 
 ##### Declared public members
 
-###### `F:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation.Connect`
+###### `F:IoT.Driver.OmronPlcRx.OmronSimulatorOperation.Connect`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation Connect
+public static const IoT.Driver.OmronPlcRx.OmronSimulatorOperation Connect
 ```
 Opening or reopening the simulated connection.
 
-###### `F:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation.Read`
+###### `F:IoT.Driver.OmronPlcRx.OmronSimulatorOperation.Read`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation Read
+public static const IoT.Driver.OmronPlcRx.OmronSimulatorOperation Read
 ```
 Reading a registered tag.
 
-###### `F:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation.ReadClock`
+###### `F:IoT.Driver.OmronPlcRx.OmronSimulatorOperation.ReadClock`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation ReadClock
+public static const IoT.Driver.OmronPlcRx.OmronSimulatorOperation ReadClock
 ```
 Reading the simulated real-time clock.
 
-###### `F:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation.ReadCycleTime`
+###### `F:IoT.Driver.OmronPlcRx.OmronSimulatorOperation.ReadCycleTime`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation ReadCycleTime
+public static const IoT.Driver.OmronPlcRx.OmronSimulatorOperation ReadCycleTime
 ```
 Reading simulated cycle-time statistics.
 
-###### `F:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation.Write`
+###### `F:IoT.Driver.OmronPlcRx.OmronSimulatorOperation.Write`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation Write
+public static const IoT.Driver.OmronPlcRx.OmronSimulatorOperation Write
 ```
 Writing a registered tag.
 
-###### `F:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation.WriteClock`
+###### `F:IoT.Driver.OmronPlcRx.OmronSimulatorOperation.WriteClock`
 
 ```csharp
-public static const IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation WriteClock
+public static const IoT.Driver.OmronPlcRx.OmronSimulatorOperation WriteClock
 ```
 Writing the simulated real-time clock.
 
-#### `T:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord`
+#### `T:IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord`
 
 ```csharp
-public class IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord
+public class IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord
 ```
 Describes one completed simulator operation.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord.#ctor(System.Int64,IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation,System.String,System.Object,System.Boolean)`
+###### `M:IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord.#ctor(System.Int64,IoT.Driver.OmronPlcRx.OmronSimulatorOperation,System.String,System.Object,System.Boolean)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord(long Sequence, IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation Operation, string TagName, object Value, bool Succeeded)
+public IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord(long Sequence, IoT.Driver.OmronPlcRx.OmronSimulatorOperation Operation, string TagName, object Value, bool Succeeded)
 ```
 Describes one completed simulator operation.
 
@@ -2949,10 +2951,10 @@ Describes one completed simulator operation.
 - Parameter `Value`: Optional operation value.
 - Parameter `Succeeded`: Whether the operation succeeded.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord.Deconstruct(System.Int64@,IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation@,System.String@,System.Object@,System.Boolean@)`
+###### `M:IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord.Deconstruct(System.Int64@,IoT.Driver.OmronPlcRx.OmronSimulatorOperation@,System.String@,System.Object@,System.Boolean@)`
 
 ```csharp
-public void Deconstruct(out long Sequence, out IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation Operation, out string TagName, out object Value, out bool Succeeded)
+public void Deconstruct(out long Sequence, out IoT.Driver.OmronPlcRx.OmronSimulatorOperation Operation, out string TagName, out object Value, out bool Succeeded)
 ```
 Deconstructs the value into its component values.
 
@@ -2962,17 +2964,17 @@ Deconstructs the value into its component values.
 - Parameter `Value`: The `Value` value.
 - Parameter `Succeeded`: The `Succeeded` value.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord.Equals(IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord)`
+###### `M:IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord.Equals(IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord)`
 
 ```csharp
-public bool Equals(IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord other)
+public bool Equals(IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord other)
 ```
 Determines whether the supplied value is equal to the current value.
 
 - Parameter `other`: The `other` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord.Equals(System.Object)`
+###### `M:IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord.Equals(System.Object)`
 
 ```csharp
 public bool Equals(object obj)
@@ -2982,7 +2984,7 @@ Determines whether the supplied value is equal to the current value.
 - Parameter `obj`: The `obj` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord.GetHashCode`
+###### `M:IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord.GetHashCode`
 
 ```csharp
 public int GetHashCode()
@@ -2991,7 +2993,7 @@ Returns the hash code for the current value.
 
 - Returns: A `int` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord.ToString`
+###### `M:IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord.ToString`
 
 ```csharp
 public string ToString()
@@ -3000,10 +3002,10 @@ Returns a string representation of the current value.
 
 - Returns: A `string` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord.op_Equality(IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord,IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord)`
+###### `M:IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord.op_Equality(IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord,IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord)`
 
 ```csharp
-public static bool op_Equality(IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord left, IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord right)
+public static bool op_Equality(IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord left, IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord right)
 ```
 Determines whether the two supplied values are equal.
 
@@ -3011,10 +3013,10 @@ Determines whether the two supplied values are equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord.op_Inequality(IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord,IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord)`
+###### `M:IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord.op_Inequality(IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord,IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord)`
 
 ```csharp
-public static bool op_Inequality(IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord left, IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord right)
+public static bool op_Inequality(IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord left, IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord right)
 ```
 Determines whether the two supplied values are not equal.
 
@@ -3022,16 +3024,16 @@ Determines whether the two supplied values are not equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord.Operation`
+###### `P:IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord.Operation`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.OmronSimulatorOperation Operation { get; set; }
+public IoT.Driver.OmronPlcRx.OmronSimulatorOperation Operation { get; set; }
 ```
 Operation kind.
 
 - Value: The `Operation` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord.Sequence`
+###### `P:IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord.Sequence`
 
 ```csharp
 public long Sequence { get; set; }
@@ -3040,7 +3042,7 @@ Monotonic operation sequence number.
 
 - Value: The `Sequence` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord.Succeeded`
+###### `P:IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord.Succeeded`
 
 ```csharp
 public bool Succeeded { get; set; }
@@ -3049,7 +3051,7 @@ Whether the operation succeeded.
 
 - Value: The `Succeeded` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord.TagName`
+###### `P:IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord.TagName`
 
 ```csharp
 public string TagName { get; set; }
@@ -3058,7 +3060,7 @@ Optional logical tag name.
 
 - Value: The `TagName` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.OmronSimulatorOperationRecord.Value`
+###### `P:IoT.Driver.OmronPlcRx.OmronSimulatorOperationRecord.Value`
 
 ```csharp
 public object Value { get; set; }
@@ -3067,25 +3069,25 @@ Optional operation value.
 
 - Value: The `Value` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.PlcTagAttribute`
+#### `T:IoT.Driver.OmronPlcRx.PlcTagAttribute`
 
 ```csharp
-public class IoT.DriverCore.OmronPlcRx.PlcTagAttribute
+public class IoT.Driver.OmronPlcRx.PlcTagAttribute
 ```
 Marks a field or property for PLC reactive stream source generation.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.PlcTagAttribute.#ctor(System.String)`
+###### `M:IoT.Driver.OmronPlcRx.PlcTagAttribute.#ctor(System.String)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.PlcTagAttribute(string address)
+public IoT.Driver.OmronPlcRx.PlcTagAttribute(string address)
 ```
 Marks a field or property for PLC reactive stream source generation.
 
 - Parameter `address`: The a dd re ss value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.PlcTagAttribute.Address`
+###### `P:IoT.Driver.OmronPlcRx.PlcTagAttribute.Address`
 
 ```csharp
 public string Address { get; }
@@ -3094,7 +3096,7 @@ Gets the address value.
 
 - Value: The `Address` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.PlcTagAttribute.Observe`
+###### `P:IoT.Driver.OmronPlcRx.PlcTagAttribute.Observe`
 
 ```csharp
 public bool Observe { get; set; }
@@ -3103,7 +3105,7 @@ Gets or sets the observe value.
 
 - Value: The `Observe` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.PlcTagAttribute.Register`
+###### `P:IoT.Driver.OmronPlcRx.PlcTagAttribute.Register`
 
 ```csharp
 public bool Register { get; set; }
@@ -3112,7 +3114,7 @@ Gets or sets the register value.
 
 - Value: The `Register` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.PlcTagAttribute.TagName`
+###### `P:IoT.Driver.OmronPlcRx.PlcTagAttribute.TagName`
 
 ```csharp
 public string TagName { get; set; }
@@ -3121,7 +3123,7 @@ Gets or sets the tag name value.
 
 - Value: The `TagName` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.PlcTagAttribute.Writable`
+###### `P:IoT.Driver.OmronPlcRx.PlcTagAttribute.Writable`
 
 ```csharp
 public bool Writable { get; set; }
@@ -3130,42 +3132,42 @@ Gets or sets the writable value.
 
 - Value: The `Writable` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.PlcTagBindingAttribute`
+#### `T:IoT.Driver.OmronPlcRx.PlcTagBindingAttribute`
 
 ```csharp
-public class IoT.DriverCore.OmronPlcRx.PlcTagBindingAttribute
+public class IoT.Driver.OmronPlcRx.PlcTagBindingAttribute
 ```
 Marks a partial class as a generated PLC tag binding container.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.PlcTagBindingAttribute.#ctor`
+###### `M:IoT.Driver.OmronPlcRx.PlcTagBindingAttribute.#ctor`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.PlcTagBindingAttribute()
+public IoT.Driver.OmronPlcRx.PlcTagBindingAttribute()
 ```
-Initializes a new instance of `IoT.DriverCore.OmronPlcRx.PlcTagBindingAttribute`.
+Initializes a new instance of `IoT.Driver.OmronPlcRx.PlcTagBindingAttribute`.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult`
+#### `T:IoT.Driver.OmronPlcRx.Results.ReadBitsResult`
 
 ```csharp
-public struct IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult
+public struct IoT.Driver.OmronPlcRx.Results.ReadBitsResult
 ```
 Result of a Read Bits operation.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult.Equals(IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadBitsResult.Equals(IoT.Driver.OmronPlcRx.Results.ReadBitsResult)`
 
 ```csharp
-public bool Equals(IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult other)
+public bool Equals(IoT.Driver.OmronPlcRx.Results.ReadBitsResult other)
 ```
 Determines whether the supplied value is equal to the current value.
 
 - Parameter `other`: The `other` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult.Equals(System.Object)`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadBitsResult.Equals(System.Object)`
 
 ```csharp
 public bool Equals(object obj)
@@ -3175,7 +3177,7 @@ Determines whether the supplied value is equal to the current value.
 - Parameter `obj`: The `obj` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult.GetHashCode`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadBitsResult.GetHashCode`
 
 ```csharp
 public int GetHashCode()
@@ -3184,7 +3186,7 @@ Returns the hash code for the current value.
 
 - Returns: A `int` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult.ToString`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadBitsResult.ToString`
 
 ```csharp
 public string ToString()
@@ -3193,10 +3195,10 @@ Returns a string representation of the current value.
 
 - Returns: A `string` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult.op_Equality(IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult,IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadBitsResult.op_Equality(IoT.Driver.OmronPlcRx.Results.ReadBitsResult,IoT.Driver.OmronPlcRx.Results.ReadBitsResult)`
 
 ```csharp
-public static bool op_Equality(IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult left, IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult right)
+public static bool op_Equality(IoT.Driver.OmronPlcRx.Results.ReadBitsResult left, IoT.Driver.OmronPlcRx.Results.ReadBitsResult right)
 ```
 Determines whether the two supplied values are equal.
 
@@ -3204,10 +3206,10 @@ Determines whether the two supplied values are equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult.op_Inequality(IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult,IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadBitsResult.op_Inequality(IoT.Driver.OmronPlcRx.Results.ReadBitsResult,IoT.Driver.OmronPlcRx.Results.ReadBitsResult)`
 
 ```csharp
-public static bool op_Inequality(IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult left, IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult right)
+public static bool op_Inequality(IoT.Driver.OmronPlcRx.Results.ReadBitsResult left, IoT.Driver.OmronPlcRx.Results.ReadBitsResult right)
 ```
 Determines whether the two supplied values are not equal.
 
@@ -3215,7 +3217,7 @@ Determines whether the two supplied values are not equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult.BytesReceived`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadBitsResult.BytesReceived`
 
 ```csharp
 public int BytesReceived { get; set; }
@@ -3224,7 +3226,7 @@ Gets or sets the bytes received value.
 
 - Value: The `BytesReceived` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult.BytesSent`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadBitsResult.BytesSent`
 
 ```csharp
 public int BytesSent { get; set; }
@@ -3233,7 +3235,7 @@ Gets or sets the bytes sent value.
 
 - Value: The `BytesSent` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult.Duration`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadBitsResult.Duration`
 
 ```csharp
 public double Duration { get; set; }
@@ -3242,7 +3244,7 @@ Gets or sets the duration value.
 
 - Value: The `Duration` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult.PacketsReceived`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadBitsResult.PacketsReceived`
 
 ```csharp
 public int PacketsReceived { get; set; }
@@ -3251,7 +3253,7 @@ Gets or sets the packets received value.
 
 - Value: The `PacketsReceived` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult.PacketsSent`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadBitsResult.PacketsSent`
 
 ```csharp
 public int PacketsSent { get; set; }
@@ -3260,7 +3262,7 @@ Gets or sets the packets sent value.
 
 - Value: The `PacketsSent` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadBitsResult.Values`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadBitsResult.Values`
 
 ```csharp
 public bool[] Values { get; set; }
@@ -3269,26 +3271,26 @@ Gets or sets the values value.
 
 - Value: The `Values` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Results.ReadClockResult`
+#### `T:IoT.Driver.OmronPlcRx.Results.ReadClockResult`
 
 ```csharp
-public struct IoT.DriverCore.OmronPlcRx.Results.ReadClockResult
+public struct IoT.Driver.OmronPlcRx.Results.ReadClockResult
 ```
 Result of a Read Clock operation.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadClockResult.Equals(IoT.DriverCore.OmronPlcRx.Results.ReadClockResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadClockResult.Equals(IoT.Driver.OmronPlcRx.Results.ReadClockResult)`
 
 ```csharp
-public bool Equals(IoT.DriverCore.OmronPlcRx.Results.ReadClockResult other)
+public bool Equals(IoT.Driver.OmronPlcRx.Results.ReadClockResult other)
 ```
 Determines whether the supplied value is equal to the current value.
 
 - Parameter `other`: The `other` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadClockResult.Equals(System.Object)`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadClockResult.Equals(System.Object)`
 
 ```csharp
 public bool Equals(object obj)
@@ -3298,7 +3300,7 @@ Determines whether the supplied value is equal to the current value.
 - Parameter `obj`: The `obj` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadClockResult.GetHashCode`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadClockResult.GetHashCode`
 
 ```csharp
 public int GetHashCode()
@@ -3307,7 +3309,7 @@ Returns the hash code for the current value.
 
 - Returns: A `int` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadClockResult.ToString`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadClockResult.ToString`
 
 ```csharp
 public string ToString()
@@ -3316,10 +3318,10 @@ Returns a string representation of the current value.
 
 - Returns: A `string` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadClockResult.op_Equality(IoT.DriverCore.OmronPlcRx.Results.ReadClockResult,IoT.DriverCore.OmronPlcRx.Results.ReadClockResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadClockResult.op_Equality(IoT.Driver.OmronPlcRx.Results.ReadClockResult,IoT.Driver.OmronPlcRx.Results.ReadClockResult)`
 
 ```csharp
-public static bool op_Equality(IoT.DriverCore.OmronPlcRx.Results.ReadClockResult left, IoT.DriverCore.OmronPlcRx.Results.ReadClockResult right)
+public static bool op_Equality(IoT.Driver.OmronPlcRx.Results.ReadClockResult left, IoT.Driver.OmronPlcRx.Results.ReadClockResult right)
 ```
 Determines whether the two supplied values are equal.
 
@@ -3327,10 +3329,10 @@ Determines whether the two supplied values are equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadClockResult.op_Inequality(IoT.DriverCore.OmronPlcRx.Results.ReadClockResult,IoT.DriverCore.OmronPlcRx.Results.ReadClockResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadClockResult.op_Inequality(IoT.Driver.OmronPlcRx.Results.ReadClockResult,IoT.Driver.OmronPlcRx.Results.ReadClockResult)`
 
 ```csharp
-public static bool op_Inequality(IoT.DriverCore.OmronPlcRx.Results.ReadClockResult left, IoT.DriverCore.OmronPlcRx.Results.ReadClockResult right)
+public static bool op_Inequality(IoT.Driver.OmronPlcRx.Results.ReadClockResult left, IoT.Driver.OmronPlcRx.Results.ReadClockResult right)
 ```
 Determines whether the two supplied values are not equal.
 
@@ -3338,7 +3340,7 @@ Determines whether the two supplied values are not equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadClockResult.BytesReceived`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadClockResult.BytesReceived`
 
 ```csharp
 public int BytesReceived { get; set; }
@@ -3347,7 +3349,7 @@ Gets or sets the bytes received value.
 
 - Value: The `BytesReceived` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadClockResult.BytesSent`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadClockResult.BytesSent`
 
 ```csharp
 public int BytesSent { get; set; }
@@ -3356,7 +3358,7 @@ Gets or sets the bytes sent value.
 
 - Value: The `BytesSent` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadClockResult.Clock`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadClockResult.Clock`
 
 ```csharp
 public System.DateTimeOffset Clock { get; set; }
@@ -3365,7 +3367,7 @@ Gets or sets the clock value.
 
 - Value: The `Clock` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadClockResult.DayOfWeek`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadClockResult.DayOfWeek`
 
 ```csharp
 public int DayOfWeek { get; set; }
@@ -3374,7 +3376,7 @@ Gets or sets the day of week value.
 
 - Value: The `DayOfWeek` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadClockResult.Duration`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadClockResult.Duration`
 
 ```csharp
 public double Duration { get; set; }
@@ -3383,7 +3385,7 @@ Gets or sets the duration value.
 
 - Value: The `Duration` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadClockResult.PacketsReceived`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadClockResult.PacketsReceived`
 
 ```csharp
 public int PacketsReceived { get; set; }
@@ -3392,7 +3394,7 @@ Gets or sets the packets received value.
 
 - Value: The `PacketsReceived` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadClockResult.PacketsSent`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadClockResult.PacketsSent`
 
 ```csharp
 public int PacketsSent { get; set; }
@@ -3401,26 +3403,26 @@ Gets or sets the packets sent value.
 
 - Value: The `PacketsSent` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult`
+#### `T:IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult`
 
 ```csharp
-public struct IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult
+public struct IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult
 ```
 Result of a Read Cycle Time operation.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult.Equals(IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult.Equals(IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult)`
 
 ```csharp
-public bool Equals(IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult other)
+public bool Equals(IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult other)
 ```
 Determines whether the supplied value is equal to the current value.
 
 - Parameter `other`: The `other` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult.Equals(System.Object)`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult.Equals(System.Object)`
 
 ```csharp
 public bool Equals(object obj)
@@ -3430,7 +3432,7 @@ Determines whether the supplied value is equal to the current value.
 - Parameter `obj`: The `obj` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult.GetHashCode`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult.GetHashCode`
 
 ```csharp
 public int GetHashCode()
@@ -3439,7 +3441,7 @@ Returns the hash code for the current value.
 
 - Returns: A `int` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult.ToString`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult.ToString`
 
 ```csharp
 public string ToString()
@@ -3448,10 +3450,10 @@ Returns a string representation of the current value.
 
 - Returns: A `string` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult.op_Equality(IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult,IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult.op_Equality(IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult,IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult)`
 
 ```csharp
-public static bool op_Equality(IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult left, IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult right)
+public static bool op_Equality(IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult left, IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult right)
 ```
 Determines whether the two supplied values are equal.
 
@@ -3459,10 +3461,10 @@ Determines whether the two supplied values are equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult.op_Inequality(IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult,IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult.op_Inequality(IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult,IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult)`
 
 ```csharp
-public static bool op_Inequality(IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult left, IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult right)
+public static bool op_Inequality(IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult left, IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult right)
 ```
 Determines whether the two supplied values are not equal.
 
@@ -3470,7 +3472,7 @@ Determines whether the two supplied values are not equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult.AverageCycleTime`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult.AverageCycleTime`
 
 ```csharp
 public double AverageCycleTime { get; set; }
@@ -3479,7 +3481,7 @@ Gets or sets the average cycle time value.
 
 - Value: The `AverageCycleTime` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult.BytesReceived`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult.BytesReceived`
 
 ```csharp
 public int BytesReceived { get; set; }
@@ -3488,7 +3490,7 @@ Gets or sets the bytes received value.
 
 - Value: The `BytesReceived` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult.BytesSent`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult.BytesSent`
 
 ```csharp
 public int BytesSent { get; set; }
@@ -3497,7 +3499,7 @@ Gets or sets the bytes sent value.
 
 - Value: The `BytesSent` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult.Duration`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult.Duration`
 
 ```csharp
 public double Duration { get; set; }
@@ -3506,7 +3508,7 @@ Gets or sets the duration value.
 
 - Value: The `Duration` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult.MaximumCycleTime`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult.MaximumCycleTime`
 
 ```csharp
 public double MaximumCycleTime { get; set; }
@@ -3515,7 +3517,7 @@ Gets or sets the maximum cycle time value.
 
 - Value: The `MaximumCycleTime` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult.MinimumCycleTime`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult.MinimumCycleTime`
 
 ```csharp
 public double MinimumCycleTime { get; set; }
@@ -3524,7 +3526,7 @@ Gets or sets the minimum cycle time value.
 
 - Value: The `MinimumCycleTime` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult.PacketsReceived`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult.PacketsReceived`
 
 ```csharp
 public int PacketsReceived { get; set; }
@@ -3533,7 +3535,7 @@ Gets or sets the packets received value.
 
 - Value: The `PacketsReceived` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadCycleTimeResult.PacketsSent`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadCycleTimeResult.PacketsSent`
 
 ```csharp
 public int PacketsSent { get; set; }
@@ -3542,26 +3544,26 @@ Gets or sets the packets sent value.
 
 - Value: The `PacketsSent` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult`
+#### `T:IoT.Driver.OmronPlcRx.Results.ReadWordsResult`
 
 ```csharp
-public struct IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult
+public struct IoT.Driver.OmronPlcRx.Results.ReadWordsResult
 ```
 Result of a Read Words operation.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult.Equals(IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadWordsResult.Equals(IoT.Driver.OmronPlcRx.Results.ReadWordsResult)`
 
 ```csharp
-public bool Equals(IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult other)
+public bool Equals(IoT.Driver.OmronPlcRx.Results.ReadWordsResult other)
 ```
 Determines whether the supplied value is equal to the current value.
 
 - Parameter `other`: The `other` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult.Equals(System.Object)`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadWordsResult.Equals(System.Object)`
 
 ```csharp
 public bool Equals(object obj)
@@ -3571,7 +3573,7 @@ Determines whether the supplied value is equal to the current value.
 - Parameter `obj`: The `obj` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult.GetHashCode`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadWordsResult.GetHashCode`
 
 ```csharp
 public int GetHashCode()
@@ -3580,7 +3582,7 @@ Returns the hash code for the current value.
 
 - Returns: A `int` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult.ToString`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadWordsResult.ToString`
 
 ```csharp
 public string ToString()
@@ -3589,10 +3591,10 @@ Returns a string representation of the current value.
 
 - Returns: A `string` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult.op_Equality(IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult,IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadWordsResult.op_Equality(IoT.Driver.OmronPlcRx.Results.ReadWordsResult,IoT.Driver.OmronPlcRx.Results.ReadWordsResult)`
 
 ```csharp
-public static bool op_Equality(IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult left, IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult right)
+public static bool op_Equality(IoT.Driver.OmronPlcRx.Results.ReadWordsResult left, IoT.Driver.OmronPlcRx.Results.ReadWordsResult right)
 ```
 Determines whether the two supplied values are equal.
 
@@ -3600,10 +3602,10 @@ Determines whether the two supplied values are equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult.op_Inequality(IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult,IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.ReadWordsResult.op_Inequality(IoT.Driver.OmronPlcRx.Results.ReadWordsResult,IoT.Driver.OmronPlcRx.Results.ReadWordsResult)`
 
 ```csharp
-public static bool op_Inequality(IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult left, IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult right)
+public static bool op_Inequality(IoT.Driver.OmronPlcRx.Results.ReadWordsResult left, IoT.Driver.OmronPlcRx.Results.ReadWordsResult right)
 ```
 Determines whether the two supplied values are not equal.
 
@@ -3611,7 +3613,7 @@ Determines whether the two supplied values are not equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult.BytesReceived`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadWordsResult.BytesReceived`
 
 ```csharp
 public int BytesReceived { get; set; }
@@ -3620,7 +3622,7 @@ Gets or sets the bytes received value.
 
 - Value: The `BytesReceived` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult.BytesSent`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadWordsResult.BytesSent`
 
 ```csharp
 public int BytesSent { get; set; }
@@ -3629,7 +3631,7 @@ Gets or sets the bytes sent value.
 
 - Value: The `BytesSent` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult.Duration`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadWordsResult.Duration`
 
 ```csharp
 public double Duration { get; set; }
@@ -3638,7 +3640,7 @@ Gets or sets the duration value.
 
 - Value: The `Duration` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult.PacketsReceived`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadWordsResult.PacketsReceived`
 
 ```csharp
 public int PacketsReceived { get; set; }
@@ -3647,7 +3649,7 @@ Gets or sets the packets received value.
 
 - Value: The `PacketsReceived` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult.PacketsSent`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadWordsResult.PacketsSent`
 
 ```csharp
 public int PacketsSent { get; set; }
@@ -3656,7 +3658,7 @@ Gets or sets the packets sent value.
 
 - Value: The `PacketsSent` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.ReadWordsResult.Values`
+###### `P:IoT.Driver.OmronPlcRx.Results.ReadWordsResult.Values`
 
 ```csharp
 public short[] Values { get; set; }
@@ -3665,26 +3667,26 @@ Gets or sets the values value.
 
 - Value: The `Values` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult`
+#### `T:IoT.Driver.OmronPlcRx.Results.WriteBitsResult`
 
 ```csharp
-public struct IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult
+public struct IoT.Driver.OmronPlcRx.Results.WriteBitsResult
 ```
 Result of a Write Bits operation.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult.Equals(IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteBitsResult.Equals(IoT.Driver.OmronPlcRx.Results.WriteBitsResult)`
 
 ```csharp
-public bool Equals(IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult other)
+public bool Equals(IoT.Driver.OmronPlcRx.Results.WriteBitsResult other)
 ```
 Determines whether the supplied value is equal to the current value.
 
 - Parameter `other`: The `other` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult.Equals(System.Object)`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteBitsResult.Equals(System.Object)`
 
 ```csharp
 public bool Equals(object obj)
@@ -3694,7 +3696,7 @@ Determines whether the supplied value is equal to the current value.
 - Parameter `obj`: The `obj` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult.GetHashCode`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteBitsResult.GetHashCode`
 
 ```csharp
 public int GetHashCode()
@@ -3703,7 +3705,7 @@ Returns the hash code for the current value.
 
 - Returns: A `int` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult.ToString`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteBitsResult.ToString`
 
 ```csharp
 public string ToString()
@@ -3712,10 +3714,10 @@ Returns a string representation of the current value.
 
 - Returns: A `string` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult.op_Equality(IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult,IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteBitsResult.op_Equality(IoT.Driver.OmronPlcRx.Results.WriteBitsResult,IoT.Driver.OmronPlcRx.Results.WriteBitsResult)`
 
 ```csharp
-public static bool op_Equality(IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult left, IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult right)
+public static bool op_Equality(IoT.Driver.OmronPlcRx.Results.WriteBitsResult left, IoT.Driver.OmronPlcRx.Results.WriteBitsResult right)
 ```
 Determines whether the two supplied values are equal.
 
@@ -3723,10 +3725,10 @@ Determines whether the two supplied values are equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult.op_Inequality(IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult,IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteBitsResult.op_Inequality(IoT.Driver.OmronPlcRx.Results.WriteBitsResult,IoT.Driver.OmronPlcRx.Results.WriteBitsResult)`
 
 ```csharp
-public static bool op_Inequality(IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult left, IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult right)
+public static bool op_Inequality(IoT.Driver.OmronPlcRx.Results.WriteBitsResult left, IoT.Driver.OmronPlcRx.Results.WriteBitsResult right)
 ```
 Determines whether the two supplied values are not equal.
 
@@ -3734,7 +3736,7 @@ Determines whether the two supplied values are not equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult.BytesReceived`
+###### `P:IoT.Driver.OmronPlcRx.Results.WriteBitsResult.BytesReceived`
 
 ```csharp
 public int BytesReceived { get; set; }
@@ -3743,7 +3745,7 @@ Gets or sets the bytes received value.
 
 - Value: The `BytesReceived` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult.BytesSent`
+###### `P:IoT.Driver.OmronPlcRx.Results.WriteBitsResult.BytesSent`
 
 ```csharp
 public int BytesSent { get; set; }
@@ -3752,7 +3754,7 @@ Gets or sets the bytes sent value.
 
 - Value: The `BytesSent` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult.Duration`
+###### `P:IoT.Driver.OmronPlcRx.Results.WriteBitsResult.Duration`
 
 ```csharp
 public double Duration { get; set; }
@@ -3761,7 +3763,7 @@ Gets or sets the duration value.
 
 - Value: The `Duration` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult.PacketsReceived`
+###### `P:IoT.Driver.OmronPlcRx.Results.WriteBitsResult.PacketsReceived`
 
 ```csharp
 public int PacketsReceived { get; set; }
@@ -3770,7 +3772,7 @@ Gets or sets the packets received value.
 
 - Value: The `PacketsReceived` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.WriteBitsResult.PacketsSent`
+###### `P:IoT.Driver.OmronPlcRx.Results.WriteBitsResult.PacketsSent`
 
 ```csharp
 public int PacketsSent { get; set; }
@@ -3779,26 +3781,26 @@ Gets or sets the packets sent value.
 
 - Value: The `PacketsSent` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Results.WriteClockResult`
+#### `T:IoT.Driver.OmronPlcRx.Results.WriteClockResult`
 
 ```csharp
-public struct IoT.DriverCore.OmronPlcRx.Results.WriteClockResult
+public struct IoT.Driver.OmronPlcRx.Results.WriteClockResult
 ```
 Result of a Write Clock operation.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteClockResult.Equals(IoT.DriverCore.OmronPlcRx.Results.WriteClockResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteClockResult.Equals(IoT.Driver.OmronPlcRx.Results.WriteClockResult)`
 
 ```csharp
-public bool Equals(IoT.DriverCore.OmronPlcRx.Results.WriteClockResult other)
+public bool Equals(IoT.Driver.OmronPlcRx.Results.WriteClockResult other)
 ```
 Determines whether the supplied value is equal to the current value.
 
 - Parameter `other`: The `other` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteClockResult.Equals(System.Object)`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteClockResult.Equals(System.Object)`
 
 ```csharp
 public bool Equals(object obj)
@@ -3808,7 +3810,7 @@ Determines whether the supplied value is equal to the current value.
 - Parameter `obj`: The `obj` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteClockResult.GetHashCode`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteClockResult.GetHashCode`
 
 ```csharp
 public int GetHashCode()
@@ -3817,7 +3819,7 @@ Returns the hash code for the current value.
 
 - Returns: A `int` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteClockResult.ToString`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteClockResult.ToString`
 
 ```csharp
 public string ToString()
@@ -3826,10 +3828,10 @@ Returns a string representation of the current value.
 
 - Returns: A `string` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteClockResult.op_Equality(IoT.DriverCore.OmronPlcRx.Results.WriteClockResult,IoT.DriverCore.OmronPlcRx.Results.WriteClockResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteClockResult.op_Equality(IoT.Driver.OmronPlcRx.Results.WriteClockResult,IoT.Driver.OmronPlcRx.Results.WriteClockResult)`
 
 ```csharp
-public static bool op_Equality(IoT.DriverCore.OmronPlcRx.Results.WriteClockResult left, IoT.DriverCore.OmronPlcRx.Results.WriteClockResult right)
+public static bool op_Equality(IoT.Driver.OmronPlcRx.Results.WriteClockResult left, IoT.Driver.OmronPlcRx.Results.WriteClockResult right)
 ```
 Determines whether the two supplied values are equal.
 
@@ -3837,10 +3839,10 @@ Determines whether the two supplied values are equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteClockResult.op_Inequality(IoT.DriverCore.OmronPlcRx.Results.WriteClockResult,IoT.DriverCore.OmronPlcRx.Results.WriteClockResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteClockResult.op_Inequality(IoT.Driver.OmronPlcRx.Results.WriteClockResult,IoT.Driver.OmronPlcRx.Results.WriteClockResult)`
 
 ```csharp
-public static bool op_Inequality(IoT.DriverCore.OmronPlcRx.Results.WriteClockResult left, IoT.DriverCore.OmronPlcRx.Results.WriteClockResult right)
+public static bool op_Inequality(IoT.Driver.OmronPlcRx.Results.WriteClockResult left, IoT.Driver.OmronPlcRx.Results.WriteClockResult right)
 ```
 Determines whether the two supplied values are not equal.
 
@@ -3848,7 +3850,7 @@ Determines whether the two supplied values are not equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.WriteClockResult.BytesReceived`
+###### `P:IoT.Driver.OmronPlcRx.Results.WriteClockResult.BytesReceived`
 
 ```csharp
 public int BytesReceived { get; set; }
@@ -3857,7 +3859,7 @@ Gets or sets the bytes received value.
 
 - Value: The `BytesReceived` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.WriteClockResult.BytesSent`
+###### `P:IoT.Driver.OmronPlcRx.Results.WriteClockResult.BytesSent`
 
 ```csharp
 public int BytesSent { get; set; }
@@ -3866,7 +3868,7 @@ Gets or sets the bytes sent value.
 
 - Value: The `BytesSent` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.WriteClockResult.Duration`
+###### `P:IoT.Driver.OmronPlcRx.Results.WriteClockResult.Duration`
 
 ```csharp
 public double Duration { get; set; }
@@ -3875,7 +3877,7 @@ Gets or sets the duration value.
 
 - Value: The `Duration` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.WriteClockResult.PacketsReceived`
+###### `P:IoT.Driver.OmronPlcRx.Results.WriteClockResult.PacketsReceived`
 
 ```csharp
 public int PacketsReceived { get; set; }
@@ -3884,7 +3886,7 @@ Gets or sets the packets received value.
 
 - Value: The `PacketsReceived` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.WriteClockResult.PacketsSent`
+###### `P:IoT.Driver.OmronPlcRx.Results.WriteClockResult.PacketsSent`
 
 ```csharp
 public int PacketsSent { get; set; }
@@ -3893,26 +3895,26 @@ Gets or sets the packets sent value.
 
 - Value: The `PacketsSent` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult`
+#### `T:IoT.Driver.OmronPlcRx.Results.WriteWordsResult`
 
 ```csharp
-public struct IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult
+public struct IoT.Driver.OmronPlcRx.Results.WriteWordsResult
 ```
 Result of a Write Words operation.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult.Equals(IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteWordsResult.Equals(IoT.Driver.OmronPlcRx.Results.WriteWordsResult)`
 
 ```csharp
-public bool Equals(IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult other)
+public bool Equals(IoT.Driver.OmronPlcRx.Results.WriteWordsResult other)
 ```
 Determines whether the supplied value is equal to the current value.
 
 - Parameter `other`: The `other` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult.Equals(System.Object)`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteWordsResult.Equals(System.Object)`
 
 ```csharp
 public bool Equals(object obj)
@@ -3922,7 +3924,7 @@ Determines whether the supplied value is equal to the current value.
 - Parameter `obj`: The `obj` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult.GetHashCode`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteWordsResult.GetHashCode`
 
 ```csharp
 public int GetHashCode()
@@ -3931,7 +3933,7 @@ Returns the hash code for the current value.
 
 - Returns: A `int` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult.ToString`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteWordsResult.ToString`
 
 ```csharp
 public string ToString()
@@ -3940,10 +3942,10 @@ Returns a string representation of the current value.
 
 - Returns: A `string` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult.op_Equality(IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult,IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteWordsResult.op_Equality(IoT.Driver.OmronPlcRx.Results.WriteWordsResult,IoT.Driver.OmronPlcRx.Results.WriteWordsResult)`
 
 ```csharp
-public static bool op_Equality(IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult left, IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult right)
+public static bool op_Equality(IoT.Driver.OmronPlcRx.Results.WriteWordsResult left, IoT.Driver.OmronPlcRx.Results.WriteWordsResult right)
 ```
 Determines whether the two supplied values are equal.
 
@@ -3951,10 +3953,10 @@ Determines whether the two supplied values are equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult.op_Inequality(IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult,IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult)`
+###### `M:IoT.Driver.OmronPlcRx.Results.WriteWordsResult.op_Inequality(IoT.Driver.OmronPlcRx.Results.WriteWordsResult,IoT.Driver.OmronPlcRx.Results.WriteWordsResult)`
 
 ```csharp
-public static bool op_Inequality(IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult left, IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult right)
+public static bool op_Inequality(IoT.Driver.OmronPlcRx.Results.WriteWordsResult left, IoT.Driver.OmronPlcRx.Results.WriteWordsResult right)
 ```
 Determines whether the two supplied values are not equal.
 
@@ -3962,7 +3964,7 @@ Determines whether the two supplied values are not equal.
 - Parameter `right`: The `right` value.
 - Returns: A `bool` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult.BytesReceived`
+###### `P:IoT.Driver.OmronPlcRx.Results.WriteWordsResult.BytesReceived`
 
 ```csharp
 public int BytesReceived { get; set; }
@@ -3971,7 +3973,7 @@ Gets or sets the bytes received value.
 
 - Value: The `BytesReceived` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult.BytesSent`
+###### `P:IoT.Driver.OmronPlcRx.Results.WriteWordsResult.BytesSent`
 
 ```csharp
 public int BytesSent { get; set; }
@@ -3980,7 +3982,7 @@ Gets or sets the bytes sent value.
 
 - Value: The `BytesSent` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult.Duration`
+###### `P:IoT.Driver.OmronPlcRx.Results.WriteWordsResult.Duration`
 
 ```csharp
 public double Duration { get; set; }
@@ -3989,7 +3991,7 @@ Gets or sets the duration value.
 
 - Value: The `Duration` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult.PacketsReceived`
+###### `P:IoT.Driver.OmronPlcRx.Results.WriteWordsResult.PacketsReceived`
 
 ```csharp
 public int PacketsReceived { get; set; }
@@ -3998,7 +4000,7 @@ Gets or sets the packets received value.
 
 - Value: The `PacketsReceived` value.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Results.WriteWordsResult.PacketsSent`
+###### `P:IoT.Driver.OmronPlcRx.Results.WriteWordsResult.PacketsSent`
 
 ```csharp
 public int PacketsSent { get; set; }
@@ -4007,16 +4009,16 @@ Gets or sets the packets sent value.
 
 - Value: The `PacketsSent` value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Tags.IPlcTag`
+#### `T:IoT.Driver.OmronPlcRx.Tags.IPlcTag`
 
 ```csharp
-public interface IoT.DriverCore.OmronPlcRx.Tags.IPlcTag
+public interface IoT.Driver.OmronPlcRx.Tags.IPlcTag
 ```
 Defines metadata and value access for a PLC tag.
 
 ##### Declared public members
 
-###### `P:IoT.DriverCore.OmronPlcRx.Tags.IPlcTag.Address`
+###### `P:IoT.Driver.OmronPlcRx.Tags.IPlcTag.Address`
 
 ```csharp
 public string Address { get; }
@@ -4025,7 +4027,7 @@ Gets the address.
 
 - Value: The address.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Tags.IPlcTag.TagName`
+###### `P:IoT.Driver.OmronPlcRx.Tags.IPlcTag.TagName`
 
 ```csharp
 public string TagName { get; }
@@ -4034,7 +4036,7 @@ Gets the name of the tag.
 
 - Value: The name of the tag.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Tags.IPlcTag.TagType`
+###### `P:IoT.Driver.OmronPlcRx.Tags.IPlcTag.TagType`
 
 ```csharp
 public System.Type TagType { get; }
@@ -4043,7 +4045,7 @@ Gets a value indicating whether this instance is bit address.
 
 - Value: true if this instance is bit address; otherwise, false .
 
-###### `P:IoT.DriverCore.OmronPlcRx.Tags.IPlcTag.Value`
+###### `P:IoT.Driver.OmronPlcRx.Tags.IPlcTag.Value`
 
 ```csharp
 public object Value { get; }
@@ -4052,26 +4054,26 @@ Gets the value.
 
 - Value: The value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.Tags.PlcTag`1`
+#### `T:IoT.Driver.OmronPlcRx.Tags.PlcTag`1`
 
 ```csharp
-public class IoT.DriverCore.OmronPlcRx.Tags.PlcTag`1
+public class IoT.Driver.OmronPlcRx.Tags.PlcTag`1
 ```
 Represents a typed PLC tag binding.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.Tags.PlcTag`1.#ctor(System.String,System.String)`
+###### `M:IoT.Driver.OmronPlcRx.Tags.PlcTag`1.#ctor(System.String,System.String)`
 
 ```csharp
-public IoT.DriverCore.OmronPlcRx.Tags.PlcTag<T>(string tagName, string address)
+public IoT.Driver.OmronPlcRx.Tags.PlcTag<T>(string tagName, string address)
 ```
 Represents a typed PLC tag binding.
 
 - Parameter `tagName`: The tag Name.
 - Parameter `address`: The address.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Tags.PlcTag`1.Address`
+###### `P:IoT.Driver.OmronPlcRx.Tags.PlcTag`1.Address`
 
 ```csharp
 public string Address { get; }
@@ -4080,7 +4082,7 @@ Gets the address.
 
 - Value: The address.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Tags.PlcTag`1.TagName`
+###### `P:IoT.Driver.OmronPlcRx.Tags.PlcTag`1.TagName`
 
 ```csharp
 public string TagName { get; }
@@ -4089,7 +4091,7 @@ Gets the Tag Name.
 
 - Value: The name.
 
-###### `P:IoT.DriverCore.OmronPlcRx.Tags.PlcTag`1.TagType`
+###### `P:IoT.Driver.OmronPlcRx.Tags.PlcTag`1.TagType`
 
 ```csharp
 public System.Type TagType { get; }
@@ -4098,7 +4100,7 @@ Gets a value indicating whether this instance is bit address.
 
 - Value: true if this instance is bit address; otherwise, false .
 
-###### `P:IoT.DriverCore.OmronPlcRx.Tags.PlcTag`1.Value`
+###### `P:IoT.Driver.OmronPlcRx.Tags.PlcTag`1.Value`
 
 ```csharp
 public T Value { get; }
@@ -4107,16 +4109,16 @@ Gets the tag value.
 
 - Value: The value.
 
-#### `T:IoT.DriverCore.OmronPlcRx.ToolbusFinsFrameCodec`
+#### `T:IoT.Driver.OmronPlcRx.ToolbusFinsFrameCodec`
 
 ```csharp
-public class IoT.DriverCore.OmronPlcRx.ToolbusFinsFrameCodec
+public class IoT.Driver.OmronPlcRx.ToolbusFinsFrameCodec
 ```
 Encodes and decodes Omron Toolbus serial frames carrying binary FINS messages.
 
 ##### Declared public members
 
-###### `M:IoT.DriverCore.OmronPlcRx.ToolbusFinsFrameCodec.CalculateChecksum(System.ReadOnlySpan`1{System.Byte})`
+###### `M:IoT.Driver.OmronPlcRx.ToolbusFinsFrameCodec.CalculateChecksum(System.ReadOnlySpan`1{System.Byte})`
 
 ```csharp
 public static ushort CalculateChecksum(System.ReadOnlySpan<byte> data)
@@ -4126,7 +4128,7 @@ Executes the `CalculateChecksum` operation.
 - Parameter `data`: The `data` value.
 - Returns: A `ushort` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.ToolbusFinsFrameCodec.DecodeResponse(System.ReadOnlyMemory`1{System.Byte})`
+###### `M:IoT.Driver.OmronPlcRx.ToolbusFinsFrameCodec.DecodeResponse(System.ReadOnlyMemory`1{System.Byte})`
 
 ```csharp
 public static System.Memory<byte> DecodeResponse(System.ReadOnlyMemory<byte> frame)
@@ -4136,7 +4138,7 @@ Executes the `DecodeResponse` operation.
 - Parameter `frame`: The `frame` value.
 - Returns: A `System.Memory<byte>` result.
 
-###### `M:IoT.DriverCore.OmronPlcRx.ToolbusFinsFrameCodec.EncodeRequest(System.ReadOnlyMemory`1{System.Byte})`
+###### `M:IoT.Driver.OmronPlcRx.ToolbusFinsFrameCodec.EncodeRequest(System.ReadOnlyMemory`1{System.Byte})`
 
 ```csharp
 public static System.Memory<byte> EncodeRequest(System.ReadOnlyMemory<byte> finsMessage)
@@ -4146,7 +4148,7 @@ Executes the `EncodeRequest` operation.
 - Parameter `finsMessage`: The `finsMessage` value.
 - Returns: A `System.Memory<byte>` result.
 
-###### `P:IoT.DriverCore.OmronPlcRx.ToolbusFinsFrameCodec.SynchronizationFrame`
+###### `P:IoT.Driver.OmronPlcRx.ToolbusFinsFrameCodec.SynchronizationFrame`
 
 ```csharp
 public System.ReadOnlyMemory<byte> SynchronizationFrame { get; }

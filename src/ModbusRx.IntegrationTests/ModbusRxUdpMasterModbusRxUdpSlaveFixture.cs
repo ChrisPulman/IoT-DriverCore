@@ -5,9 +5,9 @@
 using System;
 using System.Net;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Device;
 
-namespace IoT.DriverCore.ModbusRx.IntegrationTests;
+namespace IoT.Driver.ModbusRx.IntegrationTests;
 
 /// <summary>Tests the NModbusUdpMasterNModbusUdpSlaveFixture behavior.</summary>
 /// <seealso cref="ModbusRxMasterFixtureBase" />
@@ -17,15 +17,13 @@ public class ModbusRxUdpMasterModbusRxUdpSlaveFixture : ModbusRxMasterFixtureBas
     /// <summary>The delay used to let the slave begin listening.</summary>
     private const int SlaveStartupDelayMilliseconds = 200;
 
-    /// <summary>Initializes a new instance of the <see cref="ModbusRxUdpMasterModbusRxUdpSlaveFixture"/>.</summary>
-    public ModbusRxUdpMasterModbusRxUdpSlaveFixture() => InitializeAsync().GetAwaiter().GetResult();
-
     /// <summary>Gets the transport used by this fixture.</summary>
     protected override string TransportName => "UDP";
 
     /// <summary>Initializes the UDP connections asynchronously with CI-safe port allocation.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    private async Task InitializeAsync()
+    [TUnit.Core.Before(TUnit.Core.HookType.Test)]
+    public async Task InitializeAsync()
     {
         // Use dynamic port allocation to avoid conflicts in CI
         var port = await GetAvailablePortAsync();

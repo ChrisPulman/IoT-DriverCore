@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Windows;
-using IoT.DriverCore.OmronPlcRx.Dashboard.ViewModels;
+using IoT.Driver.OmronPlcRx.Dashboard.ViewModels;
 
-namespace IoT.DriverCore.OmronPlcRx.Dashboard.Views;
+namespace IoT.Driver.OmronPlcRx.Dashboard.Views;
 
 /// <summary>Dialog used to add a PLC tag.</summary>
 public partial class AddTagDialog

@@ -24,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="IoT.DriverCore.Core" />
+    <Using Include="IoT.Driver.Core" />
     <Using Include="ReactiveUI.Primitives" />
     <Using Include="ReactiveUI.Primitives.Extensions" />
     <Using Include="ReactiveUI.Primitives.Signals" />
@@ -38,6 +38,6 @@
     <Using Include="ReactiveUI.Primitives.RxVoid" Alias="Unit" />
   </ItemGroup>
 
-  <Import Project="..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets" Condition="Exists('..\CP.IoT.Core\buildTransitive\CP.IoT.Core.targets')" />
+  <Import Project="..\CP.IoT.Core\buildTransitive\IoT-Driver.Core.targets" Condition="Exists('..\CP.IoT.Core\buildTransitive\IoT-Driver.Core.targets')" />
 
 </Project>

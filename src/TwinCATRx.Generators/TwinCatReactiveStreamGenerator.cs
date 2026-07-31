@@ -2,61 +2,59 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Text;
 
-namespace IoT.DriverCore.TwinCATRx.SourceGenerators;
+namespace IoT.Driver.TwinCATRx.SourceGenerators;
 
 /// <summary>Generates TwinCAT reactive stream binding members.</summary>
 [Generator(LanguageNames.CSharp)]
 public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerator
 {
     /// <summary>Stores the legacy stream attribute metadata name.</summary>
-    private const string TwinCatReactiveStreamAttributeName = "IoT.DriverCore.TwinCATRx.TwinCatReactiveStreamAttribute";
+    private const string TwinCatReactiveStreamAttributeName = "IoT.Driver.TwinCATRx.TwinCatReactiveStreamAttribute";
 
     /// <summary>Stores the Reactive legacy stream attribute metadata name.</summary>
     private const string ReactiveTwinCatReactiveStreamAttributeName =
-        "IoT.DriverCore.TwinCATRx.Reactive.TwinCatReactiveStreamAttribute";
+        "IoT.Driver.TwinCATRx.Reactive.TwinCatReactiveStreamAttribute";
 
     /// <summary>Stores the PLC connection attribute metadata name.</summary>
-    private const string TwinCatPlcConnectionAttributeName = "IoT.DriverCore.TwinCATRx.TwinCatPlcConnectionAttribute";
+    private const string TwinCatPlcConnectionAttributeName = "IoT.Driver.TwinCATRx.TwinCatPlcConnectionAttribute";
 
     /// <summary>Stores the Reactive PLC connection attribute metadata name.</summary>
     private const string ReactiveTwinCatPlcConnectionAttributeName =
-        "IoT.DriverCore.TwinCATRx.Reactive.TwinCatPlcConnectionAttribute";
+        "IoT.Driver.TwinCATRx.Reactive.TwinCatPlcConnectionAttribute";
 
     /// <summary>Stores the direct notification attribute metadata name.</summary>
-    private const string DirectNotificationAttributeName = "IoT.DriverCore.TwinCATRx.DirectNotificationAttribute";
+    private const string DirectNotificationAttributeName = "IoT.Driver.TwinCATRx.DirectNotificationAttribute";
 
     /// <summary>Stores the Reactive direct notification attribute metadata name.</summary>
-    private const string ReactiveDirectNotificationAttributeName = "IoT.DriverCore.TwinCATRx.Reactive.DirectNotificationAttribute";
+    private const string ReactiveDirectNotificationAttributeName = "IoT.Driver.TwinCATRx.Reactive.DirectNotificationAttribute";
 
     /// <summary>Stores the structured notification attribute metadata name.</summary>
-    private const string StructuredNotificationAttributeName = "IoT.DriverCore.TwinCATRx.StructuredNotificationAttribute";
+    private const string StructuredNotificationAttributeName = "IoT.Driver.TwinCATRx.StructuredNotificationAttribute";
 
     /// <summary>Stores the Reactive structured notification attribute metadata name.</summary>
     private const string ReactiveStructuredNotificationAttributeName =
-        "IoT.DriverCore.TwinCATRx.Reactive.StructuredNotificationAttribute";
+        "IoT.Driver.TwinCATRx.Reactive.StructuredNotificationAttribute";
 
     /// <summary>Stores the write-only attribute metadata name.</summary>
-    private const string WriteOnlyAttributeName = "IoT.DriverCore.TwinCATRx.WriteOnlyAttribute";
+    private const string WriteOnlyAttributeName = "IoT.Driver.TwinCATRx.WriteOnlyAttribute";
 
     /// <summary>Stores the Reactive write-only attribute metadata name.</summary>
-    private const string ReactiveWriteOnlyAttributeName = "IoT.DriverCore.TwinCATRx.Reactive.WriteOnlyAttribute";
+    private const string ReactiveWriteOnlyAttributeName = "IoT.Driver.TwinCATRx.Reactive.WriteOnlyAttribute";
 
     /// <summary>Stores the lean library namespace.</summary>
-    private const string LeanLibraryNamespace = "IoT.DriverCore.TwinCATRx";
+    private const string LeanLibraryNamespace = "IoT.Driver.TwinCATRx";
 
     /// <summary>Stores the Reactive library namespace.</summary>
-    private const string ReactiveLibraryNamespace = "IoT.DriverCore.TwinCATRx.Reactive";
+    private const string ReactiveLibraryNamespace = "IoT.Driver.TwinCATRx.Reactive";
 
     /// <summary>Stores the lean core namespace.</summary>
-    private const string LeanCoreNamespace = "IoT.DriverCore.TwinCATRx.Core";
+    private const string LeanCoreNamespace = "IoT.Driver.TwinCATRx.Core";
 
     /// <summary>Stores the Reactive core namespace.</summary>
-    private const string ReactiveCoreNamespace = "IoT.DriverCore.TwinCATRx.Core.Reactive";
+    private const string ReactiveCoreNamespace = "IoT.Driver.TwinCATRx.Core.Reactive";
 
     /// <summary>Stores the lean collections namespace.</summary>
     private const string LeanCollectionsNamespace = "CP.Collections";
@@ -131,7 +129,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
 
     /// <summary>Stores the generated asynchronous result method prefix.</summary>
     private const string AsyncResultMethodPrefix =
-        "    public System.Threading.Tasks.Task<global::IoT.DriverCore.Core.TagOperationResult<";
+        "    public System.Threading.Tasks.Task<global::IoT.Driver.Core.TagOperationResult<";
 
     /// <summary>Stores the generated trimming-annotation prefix.</summary>
     private const string RequiresUnreferencedCodePrefix = "    [RequiresUnreferencedCode(";
@@ -145,118 +143,6 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
 
     /// <summary>Stores the default PLC notification cycle time in milliseconds.</summary>
     private const int DefaultCycleTime = 100;
-
-    /// <summary>Defines the attributes consumed by this source generator.</summary>
-    private const string AttributeSource = """
-// <auto-generated/>
-#nullable enable
-namespace IoT.DriverCore.TwinCATRx;
-
-[System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
-internal sealed class TwinCatReactiveStreamAttribute : System.Attribute
-{
-    public TwinCatReactiveStreamAttribute(string variable, System.Type dataType)
-    {
-        Variable = variable;
-        DataType = dataType;
-    }
-
-    public string Variable { get; }
-
-    public System.Type DataType { get; }
-
-    public string? Id { get; set; }
-
-    public string? PropertyName { get; set; }
-
-    public string? ObservableName { get; set; }
-}
-
-[System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
-internal sealed class TwinCatPlcConnectionAttribute : System.Attribute
-{
-    public TwinCatPlcConnectionAttribute(string adsAddress, int port)
-    {
-        AdsAddress = adsAddress;
-        Port = port;
-    }
-
-    public string AdsAddress { get; }
-
-    public int Port { get; }
-
-    public string? SettingsId { get; set; }
-}
-
-[System.AttributeUsage(System.AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
-internal sealed class DirectNotificationAttribute : System.Attribute
-{
-    public DirectNotificationAttribute(string address)
-    {
-        Address = address;
-    }
-
-    public string Address { get; }
-
-    public int CycleTime { get; set; } = 100;
-
-    public int ArraySize { get; set; } = -1;
-
-    public string? Id { get; set; }
-
-    public string? ObservableName { get; set; }
-
-    public bool CanWrite { get; set; } = true;
-
-    public string? WriteAddress { get; set; }
-}
-
-[System.AttributeUsage(System.AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
-internal sealed class StructuredNotificationAttribute : System.Attribute
-{
-    public StructuredNotificationAttribute(string address)
-    {
-        Address = address;
-    }
-
-    public StructuredNotificationAttribute(string address, string memberAddress)
-    {
-        Address = address;
-        MemberAddress = memberAddress;
-    }
-
-    public string Address { get; }
-
-    public string? MemberAddress { get; set; }
-
-    public int CycleTime { get; set; } = 100;
-
-    public int ArraySize { get; set; } = -1;
-
-    public string? Id { get; set; }
-
-    public string? ObservableName { get; set; }
-
-    public bool CanWrite { get; set; } = true;
-
-    public string? WriteAddress { get; set; }
-}
-
-[System.AttributeUsage(System.AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
-internal sealed class WriteOnlyAttribute : System.Attribute
-{
-    public WriteOnlyAttribute(string address)
-    {
-        Address = address;
-    }
-
-    public string Address { get; }
-
-    public int ArraySize { get; set; } = -1;
-
-    public string? Id { get; set; }
-}
-""";
 
     /// <summary>Identifies the generated TwinCATRx API surface.</summary>
     private enum ApiSurface
@@ -272,45 +158,33 @@ internal sealed class WriteOnlyAttribute : System.Attribute
     /// <param name="context">The generator initialization context.</param>
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        context.RegisterPostInitializationOutput(static ctx =>
-        {
-            ctx.AddSource("TwinCatReactiveStreamAttribute.Lean.g.cs", SourceText.From(AttributeSource, Encoding.UTF8));
-            ctx.AddSource(
-                "TwinCatReactiveStreamAttribute.Reactive.g.cs",
-                SourceText.From(
-                    AttributeSource.Replace(
-                        "namespace IoT.DriverCore.TwinCATRx;",
-                        "namespace IoT.DriverCore.TwinCATRx.Reactive;"),
-                    Encoding.UTF8));
-        });
-
         var legacyCandidates = context.SyntaxProvider.ForAttributeWithMetadataName(
                 TwinCatReactiveStreamAttributeName,
                 static (node, _) => node is ClassDeclarationSyntax,
-                static (ctx, _) => GetLegacyStream(ctx))
+                static (ctx, _) => GetLegacyStream(in ctx))
             .Where(static stream => stream is not null);
 
         var connectionCandidates = context.SyntaxProvider.ForAttributeWithMetadataName(
                 TwinCatPlcConnectionAttributeName,
                 static (node, _) => node is ClassDeclarationSyntax,
-                static (ctx, _) => GetConnection(ctx))
+                static (ctx, _) => GetConnection(in ctx))
             .Where(static connection => connection is not null);
 
         var reactiveLegacyCandidates = context.SyntaxProvider.ForAttributeWithMetadataName(
                 ReactiveTwinCatReactiveStreamAttributeName,
                 static (node, _) => node is ClassDeclarationSyntax,
-                static (ctx, _) => GetLegacyStream(ctx))
+                static (ctx, _) => GetLegacyStream(in ctx))
             .Where(static stream => stream is not null);
 
         var reactiveConnectionCandidates = context.SyntaxProvider.ForAttributeWithMetadataName(
                 ReactiveTwinCatPlcConnectionAttributeName,
                 static (node, _) => node is ClassDeclarationSyntax,
-                static (ctx, _) => GetConnection(ctx))
+                static (ctx, _) => GetConnection(in ctx))
             .Where(static connection => connection is not null);
 
-        context.RegisterSourceOutput(legacyCandidates.Collect(), ExecuteLegacy);
-        context.RegisterSourceOutput(connectionCandidates.Collect(), ExecuteConnections);
-        context.RegisterSourceOutput(reactiveLegacyCandidates.Collect(), ExecuteLegacy);
-        context.RegisterSourceOutput(reactiveConnectionCandidates.Collect(), ExecuteConnections);
+        context.RegisterSourceOutput(legacyCandidates.Collect(), static (productionContext, streams) => ExecuteLegacy(in productionContext, streams));
+        context.RegisterSourceOutput(connectionCandidates.Collect(), static (productionContext, connections) => ExecuteConnections(in productionContext, connections));
+        context.RegisterSourceOutput(reactiveLegacyCandidates.Collect(), static (productionContext, streams) => ExecuteLegacy(in productionContext, streams));
+        context.RegisterSourceOutput(reactiveConnectionCandidates.Collect(), static (productionContext, connections) => ExecuteConnections(in productionContext, connections));
     }
 }

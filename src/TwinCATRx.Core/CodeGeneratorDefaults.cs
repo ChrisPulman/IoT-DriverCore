@@ -3,16 +3,16 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Core.Reactive;
+namespace IoT.Driver.TwinCATRx.Core.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx.Core;
+namespace IoT.Driver.TwinCATRx.Core;
 #endif
 
 /// <summary>Provides shared compile-time defaults for code generation.</summary>
 internal static class CodeGeneratorDefaults
 {
     /// <summary>The default namespace assigned to generated source.</summary>
-    internal const string Namespace = "IoT.DriverCore.TwinCATRx";
+    internal const string Namespace = "IoT.Driver.TwinCATRx";
 
     /// <summary>The default TwinCAT system service ADS port.</summary>
     internal const int AdsPort = 801;

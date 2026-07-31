@@ -6,9 +6,9 @@ using System.Net;
 using System.Net.Sockets;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core;
+namespace IoT.Driver.OmronPlcRx.Core;
 #endif
 
 /// <summary>Provides TCP socket setup helpers.</summary>

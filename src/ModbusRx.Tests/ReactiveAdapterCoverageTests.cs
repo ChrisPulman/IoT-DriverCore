@@ -3,16 +3,16 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Net;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.IO;
-using IoT.DriverCore.ModbusRx.Message;
-using IoT.DriverCore.Serial;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx.IO;
+using IoT.Driver.ModbusRx.Message;
+using IoT.Driver.Serial;
 using Moq;
 using ReactiveUI.Primitives.Async;
-using AsyncModbus = IoT.DriverCore.ModbusRx.ModbusAsyncObservableExtensions;
+using AsyncModbus = IoT.Driver.ModbusRx.ModbusAsyncObservableExtensions;
 using NativeAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Deterministic coverage for synchronous and asynchronous reactive Modbus adapters.</summary>
 public sealed class ReactiveAdapterCoverageTests
@@ -63,7 +63,7 @@ public sealed class ReactiveAdapterCoverageTests
         await observer.OnErrorResumeAsync(new IOException("forwarded"), CancellationToken.None);
         await observer.OnCompletedAsync(ReactiveUI.Primitives.Result.Success);
         using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        await cancellation.CancelAsync();
         await observer.OnNextAsync(ExpectedValue, cancellation.Token);
         await observer.OnErrorResumeAsync(new IOException("ignored"), cancellation.Token);
 
@@ -78,14 +78,14 @@ public sealed class ReactiveAdapterCoverageTests
         await observer.OnCompletedAsync(ReactiveUI.Primitives.Result.Success);
 
         var delayed = new DelayedAsyncObservable<int>();
-        var delayedSubscription = AsyncModbus.ToObservable(delayed).Subscribe(_ => { });
+        var delayedSubscription = AsyncModbus.ToObservable(delayed).Subscribe(static _ => { });
         delayedSubscription.Dispose();
         _ = delayed.Release();
         await delayed.SubscriptionDisposed.Task.WaitAsync(AsyncCompletionTimeout);
 
         var connectError = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var failed = AsyncModbus.ToObservable(new FaultingAsyncObservable<int>())
-            .Subscribe(_ => { }, exception => connectError.TrySetResult(exception));
+            .Subscribe(static _ => { }, exception => connectError.TrySetResult(exception));
         await NativeAssert.That(await connectError.Task.WaitAsync(AsyncCompletionTimeout))
             .IsTypeOf<IOException>();
     }
@@ -96,7 +96,7 @@ public sealed class ReactiveAdapterCoverageTests
     public async Task SyncToAsyncAdapter_ExercisesObserverEdgesAsync()
     {
         using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        await cancellation.CancelAsync();
         var canceledObserver = new RecordingAsyncObserver<int>();
         await using var canceled = await AsyncModbus
             .ToAsyncObservable(Observable.Return(ExpectedValue))
@@ -180,8 +180,15 @@ public sealed class ReactiveAdapterCoverageTests
         var observations = CreateServerObservations(server, tcpSlave);
         var writes = CreateSlaveWrites();
 
-        await NativeAssert.That(observations.All(static value => value is not null)).IsTrue();
-        await NativeAssert.That(writes.All(static value => value is not null)).IsTrue();
+        foreach (var observation in observations)
+        {
+            await NativeAssert.That(observation).IsNotNull();
+        }
+
+        foreach (var write in writes)
+        {
+            await NativeAssert.That(write).IsNotNull();
+        }
     }
 
     /// <summary>Writes every data area through TCP, UDP, and serial reactive slave adapters.</summary>
@@ -230,15 +237,15 @@ public sealed class ReactiveAdapterCoverageTests
         await NativeAssert.That(CreateExtensions.ToDouble(new ushort[1], 0, false)).IsNull();
         await NativeAssert.That(CreateExtensions.ToFloat(null, 0, false)).IsNull();
         await NativeAssert.That(CreateExtensions.ToFloat([], 0, false)).IsNull();
-        await NativeAssert.That(() => CreateExtensions.FromDouble(Math.PI, null!, 0, false))
+        await NativeAssert.That(static () => CreateExtensions.FromDouble(Math.PI, null!, 0, false))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => CreateExtensions.FromFloat((float)Math.PI, null!, 0, false))
+        await NativeAssert.That(static () => CreateExtensions.FromFloat((float)Math.PI, null!, 0, false))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(
-                () => CreateExtensions.FromDouble(Math.PI, new ushort[1], 0, false))
+                static () => CreateExtensions.FromDouble(Math.PI, new ushort[1], 0, false))
             .Throws<ArgumentException>();
         await NativeAssert.That(
-                () => CreateExtensions.FromFloat((float)Math.PI, new ushort[1], 0, false))
+                static () => CreateExtensions.FromFloat((float)Math.PI, new ushort[1], 0, false))
             .Throws<ArgumentException>();
     }
 
@@ -286,7 +293,10 @@ public sealed class ReactiveAdapterCoverageTests
                 AsyncModbus.ReadInputRegistersObservable(source, 0, PointCount, DormantInterval))).Error,
         };
 
-        await NativeAssert.That(results.All(value => ReferenceEquals(value, error))).IsTrue();
+        foreach (var result in results)
+        {
+            await NativeAssert.That(ReferenceEquals(result, error)).IsTrue();
+        }
     }
 
     /// <summary>Asserts the synchronous-source serial overloads preserve the source error.</summary>
@@ -319,7 +329,10 @@ public sealed class ReactiveAdapterCoverageTests
                     DormantInterval))).Error,
         };
 
-        await NativeAssert.That(results.All(value => ReferenceEquals(value, error))).IsTrue();
+        foreach (var result in results)
+        {
+            await NativeAssert.That(ReferenceEquals(result, error)).IsTrue();
+        }
     }
 
     /// <summary>Creates every public async server observation wrapper.</summary>
@@ -455,7 +468,7 @@ public sealed class ReactiveAdapterCoverageTests
             CancellationToken cancellationToken)
         {
             _ = Observer.TrySetResult(observer);
-            return new ValueTask<IAsyncDisposable>(new TrackedAsyncDisposable());
+            return new(new TrackedAsyncDisposable());
         }
     }
 

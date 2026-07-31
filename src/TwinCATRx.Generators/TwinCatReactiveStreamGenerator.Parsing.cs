@@ -9,7 +9,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
-namespace IoT.DriverCore.TwinCATRx.SourceGenerators;
+namespace IoT.Driver.TwinCATRx.SourceGenerators;
 
 /// <summary>Generates TwinCAT reactive stream binding members.</summary>
 public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerator
@@ -17,9 +17,9 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
     /// <summary>Creates a stream specification from an attributed class.</summary>
     /// <param name="context">The attributed generator context.</param>
     /// <returns>The stream specification, or <c>null</c> when the attribute is invalid.</returns>
-    private static LegacyStreamSpec? GetLegacyStream(GeneratorAttributeSyntaxContext context)
+    private static LegacyStreamSpec? GetLegacyStream(in GeneratorAttributeSyntaxContext context)
     {
-        if (context.TargetSymbol is not INamedTypeSymbol classSymbol || context.Attributes.Length == 0)
+        if (context.TargetSymbol is not INamedTypeSymbol classSymbol || context.Attributes.IsEmpty)
         {
             return null;
         }
@@ -42,7 +42,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
 
             var propertyName = GetNamedString(attribute, "PropertyName") ?? SanitizeIdentifier(variable!);
             var observableName = GetNamedString(attribute, ObservableNameArgument) ?? (propertyName + ObservableSuffix);
-            specs.Add(new LegacyReactivePropertySpec(
+            specs.Add(new(
                 variable!,
                 dataType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                 GetNamedString(attribute, "Id"),
@@ -52,7 +52,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
 
         return specs.Count == 0
             ? null
-            : new LegacyStreamSpec(
+            : new(
                 GetNamespace(classSymbol),
                 classSymbol.Name,
                 GetAccessibility(classSymbol),
@@ -63,9 +63,9 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
     /// <summary>Creates a PLC connection specification from an attributed class.</summary>
     /// <param name="context">The attributed generator context.</param>
     /// <returns>The connection specification, or <c>null</c> when the attribute is invalid.</returns>
-    private static ConnectionSpec? GetConnection(GeneratorAttributeSyntaxContext context)
+    private static ConnectionSpec? GetConnection(in GeneratorAttributeSyntaxContext context)
     {
-        if (!TryGetConnectionValues(context, out var classSymbol, out var adsAddress, out var port, out var settingsId))
+        if (!TryGetConnectionValues(in context, out var classSymbol, out var adsAddress, out var port, out var settingsId))
         {
             return null;
         }
@@ -86,7 +86,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
             }
         }
 
-        return new ConnectionSpec(
+        return new(
                 GetNamespace(classSymbol),
                 classSymbol.Name,
                 GetAccessibility(classSymbol),
@@ -107,7 +107,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
     /// <param name="settingsId">The settings identifier.</param>
     /// <returns><c>true</c> when connection values were read.</returns>
     private static bool TryGetConnectionValues(
-        GeneratorAttributeSyntaxContext context,
+        in GeneratorAttributeSyntaxContext context,
         out INamedTypeSymbol classSymbol,
         out string adsAddress,
         out int port,
@@ -117,7 +117,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
         adsAddress = string.Empty;
         port = 0;
         settingsId = string.Empty;
-        if (context.TargetSymbol is not INamedTypeSymbol targetClass || context.Attributes.Length == 0)
+        if (context.TargetSymbol is not INamedTypeSymbol targetClass || context.Attributes.IsEmpty)
         {
             return false;
         }
@@ -183,18 +183,18 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
         var address = GetConstructorString(attribute, 0);
         return string.IsNullOrWhiteSpace(address)
             ? null
-            : new PlcPropertySpec(
-                new PlcPropertyIdentity(
+            : new(
+                new(
                     property.Name,
                     property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                     GetNamedString(attribute, ObservableNameArgument) ?? (property.Name + ObservableSuffix)),
-                new PlcAddressSpec(
+                new(
                     DirectKind,
                     address!,
                     null,
                     GetNamedString(attribute, "WriteAddress"),
                     GetNamedString(attribute, "Id")),
-                new PlcNotificationSpec(
+                new(
                     GetNamedInt(attribute, "CycleTime", DefaultCycleTime),
                     GetNamedInt(attribute, ArraySizeArgument, -1)),
                 GetNamedBool(attribute, "CanWrite", true));
@@ -210,18 +210,18 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
         var memberAddress = GetConstructorString(attribute, 1) ?? GetNamedString(attribute, "MemberAddress");
         return string.IsNullOrWhiteSpace(address)
             ? null
-            : new PlcPropertySpec(
-                new PlcPropertyIdentity(
+            : new(
+                new(
                     property.Name,
                     property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                     GetNamedString(attribute, ObservableNameArgument) ?? (property.Name + ObservableSuffix)),
-                new PlcAddressSpec(
+                new(
                     StructuredKind,
                     address!,
                     memberAddress,
                     GetNamedString(attribute, "WriteAddress"),
                     GetNamedString(attribute, "Id")),
-                new PlcNotificationSpec(
+                new(
                     GetNamedInt(attribute, "CycleTime", DefaultCycleTime),
                     GetNamedInt(attribute, ArraySizeArgument, -1)),
                 GetNamedBool(attribute, "CanWrite", true));
@@ -236,18 +236,18 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
         var address = GetConstructorString(attribute, 0);
         return string.IsNullOrWhiteSpace(address)
             ? null
-            : new PlcPropertySpec(
-                new PlcPropertyIdentity(
+            : new(
+                new(
                     property.Name,
                     property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                     property.Name + ObservableSuffix),
-                new PlcAddressSpec(
+                new(
                     WriteOnlyKind,
                     address!,
                     null,
                     null,
                     GetNamedString(attribute, "Id")),
-                new PlcNotificationSpec(
+                new(
                     DefaultCycleTime,
                     GetNamedInt(attribute, ArraySizeArgument, -1)),
                 true);
@@ -256,7 +256,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
     /// <summary>Emits generated source for all collected legacy stream specifications.</summary>
     /// <param name="context">The source production context.</param>
     /// <param name="streams">The collected stream specifications.</param>
-    private static void ExecuteLegacy(SourceProductionContext context, ImmutableArray<LegacyStreamSpec?> streams)
+    private static void ExecuteLegacy(in SourceProductionContext context, ImmutableArray<LegacyStreamSpec?> streams)
     {
         var groups = new Dictionary<string, List<LegacyStreamSpec>>();
         foreach (var stream in streams)
@@ -294,7 +294,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
     /// <summary>Emits generated source for all collected PLC connection specifications.</summary>
     /// <param name="context">The source production context.</param>
     /// <param name="connections">The collected connection specifications.</param>
-    private static void ExecuteConnections(SourceProductionContext context, ImmutableArray<ConnectionSpec?> connections)
+    private static void ExecuteConnections(in SourceProductionContext context, ImmutableArray<ConnectionSpec?> connections)
     {
         foreach (var connection in connections)
         {

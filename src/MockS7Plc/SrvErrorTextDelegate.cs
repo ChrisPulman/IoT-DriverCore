@@ -4,7 +4,7 @@
 
 using System.Runtime.InteropServices;
 
-namespace IoT.DriverCore.S7PlcRx.Mock;
+namespace IoT.Driver.S7PlcRx.Mock;
 
 /// <summary>Represents the native <c>Srv_ErrorText</c> export.</summary>
 /// <param name="error">The server error code.</param>

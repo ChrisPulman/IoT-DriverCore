@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
+namespace IoT.Driver.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the WriteMultipleRegistersResponseFixture behavior.</summary>
 public class WriteMultipleRegistersResponseFixture
@@ -24,7 +24,7 @@ public class WriteMultipleRegistersResponseFixture
     /// <summary>Creates the write multiple registers response too much data.</summary>
     [TUnit.Core.Test]
     public void CreateWriteMultipleRegistersResponseTooMuchData() =>
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        Assert.Throws<ArgumentOutOfRangeException>(static () =>
             _ = new WriteMultipleRegistersResponse(
                 1,
                 Num.Value2,

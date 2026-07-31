@@ -6,16 +6,16 @@
 using System.Diagnostics.CodeAnalysis;
 #endif
 using System.Reflection;
-using IoT.DriverCore.Core;
-using LeanBridge = IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions;
-using LeanCoreExtensions = IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions;
-using LeanSettings = IoT.DriverCore.TwinCATRx.Core.Settings;
-using ReactiveClient = IoT.DriverCore.TwinCATRx.Reactive.InMemoryAdsClient;
-using ReactiveCoreExtensions = IoT.DriverCore.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
-using ReactiveOperation = IoT.DriverCore.TwinCATRx.Reactive.InMemoryAdsOperation;
-using ReactiveSettings = IoT.DriverCore.TwinCATRx.Core.Reactive.Settings;
+using IoT.Driver.Core;
+using LeanBridge = IoT.Driver.TwinCATRx.ObservableBridgeExtensions;
+using LeanCoreExtensions = IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions;
+using LeanSettings = IoT.Driver.TwinCATRx.Core.Settings;
+using ReactiveClient = IoT.Driver.TwinCATRx.Reactive.InMemoryAdsClient;
+using ReactiveCoreExtensions = IoT.Driver.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
+using ReactiveOperation = IoT.Driver.TwinCATRx.Reactive.InMemoryAdsOperation;
+using ReactiveSettings = IoT.Driver.TwinCATRx.Core.Reactive.Settings;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Exercises the deterministic production ADS simulator and its logical-tag integration.</summary>
 public sealed class InMemoryAdsClientTests
@@ -101,6 +101,24 @@ public sealed class InMemoryAdsClientTests
     /// <summary>The first TwinCAT 3 ADS port.</summary>
     private const int TwinCat3Port = 851;
 
+    /// <summary>The standard simulator samples.</summary>
+    private static readonly int[] StandardSamples = [InitialValue, UpdatedValue, ConversionValue];
+
+    /// <summary>The updated simulator samples.</summary>
+    private static readonly int[] UpdatedSamples = [UpdatedValue, ConversionValue, FinalArrayValue];
+
+    /// <summary>The bulk-write simulator samples.</summary>
+    private static readonly int[] BulkWrittenSamples = [ConversionValue, FinalArrayValue, UpdatedValue];
+
+    /// <summary>The read-only simulator samples.</summary>
+    private static readonly int[] ReadOnlySamples = [InitialValue, UpdatedValue];
+
+    /// <summary>The initial generic simulator samples.</summary>
+    private static readonly int[] InitialSamples = [InitialValue];
+
+    /// <summary>The faulted-write simulator samples.</summary>
+    private static readonly int[] FaultedWriteSamples = [ConversionValue, FinalArrayValue];
+
     /// <summary>Describes the enum conversion test values.</summary>
     private enum TestMode
     {
@@ -142,7 +160,7 @@ public sealed class InMemoryAdsClientTests
         await TUnitAssert.That(initialized).IsEqualTo(1);
         await TUnitAssert.That(client.ReadWriteHandleInfo.Count).IsEqualTo(ExpectedReadHandleCount);
         await TUnitAssert.That(client.WriteHandleInfo.Count).IsEqualTo(ExpectedReadHandleCount);
-        await TUnitAssert.That(code.Single().Length).IsEqualTo(ExpectedReadHandleCount);
+        await TUnitAssert.That(code[0].Length).IsEqualTo(ExpectedReadHandleCount);
         await TUnitAssert.That(data.Count).IsEqualTo(ExpectedReadHandleCount);
 
         data.Clear();
@@ -150,13 +168,13 @@ public sealed class InMemoryAdsClientTests
         client.Read(SamplesVariable, ExpectedBulkCount, "array");
         client.ReadMany([SpeedVariable, SamplesVariable], "bulk-read");
         client.Write(SpeedVariable, UpdatedValue);
-        client.Write(SamplesVariable, new[] { UpdatedValue, ConversionValue, FinalArrayValue }, "array-write");
+        client.Write(SamplesVariable, UpdatedSamples, "array-write");
         client.WriteMany(
             [
                 new KeyValuePair<string, object>(SpeedVariable, InitialValue),
                 new KeyValuePair<string, object>(
                     SamplesVariable,
-                    new[] { ConversionValue, FinalArrayValue, UpdatedValue }),
+                    BulkWrittenSamples),
             ],
             "bulk-write");
 
@@ -199,7 +217,7 @@ public sealed class InMemoryAdsClientTests
             .RegisterStructure(StateVariable, new TestStructure { Count = InitialValue, Enabled = true });
         native.Connect(settings);
         using var client = new TwinCatLogicalTagClient(native);
-        client.RegisterTag(new LogicalTag(SpeedTag, SpeedVariable, "DINT"));
+        client.RegisterTag(new(SpeedTag, SpeedVariable, "DINT"));
         client.RegisterTag(CreateStructureTag(CountTag, CountTag));
         client.RegisterTag(CreateStructureTag(EnabledTag, EnabledTag));
 
@@ -215,10 +233,20 @@ public sealed class InMemoryAdsClientTests
         await TUnitAssert.That(direct.Succeeded).IsTrue();
         await TUnitAssert.That(direct.Value!.Value).IsEqualTo(InitialValue);
         await TUnitAssert.That(directWrite.Succeeded).IsTrue();
-        await TUnitAssert.That(observed.Last().Value).IsEqualTo(InitialValue);
+        await TUnitAssert.That(observed[observed.Count - 1].Value).IsEqualTo(InitialValue);
         await TUnitAssert.That(reads.Count).IsEqualTo(ExpectedBulkCount);
         await TUnitAssert.That(reads[0].Value!.Value).IsEqualTo(InitialValue);
-        await TUnitAssert.That(writes.All(static result => result.Succeeded)).IsTrue();
+        var allWritesSucceeded = true;
+        foreach (var write in writes)
+        {
+            if (!write.Succeeded)
+            {
+                allWritesSucceeded = false;
+                break;
+            }
+        }
+
+        await TUnitAssert.That(allWritesSucceeded).IsTrue();
         await TUnitAssert.That(native.TryGetValue<TestStructure>(StateVariable, out var state)).IsTrue();
         await TUnitAssert.That(state!.Count).IsEqualTo(UpdatedValue);
         await TUnitAssert.That(state.Enabled).IsFalse();
@@ -246,7 +274,7 @@ public sealed class InMemoryAdsClientTests
 
         client.Connect(settings);
         await TUnitAssert.That(client.ConnectionState).IsEqualTo(InMemoryAdsConnectionState.Faulted);
-        await TUnitAssert.That(errors.Last()).IsTypeOf<InMemoryAdsException>();
+        await TUnitAssert.That(errors[errors.Count - 1]).IsTypeOf<InMemoryAdsException>();
 
         _ = client.RegisterSymbol(
                 SpeedVariable,
@@ -257,7 +285,7 @@ public sealed class InMemoryAdsClientTests
                 isWritable: false)
             .RegisterSymbol(
                 SamplesVariable,
-                new[] { InitialValue, UpdatedValue },
+                ReadOnlySamples,
                 typeof(int[]),
                 ExpectedBulkCount,
                 isReadable: false,
@@ -266,11 +294,11 @@ public sealed class InMemoryAdsClientTests
         await ExerciseFaultsAndPauseAsync(client);
 
         await TUnitAssert.That(client.Connected).IsTrue();
-        await TUnitAssert.That(data.Any(static item => item.Id == "faulted-read" && item.Data is null)).IsTrue();
-        await TUnitAssert.That(data.Any(static item => item.Id == "write-only" && item.Data is null)).IsTrue();
-        await TUnitAssert.That(writes.Any(static item => item?.EndsWith(",faulted-write", StringComparison.Ordinal) == true))
+        await TUnitAssert.That(data.Exists(static item => item.Id == "faulted-read" && item.Data is null)).IsTrue();
+        await TUnitAssert.That(data.Exists(static item => item.Id == "write-only" && item.Data is null)).IsTrue();
+        await TUnitAssert.That(writes.Exists(static item => item?.EndsWith(",faulted-write", StringComparison.Ordinal) == true))
             .IsTrue();
-        await TUnitAssert.That(writes.Any(static item => item?.EndsWith(",read-only", StringComparison.Ordinal) == true))
+        await TUnitAssert.That(writes.Exists(static item => item?.EndsWith(",read-only", StringComparison.Ordinal) == true))
             .IsTrue();
         await TUnitAssert.That(errors.Count).IsGreaterThanOrEqualTo(ExpectedBulkCount);
         await TUnitAssert.That(client.IsPaused).IsFalse();
@@ -310,14 +338,14 @@ public sealed class InMemoryAdsClientTests
         _ = client.RegisterSymbol(NullableVariable, null, typeof(string))
             .RegisterSymbol(EnumVariable, TestMode.Idle, typeof(TestMode))
             .RegisterSymbol(IntegerVariable, InitialValue, typeof(int))
-            .RegisterSymbol(GenericArrayVariable, new[] { InitialValue }, typeof(int[]));
+            .RegisterSymbol(GenericArrayVariable, InitialSamples, typeof(int[]));
         client.Connect(settings);
 
         client.SetValue(NullableVariable, null);
         client.Write(EnumVariable, "Running");
         client.Write(IntegerVariable, ConversionValue.ToString(System.Globalization.CultureInfo.InvariantCulture));
         client.Write(IntegerVariable, "not-an-int", "bad-conversion");
-        client.Write(GenericArrayVariable, new object(), "bad-array");
+        client.Write(GenericArrayVariable, new(), "bad-array");
         client.Read(GenericArrayVariable, 0, "bad-length");
         client.Read(NullableVariable, "nullable");
 
@@ -326,10 +354,10 @@ public sealed class InMemoryAdsClientTests
         await TUnitAssert.That(client.TryGetValue<int>(IntegerVariable, out var number)).IsTrue();
         await TUnitAssert.That(number).IsEqualTo(ConversionValue);
         await TUnitAssert.That(client.TryGetValue<string>(MissingVariable, out _)).IsFalse();
-        await TUnitAssert.That(writes.Any(static value => value?.EndsWith(",bad-conversion", StringComparison.Ordinal) == true))
+        await TUnitAssert.That(writes.Exists(static value => value?.EndsWith(",bad-conversion", StringComparison.Ordinal) == true))
             .IsTrue();
-        await TUnitAssert.That(data.Any(static value => value.Id == "bad-length" && value.Data is null)).IsTrue();
-        await TUnitAssert.That(data.Any(static value => value.Id == "nullable" && value.Data is null)).IsTrue();
+        await TUnitAssert.That(data.Exists(static value => value.Id == "bad-length" && value.Data is null)).IsTrue();
+        await TUnitAssert.That(data.Exists(static value => value.Id == "nullable" && value.Data is null)).IsTrue();
         await TUnitAssert.That(client.RemoveSymbol(NullableVariable)).IsTrue();
         await TUnitAssert.That(client.RemoveSymbol(NullableVariable)).IsFalse();
         await TUnitAssert.That(() => client.SetValue(MissingVariable, InitialValue)).Throws<KeyNotFoundException>();
@@ -415,11 +443,11 @@ public sealed class InMemoryAdsClientTests
         ExerciseLogicalConstructors(native);
         var client = new TwinCatLogicalTagClient(native);
         _ = client.CreateTag(SpeedTag, SpeedVariable, "DINT");
-        _ = client.CreateTag(new LogicalTag(WriteOnlyTag, SpeedVariable, "DINT", new LogicalTagOptions
+        _ = client.CreateTag(new(WriteOnlyTag, SpeedVariable, "DINT", new LogicalTagOptions
         {
             AccessMode = LogicalTagAccessMode.Write,
         }));
-        client.RegisterTag(new LogicalTag(ReadOnlyTag, SpeedVariable, "DINT", new LogicalTagOptions
+        client.RegisterTag(new(ReadOnlyTag, SpeedVariable, "DINT", new LogicalTagOptions
         {
             AccessMode = LogicalTagAccessMode.Read,
         }));
@@ -430,15 +458,30 @@ public sealed class InMemoryAdsClientTests
         var reads = await client.ReadManyAsync([MissingVariable, WriteOnlyTag]);
         var writes = await client.WriteManyAsync(
             [CreateValue(MissingVariable, UpdatedValue), CreateValue(ReadOnlyTag, UpdatedValue)]);
-        await TUnitAssert.That(reads.All(static result => !result.Succeeded)).IsTrue();
-        await TUnitAssert.That(writes.All(static result => !result.Succeeded)).IsTrue();
-        await TUnitAssert.That(async () => await client.ReadManyAsync(null!)).Throws<ArgumentNullException>();
-        await TUnitAssert.That(async () => await client.WriteAsync(null!)).Throws<ArgumentNullException>();
-        await TUnitAssert.That(async () => await client.WriteManyAsync(null!)).Throws<ArgumentNullException>();
-        await TUnitAssert.That(() => client.Observe(MissingVariable)).Throws<KeyNotFoundException>();
-        await TUnitAssert.That(() => client.Observe(WriteOnlyTag)).Throws<InvalidOperationException>();
-        await TUnitAssert.That(() => client.ObserveMany(null!)).Throws<ArgumentNullException>();
-        using var observation = LeanBridge.SubscribeTo(client.ObserveMany([SpeedTag, ReadOnlyTag]), _ => { });
+        var allReadsFailed = true;
+        foreach (var read in reads)
+        {
+            if (read.Succeeded)
+            {
+                allReadsFailed = false;
+                break;
+            }
+        }
+
+        var allWritesFailed = true;
+        foreach (var write in writes)
+        {
+            if (write.Succeeded)
+            {
+                allWritesFailed = false;
+                break;
+            }
+        }
+
+        await TUnitAssert.That(allReadsFailed).IsTrue();
+        await TUnitAssert.That(allWritesFailed).IsTrue();
+        await AssertLogicalAccessGuardsAsync(client);
+        using var observation = LeanBridge.SubscribeTo(client.ObserveMany([SpeedTag, ReadOnlyTag]), static _ => { });
         await TUnitAssert.That(client.RemoveTag(SpeedTag)).IsTrue();
         await TUnitAssert.That(client.RemoveTag(SpeedTag)).IsFalse();
         client.Dispose();
@@ -483,7 +526,7 @@ public sealed class InMemoryAdsClientTests
             .IsEqualTo(CountTag);
         await TUnitAssert.That(TwinCatLogicalTagHelpers.GetMemberAddress(".State", ".Status.Count")).IsNull();
         await TUnitAssert.That(TwinCatLogicalTagHelpers.Required($" {RequiredValue} ", RequiredValue)).IsEqualTo(RequiredValue);
-        await TUnitAssert.That(() => TwinCatLogicalTagHelpers.Required(" ", RequiredValue)).Throws<ArgumentException>();
+        await TUnitAssert.That(static () => TwinCatLogicalTagHelpers.Required(" ", RequiredValue)).Throws<ArgumentException>();
 
         var tagged = new LogicalTag(
             CountTag,
@@ -505,7 +548,7 @@ public sealed class InMemoryAdsClientTests
         var cancelled = false;
         using var source = new CancellationTokenSource();
         using var registration = TwinCatLogicalTagHelpers.RegisterCancellation(() => cancelled = true, source.Token);
-        source.Cancel();
+        await CancelAsync(source);
         await TUnitAssert.That(cancelled).IsTrue();
 
         var first = new TrackingDisposable();
@@ -585,7 +628,8 @@ public sealed class InMemoryAdsClientTests
             invalidNotificationClient.Connect(settings);
 
             await TUnitAssert.That(invalidNotificationClient.ConnectionState).IsEqualTo(InMemoryAdsConnectionState.Faulted);
-            await TUnitAssert.That(errors.Single().Message).Contains(missingNotification);
+            await TUnitAssert.That(errors).Count().IsEqualTo(1);
+            await TUnitAssert.That(errors[0].Message).Contains(missingNotification);
         }
 
         using (var invalidWriteClient = new InMemoryAdsClient())
@@ -623,7 +667,8 @@ public sealed class InMemoryAdsClientTests
             typeof(List<>).GetGenericArguments()[0]);
         descriptionClient.Connect(new LeanSettings { AdsAddress = SimulatorAddress, Port = TwinCat3Port });
 
-        await TUnitAssert.That(descriptions.Single()).Contains(".TypeParameter:T:-1");
+        await TUnitAssert.That(descriptions).Count().IsEqualTo(1);
+        await TUnitAssert.That(descriptions[0]).Contains(".TypeParameter:T:-1");
     }
 
     /// <summary>Verifies logical client guards and mixed direct/structured bulk writes through the deterministic simulator.</summary>
@@ -638,7 +683,7 @@ public sealed class InMemoryAdsClientTests
         const string directVariable = ".Direct";
         const string directTag = "Direct";
 
-        await TUnitAssert.That(() => new TwinCatLogicalTagClient(null!)).Throws<ArgumentNullException>();
+        await TUnitAssert.That(static () => new TwinCatLogicalTagClient(null!)).Throws<ArgumentNullException>();
         using var native = new InMemoryAdsClient();
         using var catalog = new LogicalTagCatalog();
         await TUnitAssert.That(() => new TwinCatLogicalTagClient(native, (ILogicalTagCatalog)null!))
@@ -653,7 +698,7 @@ public sealed class InMemoryAdsClientTests
         native.Connect(settings);
         using var client = new TwinCatLogicalTagClient(native, catalog);
         await TUnitAssert.That(() => client.RegisterTag(null!)).Throws<ArgumentNullException>();
-        client.RegisterTag(new LogicalTag(directTag, directVariable, "DINT"));
+        client.RegisterTag(new(directTag, directVariable, "DINT"));
         client.RegisterTag(CreateStructureTag(CountTag, CountTag));
         client.RegisterTag(CreateStructureTag(EnabledTag, EnabledTag));
 
@@ -663,7 +708,17 @@ public sealed class InMemoryAdsClientTests
         var writes = await client.WriteManyAsync(
             [CreateValue(directTag, UpdatedValue), CreateValue(CountTag, ConversionValue), CreateValue(EnabledTag, false)]);
 
-        await TUnitAssert.That(writes.All(static result => result.Succeeded)).IsTrue();
+        var allWritesSucceeded = true;
+        foreach (var write in writes)
+        {
+            if (!write.Succeeded)
+            {
+                allWritesSucceeded = false;
+                break;
+            }
+        }
+
+        await TUnitAssert.That(allWritesSucceeded).IsTrue();
         await TUnitAssert.That(native.TryGetValue<int>(directVariable, out var direct)).IsTrue();
         await TUnitAssert.That(direct).IsEqualTo(UpdatedValue);
         await TUnitAssert.That(native.TryGetValue<TestStructure>(StateVariable, out var state)).IsTrue();
@@ -691,8 +746,23 @@ public sealed class InMemoryAdsClientTests
             [CreateValue(CountTag, UpdatedValue), CreateValue(EnabledTag, false)]);
 
         await TUnitAssert.That(results).Count().IsEqualTo(ExpectedBulkCount);
-        await TUnitAssert.That(results.All(static result => !result.Succeeded)).IsTrue();
-        await TUnitAssert.That(results.All(static result => result.Error.Contains("could not be materialized"))).IsTrue();
+        var allResultsFailed = true;
+        var allResultsReportedMaterializationFailure = true;
+        foreach (var result in results)
+        {
+            if (result.Succeeded)
+            {
+                allResultsFailed = false;
+            }
+
+            if (result.Error.IndexOf("could not be materialized", StringComparison.Ordinal) < 0)
+            {
+                allResultsReportedMaterializationFailure = false;
+            }
+        }
+
+        await TUnitAssert.That(allResultsFailed).IsTrue();
+        await TUnitAssert.That(allResultsReportedMaterializationFailure).IsTrue();
     }
 
     /// <summary>Verifies notification-root discovery and grouped member writes without explicit root metadata.</summary>
@@ -715,16 +785,26 @@ public sealed class InMemoryAdsClientTests
         LeanCoreExtensions.AddNotification(settings, ".Machine");
         LeanCoreExtensions.AddNotification(settings, discoveredRoot);
         LeanCoreExtensions.AddWriteVariable(settings, discoveredRoot);
-        _ = native.RegisterSymbol(".Machine", new object())
+        _ = native.RegisterSymbol(".Machine", new())
             .RegisterStructure(discoveredRoot, new TestStructure { Count = InitialValue, Enabled = true });
         native.Connect(settings);
         using var client = new TwinCatLogicalTagClient(native);
-        client.RegisterTag(new LogicalTag(discoveredCountTag, discoveredCount, "DINT"));
-        client.RegisterTag(new LogicalTag(discoveredEnabledTag, discoveredEnabled, "BOOL"));
+        client.RegisterTag(new(discoveredCountTag, discoveredCount, "DINT"));
+        client.RegisterTag(new(discoveredEnabledTag, discoveredEnabled, "BOOL"));
 
         var reads = await client.ReadManyAsync([discoveredCountTag, discoveredEnabledTag]);
 
-        await TUnitAssert.That(reads.All(static result => result.Succeeded)).IsTrue();
+        var allReadsSucceeded = true;
+        foreach (var read in reads)
+        {
+            if (!read.Succeeded)
+            {
+                allReadsSucceeded = false;
+                break;
+            }
+        }
+
+        await TUnitAssert.That(allReadsSucceeded).IsTrue();
         await TUnitAssert.That(reads[0].Value!.Value).IsEqualTo(InitialValue);
         await TUnitAssert.That((bool)reads[1].Value!.Value!).IsTrue();
         await TUnitAssert.That(native.TryGetValue<TestStructure>(discoveredRoot, out _)).IsTrue();
@@ -734,7 +814,17 @@ public sealed class InMemoryAdsClientTests
 
         await TUnitAssert.That(writes[0].Error).IsEmpty();
         await TUnitAssert.That(writes[1].Error).IsEmpty();
-        await TUnitAssert.That(writes.All(static result => result.Succeeded)).IsTrue();
+        var allWritesSucceeded = true;
+        foreach (var write in writes)
+        {
+            if (!write.Succeeded)
+            {
+                allWritesSucceeded = false;
+                break;
+            }
+        }
+
+        await TUnitAssert.That(allWritesSucceeded).IsTrue();
         await TUnitAssert.That(native.TryGetValue<TestStructure>(discoveredRoot, out var state)).IsTrue();
         await TUnitAssert.That(state!.Count).IsEqualTo(UpdatedValue);
         await TUnitAssert.That(state.Enabled).IsFalse();
@@ -773,11 +863,12 @@ public sealed class InMemoryAdsClientTests
         client.Read(SpeedVariable, "reactive-fault");
 
         await TUnitAssert.That(client.Connected).IsTrue();
-        await TUnitAssert.That(data.Any(static value => value.Id == "reactive-read" && (int)value.Data! == InitialValue))
+        await TUnitAssert.That(data.Exists(static value => value.Id == "reactive-read" && (int)value.Data! == InitialValue))
             .IsTrue();
-        await TUnitAssert.That(data.Any(static value => value.Id == "reactive-fault" && value.Data is null)).IsTrue();
+        await TUnitAssert.That(data.Exists(static value => value.Id == "reactive-fault" && value.Data is null)).IsTrue();
         await TUnitAssert.That(writes).Contains("Success,reactive-write");
-        await TUnitAssert.That(errors.Single().Message).IsEqualTo("reactive fault");
+        await TUnitAssert.That(errors).Count().IsEqualTo(1);
+        await TUnitAssert.That(errors[0].Message).IsEqualTo("reactive fault");
         await TUnitAssert.That(client.TryGetValue<int>(SpeedVariable, out var value)).IsTrue();
         await TUnitAssert.That(value).IsEqualTo(UpdatedValue);
     }
@@ -843,7 +934,11 @@ public sealed class InMemoryAdsClientTests
     private static void ExerciseLogicalConstructors(InMemoryAdsClient native)
     {
         using var catalog = new LogicalTagCatalog();
-        var store = new LogicalTagSqliteStore("Data Source=:memory:");
+        var connectionString = new System.Data.Common.DbConnectionStringBuilder
+        {
+            ["Data Source"] = ":memory:",
+        }.ConnectionString;
+        var store = new LogicalTagSqliteStore(connectionString);
         using var defaultClient = new TwinCatLogicalTagClient(native);
         using var timedClient = new TwinCatLogicalTagClient(native, TimeProvider.System);
         using var catalogClient = new TwinCatLogicalTagClient(native, catalog);
@@ -877,7 +972,7 @@ public sealed class InMemoryAdsClientTests
             .RegisterSymbol(SpeedVariable, InitialValue)
             .RegisterSymbol(
                 SamplesVariable,
-                new[] { InitialValue, UpdatedValue, ConversionValue },
+                StandardSamples,
                 typeof(int[]),
                 FullArrayLength,
                 isReadable: true,
@@ -904,7 +999,7 @@ public sealed class InMemoryAdsClientTests
         _ = client.QueueFault(InMemoryAdsOperation.Read, new IOException("read fault"));
         client.Read(SpeedVariable, "faulted-read");
         _ = client.QueueFault(InMemoryAdsOperation.Write, new IOException("write fault"));
-        client.Write(SamplesVariable, new[] { ConversionValue, FinalArrayValue }, "faulted-write");
+        client.Write(SamplesVariable, FaultedWriteSamples, "faulted-write");
         _ = client.QueueFault(InMemoryAdsOperation.Notification, new IOException("notification fault"));
         client.PublishNotifications();
         client.Write(SpeedVariable, UpdatedValue, "read-only");
@@ -941,6 +1036,49 @@ public sealed class InMemoryAdsClientTests
     /// <returns>The logical value.</returns>
     private static LogicalTagValue CreateValue(string name, object value) =>
         new(name, value, TimeProvider.System.GetUtcNow(), "Good");
+
+    /// <summary>Cancels a token source without blocking on supported target frameworks.</summary>
+    /// <param name="source">The token source.</param>
+    /// <returns>The cancellation task.</returns>
+#if NET9_0_OR_GREATER
+    private static Task CancelAsync(CancellationTokenSource source)
+        => source.CancelAsync();
+#else
+    private static Task CancelAsync(CancellationTokenSource source)
+        => CancelOnLegacyFrameworkAsync(source);
+
+    /// <summary>Schedules and observes cancellation on frameworks without asynchronous cancellation support.</summary>
+    /// <param name="source">The token source.</param>
+    /// <returns>The cancellation task.</returns>
+    private static async Task CancelOnLegacyFrameworkAsync(CancellationTokenSource source)
+    {
+        var cancellationObserved = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+#if NET8_0_OR_GREATER
+        await using var registration = source.Token.Register(
+            static state => ((TaskCompletionSource<object?>)state!).TrySetResult(null),
+            cancellationObserved);
+#else
+        using var registration = source.Token.Register(
+            static state => ((TaskCompletionSource<object?>)state!).TrySetResult(null),
+            cancellationObserved);
+#endif
+        source.CancelAfter(TimeSpan.Zero);
+        await cancellationObserved.Task;
+    }
+#endif
+
+    /// <summary>Verifies the logical-client argument and access guards.</summary>
+    /// <param name="client">The logical client.</param>
+    /// <returns>The assertion task.</returns>
+    private static async Task AssertLogicalAccessGuardsAsync(TwinCatLogicalTagClient client)
+    {
+        await TUnitAssert.That(async () => await client.ReadManyAsync(null!)).Throws<ArgumentNullException>();
+        await TUnitAssert.That(async () => await client.WriteAsync(null!)).Throws<ArgumentNullException>();
+        await TUnitAssert.That(async () => await client.WriteManyAsync(null!)).Throws<ArgumentNullException>();
+        await TUnitAssert.That(() => client.Observe(MissingVariable)).Throws<KeyNotFoundException>();
+        await TUnitAssert.That(() => client.Observe(WriteOnlyTag)).Throws<InvalidOperationException>();
+        await TUnitAssert.That(() => client.ObserveMany(null!)).Throws<ArgumentNullException>();
+    }
 
     /// <summary>Provides a structure payload for grouped logical operations.</summary>
     private sealed class TestStructure

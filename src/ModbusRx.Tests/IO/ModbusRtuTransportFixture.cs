@@ -6,13 +6,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.IO;
-using IoT.DriverCore.ModbusRx.Message;
-using IoT.DriverCore.ModbusRx.Utility;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.IO;
+using IoT.Driver.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Utility;
 using Moq;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.IO;
+namespace IoT.Driver.ModbusRx.UnitTests.IO;
 
 /// <summary>Tests the ModbusRtuTransportFixture behavior.</summary>
 public class ModbusRtuTransportFixture
@@ -159,7 +159,7 @@ public class ModbusRtuTransportFixture
 
         var parsed = ModbusMessageFactory.CreateModbusRequest(frame);
 
-        Assert.Equal(request.MessageFrame, parsed.MessageFrame);
+        Assert.Equal(request.ToMessageFrame(), parsed.ToMessageFrame());
         Assert.True(transport.ChecksumsMatch(parsed, frame));
     }
 
@@ -175,7 +175,7 @@ public class ModbusRtuTransportFixture
         _ = Assert.IsType<ReadCoilsInputsResponse>(response);
 
         var expectedResponse = new ReadCoilsInputsResponse(Modbus.ReadCoils, 1, 1, new DiscreteCollection(false));
-        Assert.Equal(expectedResponse.MessageFrame, response.MessageFrame);
+        Assert.Equal(expectedResponse.ToMessageFrame(), response.ToMessageFrame());
 
         mock.VerifyAll();
     }
@@ -198,7 +198,7 @@ public class ModbusRtuTransportFixture
         _ = Assert.IsType<SlaveExceptionResponse>(response);
 
         var expectedResponse = new SlaveExceptionResponse(0x01, 0x81, 0x02);
-        Assert.Equal(expectedResponse.MessageFrame, response.MessageFrame);
+        Assert.Equal(expectedResponse.ToMessageFrame(), response.ToMessageFrame());
 
         mock.VerifyAll();
     }
@@ -248,11 +248,11 @@ public class ModbusRtuTransportFixture
         var mock = new Mock<IStreamResource>();
         var bytes = new Queue<byte>([ Num.Value2, Num.Value2, Num.Value2, Num.Value3, Num.Value3]);
 
-        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 5), It.IsAny<int>(), 1).Result)
+        _ = mock.Setup(s => s.ReadAsync(It.Is<byte[]>(x => x.Length == 5), It.IsAny<int>(), 1))
             .Returns((byte[] buf, int offset, int count) =>
             {
                 buf[offset] = bytes.Dequeue();
-                return 1;
+                return Task.FromResult(1);
             });
 
         using var transport = new ModbusRtuTransport(mock.Object);
@@ -281,11 +281,11 @@ public class ModbusRtuTransportFixture
         var mock = new Mock<IStreamResource>();
         var queue = new Queue<byte>(bytes);
 
-        _ = mock.Setup(s => s.ReadAsync(It.IsAny<byte[]>(), It.IsAny<int>(), 1).Result)
+        _ = mock.Setup(s => s.ReadAsync(It.IsAny<byte[]>(), It.IsAny<int>(), 1))
             .Returns((byte[] buffer, int offset, int count) =>
             {
                 buffer[offset] = queue.Dequeue();
-                return 1;
+                return Task.FromResult(1);
             });
 
         return mock;

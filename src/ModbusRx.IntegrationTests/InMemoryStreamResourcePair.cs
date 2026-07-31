@@ -6,9 +6,9 @@ using System;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.IO;
+using IoT.Driver.ModbusRx.IO;
 
-namespace IoT.DriverCore.ModbusRx.IntegrationTests;
+namespace IoT.Driver.ModbusRx.IntegrationTests;
 
 /// <summary>Owns two deterministic duplex stream resources for serial protocol integration tests.</summary>
 internal sealed class InMemoryStreamResourcePair : IDisposable

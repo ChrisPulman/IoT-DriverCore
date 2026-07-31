@@ -8,7 +8,7 @@
     <IsTestProject Condition="'$(IsTestProject)' == '' and $([System.String]::Copy('$(MSBuildProjectName)').EndsWith('Tests'))">true</IsTestProject>
     <LangVersion>preview</LangVersion>
     <Company>ChrisPulman</Company>
-    <RootNamespace>IoT.DriverCore.$(MSBuildProjectName)</RootNamespace>
+    <RootNamespace>IoT.Driver.$(MSBuildProjectName)</RootNamespace>
     <Nullable>enable</Nullable>
     <Configurations>Debug;Release</Configurations>
     <PackageReleaseNotes>Unified IoT driver packages for the supported .NET Framework and current .NET target frameworks.</PackageReleaseNotes>
@@ -38,23 +38,51 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'CP.IoT.Core'">
-    <RootNamespace>IoT.DriverCore.Core</RootNamespace>
+    <RootNamespace>IoT.Driver.Core</RootNamespace>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'CP.IoT.Core.Tests'">
-    <RootNamespace>IoT.DriverCore.Core.Tests</RootNamespace>
+    <RootNamespace>IoT.Driver.Core.Tests</RootNamespace>
   </PropertyGroup>
 
   <PropertyGroup Condition="$([System.String]::Copy('$(MSBuildProjectName)').StartsWith('SerialPortRx'))">
-    <RootNamespace>IoT.DriverCore.Serial</RootNamespace>
+    <RootNamespace>IoT.Driver.Serial</RootNamespace>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'OmronPlcRx.Dashboard'">
-    <RootNamespace>IoT.DriverCore.OmronPlcRx.Dashboard</RootNamespace>
+    <RootNamespace>IoT.Driver.OmronPlcRx.Dashboard</RootNamespace>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'MockS7Plc'">
-    <RootNamespace>IoT.DriverCore.S7PlcRx.Mock</RootNamespace>
+    <RootNamespace>IoT.Driver.S7PlcRx.Mock</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Public NuGet identities are standardized independently from assembly and project names. -->
+  <PropertyGroup>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'CP.IoT.Core'">IoT-Driver.Core</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'ABPlcRx'">IoT-Driver.ABPlcRx</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'ABPlcRx.Reactive'">IoT-Driver.ABPlcRx.Reactive</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'ABPlcRx.Generators'">IoT-Driver.ABPlcRx.Generators</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'MitsubishiRx'">IoT-Driver.MitsubishiRx</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'MitsubishiRx.Reactive'">IoT-Driver.MitsubishiRx.Reactive</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'MitsubishiRx.Generators'">IoT-Driver.MitsubishiRx.Generators</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'ModbusRx'">IoT-Driver.ModbusRx</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'ModbusRx.Reactive'">IoT-Driver.ModbusRx.Reactive</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'ModbusRx.Generators'">IoT-Driver.ModbusRx.Generators</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'OmronPlcRx'">IoT-Driver.OmronPlcRx</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'OmronPlcRx.Reactive'">IoT-Driver.OmronPlcRx.Reactive</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'OmronPlcRx.Generators'">IoT-Driver.OmronPlcRx.Generators</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'S7PlcRx'">IoT-Driver.S7PlcRx</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'S7PlcRx.Reactive'">IoT-Driver.S7PlcRx.Reactive</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'S7PlcRx.Generators'">IoT-Driver.S7PlcRx.Generators</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'SerialPortRx'">IoT-Driver.SerialPortRx</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'SerialPortRx.Reactive'">IoT-Driver.SerialPortRx.Reactive</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'SerialPortRx.Generators'">IoT-Driver.SerialPortRx.Generators</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'TwinCATRx'">IoT-Driver.TwinCATRx</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'TwinCATRx.Reactive'">IoT-Driver.TwinCATRx.Reactive</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'TwinCATRx.Core'">IoT-Driver.TwinCATRx.Core</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'TwinCATRx.Core.Reactive'">IoT-Driver.TwinCATRx.Core.Reactive</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'TwinCATRx.Generators'">IoT-Driver.TwinCATRx.Generators</PackageId>
   </PropertyGroup>
 
   <!-- TwinCAT's ADS core supports the original .NET Framework 4.6.2 target. -->
@@ -63,7 +91,7 @@
   </PropertyGroup>
 
   <!-- SerialPortRx is cross-platform on modern .NET and adds Windows-only targets when applicable. -->
-  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SerialPortRx' or '$(MSBuildProjectName)' == 'SerialPortRx.Reactive'">
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SerialPortRx' or '$(MSBuildProjectName)' == 'SerialPortRx.Reactive' or '$(MSBuildProjectName)' == 'SerialPortRx.Generators'">
     <NetCoreTargetFrameworks>net8.0;net9.0;net10.0;net11.0</NetCoreTargetFrameworks>
     <NetFrameworkTargetFrameworks Condition="$([MSBuild]::IsOsPlatform('Windows'))">net462;net472;net481;net8.0-windows10.0.19041.0;net9.0-windows10.0.19041.0;net10.0-windows10.0.19041.0;net11.0-windows10.0.19041.0</NetFrameworkTargetFrameworks>
     <LibraryTargetFrameworks>$(NetCoreTargetFrameworks)</LibraryTargetFrameworks>
@@ -203,7 +231,14 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'SerialPortRx' or '$(MSBuildProjectName)' == 'SerialPortRx.Reactive'">
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SerialPortRx.Generators'">
+    <Description>Compile-time source generators for strongly typed reactive serial-port streams.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>serial-port-rx.png</PackageIcon>
+    <PackageTags>SerialPort;serial;source generator;Roslyn;IoT;reactive;observable;async</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'SerialPortRx' or '$(MSBuildProjectName)' == 'SerialPortRx.Reactive' or '$(MSBuildProjectName)' == 'SerialPortRx.Generators'">
     <None Include="$(MSBuildThisFileDirectory)..\images\serial-port-rx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\packagereadme\SerialPortRx\README.md" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)..\skills\serial-port-rx\SKILL.md" Pack="true" PackagePath="skills/serial-port-rx/SKILL.md"/>
@@ -266,6 +301,8 @@
   <ItemGroup>
     <PackageReference Include="MinVer" PrivateAssets="All" />
     <PackageReference Include="StyleSharp.Analyzers" PrivateAssets="all" />
+    <PackageReference Include="PerformanceSharp.Analyzers" PrivateAssets="all" />
+    <PackageReference Include="SecuritySharp.Analyzers" PrivateAssets="all" />
     <PackageReference Include="Roslynator.Analyzers" PrivateAssets="All" />
   </ItemGroup>
 </Project>

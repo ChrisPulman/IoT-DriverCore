@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.Serial.Tests;
+namespace IoT.Driver.Serial.Tests;
 
 /// <summary>Tests for TCP and UDP reactive port adapters.</summary>
 [NotInParallel]
@@ -139,7 +139,7 @@ public sealed class NetworkPortRxTests
         using var udp = new UdpClientRx(new UdpClient(0));
         var buffer = new byte[4];
 
-        await Assert.That(() => udp.ReadAsync(null, 0, 1)).Throws<ArgumentNullException>();
+        await Assert.That(() => udp.ReadAsync(null!, 0, 1)).Throws<ArgumentNullException>();
         await Assert.That(() => udp.ReadAsync(buffer, -1, 1)).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => udp.ReadAsync(buffer, Five, 1)).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => udp.ReadAsync(buffer, 0, -1)).Throws<ArgumentOutOfRangeException>();
@@ -154,7 +154,7 @@ public sealed class NetworkPortRxTests
         using var udp = new UdpClientRx(new UdpClient(0));
         var buffer = new byte[4];
 
-        await Assert.That(() => udp.Write(null, 0, 1)).Throws<ArgumentNullException>();
+        await Assert.That(() => udp.Write(null!, 0, 1)).Throws<ArgumentNullException>();
         await Assert.That(() => udp.Write(buffer, -1, 1)).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => udp.Write(buffer, Five, 1)).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => udp.Write(buffer, 0, -1)).Throws<ArgumentOutOfRangeException>();
@@ -374,7 +374,7 @@ public sealed class NetworkPortRxTests
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
-        return new TcpListenerScope(listener);
+        return new(listener);
     }
 
     /// <summary>Accepts a TCP client while honoring cancellation on every supported framework.</summary>

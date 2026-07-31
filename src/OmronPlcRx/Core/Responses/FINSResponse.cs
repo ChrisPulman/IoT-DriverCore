@@ -5,17 +5,17 @@
 using System;
 using System.Collections.Generic;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Enums;
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Requests;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Enums;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Requests;
 #else
-using IoT.DriverCore.OmronPlcRx.Core.Enums;
-using IoT.DriverCore.OmronPlcRx.Core.Requests;
+using IoT.Driver.OmronPlcRx.Core.Enums;
+using IoT.Driver.OmronPlcRx.Core.Requests;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Responses;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core.Responses;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core.Responses;
+namespace IoT.Driver.OmronPlcRx.Core.Responses;
 #endif
 
 /// <summary>Represents the f in sr es po ns e type.</summary>

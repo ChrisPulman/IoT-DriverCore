@@ -4,13 +4,16 @@
 
 using System.Buffers.Binary;
 using System.Collections;
-using IoT.DriverCore.Core;
+#if NET8_0_OR_GREATER
+using System.Runtime.InteropServices;
+#endif
+using IoT.Driver.Core;
 using ReactiveUI.Primitives.Signals;
 using TUnit.Assertions;
 using TUnit.Core;
-using PlcController = global::IoT.DriverCore.ABPlcRx.ABPlcRx;
+using PlcController = global::IoT.Driver.ABPlcRx.ABPlcRx;
 
-namespace IoT.DriverCore.ABPlcRx.Tests;
+namespace IoT.Driver.ABPlcRx.Tests;
 
 /// <summary>Tests PLC/tag behavior through a fake native adapter.</summary>
 public sealed class NativeTagBehaviorTests
@@ -132,20 +135,31 @@ public sealed class NativeTagBehaviorTests
         var counter = client.CreateTag(CounterTagName, "N7:0", "DINT");
         var total = client.CreateTag("Total", "N7:1", "int");
 
-        var writeResults = await client.WriteManyAsync(
-        [
+        var writeResults = await client.WriteManyAsync([
             new LogicalTagValue(counter.Name, SampleIntValue, Clock.GetUtcNow()),
             new LogicalTagValue(total.Name, UpdatedIntValue, Clock.GetUtcNow()),
         ]);
         var readResults = await client.ReadManyAsync([counter.Name, total.Name]);
         var typedRead = await client.ReadAsync(new LogicalTagKey<int>(counter));
 
-        await Assert.That(writeResults.All(result => result.Succeeded)).IsTrue();
-        await Assert.That(readResults.All(result => result.Succeeded)).IsTrue();
+        foreach (var writeResult in writeResults)
+        {
+            await Assert.That(writeResult.Succeeded).IsTrue();
+        }
+
+        foreach (var readResult in readResults)
+        {
+            await Assert.That(readResult.Succeeded).IsTrue();
+        }
+
         await Assert.That(typedRead.Succeeded).IsTrue();
         await Assert.That(typedRead.Value).IsEqualTo(SampleIntValue);
 
+#if NET8_0_OR_GREATER
+        await using var csv = new StringWriter(System.Globalization.CultureInfo.InvariantCulture);
+#else
         using var csv = new StringWriter(System.Globalization.CultureInfo.InvariantCulture);
+#endif
         await client.ExportCsvAsync(csv, CancellationToken.None);
         using var csvReader = new StringReader(csv.ToString());
         var imported = await client.ImportCsvAsync(csvReader, CancellationToken.None);
@@ -173,10 +187,7 @@ public sealed class NativeTagBehaviorTests
         }
         finally
         {
-            if (File.Exists(databasePath))
-            {
-                File.Delete(databasePath);
-            }
+            DeleteFileIfExists(databasePath);
         }
     }
 
@@ -280,7 +291,8 @@ public sealed class NativeTagBehaviorTests
         await Assert.That(tag.IsWrite).IsTrue();
         await Assert.That(tag.IsRead).IsTrue();
         await Assert.That(readResult.Tag).IsEqualTo(tag);
-        await Assert.That(observedResults.Single()).IsEqualTo(readResult);
+        await Assert.That(observedResults).HasSingleItem();
+        await Assert.That(observedResults[0]).IsEqualTo(readResult);
         await Assert.That(tag.Abort()).IsEqualTo(PlcTagStatus.StatusOK);
         await Assert.That(tag.GetSize()).IsEqualTo(NativeBufferLength);
         await Assert.That(tag.GetStatus()).IsEqualTo(PlcTagStatus.StatusOK);
@@ -354,7 +366,7 @@ public sealed class NativeTagBehaviorTests
         await Assert.That(wrapper.GetBit(SampleBitIndex)).IsTrue();
         await Assert.That(wrapper.GetBitsString()[SampleBitIndex]).IsEqualTo('1');
 
-        wrapper.SetBits(new BitArray([UpdatedIntValue]));
+        wrapper.SetBits(new([UpdatedIntValue]));
         await Assert.That(wrapper.GetBitsArray().Length).IsGreaterThan(0);
 
         var values = new[] { SampleIntValue, SecondArrayValue };
@@ -399,12 +411,12 @@ public sealed class NativeTagBehaviorTests
         TagMixins.SetBit(tag, SampleBitIndex, true);
 
         await Assert.That(TagMixins.GetBit(tag, SampleBitIndex)).IsTrue();
-        _ = Assert.Throws<ArgumentNullException>(() => TagMixins.SetBit(null!, SampleBitIndex, true));
-        _ = Assert.Throws<ArgumentNullException>(() => TagMixins.GetBit(null!, SampleBitIndex));
-        _ = Assert.Throws<ArgumentNullException>(() => TagHelper.ScaleLinear(null!, 0D, 1D, 0D, 1D));
-        _ = Assert.Throws<ArgumentNullException>(() => TagHelper.ScaleSquareRoot(null!, 0D, 1D, 0D, 1D));
-        _ = Assert.Throws<ArgumentNullException>(() => TagHelper.BitsToNumber(null!));
-        _ = Assert.Throws<InvalidOperationException>(() => DataLength.GetSizeObject(Array.Empty<int>()));
+        _ = Assert.Throws<ArgumentNullException>(static () => TagMixins.SetBit(null!, SampleBitIndex, true));
+        _ = Assert.Throws<ArgumentNullException>(static () => TagMixins.GetBit(null!, SampleBitIndex));
+        _ = Assert.Throws<ArgumentNullException>(static () => TagHelper.ScaleLinear(null!, 0D, 1D, 0D, 1D));
+        _ = Assert.Throws<ArgumentNullException>(static () => TagHelper.ScaleSquareRoot(null!, 0D, 1D, 0D, 1D));
+        _ = Assert.Throws<ArgumentNullException>(static () => TagHelper.BitsToNumber(null!));
+        _ = Assert.Throws<InvalidOperationException>(static () => DataLength.GetSizeObject(Array.Empty<int>()));
         await Assert.That(PlcTagStatus.DecodeError(PlcTagStatus.StatusOK)).IsNotNull();
     }
 
@@ -416,6 +428,18 @@ public sealed class NativeTagBehaviorTests
             new StubTag("Invalid", DirectHandle, typeof(DateTime), DataLength.INT32),
             native);
         _ = Assert.Throws<ArgumentException>(() => invalidWrapper.GetBit(0));
+    }
+
+    /// <summary>Deletes a file when it exists.</summary>
+    /// <param name="path">The file path.</param>
+    private static void DeleteFileIfExists(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        File.Delete(path);
     }
 
     /// <summary>Observer that forwards values to an action.</summary>
@@ -574,6 +598,15 @@ public sealed class NativeTagBehaviorTests
         /// <returns>The buffer.</returns>
         private byte[] GetBuffer(int handle)
         {
+#if NET8_0_OR_GREATER
+            ref var buffer = ref CollectionsMarshal.GetValueRefOrAddDefault(_buffers, handle, out var exists);
+            if (!exists)
+            {
+                buffer = new byte[NativeBufferLength];
+            }
+
+            return buffer!;
+#else
             if (!_buffers.TryGetValue(handle, out var buffer))
             {
                 buffer = new byte[NativeBufferLength];
@@ -581,6 +614,7 @@ public sealed class NativeTagBehaviorTests
             }
 
             return buffer;
+#endif
         }
     }
 

@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.Serial.Tests;
+namespace IoT.Driver.Serial.Tests;
 
 /// <summary>Tests for the serial reactive stream source generator.</summary>
 public sealed class SerialPortReactiveStreamGeneratorTests
@@ -22,7 +22,7 @@ public sealed class SerialPortReactiveStreamGeneratorTests
     public async Task Generator_CreatesPropertyAndObservableStreamsAsync()
     {
         const string source = """
-using IoT.DriverCore.Serial.SourceGeneration;
+using IoT.Driver.Serial.SourceGeneration;
 
 namespace GeneratedTests;
 
@@ -89,7 +89,7 @@ public partial class DeviceState
     public async Task Generator_UsesReactiveSerialPortNamespaceForReactiveOnlyConsumersAsync()
     {
         const string source = """
-using IoT.DriverCore.Serial.SourceGeneration;
+using IoT.Driver.Serial.Reactive.SourceGeneration;
 
 namespace GeneratedTests;
 
@@ -143,25 +143,25 @@ public partial class DeviceState
 
         await Assert
             .That(generatedSource)
-            .Contains("ConnectReactiveSerialPort(global::IoT.DriverCore.Serial.Reactive.ISerialPortRx serialPort)");
+            .Contains("ConnectReactiveSerialPort(global::IoT.Driver.Serial.Reactive.ISerialPortRx serialPort)");
         await Assert
             .That(generatedSource)
-            .Contains("global::IoT.DriverCore.Serial.Reactive.ObservableAsyncBridgeExtensions.ToAsyncObservable");
+            .Contains("global::IoT.Driver.Serial.Reactive.ObservableAsyncBridgeExtensions.ToAsyncObservable");
         await Assert
             .That(generatedSource)
-            .Contains("global::IoT.DriverCore.Serial.Reactive.SourceGeneration.SerialPortReactiveValueConverter");
+            .Contains("global::IoT.Driver.Serial.Reactive.SourceGeneration.SerialPortReactiveValueConverter");
     }
 
     /// <summary>
-    /// Verifies generated marker types stay compilation-local when an annotated library and
-    /// its consumer both run the generator.
+    /// Verifies runtime-owned marker types can be used by an annotated library and consumer
+    /// without the generator emitting duplicate marker declarations.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
-    public async Task Generator_EmitsInternalMarkersForLibraryAndConsumerCompilationsAsync()
+    public async Task Generator_UsesRuntimeOwnedMarkersForLibraryAndConsumerCompilationsAsync()
     {
         const string librarySource = """
-using IoT.DriverCore.Serial.SourceGeneration;
+using IoT.Driver.Serial.SourceGeneration;
 
 namespace GeneratedLibrary;
 
@@ -171,7 +171,7 @@ public partial class DeviceState
 }
 """;
         const string consumerSource = """
-using IoT.DriverCore.Serial.SourceGeneration;
+using IoT.Driver.Serial.SourceGeneration;
 
 namespace GeneratedConsumer;
 
@@ -194,7 +194,11 @@ public sealed partial class Consumer
         var libraryErrors = GetErrors(generatedLibraryCompilation, libraryGeneratorDiagnostics);
         await Assert.That(libraryErrors).IsEmpty();
 
+#if NET8_0_OR_GREATER
+        await using var libraryImage = new MemoryStream();
+#else
         using var libraryImage = new MemoryStream();
+#endif
         var libraryEmit = generatedLibraryCompilation.Emit(libraryImage);
         await Assert.That(libraryEmit.Success).IsTrue();
 
@@ -208,20 +212,11 @@ public sealed partial class Consumer
             out var generatedConsumerCompilation,
             out var consumerGeneratorDiagnostics);
 
-        var markerSource = generatedConsumerCompilation.SyntaxTrees
-            .Single(static tree => tree.FilePath.EndsWith(
-                "SerialPortReactiveStreamAttribute.g.cs",
-                StringComparison.Ordinal))
-            .ToString();
-        var consumerErrors = GetErrors(generatedConsumerCompilation, consumerGeneratorDiagnostics);
-        var markerConflicts = generatedConsumerCompilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Id == "CS0436")
-            .ToList();
+        var markerAudit = GetMarkerOwnershipAudit(generatedConsumerCompilation, consumerGeneratorDiagnostics);
 
-        await Assert.That(markerSource).Contains("internal enum SerialPortReactiveSource");
-        await Assert.That(markerSource).Contains("internal sealed class SerialPortReactiveStreamAttribute");
-        await Assert.That(markerConflicts).IsEmpty();
-        await Assert.That(consumerErrors).IsEmpty();
+        await Assert.That(markerAudit.EmittedMarkerSource).IsFalse();
+        await Assert.That(markerAudit.Conflicts).IsEmpty();
+        await Assert.That(markerAudit.Errors).IsEmpty();
     }
 
     /// <summary>Verifies invalid targets report both public generator diagnostics.</summary>
@@ -230,7 +225,7 @@ public sealed partial class Consumer
     public async Task Generator_InvalidTargets_ReportDiagnosticsAsync()
     {
         const string source = """
-using IoT.DriverCore.Serial.SourceGeneration;
+using IoT.Driver.Serial.SourceGeneration;
 
 [SerialPortReactiveStream("Value", typeof(int))]
 public class NonPartialDevice
@@ -249,12 +244,24 @@ public partial class InvalidPropertyDevice
             parseOptions: parseOptions);
 
         var result = driver.RunGenerators(compilation).GetRunResult();
-        var diagnosticIds = result.Diagnostics.Select(static diagnostic => diagnostic.Id).ToList();
+        var diagnosticIds = new List<string>();
+        foreach (var diagnostic in result.Diagnostics)
+        {
+            diagnosticIds.Add(diagnostic.Id);
+        }
 
         await Assert.That(diagnosticIds).Contains("SPRX001");
         await Assert.That(diagnosticIds).Contains("SPRX002");
-        await Assert.That(result.GeneratedTrees.Count(static tree =>
-            tree.FilePath.EndsWith("SerialPortReactiveStreams.g.cs", StringComparison.Ordinal))).IsEqualTo(0);
+        var generatedTreeCount = 0;
+        foreach (var generatedTree in result.GeneratedTrees)
+        {
+            if (generatedTree.FilePath.EndsWith("SerialPortReactiveStreams.g.cs", StringComparison.Ordinal))
+            {
+                generatedTreeCount++;
+            }
+        }
+
+        await Assert.That(generatedTreeCount).IsEqualTo(0);
     }
 
     /// <summary>Verifies every source and matching option is emitted for a global-namespace target.</summary>
@@ -263,7 +270,7 @@ public partial class InvalidPropertyDevice
     public async Task Generator_AllSourcesAndMatchOptions_AreEmittedAsync()
     {
         const string source = """
-using IoT.DriverCore.Serial.SourceGeneration;
+using IoT.Driver.Serial.SourceGeneration;
 
 [SerialPortReactiveStream("Character", typeof(char), Source = SerialPortReactiveSource.DataReceived)]
 [SerialPortReactiveStream("RawByte", typeof(byte), Source = SerialPortReactiveSource.DataReceivedBytes)]
@@ -282,10 +289,20 @@ public partial class RootDevice
 
         _ = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
         var errors = GetErrors(outputCompilation, diagnostics);
-        var generatedSource = outputCompilation.SyntaxTrees.Single(static tree =>
-            tree.FilePath.EndsWith(
-                "RootDevice.SerialPortReactiveStreams.g.cs",
-                StringComparison.Ordinal)).ToString();
+        string? generatedSource = null;
+        foreach (var syntaxTree in outputCompilation.SyntaxTrees)
+        {
+            if (syntaxTree.FilePath.EndsWith("RootDevice.SerialPortReactiveStreams.g.cs", StringComparison.Ordinal))
+            {
+                generatedSource = syntaxTree.ToString();
+                break;
+            }
+        }
+
+        if (generatedSource is null)
+        {
+            throw new InvalidOperationException("The generated root-device source was not found.");
+        }
 
         await Assert.That(errors).IsEmpty();
         await Assert.That(generatedSource).Contains("serialPort.DataReceived");
@@ -302,7 +319,7 @@ public partial class RootDevice
     public async Task Generator_FallbackAndDefensiveAttributePaths_AreHandledAsync()
     {
         const string fallbackSource = """
-using IoT.DriverCore.Serial.SourceGeneration;
+using IoT.Driver.Serial.SourceGeneration;
 
 [SerialPortReactiveStream(null, typeof(int), Source = (SerialPortReactiveSource)99)]
 public partial class FallbackDevice
@@ -325,22 +342,15 @@ public class MalformedDevice
 
         var runResult = driver.RunGenerators(fallbackCompilation).GetRunResult();
         var malformedCompilation = CreateCompilation(malformedSource, parseOptions);
-        var malformedType = malformedCompilation.GetTypeByMetadataName("MalformedDevice") ??
-            throw new InvalidOperationException("Malformed test type was not created.");
-        var malformedAttribute = malformedType.GetAttributes().Single();
-        var tryCreate = typeof(SerialPortReactiveStreamGenerator).GetMethod(
-            "TryCreateStreamInfo",
-            BindingFlags.NonPublic | BindingFlags.Static) ??
-            throw new MissingMethodException(nameof(SerialPortReactiveStreamGenerator), "TryCreateStreamInfo");
-        var sourceExpression = typeof(SerialPortReactiveStreamGenerator).GetMethod(
-            "GetSourceExpression",
-            BindingFlags.NonPublic | BindingFlags.Static) ??
-            throw new MissingMethodException(nameof(SerialPortReactiveStreamGenerator), "GetSourceExpression");
+        var malformedType = GetRequiredType(malformedCompilation, "MalformedDevice");
+        var malformedAttribute = GetSingleAttribute(malformedType);
+        var tryCreate = GetPrivateGeneratorMethod("TryCreateStreamInfo");
+        var sourceExpression = GetPrivateGeneratorMethod("GetSourceExpression");
         object?[] arguments = [malformedType, malformedAttribute, CancellationToken.None, null];
         var malformedResult = (bool)(tryCreate.Invoke(null, arguments) ?? false);
         var fallbackExpression = (string)(sourceExpression.Invoke(null, [UnsupportedSourceValue]) ?? string.Empty);
 
-        await Assert.That(runResult.Diagnostics.Select(static diagnostic => diagnostic.Id)).Contains("SPRX002");
+        await Assert.That(ContainsDiagnostic(runResult.Diagnostics, "SPRX002")).IsTrue();
         await Assert.That(malformedResult).IsFalse();
         await Assert.That(fallbackExpression).IsEqualTo("serialPort.Lines");
     }
@@ -361,9 +371,9 @@ public class MalformedDevice
         var builder = new StringBuilder();
         var locationlessSymbol = compilation.CreateErrorTypeSymbol(compilation.GlobalNamespace, nameof(CreateInvalidStream), 0);
 
-        await Assert.That(() => appendMembers.Invoke(null, [builder, invalidStream, "IoT.DriverCore.Serial"]))
+        await Assert.That(() => appendMembers.Invoke(null, [builder, invalidStream, "IoT.Driver.Serial"]))
             .Throws<TargetInvocationException>();
-        await Assert.That(() => appendSubscription.Invoke(null, [builder, invalidStream, "IoT.DriverCore.Serial"]))
+        await Assert.That(() => appendSubscription.Invoke(null, [builder, invalidStream, "IoT.Driver.Serial"]))
             .Throws<TargetInvocationException>();
         await Assert.That(getFirstLocation.Invoke(null, [locationlessSymbol])).IsNull();
     }
@@ -374,11 +384,96 @@ public class MalformedDevice
     /// <returns>The error diagnostics reported by compilation or generator.</returns>
     private static List<Diagnostic> GetErrors(
         Compilation compilation,
-        System.Collections.Immutable.ImmutableArray<Diagnostic> generatorDiagnostics) =>
-        compilation.GetDiagnostics()
-            .Concat(generatorDiagnostics)
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToList();
+        System.Collections.Immutable.ImmutableArray<Diagnostic> generatorDiagnostics)
+    {
+        var errors = new List<Diagnostic>();
+        foreach (var diagnostic in compilation.GetDiagnostics())
+        {
+            if (diagnostic.Severity == DiagnosticSeverity.Error)
+            {
+                errors.Add(diagnostic);
+            }
+        }
+
+        foreach (var diagnostic in generatorDiagnostics)
+        {
+            if (diagnostic.Severity == DiagnosticSeverity.Error)
+            {
+                errors.Add(diagnostic);
+            }
+        }
+
+        return errors;
+    }
+
+    /// <summary>Audits generated consumer output for incorrectly emitted marker types and conflicts.</summary>
+    /// <param name="compilation">The generated consumer compilation.</param>
+    /// <param name="generatorDiagnostics">The diagnostics reported by the generator driver.</param>
+    /// <returns>The marker-ownership audit result.</returns>
+    private static (bool EmittedMarkerSource, List<Diagnostic> Conflicts, List<Diagnostic> Errors) GetMarkerOwnershipAudit(
+        Compilation compilation,
+        System.Collections.Immutable.ImmutableArray<Diagnostic> generatorDiagnostics)
+    {
+        var emittedMarkerSource = false;
+        var conflicts = new List<Diagnostic>();
+        foreach (var syntaxTree in compilation.SyntaxTrees)
+        {
+            emittedMarkerSource |= syntaxTree.FilePath.EndsWith(
+                "SerialPortReactiveStreamAttribute.g.cs",
+                StringComparison.Ordinal);
+        }
+
+        foreach (var diagnostic in compilation.GetDiagnostics())
+        {
+            if (diagnostic.Id == "CS0436")
+            {
+                conflicts.Add(diagnostic);
+            }
+        }
+
+        return (emittedMarkerSource, conflicts, GetErrors(compilation, generatorDiagnostics));
+    }
+
+    /// <summary>Gets a type by its metadata name or throws when the test setup is invalid.</summary>
+    /// <param name="compilation">The compilation containing the type.</param>
+    /// <param name="metadataName">The type metadata name.</param>
+    /// <returns>The requested type.</returns>
+    private static INamedTypeSymbol GetRequiredType(Compilation compilation, string metadataName)
+    {
+        return compilation.GetTypeByMetadataName(metadataName) ??
+            throw new InvalidOperationException($"Test type '{metadataName}' was not created.");
+    }
+
+    /// <summary>Gets the single attribute attached to a test symbol.</summary>
+    /// <param name="symbol">The symbol whose attribute is required.</param>
+    /// <returns>The symbol's single attribute.</returns>
+    private static AttributeData GetSingleAttribute(INamedTypeSymbol symbol)
+    {
+        var attributes = symbol.GetAttributes();
+        if (attributes.Length != 1)
+        {
+            throw new InvalidOperationException("The malformed test type must have exactly one attribute.");
+        }
+
+        return attributes[0];
+    }
+
+    /// <summary>Determines whether the supplied diagnostics contain an identifier.</summary>
+    /// <param name="diagnostics">The diagnostics to inspect.</param>
+    /// <param name="id">The expected diagnostic identifier.</param>
+    /// <returns><see langword="true"/> when the diagnostic was reported.</returns>
+    private static bool ContainsDiagnostic(System.Collections.Immutable.ImmutableArray<Diagnostic> diagnostics, string id)
+    {
+        foreach (var diagnostic in diagnostics)
+        {
+            if (diagnostic.Id == id)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>Creates an internal stream declaration with no property type for defensive guard coverage.</summary>
     /// <param name="target">The target type symbol.</param>
@@ -456,7 +551,7 @@ public class MalformedDevice
             "SerialPortRx.GeneratedTests",
             [CSharpSyntaxTree.ParseText(source, parseOptions)],
             references,
-            new CSharpCompilationOptions(
+            new(
                 OutputKind.DynamicallyLinkedLibrary,
                 nullableContextOptions: NullableContextOptions.Enable));
     }

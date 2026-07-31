@@ -3,7 +3,10 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
-using IoT.DriverCore.Core;
+#if NET
+using System.Runtime.InteropServices;
+#endif
+using IoT.Driver.Core;
 #if REACTIVE_SHIM
 using CP.Collections.Reactive;
 #else
@@ -11,9 +14,9 @@ using CP.Collections;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Reactive;
+namespace IoT.Driver.TwinCATRx.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx;
+namespace IoT.Driver.TwinCATRx;
 #endif
 
 /// <summary>Maps logical CP.IoT tags onto an event-driven TwinCAT ADS client.</summary>
@@ -173,7 +176,7 @@ public sealed partial class TwinCatLogicalTagClient : IManagedLogicalTagClient, 
     /// <returns>The registered tag.</returns>
     public LogicalTag CreateTag(string name, string address, string dataType)
     {
-        return CreateTag(new LogicalTag(name, address, dataType));
+        return CreateTag(new(name, address, dataType));
     }
 
     /// <summary>Creates a tag from a complete shared tag definition and registers it.</summary>
@@ -224,15 +227,19 @@ public sealed partial class TwinCatLogicalTagClient : IManagedLogicalTagClient, 
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+#if NET
+        ArgumentNullException.ThrowIfNull(tagNames);
+#else
         if (tagNames is null)
         {
             throw new ArgumentNullException(nameof(tagNames));
         }
+#endif
 
-        var names = tagNames.ToArray();
-        var results = new TagOperationResult<LogicalTagValue>[names.Length];
+        var names = new List<string>(tagNames);
+        var results = new TagOperationResult<LogicalTagValue>[names.Count];
         var requests = new List<ReadRequest>();
-        for (var index = 0; index < names.Length; index++)
+        for (var index = 0; index < names.Count; index++)
         {
             if (!TryGetReadableTag(names[index], out var tag, out var failure))
             {
@@ -240,16 +247,39 @@ public sealed partial class TwinCatLogicalTagClient : IManagedLogicalTagClient, 
                 continue;
             }
 
-            requests.Add(new ReadRequest(index, tag, ResolveRoute(tag)));
+            requests.Add(new(index, tag, ResolveRoute(tag)));
         }
 
-        foreach (var group in requests.GroupBy(
-                     static request => request.Route.RootAddress,
-                     StringComparer.OrdinalIgnoreCase))
+        var groupedRequests = new Dictionary<string, List<ReadRequest>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var request in requests)
+        {
+#if NET
+            ref var group = ref CollectionsMarshal.GetValueRefOrAddDefault(
+                groupedRequests,
+                request.Route.RootAddress,
+                out var exists);
+            if (!exists)
+            {
+                group = [];
+            }
+
+            group!.Add(request);
+#else
+            if (!groupedRequests.TryGetValue(request.Route.RootAddress, out var group))
+            {
+                group = [];
+                groupedRequests.Add(request.Route.RootAddress, group);
+            }
+
+            group.Add(request);
+#endif
+        }
+
+        foreach (var group in groupedRequests)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var data = await ReadAddressAsync(group.Key, cancellationToken).ConfigureAwait(false);
-            foreach (var request in group)
+            foreach (var request in group.Value)
             {
                 results[request.Index] = CreateReadResult(request.Tag, request.Route, data);
             }
@@ -264,10 +294,14 @@ public sealed partial class TwinCatLogicalTagClient : IManagedLogicalTagClient, 
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+#if NET
+        ArgumentNullException.ThrowIfNull(value);
+#else
         if (value is null)
         {
             throw new ArgumentNullException(nameof(value));
         }
+#endif
 
         if (!TryGetWritableTag(value.TagName, out var tag, out var failure))
         {
@@ -296,26 +330,53 @@ public sealed partial class TwinCatLogicalTagClient : IManagedLogicalTagClient, 
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+#if NET
+        ArgumentNullException.ThrowIfNull(values);
+#else
         if (values is null)
         {
             throw new ArgumentNullException(nameof(values));
         }
+#endif
 
-        var items = values.ToArray();
-        var results = new TagOperationResult<LogicalTagValue>[items.Length];
+        var items = new List<LogicalTagValue>(values);
+        var results = new TagOperationResult<LogicalTagValue>[items.Count];
         var structured = new List<WriteRequest>();
-        for (var index = 0; index < items.Length; index++)
+        for (var index = 0; index < items.Count; index++)
         {
             var value = items[index] ??
                 throw new ArgumentException("Values cannot contain null entries.", nameof(values));
             await PrepareWriteRequestAsync(index, value, results, structured, cancellationToken).ConfigureAwait(false);
         }
 
-        foreach (var group in structured.GroupBy(
-                     static request => request.Route.RootAddress,
-                     StringComparer.OrdinalIgnoreCase))
+        var groupedRequests = new Dictionary<string, List<WriteRequest>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var request in structured)
         {
-            await WriteStructureGroupAsync(group, results, cancellationToken).ConfigureAwait(false);
+#if NET
+            ref var group = ref CollectionsMarshal.GetValueRefOrAddDefault(
+                groupedRequests,
+                request.Route.RootAddress,
+                out var exists);
+            if (!exists)
+            {
+                group = [];
+            }
+
+            group!.Add(request);
+#else
+            if (!groupedRequests.TryGetValue(request.Route.RootAddress, out var group))
+            {
+                group = [];
+                groupedRequests.Add(request.Route.RootAddress, group);
+            }
+
+            group.Add(request);
+#endif
+        }
+
+        foreach (var group in groupedRequests)
+        {
+            await WriteStructureGroupAsync(group.Key, group.Value, results, cancellationToken).ConfigureAwait(false);
         }
 
         return results;
@@ -348,12 +409,21 @@ public sealed partial class TwinCatLogicalTagClient : IManagedLogicalTagClient, 
     public IObservable<LogicalTagValue> ObserveMany(IReadOnlyCollection<string> tagNames)
     {
         ThrowIfDisposed();
+#if NET
+        ArgumentNullException.ThrowIfNull(tagNames);
+#else
         if (tagNames is null)
         {
             throw new ArgumentNullException(nameof(tagNames));
         }
+#endif
 
-        var sources = tagNames.Select(Observe).ToArray();
+        var sources = new List<IObservable<LogicalTagValue>>(tagNames.Count);
+        foreach (var tagName in tagNames)
+        {
+            sources.Add(Observe(tagName));
+        }
+
         return Observable.Create<LogicalTagValue>(observer =>
         {
             var subscriptions = new CompositeDisposable();
@@ -417,7 +487,7 @@ public sealed partial class TwinCatLogicalTagClient : IManagedLogicalTagClient, 
         var route = ResolveRoute(tag);
         if (route.MemberAddress is not null)
         {
-            structured.Add(new WriteRequest(index, value, route));
+            structured.Add(new(index, value, route));
             return;
         }
 
@@ -425,17 +495,19 @@ public sealed partial class TwinCatLogicalTagClient : IManagedLogicalTagClient, 
     }
 
     /// <summary>Flushes a group of member writes as one root-structure write.</summary>
+    /// <param name="rootAddress">The root ADS address.</param>
     /// <param name="group">The writes for one root.</param>
     /// <param name="results">The result buffer.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The write operation.</returns>
     private async Task WriteStructureGroupAsync(
-        IGrouping<string, WriteRequest> group,
+        string rootAddress,
+        IReadOnlyList<WriteRequest> group,
         TagOperationResult<LogicalTagValue>[] results,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var rootValue = await ReadAddressAsync(group.Key, cancellationToken).ConfigureAwait(false);
+        var rootValue = await ReadAddressAsync(rootAddress, cancellationToken).ConfigureAwait(false);
         using var table = _createStructureTable(rootValue);
         foreach (var request in group)
         {
@@ -450,15 +522,15 @@ public sealed partial class TwinCatLogicalTagClient : IManagedLogicalTagClient, 
             foreach (var request in group)
             {
                 results[request.Index] = TagOperationResult<LogicalTagValue>.Failure(
-                    $"TwinCAT structure '{group.Key}' could not be materialized.");
+                    $"TwinCAT structure '{rootAddress}' could not be materialized.");
             }
 
             return;
         }
 
-        var representative = group.First().Value;
+        var representative = group[0].Value;
         var writeResult = await WriteAddressAsync(
-            group.Key,
+            rootAddress,
             representative,
             cancellationToken,
             structure).ConfigureAwait(false);
@@ -479,14 +551,14 @@ public sealed partial class TwinCatLogicalTagClient : IManagedLogicalTagClient, 
         {
             _ = TwinCatLogicalTagHelpers.TryMetadata(tag, MemberAddressMetadata, out var metadataMember);
             metadataMember ??= TwinCatLogicalTagHelpers.GetMemberAddress(metadataRoot, tag.Address);
-            return new TagRoute(metadataRoot, metadataRoot, metadataMember);
+            return new(metadataRoot, metadataRoot, metadataMember);
         }
 
         var root = FindStructureRoot(tag.Address);
         _ = TwinCatLogicalTagHelpers.TryMetadata(tag, WriteAddressMetadata, out var writeAddress);
         return root is null
-            ? new TagRoute(tag.Address, writeAddress ?? tag.Address, null)
-            : new TagRoute(root, root, TwinCatLogicalTagHelpers.GetMemberAddress(root, tag.Address));
+            ? new(tag.Address, writeAddress ?? tag.Address, null)
+            : new(root, root, TwinCatLogicalTagHelpers.GetMemberAddress(root, tag.Address));
     }
 
     /// <summary>Finds the longest configured notification root for an address.</summary>
@@ -498,10 +570,13 @@ public sealed partial class TwinCatLogicalTagClient : IManagedLogicalTagClient, 
         foreach (var notification in _client.Settings?.Notifications ?? [])
         {
             var candidate = notification.Variable;
-            if (candidate is null ||
-                candidate.Trim().Length == 0 ||
-                !address.StartsWith($"{candidate}.", StringComparison.OrdinalIgnoreCase) ||
-                (root is not null && candidate.Length <= root.Length))
+            if (string.IsNullOrWhiteSpace(candidate))
+            {
+                continue;
+            }
+
+            if (!address.StartsWith($"{candidate}.", StringComparison.OrdinalIgnoreCase) ||
+                (root is not null && candidate!.Length <= root.Length))
             {
                 continue;
             }
@@ -621,10 +696,13 @@ public sealed partial class TwinCatLogicalTagClient : IManagedLogicalTagClient, 
             _client.OnWrite,
             result =>
             {
-                if (result is null ||
-                    result.Trim().Length == 0 ||
-                    (!string.Equals(result, operationId, StringComparison.Ordinal) &&
-                     !result.EndsWith($",{operationId}", StringComparison.Ordinal)))
+                if (string.IsNullOrWhiteSpace(result))
+                {
+                    return;
+                }
+
+                if (!string.Equals(result, operationId, StringComparison.Ordinal) &&
+                    !result!.EndsWith($",{operationId}", StringComparison.Ordinal))
                 {
                     return;
                 }
@@ -668,7 +746,7 @@ public sealed partial class TwinCatLogicalTagClient : IManagedLogicalTagClient, 
         }
 
         return TagOperationResult<LogicalTagValue>.Success(
-            new LogicalTagValue(tag.Name, data, _timeProvider.GetUtcNow(), "Good"));
+            new(tag.Name, data, _timeProvider.GetUtcNow(), "Good"));
     }
 
     /// <summary>Publishes a matching native event as a logical value.</summary>

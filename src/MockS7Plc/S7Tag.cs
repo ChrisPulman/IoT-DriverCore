@@ -4,7 +4,7 @@
 
 using System.Runtime.InteropServices;
 
-namespace IoT.DriverCore.S7PlcRx.Mock;
+namespace IoT.Driver.S7PlcRx.Mock;
 
 /// <summary>Represents a Snap7 area tag.</summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]

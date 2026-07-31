@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-global using static IoT.DriverCore.Serial.Tests.TestValues;
+global using static IoT.Driver.Serial.Tests.TestValues;
 
-namespace IoT.DriverCore.Serial.Tests;
+namespace IoT.Driver.Serial.Tests;
 
 /// <summary>Named values shared by tests.</summary>
 internal static class TestValues

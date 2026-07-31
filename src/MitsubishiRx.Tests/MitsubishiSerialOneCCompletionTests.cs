@@ -7,10 +7,10 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiSerialOneCCompletionTests type.</summary>
@@ -28,6 +28,12 @@ internal sealed class MitsubishiSerialOneCCompletionTests
     /// <summary>Stores the shared bit block values.</summary>
     private static readonly bool[] BlockBitValues = [true, false, true];
 
+    /// <summary>Stores the shared word block values.</summary>
+    private static readonly ushort[] BlockWordValues = [0x1122, 0x3344];
+
+    /// <summary>Stores the expected two-word response.</summary>
+    private static readonly ushort[] ExpectedMemoryWords = [0x1234, 0x5678];
+
     /// <summary>Executes the RandomReadWordsAsyncSerial1CShouldUseBatchReadsAndReturnValues operation.</summary>
     /// <returns>The RandomReadWordsAsyncSerial1CShouldUseBatchReadsAndReturnValues operation result.</returns>
     [Test]
@@ -43,7 +49,7 @@ internal sealed class MitsubishiSerialOneCCompletionTests
         var result = await client.RandomReadWordsAsync(["D100", "D300"], CancellationToken.None);
 
         await Assert.That(result.IsSucceed).IsTrue();
-        await Assert.That(result.Value!.Select(static value => (int)value).ToArray()).IsEquivalentTo([0x1234, 0x5678]);
+        await Assert.That(result.Value!).IsEquivalentTo(ExpectedMemoryWords);
         await Assert.That(transport.Requests.Count).IsEqualTo(ExpectedCompletionRequestCount);
         await Assert.That(Encoding.ASCII.GetString(transport.Requests[0].Payload))
             .IsEqualTo(BuildAsciiRequest("00FFWR0D010001"));
@@ -163,7 +169,7 @@ internal sealed class MitsubishiSerialOneCCompletionTests
         await using var client = new MitsubishiRx(CreateSerialOptions(), transport, Scheduler.Immediate);
 
         var type = await client.ReadTypeNameAsync(CancellationToken.None);
-        var loopback = await client.LoopbackAsync(Encoding.ASCII.GetBytes("PING"), CancellationToken.None);
+        var loopback = await client.LoopbackAsync("PING"u8.ToArray(), CancellationToken.None);
         var memory = await client.ReadMemoryAsync(
             MitsubishiCommands.MemoryRead,
             0x2000,
@@ -175,17 +181,17 @@ internal sealed class MitsubishiSerialOneCCompletionTests
         var latchClear = await client.RemoteLatchClearAsync(CancellationToken.None);
         var reset = await client.RemoteResetAsync(CancellationToken.None);
         var raw = await client.ExecuteRawAsync(
-            new MitsubishiRawCommandRequest(
+            new(
                 0x1234,
                 0xABCD,
-                Encoding.ASCII.GetBytes("BEEF"),
+                "BEEF"u8.ToArray(),
                 "Custom raw"),
             CancellationToken.None);
 
         await Assert.That(type.IsSucceed).IsTrue();
         await Assert.That(type.Value!.ModelName).IsEqualTo("FX3U");
         await Assert.That(Encoding.ASCII.GetString(loopback.Value!)).IsEqualTo("PING");
-        await Assert.That(memory.Value!.Select(static value => (int)value).ToArray()).IsEquivalentTo([0x1234, 0x5678]);
+        await Assert.That(memory.Value!).IsEquivalentTo(ExpectedMemoryWords);
         await Assert.That(run.IsSucceed).IsTrue();
         await Assert.That(stop.IsSucceed).IsTrue();
         await Assert.That(pause.IsSucceed).IsTrue();
@@ -228,7 +234,7 @@ internal sealed class MitsubishiSerialOneCCompletionTests
             [
                 new MitsubishiWordBlock(
                     MitsubishiDeviceAddress.Parse("D100", XyAddressNotation.Octal),
-                    new ushort[] { 0x1122, 0x3344 }),
+                    BlockWordValues),
             ],
             BitBlocks:
             [
@@ -282,5 +288,13 @@ internal sealed class MitsubishiSerialOneCCompletionTests
     /// <param name="body">The body parameter.</param>
     /// <returns>The ComputeChecksum operation result.</returns>
     private static string ComputeChecksum(string body)
-        => (Encoding.ASCII.GetBytes(body).Aggregate(0, static (sum, value) => sum + value) & 0xFF).ToString("X2");
+    {
+        var checksum = 0;
+        foreach (var value in Encoding.ASCII.GetBytes(body))
+        {
+            checksum += value;
+        }
+
+        return (checksum & 0xFF).ToString("X2");
+    }
 }

@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.Serial.Reactive;
+namespace IoT.Driver.Serial.Reactive;
 #else
-namespace IoT.DriverCore.Serial;
+namespace IoT.Driver.Serial;
 #endif
 
 /// <summary>Adapts <see cref="SerialPort"/> to <see cref="ISerialPortConnection"/>.</summary>

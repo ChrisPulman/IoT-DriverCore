@@ -7,15 +7,15 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-using static IoT.DriverCore.MitsubishiRx.Reactive.MitsubishiNumericConstants;
+using static IoT.Driver.MitsubishiRx.Reactive.MitsubishiNumericConstants;
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-using static IoT.DriverCore.MitsubishiRx.MitsubishiNumericConstants;
+using static IoT.Driver.MitsubishiRx.MitsubishiNumericConstants;
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 

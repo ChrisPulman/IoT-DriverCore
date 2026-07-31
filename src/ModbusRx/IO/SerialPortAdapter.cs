@@ -4,15 +4,17 @@
 
 using System.IO.Ports;
 #if REACTIVE_SHIM
-using IoT.DriverCore.Serial.Reactive;
+using IoT.Driver.ModbusRx.Reactive.Utility;
+using IoT.Driver.Serial.Reactive;
 #else
-using IoT.DriverCore.Serial;
+using IoT.Driver.ModbusRx.Utility;
+using IoT.Driver.Serial;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.IO;
+namespace IoT.Driver.ModbusRx.Reactive.IO;
 #else
-namespace IoT.DriverCore.ModbusRx.IO;
+namespace IoT.Driver.ModbusRx.IO;
 #endif
 
 /// <summary>Concrete Implementor - http://en.wikipedia.org/wiki/Bridge_Pattern.</summary>
@@ -22,18 +24,13 @@ public class SerialPortAdapter : IStreamResource
     private const string NewLine = "\r\n";
 
     /// <summary>The serial port.</summary>
-    private SerialPortRx _serialPort;
+    private readonly SerialPortRx _serialPort;
 
     /// <summary>Initializes a new instance of the <see cref="SerialPortAdapter"/> class.</summary>
     /// <param name="serialPort">The serial port.</param>
     public SerialPortAdapter(SerialPortRx serialPort)
     {
-        if (serialPort is null)
-        {
-            throw new ArgumentNullException(nameof(serialPort));
-        }
-
-        _serialPort = serialPort;
+        _serialPort = ModbusGuard.NotNull(serialPort, nameof(serialPort));
         _serialPort.NewLine = NewLine;
     }
 
@@ -89,6 +86,5 @@ public class SerialPortAdapter : IStreamResource
         }
 
         _serialPort.Dispose();
-        _serialPort = null!;
     }
 }

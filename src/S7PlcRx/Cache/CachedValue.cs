@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Cache;
+namespace IoT.Driver.S7PlcRx.Reactive.Cache;
 #else
-namespace IoT.DriverCore.S7PlcRx.Cache;
+namespace IoT.Driver.S7PlcRx.Cache;
 #endif
 
 /// <summary>Represents a value stored in the cache along with its timestamp and access count.</summary>
@@ -29,4 +29,11 @@ internal class CachedValue(object? value, DateTime timestamp, long hitCount = 0)
     /// <returns>True if the value has expired.</returns>
     internal bool IsExpired(TimeSpan maxAge, TimeProvider? timeProvider = null) =>
         (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime - Timestamp > maxAge;
+
+    /// <summary>Creates the replacement cache entry while retaining the existing hit count.</summary>
+    /// <param name="_">The unused cache key.</param>
+    /// <param name="existing">The existing cache entry.</param>
+    /// <returns>The replacement entry.</returns>
+    internal CachedValue PreserveHitCount(string _, CachedValue existing) =>
+        new(Value, Timestamp, existing.HitCount);
 }

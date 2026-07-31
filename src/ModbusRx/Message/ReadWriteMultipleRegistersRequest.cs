@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Data;
+using IoT.Driver.ModbusRx.Reactive.Data;
 #else
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Message;
+namespace IoT.Driver.ModbusRx.Reactive.Message;
 #else
-namespace IoT.DriverCore.ModbusRx.Message;
+namespace IoT.Driver.ModbusRx.Message;
 #endif
 
 /// <summary>Provides ReadWriteMultipleRegistersRequest functionality.</summary>
@@ -50,27 +50,6 @@ public class ReadWriteMultipleRegistersRequest : AbstractModbusMessage, IModbusR
             writeData);
     }
 
-    /// <inheritdoc/>
-    public override byte[] ProtocolDataUnit
-    {
-        get
-        {
-            var readPdu = ReadRequest?.ProtocolDataUnit
-                ?? throw new InvalidOperationException("The read request is not initialized.");
-            var writePdu = WriteRequest?.ProtocolDataUnit
-                ?? throw new InvalidOperationException("The write request is not initialized.");
-            using var stream = new MemoryStream(readPdu.Length + writePdu.Length);
-
-            stream.WriteByte(FunctionCode);
-
-            // read and write PDUs without function codes
-            stream.Write(readPdu, 1, readPdu.Length - 1);
-            stream.Write(writePdu, 1, writePdu.Length - 1);
-
-            return stream.ToArray();
-        }
-    }
-
     /// <summary>Gets the read request.</summary>
 /// <value>The read request.</value>
     public ReadHoldingInputRegistersRequest? ReadRequest { get; private set; }
@@ -81,6 +60,24 @@ public class ReadWriteMultipleRegistersRequest : AbstractModbusMessage, IModbusR
 
     /// <inheritdoc/>
     public override int MinimumFrameSize => Eleven;
+
+    /// <inheritdoc/>
+    public override byte[] ToProtocolDataUnit()
+    {
+        var readPdu = ReadRequest?.ToProtocolDataUnit()
+            ?? throw new InvalidOperationException("The read request is not initialized.");
+        var writePdu = WriteRequest?.ToProtocolDataUnit()
+            ?? throw new InvalidOperationException("The write request is not initialized.");
+        using var stream = new MemoryStream(readPdu.Length + writePdu.Length);
+
+        stream.WriteByte(FunctionCode);
+
+        // read and write PDUs without function codes
+        stream.Write(readPdu, 1, readPdu.Length - 1);
+        stream.Write(writePdu, 1, writePdu.Length - 1);
+
+        return stream.ToArray();
+    }
 
     /// <inheritdoc/>
     public override string ToString() =>

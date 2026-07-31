@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
-using IoT.DriverCore.OmronPlcRx.Core.Channels;
+using IoT.Driver.OmronPlcRx.Core.Channels;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Provides a deterministic in-memory serial port for Omron channel tests.</summary>
 internal sealed class ScriptedOmronSerialPort : IOmronSerialPort

@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using ReactiveCoreExtensions = IoT.DriverCore.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
-using ReactiveNode = IoT.DriverCore.TwinCATRx.Core.Reactive.INodeEmulator;
-using ReactiveSettings = IoT.DriverCore.TwinCATRx.Core.Reactive.Settings;
+using ReactiveCoreExtensions = IoT.Driver.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
+using ReactiveNode = IoT.Driver.TwinCATRx.Core.Reactive.INodeEmulator;
+using ReactiveSettings = IoT.Driver.TwinCATRx.Core.Reactive.Settings;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Core;
+namespace IoT.Driver.TwinCATRx.Tests.Core;
 
 /// <summary>Closes deterministic extension parity gaps in the Reactive Core package.</summary>
 public class ReactiveCoreExtensionParityCoverageTests
@@ -31,21 +31,19 @@ public class ReactiveCoreExtensionParityCoverageTests
                 : System.Reactive.Linq.Observable.Return(SuccessfulValue);
         });
         var retried = ReactiveCoreExtensions.OnErrorRetry(source);
-        var value = System.Reactive.Linq.Observable.ToEnumerable(retried).Single();
+        var value = GetSingleValue(System.Reactive.Linq.Observable.ToEnumerable(retried));
 
         await TUnitAssert.That(value).IsEqualTo(SuccessfulValue);
         await TUnitAssert.That(attempts).IsEqualTo(ExpectedAttemptCount);
 
-        IObservable<int> nullSource = null!;
-        var valid = System.Reactive.Linq.Observable.Return(1);
-        await TUnitAssert.That(() => ReactiveCoreExtensions.OnErrorRetry(nullSource)).Throws<ArgumentNullException>();
-        await TUnitAssert.That(() =>
-                ReactiveCoreExtensions.OnErrorRetry<int, InvalidOperationException>(valid, null!))
+        await TUnitAssert.That(static () => ReactiveCoreExtensions.OnErrorRetry((IObservable<int>)null!)).Throws<ArgumentNullException>();
+        await TUnitAssert.That(static () =>
+                ReactiveCoreExtensions.OnErrorRetry<int, InvalidOperationException>(System.Reactive.Linq.Observable.Return(1), null!))
             .Throws<ArgumentNullException>();
-        await TUnitAssert.That(() =>
+        await TUnitAssert.That(static () =>
                 ReactiveCoreExtensions.OnErrorRetry<int, InvalidOperationException>(
-                    valid,
-                    _ => { },
+                    System.Reactive.Linq.Observable.Return(1),
+                    static _ => { },
                     ExpectedAttemptCount,
                     TimeSpan.Zero,
                     null!))
@@ -57,7 +55,7 @@ public class ReactiveCoreExtensionParityCoverageTests
     [Test]
     public async Task Settings_And_Assembly_Helpers_Match_Lean_CoreAsync()
     {
-        IoT.DriverCore.TwinCATRx.Core.Reactive.ISettings? nullSettings = null;
+        IoT.Driver.TwinCATRx.Core.Reactive.ISettings? nullSettings = null;
         ReactiveCoreExtensions.AddNotification(nullSettings, ".Ignored");
         ReactiveCoreExtensions.AddWriteVariable(nullSettings, ".Ignored");
 
@@ -85,7 +83,7 @@ public class ReactiveCoreExtensionParityCoverageTests
     [Test]
     public async Task Node_Disposal_Matches_Lean_CoreAsync()
     {
-        var nodeType = typeof(ReactiveSettings).Assembly.GetType("IoT.DriverCore.TwinCATRx.Core.Reactive.NodeEmulator")
+        var nodeType = typeof(ReactiveSettings).Assembly.GetType("IoT.Driver.TwinCATRx.Core.Reactive.NodeEmulator")
             ?? throw new InvalidOperationException("Reactive NodeEmulator was not found.");
         var node = Activator.CreateInstance(nodeType)
             ?? throw new InvalidOperationException("Reactive NodeEmulator could not be created.");
@@ -94,7 +92,7 @@ public class ReactiveCoreExtensionParityCoverageTests
             ?? throw new InvalidOperationException("Reactive node collection was not found.");
         _ = nodes.Add(child);
         var tag = nodeType.GetProperty("Tag") ?? throw new InvalidOperationException("Tag property was not found.");
-        tag.SetValue(node, new object());
+        tag.SetValue(node, new());
 
         var dispose = nodeType.GetMethod("Dispose")
             ?? throw new InvalidOperationException("Dispose method was not found.");
@@ -104,6 +102,27 @@ public class ReactiveCoreExtensionParityCoverageTests
         await TUnitAssert.That(child.DisposeCount).IsEqualTo(1);
         await TUnitAssert.That(nodeType.GetProperty("Nodes")?.GetValue(node)).IsNull();
         await TUnitAssert.That(tag.GetValue(node)).IsNull();
+    }
+
+    /// <summary>Returns the sole value from a finite sequence.</summary>
+    /// <typeparam name="T">The value type.</typeparam>
+    /// <param name="values">The sequence to inspect.</param>
+    /// <returns>The only value.</returns>
+    private static T GetSingleValue<T>(IEnumerable<T> values)
+    {
+        using var enumerator = values.GetEnumerator();
+        if (!enumerator.MoveNext())
+        {
+            throw new InvalidOperationException("The sequence was empty.");
+        }
+
+        var value = enumerator.Current;
+        if (enumerator.MoveNext())
+        {
+            throw new InvalidOperationException("The sequence contained multiple values.");
+        }
+
+        return value;
     }
 
     /// <summary>A disposable Reactive node used to verify recursive disposal.</summary>

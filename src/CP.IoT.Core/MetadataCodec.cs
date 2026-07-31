@@ -2,7 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.Core;
+using System.Text;
+
+namespace IoT.Driver.Core;
 
 /// <summary>Encodes and decodes tag metadata as a URL-encoded query string.</summary>
 internal static class MetadataCodec
@@ -10,12 +12,28 @@ internal static class MetadataCodec
     /// <summary>Encodes <paramref name="metadata"/> as a URL-encoded ampersand-separated key=value string.</summary>
     /// <param name="metadata">The metadata dictionary to encode.</param>
     /// <returns>The encoded string, or an empty string when the dictionary is empty.</returns>
-    internal static string Encode(IReadOnlyDictionary<string, string> metadata) =>
-        string.Join(
-            "&",
-            metadata
-                .OrderBy(static item => item.Key, StringComparer.Ordinal)
-                .Select(static item => $"{Uri.EscapeDataString(item.Key)}={Uri.EscapeDataString(item.Value)}"));
+    internal static string Encode(IReadOnlyDictionary<string, string> metadata)
+    {
+        var ordered = new List<KeyValuePair<string, string>>(metadata.Count);
+        ordered.AddRange(metadata);
+
+        ordered.Sort(static (left, right) => StringComparer.Ordinal.Compare(left.Key, right.Key));
+        var encoded = new StringBuilder();
+        for (var index = 0; index < ordered.Count; index++)
+        {
+            if (index > 0)
+            {
+                _ = encoded.Append('&');
+            }
+
+            var item = ordered[index];
+            _ = encoded.Append(Uri.EscapeDataString(item.Key));
+            _ = encoded.Append('=');
+            _ = encoded.Append(Uri.EscapeDataString(item.Value));
+        }
+
+        return encoded.ToString();
+    }
 
     /// <summary>Decodes a URL-encoded key=value pair string into a metadata dictionary.</summary>
     /// <param name="value">The encoded string to decode.</param>

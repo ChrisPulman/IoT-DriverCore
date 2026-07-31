@@ -4,16 +4,16 @@
 
 using System.Net;
 using System.Net.Sockets;
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Core.Channels;
-using IoT.DriverCore.OmronPlcRx.Core.Converters;
-using IoT.DriverCore.OmronPlcRx.Core.Requests;
-using IoT.DriverCore.OmronPlcRx.Core.Responses;
-using IoT.DriverCore.OmronPlcRx.Core.Types;
-using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Core.Channels;
+using IoT.Driver.OmronPlcRx.Core.Converters;
+using IoT.Driver.OmronPlcRx.Core.Requests;
+using IoT.Driver.OmronPlcRx.Core.Responses;
+using IoT.Driver.OmronPlcRx.Core.Types;
+using IoT.Driver.OmronPlcRx.Enums;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Exercises remaining parser and boundary paths with deterministic protocol frames.</summary>
 public sealed class OmronParserResidualCoverageTests
@@ -54,6 +54,9 @@ public sealed class OmronParserResidualCoverageTests
     /// <summary>Expected unsigned BCD value.</summary>
     private const ushort ExpectedBcdU16 = 9876;
 
+    /// <summary>Malformed Toolbus frame used to exercise decoder length validation.</summary>
+    private static readonly byte[] MalformedToolbusFrame = [0xAB, 0x00, 0x01, 0x00, 0xAC];
+
     /// <summary>Verifies clock extraction accepts the supported nineteenth-century protocol year range.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
@@ -67,7 +70,7 @@ public sealed class OmronParserResidualCoverageTests
         var clock = ReadClockResponse.ExtractClock(request, response);
 
         await Assert.That(clock.ClockDateTime).IsEqualTo(
-            new DateTime(1999, 12, 31, 23, 59, 58, DateTimeKind.Utc));
+            new(1999, 12, 31, 23, 59, 58, DateTimeKind.Utc));
         await Assert.That(clock.DayOfWeek).IsEqualTo(ClockDayOfWeek);
     }
 
@@ -135,7 +138,7 @@ public sealed class OmronParserResidualCoverageTests
         var oddPayloadFrame = $"{oddPayloadBody}{HostLinkFinsFrameCodec.CalculateFcs(oddPayloadBody)}*\r";
         var hostLinkException = CaptureException<OmronPLCException>(() => hostLink.DecodeResponse(oddPayloadFrame));
         var toolbusException = CaptureException<OmronPLCException>(
-            () => ToolbusFinsFrameCodec.DecodeResponse(new byte[] { 0xAB, 0x00, 0x01, 0x00, 0xAC }));
+            static () => ToolbusFinsFrameCodec.DecodeResponse(MalformedToolbusFrame));
 
         await Assert.That(hostLinkException.Message).Contains("payload");
         await Assert.That(toolbusException.Message).Contains("length");

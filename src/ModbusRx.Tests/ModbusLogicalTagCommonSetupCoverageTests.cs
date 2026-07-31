@@ -2,13 +2,13 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.IO;
-using IoT.DriverCore.ModbusRx.LogicalTags;
+using IoT.Driver.Core;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx.IO;
+using IoT.Driver.ModbusRx.LogicalTags;
 using NativeAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Exercises the common logical-tag setup contracts through the Modbus adapter.</summary>
 public sealed class ModbusLogicalTagCommonSetupCoverageTests
@@ -36,9 +36,15 @@ public sealed class ModbusLogicalTagCommonSetupCoverageTests
                 typeof(ushort))).ToLogicalTag();
 
             registry.RegisterTag(tag);
-            await NativeAssert.That(registry.Catalog.List().Single().Name).IsEqualTo(tag.Name);
+            var registeredTags = registry.Catalog.List();
+            await NativeAssert.That(registeredTags.Count).IsEqualTo(1);
+            await NativeAssert.That(registeredTags[0].Name).IsEqualTo(tag.Name);
 
+#if NET8_0_OR_GREATER
+            await using var csv = new StringWriter();
+#else
             using var csv = new StringWriter();
+#endif
             await exchange.ExportCsvAsync(csv, ',', CancellationToken.None);
             await exchange.ImportCsvAsync(new StringReader(csv.ToString()), ',', CancellationToken.None);
 

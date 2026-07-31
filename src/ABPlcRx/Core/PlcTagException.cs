@@ -3,13 +3,14 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>Plc Tag Exception.</summary>
 [Serializable]
+[System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
 public class PlcTagException : Exception
 {
     /// <summary>Initializes a new instance of the <see cref="PlcTagException"/> class.</summary>
@@ -44,4 +45,14 @@ public class PlcTagException : Exception
     /// <summary>Gets result operation.</summary>
     /// <value>ResultOperation.</value>
     public PlcTagResult? Result { get; }
+
+    /// <summary>Gets the debugger display text.</summary>
+    [System.Diagnostics.DebuggerBrowsable(System.Diagnostics.DebuggerBrowsableState.Never)]
+    private string DebuggerDisplay
+    {
+        get
+        {
+            return ToString();
+        }
+    }
 }

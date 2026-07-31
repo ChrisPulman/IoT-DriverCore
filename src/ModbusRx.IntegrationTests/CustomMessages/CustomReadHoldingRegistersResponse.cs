@@ -4,10 +4,10 @@
 
 using System;
 using System.Collections.Generic;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.IntegrationTests.CustomMessages;
+namespace IoT.Driver.ModbusRx.IntegrationTests.CustomMessages;
 
 /// <summary>Custom read holding registers response.</summary>
 /// <seealso cref="IModbusMessage" />
@@ -59,7 +59,7 @@ public class CustomReadHoldingRegistersResponse : IModbusMessage
                 FunctionCode,
                 ByteCount,
             };
-            pdu.AddRange(_data!.NetworkBytes);
+            pdu.AddRange(_data!.ToNetworkBytes());
 
             return [.. pdu];
         }
@@ -80,16 +80,19 @@ public class CustomReadHoldingRegistersResponse : IModbusMessage
     /// </value>
     public byte ByteCount { get; set; }
 
+    /// <inheritdoc/>
+    public byte[] ToMessageFrame() => MessageFrame;
+
+    /// <inheritdoc/>
+    public byte[] ToProtocolDataUnit() => ProtocolDataUnit;
+
     /// <summary>Initializes a modbus message from the specified message frame.</summary>
     /// <param name="frame">Bytes of Modbus frame.</param>
     /// <exception cref="System.ArgumentNullException">frame.</exception>
     /// <exception cref="System.ArgumentException">Message frame does not contain enough bytes. - frame.</exception>
     public void Initialize(byte[] frame)
     {
-        if (frame is null)
-        {
-            throw new ArgumentNullException(nameof(frame));
-        }
+        ArgumentNullException.ThrowIfNull(frame);
 
         if (frame.Length < HeaderLength || frame.Length < HeaderLength + frame[ByteCountIndex])
         {

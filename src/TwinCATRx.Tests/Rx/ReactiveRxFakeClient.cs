@@ -5,13 +5,13 @@
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using ReactiveUI.Primitives.Async;
-using ReactiveBridge = IoT.DriverCore.TwinCATRx.Reactive.ObservableBridgeExtensions;
-using ReactiveClient = IoT.DriverCore.TwinCATRx.Reactive.IRxTcAdsClient;
-using ReactiveSettings = IoT.DriverCore.TwinCATRx.Core.Reactive.ISettings;
+using ReactiveBridge = IoT.Driver.TwinCATRx.Reactive.ObservableBridgeExtensions;
+using ReactiveClient = IoT.Driver.TwinCATRx.Reactive.IRxTcAdsClient;
+using ReactiveSettings = IoT.Driver.TwinCATRx.Core.Reactive.ISettings;
 using ReactiveUnit = System.Reactive.Unit;
-using Settings = IoT.DriverCore.TwinCATRx.Core.Reactive.Settings;
+using Settings = IoT.Driver.TwinCATRx.Core.Reactive.Settings;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Deterministic System.Reactive fake used to exercise the Reactive package.</summary>
 public sealed class ReactiveRxFakeClient : ReactiveClient

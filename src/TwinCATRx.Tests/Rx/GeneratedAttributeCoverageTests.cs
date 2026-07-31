@@ -4,7 +4,7 @@
 
 using System.Reflection;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Exercises the generated lean and System.Reactive attribute surfaces.</summary>
 public class GeneratedAttributeCoverageTests
@@ -61,11 +61,16 @@ public class GeneratedAttributeCoverageTests
     /// <param name="attributeNamespace">The generated attribute namespace.</param>
     /// <returns>The test task.</returns>
     [Test]
-    [Arguments("IoT.DriverCore.TwinCATRx")]
-    [Arguments("IoT.DriverCore.TwinCATRx.Reactive")]
+    [Arguments("IoT.Driver.TwinCATRx")]
+    [Arguments("IoT.Driver.TwinCATRx.Reactive")]
     public async Task Generated_Attributes_Expose_Expected_StateAsync(string attributeNamespace)
     {
-        var assembly = typeof(GeneratedStreams).Assembly;
+        var assembly = string.Equals(
+            attributeNamespace,
+            "IoT.Driver.TwinCATRx.Reactive",
+            StringComparison.Ordinal)
+            ? typeof(global::IoT.Driver.TwinCATRx.Reactive.TwinCatReactiveStreamAttribute).Assembly
+            : typeof(TwinCatReactiveStreamAttribute).Assembly;
 
         await VerifyStreamAttributeAsync(assembly, attributeNamespace);
         await VerifyConnectionAttributeAsync(assembly, attributeNamespace);

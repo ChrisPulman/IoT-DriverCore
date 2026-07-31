@@ -7,17 +7,17 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Responses;
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Results;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Responses;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Results;
 #else
-using IoT.DriverCore.OmronPlcRx.Core.Responses;
-using IoT.DriverCore.OmronPlcRx.Core.Results;
+using IoT.Driver.OmronPlcRx.Core.Responses;
+using IoT.Driver.OmronPlcRx.Core.Results;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Channels;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core.Channels;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core.Channels;
+namespace IoT.Driver.OmronPlcRx.Core.Channels;
 #endif
 
 /// <summary>Represents the u dp ch an ne l type.</summary>
@@ -63,7 +63,7 @@ internal sealed class UDPChannel : BaseChannel
 
     internal override async Task InitializeAsync(int timeout, CancellationToken cancellationToken)
     {
-        if (!Semaphore.Wait(0, cancellationToken))
+        if (!await Semaphore.WaitAsync(0, cancellationToken).ConfigureAwait(false))
         {
             await Semaphore.WaitAsync(cancellationToken);
         }

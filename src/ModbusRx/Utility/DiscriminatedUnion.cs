@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Utility;
+namespace IoT.Driver.ModbusRx.Reactive.Utility;
 #else
-namespace IoT.DriverCore.ModbusRx.Utility;
+namespace IoT.Driver.ModbusRx.Utility;
 #endif
 
 /// <summary>A data type that can store one of two possible strongly typed options.</summary>

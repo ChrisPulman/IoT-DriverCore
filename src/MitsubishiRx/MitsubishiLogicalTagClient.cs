@@ -4,15 +4,15 @@
 
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -293,7 +293,7 @@ public sealed partial class MitsubishiLogicalTagClient : IManagedLogicalTagClien
                 .ConfigureAwait(false);
             return response.IsSucceed
                 ? TagOperationResult<LogicalTagValue>.Success(
-                    new LogicalTagValue(tag.Name, response.Value, _timeProvider.GetUtcNow(), "Good"))
+                    new(tag.Name, response.Value, _timeProvider.GetUtcNow(), "Good"))
                 : TagOperationResult<LogicalTagValue>.Failure(GetError(response));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -335,7 +335,14 @@ public sealed partial class MitsubishiLogicalTagClient : IManagedLogicalTagClien
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(tagNames);
-        var names = tagNames.ToArray();
+        var names = new string[tagNames.Count];
+        var nameIndex = 0;
+        foreach (var tagName in tagNames)
+        {
+            names[nameIndex] = tagName;
+            nameIndex++;
+        }
+
         var results = new TagOperationResult<LogicalTagValue>[names.Length];
         var bulkRequests = new List<BulkWordRequest>(names.Length);
         var individualRequests = new List<IndexedTagName>();
@@ -356,7 +363,7 @@ public sealed partial class MitsubishiLogicalTagClient : IManagedLogicalTagClien
             }
             else
             {
-                individualRequests.Add(new IndexedTagName(index, tagName));
+                individualRequests.Add(new(index, tagName));
             }
         }
 
@@ -394,7 +401,7 @@ public sealed partial class MitsubishiLogicalTagClient : IManagedLogicalTagClien
                 .ConfigureAwait(false);
             return response.IsSucceed
                 ? TagOperationResult<LogicalTagValue>.Success(
-                    new LogicalTagValue(tag.Name, value.Value, _timeProvider.GetUtcNow(), "Good"))
+                    new(tag.Name, value.Value, _timeProvider.GetUtcNow(), "Good"))
                 : TagOperationResult<LogicalTagValue>.Failure(GetError(response));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -428,7 +435,14 @@ public sealed partial class MitsubishiLogicalTagClient : IManagedLogicalTagClien
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(values);
-        var items = values.ToArray();
+        var items = new LogicalTagValue[values.Count];
+        var valueIndex = 0;
+        foreach (var value in values)
+        {
+            items[valueIndex] = value;
+            valueIndex++;
+        }
+
         var results = new TagOperationResult<LogicalTagValue>[items.Length];
         var bulkRequests = new List<BulkWordRequest>(items.Length);
         var individualRequests = new List<IndexedTagValue>();
@@ -450,7 +464,7 @@ public sealed partial class MitsubishiLogicalTagClient : IManagedLogicalTagClien
             }
             else
             {
-                individualRequests.Add(new IndexedTagValue(index, value));
+                individualRequests.Add(new(index, value));
             }
         }
 
@@ -498,7 +512,13 @@ public sealed partial class MitsubishiLogicalTagClient : IManagedLogicalTagClien
     public IObservable<LogicalTagValue> ObserveMany(IReadOnlyCollection<string> tagNames)
     {
         ArgumentNullException.ThrowIfNull(tagNames);
-        return new ManyObservable(tagNames.Select(Observe).ToArray());
+        var sources = new List<IObservable<LogicalTagValue>>(tagNames.Count);
+        foreach (var tagName in tagNames)
+        {
+            sources.Add(Observe(tagName));
+        }
+
+        return new ManyObservable(sources);
     }
 
     /// <inheritdoc/>
@@ -600,7 +620,7 @@ public sealed partial class MitsubishiLogicalTagClient : IManagedLogicalTagClien
             ? unchecked((short)word)
             : word;
         return TagOperationResult<LogicalTagValue>.Success(
-            new LogicalTagValue(request.Tag.Name, value, timestamp, "Good"));
+            new(request.Tag.Name, value, timestamp, "Good"));
     }
 
     /// <summary>Determines whether a database definition is a single protocol word.</summary>
@@ -731,8 +751,10 @@ public sealed partial class MitsubishiLogicalTagClient : IManagedLogicalTagClien
         var options = _owner.Options;
         var partition =
             $"{options.TransportKind}:{options.Host}:{options.Port}:{options.FrameType}";
-        return BulkTransferPlanner.Plan(
-            requests.Select(request => new TagTransferRequest(
+        var transferRequests = new List<TagTransferRequest>(requests.Count);
+        foreach (var request in requests)
+        {
+            transferRequests.Add(new(
                 request.Tag.Name,
                 new TagTransportAddress(
                     partition,
@@ -741,389 +763,10 @@ public sealed partial class MitsubishiLogicalTagClient : IManagedLogicalTagClien
                     access,
                     string.Empty,
                     request.Address.Number,
-                    1))));
-    }
-
-    /// <summary>Executes all eligible grouped reads.</summary>
-    /// <param name="requests">The indexed eligible requests.</param>
-    /// <param name="results">The caller-ordered result array.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that completes when every group has been read.</returns>
-    private async Task ExecuteBulkReadsAsync(
-        IReadOnlyList<BulkWordRequest> requests,
-        TagOperationResult<LogicalTagValue>[] results,
-        CancellationToken cancellationToken)
-    {
-        if (requests.Count == 0)
-        {
-            return;
+                    1)));
         }
 
-        var plan = CreateBulkTransferPlan(requests, TagTransferAccess.Read);
-        _ = Interlocked.Increment(ref _bulkReadPlanCount);
-        _ = Interlocked.Add(ref _bulkReadItemCount, requests.Count);
-        _ = Interlocked.Add(ref _bulkReadRangeCount, plan.Ranges.Count);
-        foreach (var memoryGroup in plan.Ranges.GroupBy(
-                     static range => range.Address.MemoryArea,
-                     StringComparer.Ordinal))
-        {
-            var ranges = memoryGroup.ToArray();
-            if (ranges.Length == 1)
-            {
-                await ExecuteContiguousReadAsync(
-                        ranges[0],
-                        requests,
-                        results,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-                continue;
-            }
-
-            var groupedRequests = ranges
-                .SelectMany(static range => range.Items)
-                .Select(item => requests[item.InputIndex])
-                .OrderBy(static request => request.Index)
-                .ToArray();
-            if (SupportsRandomWordCommands())
-            {
-                await ExecuteRandomReadsAsync(
-                        groupedRequests,
-                        results,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-                continue;
-            }
-
-            foreach (var range in ranges)
-            {
-                await ExecuteContiguousReadAsync(
-                        range,
-                        requests,
-                        results,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-            }
-        }
-    }
-
-    /// <summary>Executes one contiguous word read and correlates values to caller indexes.</summary>
-    /// <param name="range">The planned contiguous range.</param>
-    /// <param name="requests">All eligible requests.</param>
-    /// <param name="results">The caller-ordered result array.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that completes when the range has been read.</returns>
-    private async Task ExecuteContiguousReadAsync(
-        TagTransferRange range,
-        IReadOnlyList<BulkWordRequest> requests,
-        TagOperationResult<LogicalTagValue>[] results,
-        CancellationToken cancellationToken)
-    {
-        var groupedRequests = range.Items
-            .Select(item => requests[item.InputIndex])
-            .ToArray();
-        try
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var first = groupedRequests.First(request => request.Address.Number == range.Offset);
-            _ = Interlocked.Increment(ref _bulkReadProtocolCallCount);
-            var response = await _owner
-                .ReadWordsAsync(
-                    first.Address.Original,
-                    checked((int)range.Length),
-                    cancellationToken)
-                .ConfigureAwait(false);
-            if (!response.IsSucceed || response.Value is null)
-            {
-                SetBulkFailures(
-                    BulkReadOperation,
-                    groupedRequests,
-                    GetError(response),
-                    results);
-                return;
-            }
-
-            if (response.Value.Length != range.Length)
-            {
-                SetBulkFailures(
-                    BulkReadOperation,
-                    groupedRequests,
-                    $"Expected {range.Length} words but received {response.Value.Length}.",
-                    results);
-                return;
-            }
-
-            var timestamp = _timeProvider.GetUtcNow();
-            foreach (var request in groupedRequests)
-            {
-                var word = response.Value[checked(request.Address.Number - (int)range.Offset)];
-                results[request.Index] = CreateBulkReadSuccess(request, word, timestamp);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            SetBulkFailures(
-                BulkReadOperation,
-                groupedRequests,
-                ex.GetBaseException().Message,
-                results);
-        }
-    }
-
-    /// <summary>Executes random-word reads in protocol-sized chunks.</summary>
-    /// <param name="requests">The memory-area-compatible requests.</param>
-    /// <param name="results">The caller-ordered result array.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that completes when every chunk has been read.</returns>
-    private async Task ExecuteRandomReadsAsync(
-        IReadOnlyList<BulkWordRequest> requests,
-        TagOperationResult<LogicalTagValue>[] results,
-        CancellationToken cancellationToken)
-    {
-        for (var offset = 0; offset < requests.Count; offset += MaximumRandomWordCount)
-        {
-            var count = Math.Min(MaximumRandomWordCount, requests.Count - offset);
-            var chunk = requests.Skip(offset).Take(count).ToArray();
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                _ = Interlocked.Increment(ref _bulkReadProtocolCallCount);
-                var response = await _owner
-                    .RandomReadWordsAsync(
-                        chunk.Select(static request => request.Address.Original),
-                        cancellationToken)
-                    .ConfigureAwait(false);
-                if (!response.IsSucceed || response.Value is null)
-                {
-                    SetBulkFailures(BulkReadOperation, chunk, GetError(response), results);
-                    continue;
-                }
-
-                if (response.Value.Length != chunk.Length)
-                {
-                    SetBulkFailures(
-                        BulkReadOperation,
-                        chunk,
-                        $"Expected {chunk.Length} words but received {response.Value.Length}.",
-                        results);
-                    continue;
-                }
-
-                var timestamp = _timeProvider.GetUtcNow();
-                for (var index = 0; index < chunk.Length; index++)
-                {
-                    var request = chunk[index];
-                    results[request.Index] = CreateBulkReadSuccess(
-                        request,
-                        response.Value[index],
-                        timestamp);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                SetBulkFailures(
-                    BulkReadOperation,
-                    chunk,
-                    ex.GetBaseException().Message,
-                    results);
-            }
-        }
-    }
-
-    /// <summary>Executes all eligible grouped writes.</summary>
-    /// <param name="requests">The indexed eligible requests.</param>
-    /// <param name="results">The caller-ordered result array.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that completes when every group has been written.</returns>
-    private async Task ExecuteBulkWritesAsync(
-        IReadOnlyList<BulkWordRequest> requests,
-        TagOperationResult<LogicalTagValue>[] results,
-        CancellationToken cancellationToken)
-    {
-        if (requests.Count == 0)
-        {
-            return;
-        }
-
-        var plan = CreateBulkTransferPlan(requests, TagTransferAccess.Write);
-        _ = Interlocked.Increment(ref _bulkWritePlanCount);
-        _ = Interlocked.Add(ref _bulkWriteItemCount, requests.Count);
-        _ = Interlocked.Add(ref _bulkWriteRangeCount, plan.Ranges.Count);
-        foreach (var memoryGroup in plan.Ranges.GroupBy(
-                     static range => range.Address.MemoryArea,
-                     StringComparer.Ordinal))
-        {
-            var ranges = memoryGroup.ToArray();
-            var groupedRequests = ranges
-                .SelectMany(static range => range.Items)
-                .Select(item => requests[item.InputIndex])
-                .OrderBy(static request => request.Index)
-                .ToArray();
-            var hasDuplicateAddresses = groupedRequests
-                .GroupBy(static request => request.Address.Number)
-                .Any(static group => group.Skip(1).Any());
-            if (ranges.Length == 1 && !hasDuplicateAddresses)
-            {
-                await ExecuteContiguousWriteAsync(
-                        ranges[0],
-                        requests,
-                        results,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-                continue;
-            }
-
-            if (SupportsRandomWordCommands())
-            {
-                await ExecuteRandomWritesAsync(
-                        groupedRequests,
-                        results,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-                continue;
-            }
-
-            foreach (var request in groupedRequests)
-            {
-                var result = await WriteAsync(request.Value!, cancellationToken).ConfigureAwait(false);
-                results[request.Index] = result.Succeeded
-                    ? result
-                    : CreateIndexedFailure(
-                        BulkWriteOperation,
-                        request.Index,
-                        request.Tag.Name,
-                        result.Error);
-            }
-        }
-    }
-
-    /// <summary>Executes one contiguous word write and correlates success to caller indexes.</summary>
-    /// <param name="range">The planned contiguous range.</param>
-    /// <param name="requests">All eligible requests.</param>
-    /// <param name="results">The caller-ordered result array.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that completes when the range has been written.</returns>
-    private async Task ExecuteContiguousWriteAsync(
-        TagTransferRange range,
-        IReadOnlyList<BulkWordRequest> requests,
-        TagOperationResult<LogicalTagValue>[] results,
-        CancellationToken cancellationToken)
-    {
-        var groupedRequests = range.Items
-            .Select(item => requests[item.InputIndex])
-            .ToArray();
-        try
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var first = groupedRequests.First(request => request.Address.Number == range.Offset);
-            var words = new ushort[checked((int)range.Length)];
-            foreach (var request in groupedRequests)
-            {
-                words[checked(request.Address.Number - (int)range.Offset)] = request.Word!.Value;
-            }
-
-            _ = Interlocked.Increment(ref _bulkWriteProtocolCallCount);
-            var response = await _owner
-                .WriteWordsAsync(first.Address.Original, words, cancellationToken)
-                .ConfigureAwait(false);
-            if (!response.IsSucceed)
-            {
-                SetBulkFailures(
-                    BulkWriteOperation,
-                    groupedRequests,
-                    GetError(response),
-                    results);
-                return;
-            }
-
-            SetBulkWriteSuccesses(groupedRequests, results);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            SetBulkFailures(
-                BulkWriteOperation,
-                groupedRequests,
-                ex.GetBaseException().Message,
-                results);
-        }
-    }
-
-    /// <summary>Executes random-word writes in protocol-sized chunks.</summary>
-    /// <param name="requests">The memory-area-compatible requests.</param>
-    /// <param name="results">The caller-ordered result array.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that completes when every chunk has been written.</returns>
-    private async Task ExecuteRandomWritesAsync(
-        IReadOnlyList<BulkWordRequest> requests,
-        TagOperationResult<LogicalTagValue>[] results,
-        CancellationToken cancellationToken)
-    {
-        for (var offset = 0; offset < requests.Count; offset += MaximumRandomWordCount)
-        {
-            var count = Math.Min(MaximumRandomWordCount, requests.Count - offset);
-            var chunk = requests.Skip(offset).Take(count).ToArray();
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                _ = Interlocked.Increment(ref _bulkWriteProtocolCallCount);
-                var response = await _owner
-                    .RandomWriteWordsAsync(
-                        chunk.Select(request => new KeyValuePair<string, ushort>(
-                            request.Address.Original,
-                            request.Word!.Value)),
-                        cancellationToken)
-                    .ConfigureAwait(false);
-                if (!response.IsSucceed)
-                {
-                    SetBulkFailures(BulkWriteOperation, chunk, GetError(response), results);
-                    continue;
-                }
-
-                SetBulkWriteSuccesses(chunk, results);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                SetBulkFailures(
-                    BulkWriteOperation,
-                    chunk,
-                    ex.GetBaseException().Message,
-                    results);
-            }
-        }
-    }
-
-    /// <summary>Stores successful write results for a completed protocol request.</summary>
-    /// <param name="requests">The completed requests.</param>
-    /// <param name="results">The caller-ordered result array.</param>
-    private void SetBulkWriteSuccesses(
-        IEnumerable<BulkWordRequest> requests,
-        TagOperationResult<LogicalTagValue>[] results)
-    {
-        var timestamp = _timeProvider.GetUtcNow();
-        foreach (var request in requests)
-        {
-            results[request.Index] = TagOperationResult<LogicalTagValue>.Success(
-                new LogicalTagValue(
-                    request.Tag.Name,
-                    request.Value!.Value,
-                    timestamp,
-                    "Good"));
-        }
+        return BulkTransferPlanner.Plan(transferRequests);
     }
 
     /// <summary>Enumerates and converts one typed logical tag stream.</summary>
@@ -1238,13 +881,25 @@ public sealed partial class MitsubishiLogicalTagClient : IManagedLogicalTagClien
         database.Add(ToMitsubishiTag(tag));
         foreach (var groupName in GetGroupNames(tag))
         {
-            var tagNames = database.TryGetGroup(groupName, out var group)
-                ? group
-                    .ResolvedTagNames.Concat([tag.Name])
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToArray()
-                : [tag.Name];
-            database.AddGroup(new MitsubishiTagGroupDefinition(groupName, tagNames));
+            var tagNames = new List<string>();
+            var knownTagNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (database.TryGetGroup(groupName, out var group))
+            {
+                foreach (var existingTagName in group.ResolvedTagNames)
+                {
+                    if (knownTagNames.Add(existingTagName))
+                    {
+                        tagNames.Add(existingTagName);
+                    }
+                }
+            }
+
+            if (knownTagNames.Add(tag.Name))
+            {
+                tagNames.Add(tag.Name);
+            }
+
+            database.AddGroup(new(groupName, tagNames));
         }
     }
 
@@ -1272,7 +927,12 @@ public sealed partial class MitsubishiLogicalTagClient : IManagedLogicalTagClien
         public IDisposable Subscribe(IObserver<LogicalTagValue> observer)
         {
             ArgumentNullException.ThrowIfNull(observer);
-            var subscriptions = sources.Select(source => source.Subscribe(observer)).ToArray();
+            var subscriptions = new IDisposable[sources.Count];
+            for (var index = 0; index < sources.Count; index++)
+            {
+                subscriptions[index] = sources[index].Subscribe(observer);
+            }
+
             return new SubscriptionSet(subscriptions);
         }
     }

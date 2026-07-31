@@ -2,13 +2,12 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.ComponentModel;
 using System.IO.Ports;
-using IoT.DriverCore.OmronPlcRx;
-using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx;
+using IoT.Driver.OmronPlcRx.Enums;
 using ReactiveUI;
 
-namespace IoT.DriverCore.OmronPlcRx.Dashboard.ViewModels;
+namespace IoT.Driver.OmronPlcRx.Dashboard.ViewModels;
 
 /// <summary>Stores dashboard PLC connection settings.</summary>
 public sealed class ConnectionSettings : ReactiveObject
@@ -193,5 +192,5 @@ public sealed class ConnectionSettings : ReactiveObject
     /// <param name="propertyName">Dependent property name.</param>
     private void RaiseDependentProperty(string propertyName) =>
         ((IReactiveObject)this).RaisePropertyChanged(
-            new PropertyChangedEventArgs(propertyName));
+            new(propertyName));
 }

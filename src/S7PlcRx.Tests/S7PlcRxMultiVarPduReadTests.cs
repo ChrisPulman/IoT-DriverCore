@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Advanced;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.Mock;
+using IoT.Driver.S7PlcRx.Advanced;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Mock;
 
-namespace IoT.DriverCore.S7PlcRx.Tests;
+namespace IoT.Driver.S7PlcRx.Tests;
 
 /// <summary>Tests for multi-variable PDU read batching.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
@@ -44,7 +44,7 @@ public class S7PlcRxMultiVarPduReadTests
         _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "T1", "DB1.DBW2").SetPolling(false);
         _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "T2", "DB1.DBW4").SetPolling(false);
 
-        await plc.IsConnected.Where(x => x).FirstAsync();
+        await plc.IsConnected.Where(static x => x).FirstAsync();
 
         plc.Value("T0", FirstValue);
         plc.Value("T1", SecondValue);

@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Collections;
-using IoT.DriverCore.S7PlcRx.PlcTypes;
+using IoT.Driver.S7PlcRx.PlcTypes;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Tests.PlcTypes;
 
 /// <summary>Tests Bit PlcType helpers.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
@@ -31,103 +31,113 @@ public class BitTests
     /// <param name="value">The value.</param>
     /// <param name="bit">The bit.</param>
     /// <param name="expected">if set to <c>true</c> [expected].</param>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
     [Arguments(0b0000_0001, 0, true)]
     [Arguments(0b0000_0001, 1, false)]
     [Arguments(0b1000_0000, 7, true)]
-    public void FromByte_ShouldReturnExpected(byte value, byte bit, bool expected)
+    public async Task FromByte_ShouldReturnExpected(byte value, byte bit, bool expected)
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
-        Assert.That(Bit.FromByte(value, bit), Is.EqualTo(expected));
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(Bit.FromByte(value, bit), Is.EqualTo(expected));
     }
 
     /// <summary>Ensures FromSpan validates byte index.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void FromSpan_WhenByteIndexOutOfRange_ShouldThrow()
+    public async Task FromSpan_WhenByteIndexOutOfRange_ShouldThrow()
     {
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => Bit.FromSpan(stackalloc byte[1], 1, 0));
+        _ = await Assert.Throws<ArgumentOutOfRangeException>(static () => Bit.FromSpan(stackalloc byte[1], 1, 0));
     }
 
     /// <summary>Ensures FromSpan validates bit index.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     /// <param name="bitIndex">Index of the bit.</param>
     [Test]
     [Arguments(-1)]
     [Arguments(8)]
-    public void FromSpan_WhenBitIndexInvalid_ShouldThrow(int bitIndex)
+    public async Task FromSpan_WhenBitIndexInvalid_ShouldThrow(int bitIndex)
     {
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => Bit.FromSpan(stackalloc byte[1], 0, bitIndex));
+        _ = await Assert.Throws<ArgumentOutOfRangeException>(() => Bit.FromSpan(stackalloc byte[1], 0, bitIndex));
     }
 
     /// <summary>Ensures SetBit sets and clears the selected bit.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void SetBit_ShouldSetAndClear()
+    public async Task SetBit_ShouldSetAndClear()
     {
-        Span<byte> bytes = stackalloc byte[1];
+        var bytes = new byte[1];
         Bit.SetBit(bytes, 0, SetBitIndex, true);
-        Assert.That(bytes[0], Is.EqualTo(0b0000_1000));
+        await Assert.That(bytes[0], Is.EqualTo(0b0000_1000));
 
         Bit.SetBit(bytes, 0, SetBitIndex, false);
-        Assert.That(bytes[0], Is.EqualTo(0));
+        await Assert.That(bytes[0], Is.EqualTo(0));
     }
 
     /// <summary>Ensures ToBitArray throws when length is null.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void ToBitArray_WhenLengthNull_ShouldThrow()
+    public async Task ToBitArray_WhenLengthNull_ShouldThrow()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
-        _ = Assert.Throws<ArgumentNullException>(() => Bit.ToBitArray([0x00], length: null));
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
+        _ = await Assert.Throws<ArgumentNullException>(static () => Bit.ToBitArray([0x00], length: null));
     }
 
     /// <summary>Ensures ToBitArray throws when bytes span is empty.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void ToBitArray_WhenEmptySpan_ShouldThrow()
+    public async Task ToBitArray_WhenEmptySpan_ShouldThrow()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
-        _ = Assert.Throws<ArgumentException>(() => Bit.ToBitArray(ReadOnlySpan<byte>.Empty, 1));
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
+        _ = await Assert.Throws<ArgumentException>(static () => Bit.ToBitArray(ReadOnlySpan<byte>.Empty, 1));
     }
 
     /// <summary>Ensures ToBitArray throws when length exceeds available bits.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void ToBitArray_WhenLengthTooLarge_ShouldThrow()
+    public async Task ToBitArray_WhenLengthTooLarge_ShouldThrow()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
-        _ = Assert.Throws<ArgumentException>(() => Bit.ToBitArray([0x00], length: 9));
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
+        _ = await Assert.Throws<ArgumentException>(static () => Bit.ToBitArray([0x00], length: 9));
     }
 
     /// <summary>Ensures ToBitArray returns exactly the requested number of bits.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void ToBitArray_ShouldRespectLength()
+    public async Task ToBitArray_ShouldRespectLength()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         var bits = Bit.ToBitArray([0b0000_1111], length: RequestedBitCount);
-        Assert.That(bits.Length, Is.EqualTo(RequestedBitCount));
-        Assert.That(bits[0], Is.True);
-        Assert.That(bits[3], Is.True);
+        await Assert.That(bits.Length, Is.EqualTo(RequestedBitCount));
+        await Assert.That(bits[0], Is.True);
+        await Assert.That(bits[3], Is.True);
     }
 
     /// <summary>Ensures GetBits reads multiple positions correctly.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void GetBits_ShouldReturnExpected()
+    public async Task GetBits_ShouldReturnExpected()
     {
         byte[] bytes = [0b0000_0011];
-        Span<(int ByteIndex, int BitIndex)> positions = stackalloc (int, int)[2];
+        var positions = new (int ByteIndex, int BitIndex)[2];
         positions[0] = (0, 0);
         positions[1] = (0, 1);
 
         var results = Bit.GetBits(bytes, positions);
-        Assert.That(results, Is.EqualTo(Expected));
+        await Assert.That(results, Is.EqualTo(Expected));
     }
 
     /// <summary>Ensures SetBits applies multiple updates correctly.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void SetBits_ShouldApplyMultipleUpdates()
+    public async Task SetBits_ShouldApplyMultipleUpdates()
     {
-        Span<byte> bytes = stackalloc byte[1];
-        Span<(int ByteIndex, int BitIndex, bool Value)> updates = stackalloc (int, int, bool)[2];
+        var bytes = new byte[1];
+        var updates = new (int ByteIndex, int BitIndex, bool Value)[2];
         updates[0] = (0, 0, true);
         updates[1] = (0, LastBitIndex, true);
 
         Bit.SetBits(bytes, updates);
-        Assert.That(bytes[0], Is.EqualTo(0b1000_0001));
+        await Assert.That(bytes[0], Is.EqualTo(0b1000_0001));
     }
 }

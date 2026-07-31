@@ -4,10 +4,10 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiTagGroupWriteTests type.</summary>
@@ -60,7 +60,7 @@ internal sealed class MitsubishiTagGroupWriteTests
             new MitsubishiTagDefinition(OperatorMessageTagName, "D600", DataType: StringDataType, Length: 2),
         ]);
         database.AddGroup(
-            new MitsubishiTagGroupDefinition(
+            new(
                 RecipeWriteGroupName,
                 [RecipeNumberTagName, OperatorMessageTagName]));
 
@@ -89,11 +89,11 @@ internal sealed class MitsubishiTagGroupWriteTests
 
         await Assert.That(result.IsSucceed).IsFalse();
         await Assert.That(
-                result.ErrList.Any(
+                result.ErrList.Exists(
                     static err => err.Contains(RecipeNumberTagName, StringComparison.OrdinalIgnoreCase)))
             .IsTrue();
         await Assert.That(
-                result.ErrList.Any(
+                result.ErrList.Exists(
                     static err => err.Contains("MissingTag", StringComparison.OrdinalIgnoreCase)))
             .IsTrue();
     }
@@ -116,7 +116,7 @@ internal sealed class MitsubishiTagGroupWriteTests
             new MitsubishiTagDefinition("PumpRunning", "M10", DataType: "Bit"),
         ]);
         database.AddGroup(
-            new MitsubishiTagGroupDefinition(
+            new(
                 RecipeWriteGroupName,
                 [RecipeNumberTagName, OperatorMessageTagName, "PumpRunning"]));
 
@@ -179,7 +179,7 @@ internal sealed class MitsubishiTagGroupWriteTests
             new MitsubishiTagDefinition(OperatorMessageTagName, "D600", DataType: StringDataType, Length: 2),
         ]);
         database.AddGroup(
-            new MitsubishiTagGroupDefinition(
+            new(
                 "Line1Overview",
                 [SignedTempTagName, TotalCountTagName, OperatorMessageTagName]));
 
@@ -209,7 +209,13 @@ internal sealed class MitsubishiTagGroupWriteTests
 
         await Assert.That(result.IsSucceed).IsTrue();
         await Assert.That(transport.Requests.Count).IsEqualTo(ExpectedSnapshotWriteCount);
-        await Assert.That(transport.Requests.Select(static request => request.Description).ToArray()).IsEquivalentTo([
+        var requestDescriptions = new string[transport.Requests.Count];
+        for (var index = 0; index < transport.Requests.Count; index++)
+        {
+            requestDescriptions[index] = transport.Requests[index].Description;
+        }
+
+        await Assert.That(requestDescriptions).IsEquivalentTo([
             "Write words D700",
             "Write words D400",
             "Write words D600",

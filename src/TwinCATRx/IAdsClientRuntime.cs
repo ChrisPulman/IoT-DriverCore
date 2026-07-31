@@ -5,9 +5,9 @@
 using TwinCAT.Ads;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Reactive;
+namespace IoT.Driver.TwinCATRx.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx;
+namespace IoT.Driver.TwinCATRx;
 #endif
 
 /// <summary>Defines the ADS operations consumed by <see cref="RxTcAdsClient"/>.</summary>

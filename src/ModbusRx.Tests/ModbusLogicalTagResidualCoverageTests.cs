@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.ModbusRx.LogicalTags;
+using IoT.Driver.Core;
+using IoT.Driver.ModbusRx.LogicalTags;
 using NativeAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Exercises residual logical-tag metadata parsing and range validation.</summary>
 public sealed class ModbusLogicalTagResidualCoverageTests
@@ -19,14 +19,14 @@ public sealed class ModbusLogicalTagResidualCoverageTests
     [TUnit.Core.Test]
     public async Task FromLogicalTag_RejectsMissingAndMalformedMetadataAsync()
     {
-        await NativeAssert.That(() => Convert(new Dictionary<string, string>())).Throws<FormatException>();
-        await NativeAssert.That(() => Convert(CreateMetadata(unitId: InvalidValue))).Throws<FormatException>();
-        await NativeAssert.That(() => Convert(CreateMetadata(dataArea: InvalidValue))).Throws<FormatException>();
-        await NativeAssert.That(() => Convert(CreateMetadata(dataArea: "99"))).Throws<FormatException>();
-        await NativeAssert.That(() => Convert(CreateMetadata(count: InvalidValue))).Throws<FormatException>();
-        await NativeAssert.That(() => Convert(CreateMetadata(byteOrder: InvalidValue))).Throws<FormatException>();
-        await NativeAssert.That(() => Convert(CreateMetadata(), InvalidValue)).Throws<FormatException>();
-        await NativeAssert.That(() => Convert(CreateMetadata(), dataType: "Unsupported.Type"))
+        await NativeAssert.That(static () => Convert(new Dictionary<string, string>())).Throws<FormatException>();
+        await NativeAssert.That(static () => Convert(CreateMetadata(unitId: InvalidValue))).Throws<FormatException>();
+        await NativeAssert.That(static () => Convert(CreateMetadata(dataArea: InvalidValue))).Throws<FormatException>();
+        await NativeAssert.That(static () => Convert(CreateMetadata(dataArea: "99"))).Throws<FormatException>();
+        await NativeAssert.That(static () => Convert(CreateMetadata(count: InvalidValue))).Throws<FormatException>();
+        await NativeAssert.That(static () => Convert(CreateMetadata(byteOrder: InvalidValue))).Throws<FormatException>();
+        await NativeAssert.That(static () => Convert(CreateMetadata(), InvalidValue)).Throws<FormatException>();
+        await NativeAssert.That(static () => Convert(CreateMetadata(), dataType: "Unsupported.Type"))
             .Throws<FormatException>();
     }
 
@@ -35,19 +35,19 @@ public sealed class ModbusLogicalTagResidualCoverageTests
     [TUnit.Core.Test]
     public async Task Constructor_RejectsAllInvalidRangesAndOptionsAsync()
     {
-        await NativeAssert.That(() => CreateTag(count: 0)).Throws<ArgumentOutOfRangeException>();
-        await NativeAssert.That(() => CreateTag(count: 126)).Throws<ArgumentOutOfRangeException>();
-        await NativeAssert.That(() => CreateTag(address: ushort.MaxValue, count: 2))
+        await NativeAssert.That(static () => CreateTag(count: 0)).Throws<ArgumentOutOfRangeException>();
+        await NativeAssert.That(static () => CreateTag(count: 126)).Throws<ArgumentOutOfRangeException>();
+        await NativeAssert.That(static () => CreateTag(address: ushort.MaxValue, count: 2))
             .Throws<ArgumentOutOfRangeException>();
-        await NativeAssert.That(() => CreateTag(
+        await NativeAssert.That(static () => CreateTag(
                 dataArea: ModbusDataArea.Coil,
                 count: 2001,
                 clrType: typeof(bool[])))
             .Throws<ArgumentOutOfRangeException>();
-        await NativeAssert.That(() => CreateTag(name: " ")).Throws<ArgumentException>();
+        await NativeAssert.That(static () => CreateTag(name: " ")).Throws<ArgumentException>();
         await NativeAssert.That(
-                () => new ModbusLogicalTag(
-                    new ModbusTagConfiguration(
+                static () => new ModbusLogicalTag(
+                    new(
                         "Tag",
                         1,
                         ModbusDataArea.HoldingRegister,
@@ -55,7 +55,7 @@ public sealed class ModbusLogicalTagResidualCoverageTests
                         1,
                         null!)))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => CreateTag(scanInterval: TimeSpan.Zero))
+        await NativeAssert.That(static () => CreateTag(scanInterval: TimeSpan.Zero))
             .Throws<ArgumentOutOfRangeException>();
     }
 
@@ -83,7 +83,7 @@ public sealed class ModbusLogicalTagResidualCoverageTests
         string address = "0",
         string dataType = "ushort") =>
         ModbusLogicalTag.FromLogicalTag(
-            new LogicalTag(
+            new(
                 "Tag",
                 address,
                 dataType,
@@ -137,6 +137,6 @@ public sealed class ModbusLogicalTagResidualCoverageTests
             Metadata = metadata,
             ScanInterval = scanInterval,
         };
-        return new ModbusLogicalTag(configuration);
+        return new(configuration);
     }
 }

@@ -7,11 +7,11 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -81,8 +81,10 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         IObservable<Unit> trigger)
     {
         ArgumentNullException.ThrowIfNull(trigger);
-        return trigger.SelectLatestAsync(_ =>
-            ReadTagGroupSnapshotAsync(groupName, CancellationToken.None));
+        return trigger
+            .Select(_ => Observable.FromAsync(cancellationToken =>
+                ReadTagGroupSnapshotAsync(groupName, cancellationToken)))
+            .Switch();
     }
 
     /// <summary>Executes the SampleDiagnostics operation.</summary>
@@ -116,7 +118,6 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         DisposeReactiveStreams();
         _transport.Dispose();
         _requestGate.Dispose();
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>Executes the DisposeAsync operation.</summary>
@@ -136,7 +137,6 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         DisposeReactiveStreams();
         await _transport.DisposeAsync().ConfigureAwait(false);
         _requestGate.Dispose();
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>Executes the BuildEndPoint operation.</summary>
@@ -294,12 +294,12 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         ArgumentNullException.ThrowIfNull(converter);
         if (!raw.IsSucceed || raw.Value is null)
         {
-            return new Responce<T>(raw);
+            return new(raw);
         }
 
         try
         {
-            return new Responce<T>(raw, converter(raw.Value));
+            return new(raw, converter(raw.Value));
         }
         catch (Exception ex)
         {

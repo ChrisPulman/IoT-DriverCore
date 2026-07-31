@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using IoT.DriverCore.ModbusRx.Utility;
+using IoT.Driver.ModbusRx.Utility;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Utility;
+namespace IoT.Driver.ModbusRx.UnitTests.Utility;
 
 /// <summary>Tests the ModbusUtilityFixture behavior.</summary>
 public class ModbusUtilityFixture
@@ -54,11 +54,11 @@ public class ModbusUtilityFixture
 
     /// <summary>Hexadecimals to bytes null.</summary>
     [TUnit.Core.Test]
-    public void HexToBytesNull() => Assert.Throws<ArgumentNullException>(() => ModbusUtility.HexToBytes(null!));
+    public void HexToBytesNull() => Assert.Throws<ArgumentNullException>(static () => ModbusUtility.HexToBytes(null!));
 
     /// <summary>Hexadecimals to bytes odd.</summary>
     [TUnit.Core.Test]
-    public void HexToBytesOdd() => Assert.Throws<FormatException>(() => ModbusUtility.HexToBytes("CCF"));
+    public void HexToBytesOdd() => Assert.Throws<FormatException>(static () => ModbusUtility.HexToBytes("CCF"));
 
     /// <summary>Calculates the CRC.</summary>
     [TUnit.Core.Test]
@@ -82,7 +82,7 @@ public class ModbusUtilityFixture
 
     /// <summary>Calculates the CRC null.</summary>
     [TUnit.Core.Test]
-    public void CalculateCrcNull() => Assert.Throws<ArgumentNullException>(() => ModbusUtility.CalculateCrc(null!));
+    public void CalculateCrcNull() => Assert.Throws<ArgumentNullException>(static () => ModbusUtility.CalculateCrc(null!));
 
     /// <summary>Calculates the LRC.</summary>
     [TUnit.Core.Test]
@@ -101,7 +101,7 @@ public class ModbusUtilityFixture
 
     /// <summary>Calculates the LRC null.</summary>
     [TUnit.Core.Test]
-    public void CalculateLrcNull() => Assert.Throws<ArgumentNullException>(() => ModbusUtility.CalculateLrc(null!));
+    public void CalculateLrcNull() => Assert.Throws<ArgumentNullException>(static () => ModbusUtility.CalculateLrc(null!));
 
     /// <summary>Calculates the LRC empty.</summary>
     [TUnit.Core.Test]
@@ -116,12 +116,12 @@ public class ModbusUtilityFixture
     /// <summary>Networks the bytes to host u int16 null.</summary>
     [TUnit.Core.Test]
     public void NetworkBytesToHostUInt16Null() =>
-        Assert.Throws<ArgumentNullException>(() => ModbusUtility.NetworkBytesToHostUInt16(null!));
+        Assert.Throws<ArgumentNullException>(static () => ModbusUtility.NetworkBytesToHostUInt16(null!));
 
     /// <summary>Networks the bytes to host u int16 odd number of bytes.</summary>
     [TUnit.Core.Test]
     public void NetworkBytesToHostUInt16OddNumberOfBytes() =>
-        Assert.Throws<FormatException>(() => ModbusUtility.NetworkBytesToHostUInt16([ 1]));
+        Assert.Throws<FormatException>(static () => ModbusUtility.NetworkBytesToHostUInt16([ 1]));
 
     /// <summary>Networks the bytes to host u int16 empty bytes.</summary>
     [TUnit.Core.Test]

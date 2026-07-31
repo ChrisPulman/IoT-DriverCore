@@ -8,11 +8,11 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -30,6 +30,9 @@ public sealed partial class MitsubishiSimulatorTransport : IMitsubishiTransport
 
     /// <summary>Stores immutable snapshots of exchanged requests.</summary>
     private readonly ConcurrentQueue<MitsubishiTransportRequest> _requests = new();
+
+    /// <summary>Provides a stable, read-only view over queued request snapshots.</summary>
+    private readonly IReadOnlyList<MitsubishiTransportRequest> _requestsView;
 
     /// <summary>Stores scripted exchange outcomes in deterministic order.</summary>
     private readonly ConcurrentQueue<SimulatorExchange> _script = new();
@@ -98,6 +101,7 @@ public sealed partial class MitsubishiSimulatorTransport : IMitsubishiTransport
     {
         Memory = memory ?? throw new ArgumentNullException(nameof(memory));
         _responseFactory = responseFactory;
+        _requestsView = new RequestQueueView(_requests);
     }
 
     /// <inheritdoc/>
@@ -124,8 +128,8 @@ public sealed partial class MitsubishiSimulatorTransport : IMitsubishiTransport
         }
     }
 
-    /// <summary>Gets immutable snapshots of requests in their exchange order.</summary>
-    public IReadOnlyList<MitsubishiTransportRequest> Requests => _requests.ToArray();
+    /// <summary>Gets a read-only view of request snapshots in their exchange order.</summary>
+    public IReadOnlyList<MitsubishiTransportRequest> Requests => _requestsView;
 
     /// <summary>Gets the number of successful connection attempts.</summary>
     public int ConnectCount => Volatile.Read(ref _connectCount);
@@ -159,12 +163,7 @@ public sealed partial class MitsubishiSimulatorTransport : IMitsubishiTransport
         ushort endCode)
     {
         ArgumentNullException.ThrowIfNull(options);
-        if (endCode == 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(endCode),
-                "An error response requires a non-zero end code.");
-        }
+        ArgumentOutOfRangeException.ThrowIfZero(endCode);
 
         return options.TransportKind == MitsubishiTransportKind.Serial
             ? CreateSerialResponse(options, [], endCode)
@@ -257,7 +256,14 @@ public sealed partial class MitsubishiSimulatorTransport : IMitsubishiTransport
             options = _connectedOptions;
         }
 
-        var requestSnapshot = request with { Payload = request.Payload.ToArray() };
+        var requestPayload = request.Payload;
+        var requestSnapshotPayload = new byte[requestPayload.Length];
+        for (var index = 0; index < requestPayload.Length; index++)
+        {
+            requestSnapshotPayload[index] = requestPayload[index];
+        }
+
+        var requestSnapshot = request with { Payload = requestSnapshotPayload };
         _requests.Enqueue(requestSnapshot);
 
         if (_script.TryDequeue(out var exchange))
@@ -272,7 +278,7 @@ public sealed partial class MitsubishiSimulatorTransport : IMitsubishiTransport
                 throw exchange.Fault;
             }
 
-            return ValueTask.FromResult(exchange.Response!.ToArray());
+            return ValueTask.FromResult(CopyBytes(exchange.Response!));
         }
 
         var response = (_responseFactory is null
@@ -281,7 +287,7 @@ public sealed partial class MitsubishiSimulatorTransport : IMitsubishiTransport
             ?? throw new InvalidOperationException(
                 "The Mitsubishi simulator response factory returned null.");
 
-        return ValueTask.FromResult(response.ToArray());
+        return ValueTask.FromResult(CopyBytes(response));
     }
 
     /// <inheritdoc/>
@@ -451,7 +457,8 @@ public sealed partial class MitsubishiSimulatorTransport : IMitsubishiTransport
                 + (endCode == 0 ? payloadText : $"{endCode & 0xFF:X2}"),
             _ => throw new ArgumentOutOfRangeException(nameof(options.FrameType)),
         };
-        var checksum = ComputeChecksum(Encoding.ASCII.GetBytes(body));
+        List<byte> checksumBytes = [.. Encoding.ASCII.GetBytes(body)];
+        var checksum = ComputeChecksum(checksumBytes, 0, checksumBytes.Count);
         return serial.MessageFormat switch
         {
             MitsubishiSerialMessageFormat.Format1 =>
@@ -513,23 +520,87 @@ public sealed partial class MitsubishiSimulatorTransport : IMitsubishiTransport
         response.AddRange(
             Encoding.ASCII.GetBytes(
                 ComputeChecksum(
-                    response
-                        .Skip(ProtocolWordByteCount)
-                        .Take(ProtocolWordByteCount + byteCount))));
+                    response,
+                    ProtocolWordByteCount,
+                    ProtocolWordByteCount + byteCount)));
         return response.ToArray();
     }
 
     /// <summary>Computes the Mitsubishi additive checksum.</summary>
     /// <param name="bytes">The bytes to checksum.</param>
+    /// <param name="offset">The offset at which checksumming starts.</param>
+    /// <param name="length">The number of bytes to checksum.</param>
     /// <returns>The uppercase hexadecimal checksum.</returns>
-    private static string ComputeChecksum(IEnumerable<byte> bytes)
+    private static string ComputeChecksum(List<byte> bytes, int offset, int length)
     {
-        var sum = bytes.Aggregate(0, static (current, value) => current + value);
+        var sum = 0;
+        var end = checked(offset + length);
+        for (var index = offset; index < end; index++)
+        {
+            sum += bytes[index];
+        }
+
         return (sum & 0xFF).ToString("X2", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>Copies a byte array without exposing an internal transport response.</summary>
+    /// <param name="source">The source bytes.</param>
+    /// <returns>A detached byte array.</returns>
+    private static byte[] CopyBytes(byte[] source)
+    {
+        var copy = new byte[source.Length];
+        for (var index = 0; index < source.Length; index++)
+        {
+            copy[index] = source[index];
+        }
+
+        return copy;
     }
 
     /// <summary>Throws when the simulator has been disposed.</summary>
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
+
+    /// <summary>Adapts a concurrent request queue to a stable read-only list view.</summary>
+    private sealed class RequestQueueView : IReadOnlyList<MitsubishiTransportRequest>
+    {
+        /// <summary>Stores the queue exposed by this view.</summary>
+        private readonly ConcurrentQueue<MitsubishiTransportRequest> _queue;
+
+        /// <summary>Initializes a new instance of the <see cref="RequestQueueView"/> class.</summary>
+        /// <param name="queue">The queue to expose.</param>
+        internal RequestQueueView(ConcurrentQueue<MitsubishiTransportRequest> queue) =>
+            _queue = queue ?? throw new ArgumentNullException(nameof(queue));
+
+        /// <inheritdoc/>
+        public int Count => _queue.Count;
+
+        /// <inheritdoc/>
+        public MitsubishiTransportRequest this[int index]
+        {
+            get
+            {
+                ArgumentOutOfRangeException.ThrowIfNegative(index);
+                var currentIndex = 0;
+                foreach (var request in _queue)
+                {
+                    if (currentIndex == index)
+                    {
+                        return request;
+                    }
+
+                    currentIndex++;
+                }
+
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+        }
+
+        /// <inheritdoc/>
+        public IEnumerator<MitsubishiTransportRequest> GetEnumerator() => _queue.GetEnumerator();
+
+        /// <inheritdoc/>
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
 
     /// <summary>Represents one deterministic exchange outcome.</summary>
     /// <param name="Response">The optional response.</param>

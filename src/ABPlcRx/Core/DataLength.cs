@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>Tag size definition.</summary>
@@ -92,8 +92,10 @@ internal static class DataLength
         }
         else if (!NativeTypes.TryGetValue(type, out size) && type.IsClass && !type.IsAbstract)
         {
-            size += TagHelper.GetAccessableProperties(type)
-                             .Sum(a => GetSizeObject(a.GetValue(obj)));
+            foreach (var property in TagHelper.GetAccessableProperties(type))
+            {
+                size += GetSizeObject(property.GetValue(obj));
+            }
         }
 
         return size;

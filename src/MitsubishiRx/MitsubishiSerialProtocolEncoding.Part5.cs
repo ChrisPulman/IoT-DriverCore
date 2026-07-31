@@ -6,15 +6,15 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-using static IoT.DriverCore.MitsubishiRx.Reactive.MitsubishiNumericConstants;
+using static IoT.Driver.MitsubishiRx.Reactive.MitsubishiNumericConstants;
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-using static IoT.DriverCore.MitsubishiRx.MitsubishiNumericConstants;
+using static IoT.Driver.MitsubishiRx.MitsubishiNumericConstants;
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -341,13 +341,28 @@ internal static partial class MitsubishiSerialProtocolEncoding
     /// <summary>Executes the FormatWordValuesAscii operation.</summary>
     /// <param name = "values">The values parameter.</param>
     /// <returns>The FormatWordValuesAscii operation result.</returns>
-    private static string FormatWordValuesAscii(IEnumerable<ushort> values) =>
-        string.Concat(
-            values.Select(static value => value.ToString("X4", CultureInfo.InvariantCulture)));
+    private static string FormatWordValuesAscii(IEnumerable<ushort> values)
+    {
+        var builder = new StringBuilder();
+        foreach (var value in values)
+        {
+            _ = builder.Append(value.ToString("X4", CultureInfo.InvariantCulture));
+        }
+
+        return builder.ToString();
+    }
 
     /// <summary>Executes the FormatBitValuesAscii operation.</summary>
     /// <param name = "values">The values parameter.</param>
     /// <returns>The FormatBitValuesAscii operation result.</returns>
-    private static string FormatBitValuesAscii(IEnumerable<bool> values) =>
-        string.Concat(values.Select(static value => value ? '1' : '0'));
+    private static string FormatBitValuesAscii(IEnumerable<bool> values)
+    {
+        var builder = new StringBuilder();
+        foreach (var value in values)
+        {
+            _ = builder.Append(value ? '1' : '0');
+        }
+
+        return builder.ToString();
+    }
 }

@@ -4,10 +4,10 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiTagDatabaseRolloutPolicyTests type.</summary>
@@ -50,19 +50,19 @@ internal sealed class MitsubishiTagDatabaseRolloutPolicyTests
 
         var diff = current.CompareWith(updated);
 
-        await Assert.That(diff.ChangeKinds.HasFlag(MitsubishiSchemaChangeKind.MetadataOnly)).IsTrue();
-        await Assert.That(diff.ChangeKinds.HasFlag(MitsubishiSchemaChangeKind.AddressChange)).IsTrue();
-        await Assert.That(diff.ChangeKinds.HasFlag(MitsubishiSchemaChangeKind.DataTypeChange)).IsTrue();
-        await Assert.That(diff.ChangeKinds.HasFlag(MitsubishiSchemaChangeKind.GroupMembershipChange)).IsTrue();
+        await Assert.That((diff.ChangeKinds & MitsubishiSchemaChangeKind.MetadataOnly) == MitsubishiSchemaChangeKind.MetadataOnly).IsTrue();
+        await Assert.That((diff.ChangeKinds & MitsubishiSchemaChangeKind.AddressChange) == MitsubishiSchemaChangeKind.AddressChange).IsTrue();
+        await Assert.That((diff.ChangeKinds & MitsubishiSchemaChangeKind.DataTypeChange) == MitsubishiSchemaChangeKind.DataTypeChange).IsTrue();
+        await Assert.That((diff.ChangeKinds & MitsubishiSchemaChangeKind.GroupMembershipChange) == MitsubishiSchemaChangeKind.GroupMembershipChange).IsTrue();
 
-        var metadataChange = diff.ChangedTags.Single(change => change.Name == OperatorMessageTagName);
-        var addressChange = diff.ChangedTags.Single(change => change.Name == MotorSpeedTagName);
-        var dataTypeChange = diff.ChangedTags.Single(change => change.Name == ProcessValueTagName);
+        var metadataChange = GetSingle(diff.ChangedTags, static change => change.Name == OperatorMessageTagName);
+        var addressChange = GetSingle(diff.ChangedTags, static change => change.Name == MotorSpeedTagName);
+        var dataTypeChange = GetSingle(diff.ChangedTags, static change => change.Name == ProcessValueTagName);
 
         await Assert.That(metadataChange.ChangeKinds).IsEqualTo(MitsubishiSchemaChangeKind.MetadataOnly);
-        await Assert.That(addressChange.ChangeKinds.HasFlag(MitsubishiSchemaChangeKind.AddressChange)).IsTrue();
-        await Assert.That(dataTypeChange.ChangeKinds.HasFlag(MitsubishiSchemaChangeKind.DataTypeChange)).IsTrue();
-        await Assert.That(diff.ChangedGroups.Single().ChangeKinds)
+        await Assert.That((addressChange.ChangeKinds & MitsubishiSchemaChangeKind.AddressChange) == MitsubishiSchemaChangeKind.AddressChange).IsTrue();
+        await Assert.That((dataTypeChange.ChangeKinds & MitsubishiSchemaChangeKind.DataTypeChange) == MitsubishiSchemaChangeKind.DataTypeChange).IsTrue();
+        await Assert.That(GetSingle(diff.ChangedGroups).ChangeKinds)
             .IsEqualTo(MitsubishiSchemaChangeKind.GroupMembershipChange);
     }
 
@@ -85,8 +85,8 @@ internal sealed class MitsubishiTagDatabaseRolloutPolicyTests
 
             await Assert.That(result.IsSucceed).IsFalse();
             await Assert.That(result.Value is not null).IsTrue();
-            await Assert.That(result.Value!.ChangeKinds.HasFlag(MitsubishiSchemaChangeKind.AddressChange)).IsTrue();
-            await Assert.That(result.Value.ChangeKinds.HasFlag(MitsubishiSchemaChangeKind.DataTypeChange)).IsTrue();
+            await Assert.That((result.Value!.ChangeKinds & MitsubishiSchemaChangeKind.AddressChange) == MitsubishiSchemaChangeKind.AddressChange).IsTrue();
+            await Assert.That((result.Value.ChangeKinds & MitsubishiSchemaChangeKind.DataTypeChange) == MitsubishiSchemaChangeKind.DataTypeChange).IsTrue();
             await Assert.That(result.Err.Contains("AddressChange", StringComparison.OrdinalIgnoreCase)).IsTrue();
             await Assert.That(result.Err.Contains("DataTypeChange", StringComparison.OrdinalIgnoreCase)).IsTrue();
         }
@@ -183,7 +183,7 @@ internal sealed class MitsubishiTagDatabaseRolloutPolicyTests
             TransportKind: MitsubishiTransportKind.Tcp,
             Route: MitsubishiRoute.Default);
 
-        return new MitsubishiRx(options, null, scheduler);
+        return new(options, null, scheduler);
     }
 
     /// <summary>Executes the CreatePolicyCurrentDatabase operation.</summary>
@@ -214,7 +214,7 @@ internal sealed class MitsubishiTagDatabaseRolloutPolicyTests
         ]);
 
         database.AddGroup(
-            new MitsubishiTagGroupDefinition(OverviewGroupName, [ MotorSpeedTagName, ProcessValueTagName]));
+            new(OverviewGroupName, [ MotorSpeedTagName, ProcessValueTagName]));
         return database;
     }
 
@@ -246,7 +246,7 @@ internal sealed class MitsubishiTagDatabaseRolloutPolicyTests
         ]);
 
         database.AddGroup(
-            new MitsubishiTagGroupDefinition(OverviewGroupName, [ MotorSpeedTagName, OperatorMessageTagName]));
+            new(OverviewGroupName, [ MotorSpeedTagName, OperatorMessageTagName]));
         return database;
     }
 
@@ -278,7 +278,7 @@ internal sealed class MitsubishiTagDatabaseRolloutPolicyTests
         ]);
 
         database.AddGroup(
-            new MitsubishiTagGroupDefinition(OverviewGroupName, [ MotorSpeedTagName, OperatorMessageTagName]));
+            new(OverviewGroupName, [ MotorSpeedTagName, OperatorMessageTagName]));
         return database;
     }
 
@@ -310,7 +310,7 @@ internal sealed class MitsubishiTagDatabaseRolloutPolicyTests
         ]);
 
         database.AddGroup(
-            new MitsubishiTagGroupDefinition(OverviewGroupName, [ MotorSpeedTagName, ProcessValueTagName]));
+            new(OverviewGroupName, [ MotorSpeedTagName, ProcessValueTagName]));
         return database;
     }
 
@@ -319,6 +319,56 @@ internal sealed class MitsubishiTagDatabaseRolloutPolicyTests
     /// <returns>The CreateTempPath operation result.</returns>
     private static string CreateTempPath(string extension)
         => Path.Combine(Path.GetTempPath(), $"mitsubishirx-policy-{Guid.NewGuid():N}.{extension}");
+
+    /// <summary>Gets the sole item that satisfies a condition.</summary>
+    /// <typeparam name="T">The item type.</typeparam>
+    /// <param name="values">The values to inspect.</param>
+    /// <param name="predicate">The condition that the item must satisfy.</param>
+    /// <returns>The sole matching item.</returns>
+    private static T GetSingle<T>(IEnumerable<T> values, Func<T, bool> predicate)
+    {
+        var found = false;
+        var result = default(T)!;
+
+        foreach (var value in values)
+        {
+            if (!predicate(value))
+            {
+                continue;
+            }
+
+            if (found)
+            {
+                throw new InvalidOperationException("Sequence contains more than one matching element.");
+            }
+
+            result = value;
+            found = true;
+        }
+
+        return found ? result : throw new InvalidOperationException("Sequence contains no matching element.");
+    }
+
+    /// <summary>Gets the sole item in a collection.</summary>
+    /// <typeparam name="T">The item type.</typeparam>
+    /// <param name="values">The values to inspect.</param>
+    /// <returns>The sole item.</returns>
+    private static T GetSingle<T>(IEnumerable<T> values)
+    {
+        using var enumerator = values.GetEnumerator();
+        if (!enumerator.MoveNext())
+        {
+            throw new InvalidOperationException("Sequence contains no elements.");
+        }
+
+        var result = enumerator.Current;
+        if (enumerator.MoveNext())
+        {
+            throw new InvalidOperationException("Sequence contains more than one element.");
+        }
+
+        return result;
+    }
 
     /// <summary>Executes the DeleteIfExists operation.</summary>
     /// <param name="path">The path parameter.</param>

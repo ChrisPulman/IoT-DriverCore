@@ -4,18 +4,15 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiHardeningTests type.</summary>
 internal sealed class MitsubishiHardeningTests
 {
-    /// <summary>Stores the <c>Ascii3ESuccessResponse</c> test value.</summary>
-    private const string Ascii3ESuccessResponse = "D00000FF03FF0000020000";
-
     /// <summary>Stores the <c>LoopbackHost</c> test value.</summary>
     private const string LoopbackHost = "127.0.0.1";
 
@@ -25,6 +22,13 @@ internal sealed class MitsubishiHardeningTests
     /// <summary>Stores the byte length of random-read address data in the request payload.</summary>
     private const int RandomReadAddressDataLength = 8;
 
+    /// <summary>Stores the deterministic ASCII success response.</summary>
+    private static readonly byte[] AsciiSuccessResponse = "D00000FF03FF0000020000"u8.ToArray();
+
+    /// <summary>Stores the expected hexadecimal address encoding.</summary>
+    private static readonly byte[] ExpectedHexadecimalAddressData =
+        [0x02, 0x00, 0x10, 0x00, 0x00, 0x9C, 0x1F, 0x00];
+
     /// <summary>Executes the RemoteRunAsyncEncodesAscii3EForceAndClearMode operation.</summary>
     /// <returns>The RemoteRunAsyncEncodesAscii3EForceAndClearMode operation result.</returns>
     [Test]
@@ -32,7 +36,7 @@ internal sealed class MitsubishiHardeningTests
     {
         await using var transport = new FakeTransport(
         [
-            System.Text.Encoding.ASCII.GetBytes(Ascii3ESuccessResponse),
+            AsciiSuccessResponse,
         ]);
 
         var options = new MitsubishiClientOptions(
@@ -62,7 +66,7 @@ internal sealed class MitsubishiHardeningTests
     {
         await using var transport = new FakeTransport(
         [
-            System.Text.Encoding.ASCII.GetBytes(Ascii3ESuccessResponse),
+            AsciiSuccessResponse,
         ]);
 
         var options = new MitsubishiClientOptions(
@@ -109,14 +113,10 @@ internal sealed class MitsubishiHardeningTests
         var result = await client.RandomReadWordsAsync(["X10", "Y1F"], CancellationToken.None);
 
         await Assert.That(result.IsSucceed).IsTrue();
-        await Assert.That(
-                transport.Requests[0].Payload
-                    .Skip(RandomReadAddressDataOffset)
-                    .Take(RandomReadAddressDataLength)
-                    .Select(static value => (int)value)
-                    .ToArray())
-            .IsEquivalentTo(
-        [0x02, 0x00, 0x10, 0x00, 0x00, 0x9C, 0x1F, 0x00]);
+        var actualAddressData = transport.Requests[0].Payload
+            .AsSpan(RandomReadAddressDataOffset, RandomReadAddressDataLength)
+            .ToArray();
+        await Assert.That(actualAddressData).IsEquivalentTo(ExpectedHexadecimalAddressData);
     }
 
     /// <summary>Executes the ReadBlocksAsyncEncodesAscii3EBlockCounts operation.</summary>
@@ -126,7 +126,7 @@ internal sealed class MitsubishiHardeningTests
     {
         await using var transport = new FakeTransport(
         [
-            System.Text.Encoding.ASCII.GetBytes(Ascii3ESuccessResponse),
+            AsciiSuccessResponse,
         ]);
 
         var options = new MitsubishiClientOptions(

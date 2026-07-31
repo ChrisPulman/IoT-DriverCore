@@ -4,11 +4,11 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -117,9 +117,9 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
     /// <param name="store">The optional SQLite store.</param>
     /// <returns>A logical-tag client retaining Mitsubishi-specific operations.</returns>
     public MitsubishiLogicalTagClient CreateLogicalTagClient(
-        IoT.DriverCore.Core.ILogicalTagCatalog? catalog,
+        IoT.Driver.Core.ILogicalTagCatalog? catalog,
         TimeSpan? defaultScanInterval,
-        IoT.DriverCore.Core.LogicalTagSqliteStore? store) => new(this, catalog, defaultScanInterval, store, _timeProvider);
+        IoT.Driver.Core.LogicalTagSqliteStore? store) => new(this, catalog, defaultScanInterval, store, _timeProvider);
 
     /// <summary>Executes the ReadGeneratedBitTagAsync operation.</summary>
     /// <param name="tagName">The tagName parameter.</param>
@@ -202,11 +202,13 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(values);
-        return RandomWriteWordsAsync(
-            values.Select(pair => new KeyValuePair<string, ushort>(
-                ResolveTagAddress(pair.Key),
-                pair.Value)),
-            cancellationToken);
+        var resolvedValues = new List<KeyValuePair<string, ushort>>();
+        foreach (var pair in values)
+        {
+            resolvedValues.Add(new(ResolveTagAddress(pair.Key), pair.Value));
+        }
+
+        return RandomWriteWordsAsync(resolvedValues, cancellationToken);
     }
 
     /// <summary>Executes the ReadInt16ByTagAsync operation.</summary>
@@ -218,7 +220,7 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         CancellationToken cancellationToken)
     {
         var raw = await ReadWordsByTagAsync(tagName, 1, cancellationToken).ConfigureAwait(false);
-        return ConvertWords(raw, words => unchecked((short)words[0]));
+        return ConvertWords(raw, static words => unchecked((short)words[0]));
     }
 
     /// <summary>Executes the WriteInt16ByTagAsync operation.</summary>
@@ -241,7 +243,7 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
         CancellationToken cancellationToken)
     {
         var raw = await ReadWordsByTagAsync(tagName, 1, cancellationToken).ConfigureAwait(false);
-        return ConvertWords(raw, words => words[0]);
+        return ConvertWords(raw, static words => words[0]);
     }
 
     /// <summary>Executes the WriteUInt16ByTagAsync operation.</summary>

@@ -2,10 +2,10 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.ModbusRx.Server.UI.Data;
+using IoT.Driver.ModbusRx.Server.UI.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace IoT.DriverCore.ModbusRx.Server.UI.Services;
+namespace IoT.Driver.ModbusRx.Server.UI.Services;
 
 /// <summary>Service for managing Modbus client configurations.</summary>
 /// <remarks>
@@ -35,10 +35,7 @@ public class ConfigurationService(ModbusServerContext context, TimeProvider time
     /// <returns>The saved configuration.</returns>
     public async Task<ModbusClientConfiguration> SaveClientConfigurationAsync(ModbusClientConfiguration configuration)
     {
-        if (configuration is null)
-        {
-            throw new ArgumentNullException(nameof(configuration));
-        }
+        ArgumentNullException.ThrowIfNull(configuration);
 
         var timestamp = _timeProvider.GetUtcNow();
         configuration.ModifiedAt = timestamp;
@@ -46,7 +43,7 @@ public class ConfigurationService(ModbusServerContext context, TimeProvider time
         if (configuration.Id == 0)
         {
             configuration.CreatedAt = timestamp;
-            _ = context.ClientConfigurations.Add(configuration);
+            _ = await context.ClientConfigurations.AddAsync(configuration);
         }
         else
         {
@@ -81,7 +78,7 @@ public class ConfigurationService(ModbusServerContext context, TimeProvider time
         if (config is null)
         {
             config = new ServerConfiguration { Id = 1 };
-            _ = context.ServerConfigurations.Add(config);
+            _ = await context.ServerConfigurations.AddAsync(config);
             await context.SaveChangesAsync();
         }
 
@@ -93,10 +90,7 @@ public class ConfigurationService(ModbusServerContext context, TimeProvider time
     /// <returns>The saved configuration.</returns>
     public async Task<ServerConfiguration> SaveServerConfigurationAsync(ServerConfiguration configuration)
     {
-        if (configuration is null)
-        {
-            throw new ArgumentNullException(nameof(configuration));
-        }
+        ArgumentNullException.ThrowIfNull(configuration);
 
         configuration.ModifiedAt = _timeProvider.GetUtcNow();
         _ = context.ServerConfigurations.Update(configuration);

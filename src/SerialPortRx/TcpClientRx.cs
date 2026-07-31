@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.Serial.Reactive;
+namespace IoT.Driver.Serial.Reactive;
 #else
-namespace IoT.DriverCore.Serial;
+namespace IoT.Driver.Serial;
 #endif
 
 /// <summary>Provides a reactive wrapper around <see cref="TcpClient"/>.</summary>
@@ -169,7 +169,7 @@ public class TcpClientRx : IReceiveBatchPortRx
     /// <param name="buffer">The buffer.</param>
     /// <param name="offset">The offset.</param>
     /// <param name="count">The count.</param>
-    public void Write(byte[]? buffer, int offset, int count)
+    public void Write(byte[] buffer, int offset, int count)
     {
         ArgumentGuard.ThrowIfNull(buffer, nameof(buffer));
         Stream.Write(buffer, offset, count);
@@ -180,7 +180,7 @@ public class TcpClientRx : IReceiveBatchPortRx
     /// <param name="offset">The offset.</param>
     /// <param name="count">The count.</param>
     /// <returns>A int.</returns>
-    public async Task<int> ReadAsync(byte[]? buffer, int offset, int count)
+    public async Task<int> ReadAsync(byte[] buffer, int offset, int count)
     {
         ArgumentGuard.ThrowIfNull(buffer, nameof(buffer));
 #if NETFRAMEWORK
@@ -236,7 +236,13 @@ public class TcpClientRx : IReceiveBatchPortRx
 
     /// <summary>Creates the connection observable that drives the TCP receive loop.</summary>
     /// <returns>An observable that signals when the receive loop has started.</returns>
-    private IObservable<Unit> Connect() => Observable.Create<Unit>(obs =>
+    private IObservable<Unit> Connect() =>
+        Observable.CreateWithState<Unit, TcpClientRx>(this, static (owner, observer) => owner.ConnectCore(observer));
+
+    /// <summary>Starts a cancellation-aware TCP receive loop for one observable subscription.</summary>
+    /// <param name="observer">The observer to notify of connection errors and startup.</param>
+    /// <returns>A disposable that cancels the receive loop.</returns>
+    private IDisposable ConnectCore(IObserver<Unit> observer)
     {
         var cts = new CancellationTokenSource();
         var token = cts.Token;
@@ -244,68 +250,74 @@ public class TcpClientRx : IReceiveBatchPortRx
         // Start a dedicated async read loop to minimize per-byte overhead and avoid busy waits
         _ = Task.Factory
             .StartNew(
-                async () =>
+                static state =>
                 {
-                    try
-                    {
-                        // Signal subscription succeeded
-                        obs.OnNext(Unit.Default);
-
-                        var buffer = new byte[4096];
-                        while (!token.IsCancellationRequested)
-                        {
-                            int read;
-                            try
-                            {
-#if NETFRAMEWORK
-                                read = await Stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
-#else
-                                read = await Stream.ReadAsync(buffer.AsMemory(0, buffer.Length), token)
-                                    .ConfigureAwait(false);
-#endif
-                            }
-                            catch (OperationCanceledException)
-                            {
-                                break;
-                            }
-
-                            if (read == 0)
-                            {
-                                // Remote closed
-                                break;
-                            }
-
-                            // Per-byte stream
-                            for (var i = 0; i < read; i++)
-                            {
-                                _dataReceived.OnNext(buffer[i]);
-                            }
-
-                            // Batched chunk stream (copy to a right-sized array)
-                            var chunk = new byte[read];
-                            Buffer.BlockCopy(buffer, 0, chunk, 0, read);
-                            _dataChunks.OnNext(chunk);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        obs.OnError(ex);
-                    }
+                    var (owner, observer, cancellationToken) =
+                        ((TcpClientRx, IObserver<Unit>, CancellationToken))state!;
+                    return owner.ReceiveLoopAsync(observer, cancellationToken);
                 },
+                (Owner: this, Observer: observer, Token: token),
                 token,
                 TaskCreationOptions.DenyChildAttach,
                 TaskScheduler.Default)
             .Unwrap()
             .ContinueWith(
-                t => _ = t.Exception,
+                static task => _ = task.Exception,
                 CancellationToken.None,
                 TaskContinuationOptions.OnlyOnFaulted,
                 TaskScheduler.Default);
 
-        return Disposable.Create(() =>
+        return Disposable.Create(cts, static source =>
         {
-            cts.Cancel();
-            cts.Dispose();
+            source.Cancel();
+            source.Dispose();
         });
-    });
+    }
+
+    /// <summary>Receives and publishes TCP byte batches until cancellation or remote closure.</summary>
+    /// <param name="observer">The observer to notify of connection errors and startup.</param>
+    /// <param name="token">The cancellation token for the receive loop.</param>
+    /// <returns>A task that completes when the receive loop ends.</returns>
+    private async Task ReceiveLoopAsync(IObserver<Unit> observer, CancellationToken token)
+    {
+        try
+        {
+            observer.OnNext(Unit.Default);
+            var buffer = new byte[4096];
+            while (!token.IsCancellationRequested)
+            {
+                int read;
+                try
+                {
+#if NETFRAMEWORK
+                    read = await Stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
+#else
+                    read = await Stream.ReadAsync(buffer.AsMemory(), token).ConfigureAwait(false);
+#endif
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
+                if (read == 0)
+                {
+                    break;
+                }
+
+                for (var i = 0; i < read; i++)
+                {
+                    _dataReceived.OnNext(buffer[i]);
+                }
+
+                var chunk = new byte[read];
+                Buffer.BlockCopy(buffer, 0, chunk, 0, read);
+                _dataChunks.OnNext(chunk);
+            }
+        }
+        catch (Exception ex)
+        {
+            observer.OnError(ex);
+        }
+    }
 }

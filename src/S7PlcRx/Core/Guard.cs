@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive;
+namespace IoT.Driver.S7PlcRx.Reactive;
 #else
-namespace IoT.DriverCore.S7PlcRx;
+namespace IoT.Driver.S7PlcRx;
 #endif
 
 /// <summary>Provides target-framework-independent argument validation.</summary>
@@ -18,6 +18,16 @@ internal static class Guard
     internal static void NotNull<T>(T? value, string parameterName)
         where T : class
         => _ = value ?? throw new ArgumentNullException(parameterName);
+
+    /// <summary>Requires an integer to be less than an exclusive upper bound.</summary>
+    /// <param name="value">The value to validate.</param>
+    /// <param name="exclusiveUpperBound">The exclusive upper bound.</param>
+    /// <param name="parameterName">The parameter name.</param>
+    /// <param name="message">The exception message.</param>
+    internal static void LessThan(int value, int exclusiveUpperBound, string parameterName, string message) =>
+        _ = value < exclusiveUpperBound
+            ? true
+            : throw new ArgumentOutOfRangeException(parameterName, message);
 
     /// <summary>Requires text containing at least one non-whitespace character.</summary>
     /// <param name="value">The value to validate.</param>

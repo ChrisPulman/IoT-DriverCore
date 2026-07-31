@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.Core;
+namespace IoT.Driver.Core;
 
 /// <summary>Provides manually advanced UTC time and deterministic, non-blocking delays.</summary>
 public sealed class ManualSimulatorClock : ISimulatorClock
@@ -95,8 +95,19 @@ public sealed class ManualSimulatorClock : ISimulatorClock
             }
 
             _utcNow = target;
-            due = _delays.Where(delay => delay.DueUtc <= target).ToList();
-            _ = _delays.RemoveAll(delay => delay.DueUtc <= target);
+            due = [];
+            for (var index = 0; index < _delays.Count;)
+            {
+                var pending = _delays[index];
+                if (pending.DueUtc > target)
+                {
+                    index++;
+                    continue;
+                }
+
+                due.Add(pending);
+                _delays.RemoveAt(index);
+            }
         }
 
         foreach (var pending in due)
@@ -147,7 +158,13 @@ public sealed class ManualSimulatorClock : ISimulatorClock
                 return;
             }
 
-            _registration = cancellationToken.Register(() => cancel(this));
+            _registration = cancellationToken.Register(
+                static state =>
+                {
+                    var (cancellationCallback, pendingDelay) = ((Action<PendingDelay>, PendingDelay))state!;
+                    cancellationCallback(pendingDelay);
+                },
+                (cancel, this));
             if (!Completion.Task.IsCompleted)
             {
                 return;

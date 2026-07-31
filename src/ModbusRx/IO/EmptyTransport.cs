@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Message;
+using IoT.Driver.ModbusRx.Reactive.Message;
 #else
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Message;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.IO;
+namespace IoT.Driver.ModbusRx.Reactive.IO;
 #else
-namespace IoT.DriverCore.ModbusRx.IO;
+namespace IoT.Driver.ModbusRx.IO;
 #endif
 
 /// <summary>Provides EmptyTransport functionality.</summary>
@@ -26,7 +26,7 @@ public class EmptyTransport : ModbusTransport
 
     internal override byte[] BuildMessageFrame(IModbusMessage message)
     {
-        return (message ?? throw new ArgumentNullException(nameof(message))).MessageFrame;
+        return (message ?? throw new ArgumentNullException(nameof(message))).ToMessageFrame();
     }
 
     internal override void Write(IModbusMessage message)

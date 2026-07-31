@@ -3,12 +3,12 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using IoT.DriverCore.ABPlcRx.SourceGeneration;
+using IoT.Driver.ABPlcRx.SourceGeneration;
 using ReactiveUI.Primitives.Signals;
 using TUnit.Assertions;
 using TUnit.Core;
 
-namespace IoT.DriverCore.ABPlcRx.Tests;
+namespace IoT.Driver.ABPlcRx.Tests;
 
 /// <summary>Tests value objects and validation helpers that do not require PLC IO.</summary>
 public sealed class ValueObjectTests
@@ -100,7 +100,7 @@ public sealed class ValueObjectTests
         await Assert.That(reduced.StatusCode).IsEqualTo(PlcTagStatus.ErrBadParam);
         await Assert.That(text).Contains(CounterTagName);
         await Assert.That(text).Contains("42");
-        _ = Assert.Throws<ArgumentNullException>(() => PlcTagResult.Reduce(null!));
+        _ = Assert.Throws<ArgumentNullException>(static () => PlcTagResult.Reduce(null!));
     }
 
     /// <summary>Verifies PLC tag exception constructors preserve their context.</summary>
@@ -165,7 +165,7 @@ public sealed class ValueObjectTests
         _ = Assert.Throws<ArgumentNullException>(() => wrapper.SetBits(null!));
         _ = Assert.Throws<ArgumentOutOfRangeException>(() => wrapper.SetString(string.Empty, 0));
         _ = Assert.Throws<ArgumentOutOfRangeException>(
-            () => wrapper.SetString(new string('x', InvalidStringLength), 0));
+            () => wrapper.SetString(new('x', InvalidStringLength), 0));
         await Assert.That(wrapper.GetType(null!, 0)).IsNull();
         await Assert.That(InvokeWrapperGet(wrapper, null)).IsNull();
         await Assert.That(() => InvokeWrapperSet(wrapper, null)).ThrowsNothing();
@@ -216,7 +216,7 @@ public sealed class ValueObjectTests
     /// <summary>Gets the internal data length type.</summary>
     /// <returns>The data length type.</returns>
     private static Type GetDataLengthType() =>
-        typeof(IPlcTag).Assembly.GetType("IoT.DriverCore.ABPlcRx.DataLength")
+        typeof(IPlcTag).Assembly.GetType("IoT.Driver.ABPlcRx.DataLength")
         ?? throw new TypeLoadException("Could not load ABPlcRx.DataLength.");
 
     /// <summary>Invokes a static method on the internal data length type.</summary>

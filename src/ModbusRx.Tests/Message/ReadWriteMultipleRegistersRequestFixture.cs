@@ -2,10 +2,10 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
+namespace IoT.Driver.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the ReadWriteMultipleRegistersRequestFixture behavior.</summary>
 public class ReadWriteMultipleRegistersRequestFixture
@@ -34,7 +34,7 @@ public class ReadWriteMultipleRegistersRequestFixture
         _ = Assert.NotNull(request.WriteRequest);
         Assert.Equal(request.SlaveAddress, request.WriteRequest!.SlaveAddress);
         Assert.Equal(Num.Value14, request.WriteRequest.StartAddress);
-        Assert.Equal(writeCollection.NetworkBytes, request.WriteRequest.Data.NetworkBytes);
+        Assert.Equal(writeCollection.ToNetworkBytes(), request.WriteRequest.Data.ToNetworkBytes());
     }
 
     /// <summary>Protocols the data unit.</summary>
@@ -52,7 +52,7 @@ public class ReadWriteMultipleRegistersRequestFixture
         {
                 0x17, 0x00, 0x03, 0x00, 0x06, 0x00, 0x0e, 0x00, 0x03, 0x06, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff,
         };
-        Assert.Equal(pdu, request.ProtocolDataUnit);
+        Assert.Equal(pdu, request.ToProtocolDataUnit());
     }
 
     /// <summary>Converts to string_readwritemultipleregistersrequest.</summary>

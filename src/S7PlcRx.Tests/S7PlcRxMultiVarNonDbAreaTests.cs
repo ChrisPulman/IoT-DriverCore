@@ -3,11 +3,11 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics;
-using IoT.DriverCore.S7PlcRx.Advanced;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.Mock;
+using IoT.Driver.S7PlcRx.Advanced;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Mock;
 
-namespace IoT.DriverCore.S7PlcRx.Tests;
+namespace IoT.Driver.S7PlcRx.Tests;
 
 /// <summary>Tests for multi-variable batching against non-DB areas (I/Q/M) and bit addressing.</summary>
 [NotInParallel]
@@ -47,19 +47,28 @@ public class S7PlcRxMultiVarNonDbAreaTests
         _ = TagOperations.AddUpdateTagItem(plc, typeof(byte), "MB0", "MB0").SetPolling(false);
         _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "MW2", "MW2").SetPolling(false);
 
-        await plc.IsConnected.Where(x => x).FirstAsync();
+        await plc.IsConnected.Where(static x => x).FirstAsync();
 
         static async Task EventuallyAsync(Func<Task<bool>> predicate)
         {
-            var sw = Stopwatch.StartNew();
-            while (sw.Elapsed < ReadTimeout)
+            var startTimestamp = Stopwatch.GetTimestamp();
+#if NETFRAMEWORK
+            var pollingDelay = TimeSpan.FromMilliseconds(PollIntervalMilliseconds);
+#else
+            using var pollingTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(PollIntervalMilliseconds));
+#endif
+            while (Stopwatch.GetElapsedTime(startTimestamp) < ReadTimeout)
             {
                 if (await predicate())
                 {
                     return;
                 }
 
-                await Task.Delay(PollIntervalMilliseconds);
+#if NETFRAMEWORK
+                await Task.Delay(pollingDelay);
+#else
+                _ = await pollingTimer.WaitForNextTickAsync();
+#endif
             }
 
             throw new TimeoutException($"Condition not met within {ReadTimeout}.");

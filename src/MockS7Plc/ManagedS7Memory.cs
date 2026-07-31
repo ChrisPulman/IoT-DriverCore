@@ -2,13 +2,17 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.S7PlcRx.Mock;
+namespace IoT.Driver.S7PlcRx.Mock;
 
 /// <summary>Provides deterministic, byte-addressable S7 memory.</summary>
 public sealed class ManagedS7Memory
 {
     /// <summary>Synchronizes memory access and registration.</summary>
+#if NET9_0_OR_GREATER
+    private readonly Lock _syncRoot = new();
+#else
     private readonly object _syncRoot = new();
+#endif
 
     /// <summary>Stores registered memory areas.</summary>
     private readonly Dictionary<(S7MemoryArea Area, ushort DbNumber), byte[]> _areas = [];
@@ -22,10 +26,14 @@ public sealed class ManagedS7Memory
     /// <param name="buffer">The backing buffer.</param>
     public void Register(S7MemoryArea area, ushort dbNumber, byte[] buffer)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(buffer);
+#else
         if (buffer is null)
         {
             throw new ArgumentNullException(nameof(buffer));
         }
+#endif
 
         lock (_syncRoot)
         {
@@ -40,10 +48,14 @@ public sealed class ManagedS7Memory
     /// <returns>The registered buffer.</returns>
     public byte[] Register(S7MemoryArea area, ushort dbNumber, int size)
     {
+#if NET8_0_OR_GREATER
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size);
+#else
         if (size <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(size));
         }
+#endif
 
         var buffer = new byte[size];
         Register(area, dbNumber, buffer);
@@ -101,10 +113,14 @@ public sealed class ManagedS7Memory
     /// <param name="data">The bytes to write.</param>
     public void Write(S7MemoryArea area, ushort dbNumber, int offset, byte[] data)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(data);
+#else
         if (data is null)
         {
             throw new ArgumentNullException(nameof(data));
         }
+#endif
 
         byte[] snapshot;
         lock (_syncRoot)
@@ -125,20 +141,11 @@ public sealed class ManagedS7Memory
     private static ushort NormalizeDbNumber(S7MemoryArea area, ushort dbNumber) =>
         area == S7MemoryArea.DataBlock ? dbNumber : (ushort)0;
 
-    /// <summary>Gets a registered buffer without taking the lock.</summary>
-    /// <param name="area">The S7 memory area.</param>
-    /// <param name="dbNumber">The DB number.</param>
-    /// <returns>The registered backing buffer.</returns>
-    private byte[] GetBufferCore(S7MemoryArea area, ushort dbNumber) =>
-        _areas.TryGetValue((area, NormalizeDbNumber(area, dbNumber)), out var buffer)
-            ? buffer
-            : throw new KeyNotFoundException($"S7 area {area}, DB {dbNumber} is not registered.");
-
     /// <summary>Validates a byte range.</summary>
     /// <param name="buffer">The registered backing buffer.</param>
     /// <param name="offset">The requested byte offset.</param>
     /// <param name="length">The requested byte count.</param>
-    private void ValidateRange(byte[] buffer, int offset, int length)
+    private static void ValidateRange(byte[] buffer, int offset, int length)
     {
         if (offset >= 0 && length >= 0 && offset <= buffer.Length - length)
         {
@@ -147,4 +154,13 @@ public sealed class ManagedS7Memory
 
         throw new ArgumentOutOfRangeException(nameof(offset), "The requested range is outside the S7 area.");
     }
+
+    /// <summary>Gets a registered buffer without taking the lock.</summary>
+    /// <param name="area">The S7 memory area.</param>
+    /// <param name="dbNumber">The DB number.</param>
+    /// <returns>The registered backing buffer.</returns>
+    private byte[] GetBufferCore(S7MemoryArea area, ushort dbNumber) =>
+        _areas.TryGetValue((area, NormalizeDbNumber(area, dbNumber)), out var buffer)
+            ? buffer
+            : throw new KeyNotFoundException($"S7 area {area}, DB {dbNumber} is not registered.");
 }

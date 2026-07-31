@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.Serial.Reactive;
+namespace IoT.Driver.Serial.Reactive;
 #else
-namespace IoT.DriverCore.Serial;
+namespace IoT.Driver.Serial;
 #endif
 
 /// <summary>Implements a cohesive portion of the reactive serial port.</summary>
@@ -52,7 +52,8 @@ public partial class SerialPortRx
 #if HasWindows
         void OnPinChanged(object? _, SerialPinChangedEventArgs eventArgs) => _pinChanged.OnNext(eventArgs);
         port.PinChanged += OnPinChanged;
-        dis.Add(Disposable.Create(() => port.PinChanged -= OnPinChanged));
+        dis.Add(Disposable.Create((Port: port, Handler: (EventHandler<SerialPinChangedEventArgs>)OnPinChanged), static state =>
+            state.Port.PinChanged -= state.Handler));
 #endif
 
         dis.Add(port);
@@ -99,14 +100,16 @@ public partial class SerialPortRx
         void OnErrorReceived(object? _, SerialPortConnectionErrorEventArgs eventArgs) =>
             ReportError(eventArgs.Exception);
         port.ErrorReceived += OnErrorReceived;
-        dis.Add(Disposable.Create(() => port.ErrorReceived -= OnErrorReceived));
+        dis.Add(Disposable.Create(
+            (Port: port, Handler: (EventHandler<SerialPortConnectionErrorEventArgs>)OnErrorReceived),
+            static state => state.Port.ErrorReceived -= state.Handler));
 
         // Get the stream of data from the serial port using the DataReceived event
         // Only subscribe if EnableAutoDataReceive is true (allows sync reads when false)
         if (EnableAutoDataReceive)
         {
             var receiveBuffer = ArrayPool<byte>.Shared.Rent(Math.Max(1, ReadBufferSize));
-            dis.Add(Disposable.Create(() => ArrayPool<byte>.Shared.Return(receiveBuffer)));
+            dis.Add(Disposable.Create(receiveBuffer, static buffer => ArrayPool<byte>.Shared.Return(buffer)));
             void OnDataReceived(object? _, EventArgs __)
             {
                 _ = __;
@@ -133,7 +136,8 @@ public partial class SerialPortRx
             }
 
             port.DataReceived += OnDataReceived;
-            dis.Add(Disposable.Create(() => port.DataReceived -= OnDataReceived));
+            dis.Add(Disposable.Create((Port: port, Handler: (EventHandler)OnDataReceived), static state =>
+                state.Port.DataReceived -= state.Handler));
         }
 
         // setup Write streams
@@ -221,18 +225,18 @@ public partial class SerialPortRx
                 await ProcessReadRequestAsync(request).ConfigureAwait(false);
                 return Unit.Default;
             }))
-            .Subscribe(_ => { }, ReportError));
+            .Subscribe(static _ => { }, ReportError));
 
-        return Disposable.Create(() =>
+        return Disposable.Create((Owner: this, Disposables: dis), static state =>
         {
-            if (IsDisposed)
+            if (state.Owner.IsDisposed)
             {
                 return;
             }
 
-            TryPublishIsOpen(false);
-            _serialPort = null;
-            dis.Dispose();
+            state.Owner.TryPublishIsOpen(false);
+            state.Owner._serialPort = null;
+            state.Disposables.Dispose();
         });
     });
 
@@ -251,45 +255,47 @@ public partial class SerialPortRx
     /// <returns>Observable string.</returns>
     /// <value>The port names.</value>
     public static IObservable<string[]> PortNames(int pollInterval, int pollLimit) =>
-        Observable.Create<string[]>(obs =>
-    {
-        string[]? compare = null;
-        var numberOfPolls = 0;
-        var subscription = Observable.Interval(TimeSpan.FromMilliseconds(pollInterval)).Subscribe(_ =>
-        {
-            var compareNew = SerialPort.GetPortNames();
-            if (compareNew.Length == 0)
+        Observable.CreateWithState<string[], (int PollInterval, int PollLimit)>(
+            (pollInterval, pollLimit),
+            static (state, obs) =>
             {
-                compareNew = NoPorts;
-            }
+                string[]? compare = null;
+                var numberOfPolls = 0;
+                var subscription = Observable.Interval(TimeSpan.FromMilliseconds(state.PollInterval)).Subscribe(_ =>
+                {
+                    var compareNew = SerialPort.GetPortNames();
+                    if (compareNew.Length == 0)
+                    {
+                        compareNew = NoPorts;
+                    }
 
-            if (compare is null)
-            {
-                compare = compareNew;
-                obs.OnNext(compareNew);
-            }
+                    if (compare is null)
+                    {
+                        compare = compareNew;
+                        obs.OnNext(compareNew);
+                    }
 
-            if (compare?.SequenceEqual(compareNew) == false)
-            {
-                obs.OnNext(compareNew);
-                compare = compareNew;
-            }
+                    if (compare?.SequenceEqual(compareNew) == false)
+                    {
+                        obs.OnNext(compareNew);
+                        compare = compareNew;
+                    }
 
-            if (pollLimit <= 0)
-            {
-                return;
-            }
+                    if (state.PollLimit <= 0)
+                    {
+                        return;
+                    }
 
-            numberOfPolls++;
-            if (numberOfPolls < pollLimit)
-            {
-                return;
-            }
+                    numberOfPolls++;
+                    if (numberOfPolls < state.PollLimit)
+                    {
+                        return;
+                    }
 
-            obs.OnCompleted();
-        });
-        return Disposable.Create(() => subscription.Dispose());
-    });
+                    obs.OnCompleted();
+                });
+                return Disposable.Create(subscription, static value => value.Dispose());
+            });
 
     /// <summary>Closes this instance.</summary>
     public void Close() => _disposablePort.Dispose();
@@ -354,7 +360,7 @@ public partial class SerialPortRx
     /// <param name="buffer">The byte array.</param>
     /// <param name="offset">The offset.</param>
     /// <param name="count">The count.</param>
-    public void Write(byte[]? buffer, int offset, int count)
+    public void Write(byte[] buffer, int offset, int count)
     {
         ArgumentGuard.ThrowIfNull(buffer, nameof(buffer));
         _writeByte.OnNext((buffer, offset, count));
@@ -467,7 +473,7 @@ public partial class SerialPortRx
     /// <returns>
     /// The number of bytes read.
     /// </returns>
-    public async Task<int> ReadAsync(byte[]? buffer, int offset, int count)
+    public async Task<int> ReadAsync(byte[] buffer, int offset, int count)
     {
         ArgumentGuard.ThrowIfNull(buffer, nameof(buffer));
         EnsureOpen();

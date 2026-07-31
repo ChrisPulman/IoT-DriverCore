@@ -2,15 +2,15 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 #endif
 
@@ -67,7 +67,7 @@ internal sealed class MitsubishiLogicalTagClientCompletionTests
             null);
 
         logical.Register(CreateMetadataTag(TagName));
-        logical.RegisterTag(new LogicalTag("BadMetadata", "D2", UInt16DataType, new LogicalTagOptions
+        logical.RegisterTag(new("BadMetadata", "D2", UInt16DataType, new LogicalTagOptions
         {
             Description = " ",
             Metadata = new Dictionary<string, string>
@@ -106,9 +106,9 @@ internal sealed class MitsubishiLogicalTagClientCompletionTests
             await using var transport = CreateSimulator(options);
             await using var owner = new MitsubishiRx(options, transport, Scheduler.Immediate);
             using var logical = owner.CreateLogicalTagClient(null, null, store);
-            logical.RegisterTag(new LogicalTag(TagName, "D0", UInt16DataType));
+            logical.RegisterTag(new(TagName, "D0", UInt16DataType));
 
-            using var writer = new StringWriter(System.Globalization.CultureInfo.InvariantCulture);
+            await using var writer = new StringWriter(System.Globalization.CultureInfo.InvariantCulture);
             await logical.ExportCsvAsync(writer, ';', CancellationToken.None);
             using var reader = new StringReader(writer.ToString());
             var imported = await logical.ImportCsvAsync(reader, ';', CancellationToken.None);
@@ -116,10 +116,10 @@ internal sealed class MitsubishiLogicalTagClientCompletionTests
             await logical.InitializeStoreAsync(CancellationToken.None);
             await logical.UpsertTagAsync(imported[0], CancellationToken.None);
             var edited = await logical.EditTagAsync(
-                new LogicalTag(TagName, "D10", UInt16DataType),
+                new(TagName, "D10", UInt16DataType),
                 CancellationToken.None);
             var missingEdit = await logical.EditTagAsync(
-                new LogicalTag("Missing", "D11", UInt16DataType),
+                new("Missing", "D11", UInt16DataType),
                 CancellationToken.None);
             var missingDelete = await logical.DeleteTagAsync("Missing", CancellationToken.None);
 
@@ -163,7 +163,7 @@ internal sealed class MitsubishiLogicalTagClientCompletionTests
         using var wrong = logical
             .Observe(new LogicalTagKey<string>(TagName))
             .Take(1)
-            .Subscribe(_ => { }, error => typeError = error);
+            .Subscribe(static _ => { }, error => typeError = error);
         using var many = logical
             .ObserveMany([TagName, OtherTagName])
             .Take(MetadataLength)
@@ -173,7 +173,7 @@ internal sealed class MitsubishiLogicalTagClientCompletionTests
         await Assert.That(values).Count().IsEqualTo(ExpectedMergedObservationCount);
         await Assert.That(typed).IsEquivalentTo([WordValue]);
         await Assert.That(typeError).IsTypeOf<InvalidCastException>();
-        await Assert.That(values.All(static value => value.Quality == "Good")).IsTrue();
+        await Assert.That(values.TrueForAll(static value => value.Quality == "Good")).IsTrue();
         _ = Assert.Throws<ArgumentNullException>(
             () => logical.ObserveMany([TagName]).Subscribe((IObserver<LogicalTagValue>)null!));
         await ValidateAsyncObserversAsync(logical, scheduler);
@@ -188,7 +188,7 @@ internal sealed class MitsubishiLogicalTagClientCompletionTests
         await using var transport = CreateSimulator(options);
         await using var owner = new MitsubishiRx(options, transport, Scheduler.Immediate);
         using var logical = owner.CreateLogicalTagClient(null, null, null);
-        logical.RegisterTag(new LogicalTag(TagName, "D0", UInt16DataType));
+        logical.RegisterTag(new(TagName, "D0", UInt16DataType));
 
         _ = Assert.Throws<InvalidOperationException>(
             () => logical.InitializeStoreAsync(CancellationToken.None));
@@ -196,7 +196,7 @@ internal sealed class MitsubishiLogicalTagClientCompletionTests
             () => logical.GetTagAsync(TagName, CancellationToken.None));
         await Assert.That(await ThrowsAsync<InvalidOperationException>(
             () => logical.UpsertTagAsync(
-                new LogicalTag("Store", "D1", UInt16DataType),
+                new("Store", "D1", UInt16DataType),
                 CancellationToken.None))).IsTrue();
 
         transport.EnqueueResponse(MitsubishiSimulatorTransport.CreateErrorResponse(options, 0xC051));
@@ -219,7 +219,7 @@ internal sealed class MitsubishiLogicalTagClientCompletionTests
     private static void ValidateConstructorGuards(MitsubishiRx owner)
     {
         _ = Assert.Throws<ArgumentNullException>(
-            () => _ = new MitsubishiLogicalTagClient(null!, null, null, null));
+            static () => _ = new MitsubishiLogicalTagClient(null!, null, null, null));
         _ = Assert.Throws<ArgumentNullException>(
             () => _ = new MitsubishiLogicalTagClient(owner, null, null, null, null!));
         _ = Assert.Throws<ArgumentOutOfRangeException>(

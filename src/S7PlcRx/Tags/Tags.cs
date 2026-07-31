@@ -5,9 +5,9 @@
 using System.Collections;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive;
+namespace IoT.Driver.S7PlcRx.Reactive;
 #else
-namespace IoT.DriverCore.S7PlcRx;
+namespace IoT.Driver.S7PlcRx;
 #endif
 
 /// <summary>
@@ -104,10 +104,7 @@ public class Tags : Hashtable
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="tags"/> is null.</exception>
     public void AddRange(IEnumerable<Tag> tags)
     {
-        if (tags is null)
-        {
-            throw new ArgumentNullException(nameof(tags));
-        }
+        Guard.NotNull(tags, nameof(tags));
 
         lock (_lockObject)
         {
@@ -177,10 +174,7 @@ public class Tags : Hashtable
     /// <returns>The non-empty tag name.</returns>
     private static string GetRequiredName(Tag tag)
     {
-        if (tag is null)
-        {
-            throw new ArgumentNullException(nameof(tag));
-        }
+        Guard.NotNull(tag, nameof(tag));
 
         var name = tag.Name;
         if (name is null || string.IsNullOrWhiteSpace(name))

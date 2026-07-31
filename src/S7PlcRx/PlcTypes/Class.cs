@@ -4,15 +4,15 @@
 
 using System.Reflection;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Enums;
+using IoT.Driver.S7PlcRx.Reactive.Enums;
 #else
-using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace IoT.DriverCore.S7PlcRx.PlcTypes;
+namespace IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>
@@ -54,10 +54,7 @@ public static class Class
     /// <returns>The serialized size in bytes.</returns>
     public static double GetClassSize(object instance, double numBytes, bool isInnerProperty)
     {
-        if (instance is null)
-        {
-            throw new ArgumentNullException(nameof(instance));
-        }
+        Guard.NotNull(instance, nameof(instance));
 
         foreach (var property in GetAccessableProperties(instance.GetType()))
         {
@@ -129,10 +126,7 @@ public static class Class
             return numBytes;
         }
 
-        if (sourceClass is null)
-        {
-            throw new ArgumentNullException(nameof(sourceClass));
-        }
+        Guard.NotNull(sourceClass, nameof(sourceClass));
 
         foreach (var property in GetAccessableProperties(sourceClass.GetType()))
         {
@@ -178,15 +172,8 @@ public static class Class
     /// <returns>The number of bytes written.</returns>
     public static double ToBytes(object sourceClass, byte[] bytes, double numBytes)
     {
-        if (sourceClass is null)
-        {
-            throw new ArgumentNullException(nameof(sourceClass));
-        }
-
-        if (bytes is null)
-        {
-            throw new ArgumentNullException(nameof(bytes));
-        }
+        Guard.NotNull(sourceClass, nameof(sourceClass));
+        Guard.NotNull(bytes, nameof(bytes));
 
         foreach (var property in GetAccessableProperties(sourceClass.GetType()))
         {

@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.Serial.Reactive;
+namespace IoT.Driver.Serial.Reactive;
 #else
-namespace IoT.DriverCore.Serial;
+namespace IoT.Driver.Serial;
 #endif
 
 /// <summary>Implements one endpoint of a deterministic in-memory serial link.</summary>
@@ -163,10 +163,14 @@ internal sealed class InMemorySerialPortConnection : ISerialPortConnection
     /// <inheritdoc/>
     public void Open()
     {
+#if NETFRAMEWORK
         if (_disposed)
         {
             throw new ObjectDisposedException(nameof(InMemorySerialPortConnection));
         }
+#else
+        ObjectDisposedException.ThrowIf(_disposed, this);
+#endif
 
         _link.Register(_side, this);
         IsOpen = true;

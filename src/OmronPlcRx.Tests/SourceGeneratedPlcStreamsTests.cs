@@ -2,14 +2,14 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.OmronPlcRx.Core.Types;
-using IoT.DriverCore.Serial;
+using IoT.Driver.Core;
+using IoT.Driver.OmronPlcRx.Core.Types;
+using IoT.Driver.Serial;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Async;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Tests source-generated PLC stream binding and async adapters.</summary>
 public sealed class SourceGeneratedPlcStreamsTests
@@ -37,6 +37,7 @@ public sealed class SourceGeneratedPlcStreamsTests
         var plc = new FakeOmronPlcRx();
         var state = new GeneratedMachineState();
         var observedLevels = new List<short>();
+        var bcdTemperature = new Bcd16(BcdTemperature);
 
         using var levelSubscription = state.TankLevelObservable.SubscribeSafe(
             observedLevels.Add,
@@ -46,12 +47,12 @@ public sealed class SourceGeneratedPlcStreamsTests
         plc.Publish(TankLevelTagName, InitialTankLevel);
         plc.Publish("PumpRun", true);
         plc.Publish("LineName", "Mixer");
-        plc.Publish("BcdTemp", new Bcd16(BcdTemperature));
+        plc.Publish("BcdTemp", bcdTemperature);
 
         await Assert.That(state.TankLevel).IsEqualTo(InitialTankLevel);
         await Assert.That(state.PumpRunning).IsTrue();
         await Assert.That(state.LineName).IsEqualTo("Mixer");
-        await Assert.That(state.BcdTemp).IsEqualTo(new Bcd16(BcdTemperature));
+        await Assert.That(state.BcdTemp).IsEqualTo(bcdTemperature);
         await Assert.That(observedLevels.Contains(InitialTankLevel)).IsTrue();
         await Assert.That(HasRegistration(plc.Registrations, TankLevelTagName, "D100", typeof(short))).IsTrue();
         await Assert.That(HasRegistration(plc.Registrations, "PumpRun", "D100.0", typeof(bool))).IsTrue();
@@ -112,7 +113,9 @@ public sealed class SourceGeneratedPlcStreamsTests
         foreach (var registration in registrations)
         {
             if (
-                registration.TagName == tagName
+                System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                    System.Text.Encoding.UTF8.GetBytes(registration.TagName),
+                    System.Text.Encoding.UTF8.GetBytes(tagName))
                 && registration.Address == address
                 && registration.TagType == tagType
             )
@@ -136,7 +139,11 @@ public sealed class SourceGeneratedPlcStreamsTests
     {
         foreach (var write in writes)
         {
-            if (write.TagName == tagName && Equals(write.Value, value))
+            if (
+                System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                    System.Text.Encoding.UTF8.GetBytes(write.TagName),
+                    System.Text.Encoding.UTF8.GetBytes(tagName))
+                && Equals(write.Value, value))
             {
                 return true;
             }

@@ -7,9 +7,15 @@ using System.Buffers;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.IO;
+using IoT.Driver.ModbusRx.Reactive.Utility;
 #else
-namespace IoT.DriverCore.ModbusRx.IO;
+using IoT.Driver.ModbusRx.Utility;
+#endif
+
+#if REACTIVE_SHIM
+namespace IoT.Driver.ModbusRx.Reactive.IO;
+#else
+namespace IoT.Driver.ModbusRx.IO;
 #endif
 
 /// <summary>High-performance buffer manager for Modbus message processing with cross-platform compatibility.</summary>
@@ -161,10 +167,7 @@ public sealed class ModbusBufferManager : IDisposable
     {
         lock (_lock)
         {
-            if (_disposed)
-            {
-                throw new ObjectDisposedException(nameof(ModbusBufferManager));
-            }
+            ThrowIfDisposed();
 
 #if NET8_0_OR_GREATER
             var buffer = _bytePool.Rent(minimumLength);
@@ -184,10 +187,7 @@ public sealed class ModbusBufferManager : IDisposable
     {
         lock (_lock)
         {
-            if (_disposed)
-            {
-                throw new ObjectDisposedException(nameof(ModbusBufferManager));
-            }
+            ThrowIfDisposed();
 
 #if NET8_0_OR_GREATER
             var buffer = _ushortPool.Rent(minimumLength);
@@ -207,10 +207,7 @@ public sealed class ModbusBufferManager : IDisposable
     {
         lock (_lock)
         {
-            if (_disposed)
-            {
-                throw new ObjectDisposedException(nameof(ModbusBufferManager));
-            }
+            ThrowIfDisposed();
 
 #if NET8_0_OR_GREATER
             var buffer = _boolPool.Rent(minimumLength);
@@ -291,5 +288,11 @@ public sealed class ModbusBufferManager : IDisposable
             returnAction?.Invoke(buffer, clearArray);
             _ = Interlocked.Increment(ref _returnOperations);
         }
+    }
+
+    /// <summary>Throws when this buffer manager has been disposed.</summary>
+    private void ThrowIfDisposed()
+    {
+        _ = ModbusGuard.IsNotDisposed(_disposed, nameof(ModbusBufferManager));
     }
 }

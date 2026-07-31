@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.ModbusRx.DriverTest;
+namespace IoT.Driver.ModbusRx.DriverTest;
 
 /// <summary>Provides the driver test application entry point.</summary>
 public static class Program

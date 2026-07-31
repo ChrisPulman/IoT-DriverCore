@@ -3,10 +3,10 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
+namespace IoT.Driver.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the ModbusMessageFactoryFixture behavior.</summary>
 public class ModbusMessageFactoryFixture
@@ -56,7 +56,7 @@ public class ModbusMessageFactoryFixture
 
         ModbusMessageFixture.AssertModbusMessagePropertiesAreEqual(expectedResponse, response);
 
-        Assert.Equal(expectedResponse.Data.NetworkBytes, response.Data.NetworkBytes);
+        Assert.Equal(expectedResponse.Data.ToNetworkBytes(), response.Data.ToNetworkBytes());
     }
 
     /// <summary>Creates the modbus message read coils response with no byte count.</summary>
@@ -101,7 +101,7 @@ public class ModbusMessageFactoryFixture
     /// <summary>Creates the size of the modbus message read holding registers request with invalid frame.</summary>
     [TUnit.Core.Test]
     public void CreateModbusMessageReadHoldingRegistersRequestWithInvalidFrameSize() =>
-        Assert.Throws<FormatException>(() =>
+        Assert.Throws<FormatException>(static () =>
             ModbusMessageFactory.CreateModbusMessage(
                 new ReadHoldingInputRegistersRequest(),
                 [Num.Value11, Modbus.ReadHoldingRegisters, 0, 0, Num.Value5]));
@@ -126,7 +126,7 @@ public class ModbusMessageFactoryFixture
     /// <summary>Creates the size of the modbus message read holding registers response with invalid frame.</summary>
     [TUnit.Core.Test]
     public void CreateModbusMessageReadHoldingRegistersResponseWithInvalidFrameSize() =>
-        Assert.Throws<FormatException>(() =>
+        Assert.Throws<FormatException>(static () =>
             ModbusMessageFactory.CreateModbusMessage(
                 new ReadHoldingInputRegistersResponse(),
                 [Num.Value11, Modbus.ReadHoldingRegisters]));
@@ -147,14 +147,14 @@ public class ModbusMessageFactoryFixture
 
         Assert.Equal(expectedException.FunctionCode, response.FunctionCode);
         Assert.Equal(expectedException.SlaveAddress, response.SlaveAddress);
-        Assert.Equal(expectedException.MessageFrame, response.MessageFrame);
-        Assert.Equal(expectedException.ProtocolDataUnit, response.ProtocolDataUnit);
+        Assert.Equal(expectedException.ToMessageFrame(), response.ToMessageFrame());
+        Assert.Equal(expectedException.ToProtocolDataUnit(), response.ToProtocolDataUnit());
     }
 
     /// <summary>Creates the modbus message slave exception response with invalid function code.</summary>
     [TUnit.Core.Test]
     public void CreateModbusMessageSlaveExceptionResponseWithInvalidFunctionCode() =>
-        Assert.Throws<FormatException>(() =>
+        Assert.Throws<FormatException>(static () =>
             ModbusMessageFactory.CreateModbusMessage(
                 new SlaveExceptionResponse(),
                 [Num.Value11, Num.Value128, Num.Value2]));
@@ -162,7 +162,7 @@ public class ModbusMessageFactoryFixture
     /// <summary>Creates the size of the modbus message slave exception response with invalid frame.</summary>
     [TUnit.Core.Test]
     public void CreateModbusMessageSlaveExceptionResponseWithInvalidFrameSize() =>
-        Assert.Throws<FormatException>(() =>
+        Assert.Throws<FormatException>(static () =>
             ModbusMessageFactory.CreateModbusMessage(new SlaveExceptionResponse(), [ Num.Value11, Num.Value128]));
 
     /// <summary>Creates the modbus message write single coil request response.</summary>
@@ -178,13 +178,13 @@ public class ModbusMessageFactoryFixture
         ModbusMessageFixture.AssertModbusMessagePropertiesAreEqual(expectedRequest, request);
 
         Assert.Equal(expectedRequest.StartAddress, request.StartAddress);
-        Assert.Equal(expectedRequest.Data.NetworkBytes, request.Data.NetworkBytes);
+        Assert.Equal(expectedRequest.Data.ToNetworkBytes(), request.Data.ToNetworkBytes());
     }
 
     /// <summary>Creates the size of the modbus message write single coil request response with invalid frame.</summary>
     [TUnit.Core.Test]
     public void CreateModbusMessageWriteSingleCoilRequestResponseWithInvalidFrameSize() =>
-        Assert.Throws<FormatException>(() =>
+        Assert.Throws<FormatException>(static () =>
             ModbusMessageFactory.CreateModbusMessage(
                 new WriteSingleCoilRequestResponse(),
                 [Num.Value11, Modbus.WriteSingleCoil, 0, Num.Value105, byte.MaxValue]));
@@ -203,13 +203,13 @@ public class ModbusMessageFactoryFixture
         ModbusMessageFixture.AssertModbusMessagePropertiesAreEqual(expectedRequest, request);
 
         Assert.Equal(expectedRequest.StartAddress, request.StartAddress);
-        Assert.Equal(expectedRequest.Data.NetworkBytes, request.Data.NetworkBytes);
+        Assert.Equal(expectedRequest.Data.ToNetworkBytes(), request.Data.ToNetworkBytes());
     }
 
     /// <summary>Creates an invalid write single register response frame.</summary>
     [TUnit.Core.Test]
     public void CreateModbusMessageWriteSingleRegisterRequestResponseWithInvalidFrameSize() =>
-        Assert.Throws<FormatException>(() =>
+        Assert.Throws<FormatException>(static () =>
             ModbusMessageFactory.CreateModbusMessage(
                 new WriteSingleRegisterRequestResponse(),
                 [Num.Value11, Modbus.WriteSingleRegister, 0, 1, 0]));
@@ -233,13 +233,13 @@ public class ModbusMessageFactoryFixture
         Assert.Equal(expectedRequest.StartAddress, request.StartAddress);
         Assert.Equal(expectedRequest.NumberOfPoints, request.NumberOfPoints);
         Assert.Equal(expectedRequest.ByteCount, request.ByteCount);
-        Assert.Equal(expectedRequest.Data.NetworkBytes, request.Data.NetworkBytes);
+        Assert.Equal(expectedRequest.Data.ToNetworkBytes(), request.Data.ToNetworkBytes());
     }
 
     /// <summary>Creates the size of the modbus message write multiple registers request with invalid frame.</summary>
     [TUnit.Core.Test]
     public void CreateModbusMessageWriteMultipleRegistersRequestWithInvalidFrameSize() =>
-        Assert.Throws<FormatException>(() =>
+        Assert.Throws<FormatException>(static () =>
             ModbusMessageFactory.CreateModbusMessage(
                 new WriteMultipleRegistersRequest(),
                 [Num.Value11, Modbus.WriteMultipleRegisters, 0, Num.Value5, 0, 1, Num.Value2]));
@@ -288,13 +288,13 @@ public class ModbusMessageFactoryFixture
         Assert.Equal(expectedRequest.StartAddress, request.StartAddress);
         Assert.Equal(expectedRequest.NumberOfPoints, request.NumberOfPoints);
         Assert.Equal(expectedRequest.ByteCount, request.ByteCount);
-        Assert.Equal(expectedRequest.Data.NetworkBytes, request.Data.NetworkBytes);
+        Assert.Equal(expectedRequest.Data.ToNetworkBytes(), request.Data.ToNetworkBytes());
     }
 
     /// <summary>Creates the size of the modbus message write multiple coils request with invalid frame.</summary>
     [TUnit.Core.Test]
     public void CreateModbusMessageWriteMultipleCoilsRequestWithInvalidFrameSize() =>
-        Assert.Throws<FormatException>(() =>
+        Assert.Throws<FormatException>(static () =>
             ModbusMessageFactory.CreateModbusMessage(
                 new WriteMultipleCoilsRequest(),
                 [Num.Value17, Modbus.WriteMultipleCoils, 0, Num.Value19, 0, Num.Value10, Num.Value2]));
@@ -317,7 +317,7 @@ public class ModbusMessageFactoryFixture
     /// <summary>Creates the size of the modbus message write multiple coils response with invalid frame.</summary>
     [TUnit.Core.Test]
     public void CreateModbusMessageWriteMultipleCoilsResponseWithInvalidFrameSize() =>
-        Assert.Throws<FormatException>(() =>
+        Assert.Throws<FormatException>(static () =>
             ModbusMessageFactory.CreateModbusMessage(
                 new WriteMultipleCoilsResponse(),
                 [Num.Value17, Modbus.WriteMultipleCoils, 0, Num.Value19, 0]));
@@ -355,7 +355,7 @@ public class ModbusMessageFactoryFixture
     {
         const byte slaveAddress = 5;
         var data = new RegisterCollection(Num.Value50);
-        var networkBytes = data.NetworkBytes;
+        var networkBytes = data.ToNetworkBytes();
         var frame = new byte[networkBytes.Length + Num.Value4];
         frame[0] = slaveAddress;
         frame[1] = Num.Value8;
@@ -382,12 +382,12 @@ public class ModbusMessageFactoryFixture
     /// <summary>Creates the modbus request with invalid message frame.</summary>
     [TUnit.Core.Test]
     public void CreateModbusRequestWithInvalidMessageFrame() =>
-        Assert.Throws<FormatException>(() => ModbusMessageFactory.CreateModbusRequest([ 0, 1]));
+        Assert.Throws<FormatException>(static () => ModbusMessageFactory.CreateModbusRequest([ 0, 1]));
 
     /// <summary>Creates the modbus request with invalid function code.</summary>
     [TUnit.Core.Test]
     public void CreateModbusRequestWithInvalidFunctionCode() =>
-        Assert.Throws<ArgumentException>(() =>
+        Assert.Throws<ArgumentException>(static () =>
             ModbusMessageFactory.CreateModbusRequest([1, Num.Value99, 0, 0, 0, 1, Num.Value23]));
 
     /// <summary>Creates the modbus request for read coils.</summary>
@@ -395,7 +395,7 @@ public class ModbusMessageFactoryFixture
     public void CreateModbusRequestForReadCoils()
     {
         var req = new ReadCoilsInputsRequest(1, Num.Value2, 1, Num.Value10);
-        var request = ModbusMessageFactory.CreateModbusRequest(req.MessageFrame);
+        var request = ModbusMessageFactory.CreateModbusRequest(req.ToMessageFrame());
         Assert.Equal(typeof(ReadCoilsInputsRequest), request.GetType());
     }
 
@@ -404,7 +404,7 @@ public class ModbusMessageFactoryFixture
     public void CreateModbusRequestForDiagnostics()
     {
         var diagnosticsRequest = new DiagnosticsRequestResponse(0, Num.Value2, new RegisterCollection(Num.Value45));
-        var request = ModbusMessageFactory.CreateModbusRequest(diagnosticsRequest.MessageFrame);
+        var request = ModbusMessageFactory.CreateModbusRequest(diagnosticsRequest.ToMessageFrame());
         Assert.Equal(typeof(DiagnosticsRequestResponse), request.GetType());
     }
 }

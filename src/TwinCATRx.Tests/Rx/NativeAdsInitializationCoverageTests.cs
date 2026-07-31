@@ -6,12 +6,12 @@
 using System.Diagnostics.CodeAnalysis;
 #endif
 using System.Reflection;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx.Core;
 using TwinCAT.Ads;
-using CoreExtensions = IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions;
-using LeanBridge = IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions;
+using CoreExtensions = IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions;
+using LeanBridge = IoT.Driver.TwinCATRx.ObservableBridgeExtensions;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Exercises deterministic disconnected branches of the native Beckhoff ADS implementation.</summary>
 public sealed class NativeAdsInitializationCoverageTests
@@ -105,8 +105,8 @@ public sealed class NativeAdsInitializationCoverageTests
         _ = Invoke(client, PublishNativeValueMethod, Handle, Payload, "mapped");
 
         await TUnitAssert.That(states).Contains(AdsState.Invalid);
-        await TUnitAssert.That(data.Single().Variable).IsEqualTo(Variable);
-        await TUnitAssert.That(data.Single().Id).IsEqualTo("mapped");
+        await TUnitAssert.That(data[0].Variable).IsEqualTo(Variable);
+        await TUnitAssert.That(data[0].Id).IsEqualTo("mapped");
     }
 
     /// <summary>Verifies monitor composition, empty configuration initialization, and notification guards.</summary>
@@ -129,7 +129,7 @@ public sealed class NativeAdsInitializationCoverageTests
         _ = Invoke(client, "MonitorAdsState", ads, observer);
         _ = Invoke(client, "MonitorInitialization", ads, observer);
         _ = Invoke(client, "ScheduleNotifications", ads);
-        _ = Invoke(client, "ReadNotification", ads, settings.Notifications.Single());
+        _ = Invoke(client, "ReadNotification", ads, settings.Notifications[0]);
         _ = Invoke(client, "TryStartPlcProgram", ads, observer);
         GetField<IObserver<ServiceStatus>>(client, "_serviceStatus").OnNext(ServiceStatus.Running);
         GetField<IObserver<AdsState>>(client, ClientStateField).OnNext(AdsState.Stop);

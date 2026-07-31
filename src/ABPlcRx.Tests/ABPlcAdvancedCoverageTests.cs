@@ -2,12 +2,13 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using System.Data.Common;
+using IoT.Driver.Core;
 using TUnit.Assertions;
 using TUnit.Core;
-using PlcController = IoT.DriverCore.ABPlcRx.ABPlcRx;
+using PlcController = IoT.Driver.ABPlcRx.ABPlcRx;
 
-namespace IoT.DriverCore.ABPlcRx.Tests;
+namespace IoT.Driver.ABPlcRx.Tests;
 
 /// <summary>Exercises advanced logical, observable, bit-projection, and ping paths.</summary>
 public sealed class ABPlcAdvancedCoverageTests
@@ -49,7 +50,8 @@ public sealed class ABPlcAdvancedCoverageTests
     {
         using var simulator = CreateSimulator();
         using var catalog = new LogicalTagCatalog();
-        var store = new LogicalTagSqliteStore("Data Source=:memory:");
+        var connectionString = new DbConnectionStringBuilder { ["Data Source"] = ":memory:" }.ConnectionString;
+        var store = new LogicalTagSqliteStore(connectionString);
         using var withClock = new ABLogicalTagClient(simulator, TimeProvider.System);
         using var withCatalog = new ABLogicalTagClient(simulator, catalog);
         using var withCatalogClock = new ABLogicalTagClient(simulator, catalog, TimeProvider.System);
@@ -57,7 +59,7 @@ public sealed class ABPlcAdvancedCoverageTests
         using var withStoreClock = new ABLogicalTagClient(simulator, catalog, store, TimeProvider.System);
 
         _ = Assert.Throws<ArgumentNullException>(
-            () =>
+            static () =>
             {
                 using var invalid = new ABLogicalTagClient(null!);
             });
@@ -69,12 +71,9 @@ public sealed class ABPlcAdvancedCoverageTests
         _ = Assert.Throws<ArgumentNullException>(() => withClock.RegisterTag(null!));
         _ = Assert.Throws<NotSupportedException>(
             () => withClock.CreateTag("Unsupported", "UnsupportedPhysical", "decimal"));
-        _ = Assert.Throws<ArgumentNullException>(
-            () => withClock.ReadManyAsync(null!).GetAwaiter().GetResult());
-        _ = Assert.Throws<ArgumentNullException>(
-            () => withClock.WriteAsync(null!).GetAwaiter().GetResult());
-        _ = Assert.Throws<ArgumentNullException>(
-            () => withClock.WriteManyAsync(null!).GetAwaiter().GetResult());
+        await Assert.That(async () => await withClock.ReadManyAsync(null!)).Throws<ArgumentNullException>();
+        await Assert.That(async () => await withClock.WriteAsync(null!)).Throws<ArgumentNullException>();
+        await Assert.That(async () => await withClock.WriteManyAsync(null!)).Throws<ArgumentNullException>();
         _ = Assert.Throws<ArgumentNullException>(() => withClock.ObserveMany(null!));
 
         withClock.Dispose();
@@ -99,11 +98,11 @@ public sealed class ABPlcAdvancedCoverageTests
         simulator.ScanEnabled = false;
         var now = TimeProvider.System.GetUtcNow();
 
-        var normalWrite = await client.WriteAsync(new LogicalTagValue(ValueTagName, SampleValue, now));
+        var normalWrite = await client.WriteAsync(new(ValueTagName, SampleValue, now));
         simulator.QueueFault(ABPlcSimulatorOperation.Write, PlcTagStatus.ErrWrite, 1, ValuePhysicalTagName);
-        var failedWrite = await client.WriteAsync(new LogicalTagValue(ValueTagName, SampleValue, now));
+        var failedWrite = await client.WriteAsync(new(ValueTagName, SampleValue, now));
         simulator.QueueFault(ABPlcSimulatorOperation.Write, PlcTagStatus.ErrWrite, 1, BitPhysicalTagName);
-        var failedBitWrite = await client.WriteAsync(new LogicalTagValue(BitTagName, true, now));
+        var failedBitWrite = await client.WriteAsync(new(BitTagName, true, now));
 
         await Assert.That(normalWrite.Succeeded).IsTrue();
         await Assert.That(failedWrite.Succeeded).IsFalse();
@@ -134,8 +133,8 @@ public sealed class ABPlcAdvancedCoverageTests
 
         var results = await client.ReadManyAsync(projections);
 
-        await Assert.That(results.All(static result => result.Succeeded)).IsTrue();
-        await Assert.That(results.All(static result => result.Value!.Value is true)).IsTrue();
+        await Assert.That(AllMatch(results, static result => result.Succeeded)).IsTrue();
+        await Assert.That(AllMatch(results, static result => result.Value!.Value is true)).IsTrue();
     }
 
     /// <summary>Exercises loopback ping paths and facade overload forwarding.</summary>
@@ -146,12 +145,12 @@ public sealed class ABPlcAdvancedCoverageTests
         using var publicPlc = new ABPlc(LoopbackAddress, PlcType.SLC);
         using var publicPlcWithSlot = new ABPlc(LoopbackAddress, PlcType.SLC, null);
         _ = Assert.Throws<ArgumentException>(
-            () =>
+            static () =>
             {
                 using var invalid = new ABPlc(LoopbackAddress, PlcType.LGX);
             });
         _ = Assert.Throws<ArgumentNullException>(
-            () =>
+            static () =>
             {
                 using var invalid = new ABPlc(LoopbackAddress, PlcType.SLC, null, null!);
             });
@@ -185,7 +184,7 @@ public sealed class ABPlcAdvancedCoverageTests
     /// <param name="client">The client.</param>
     private static void RegisterBitTag(ABLogicalTagClient client) =>
         client.RegisterTag(
-            new LogicalTag(
+            new(
                 BitTagName,
                 BitPhysicalTagName,
                 "bool",
@@ -241,7 +240,7 @@ public sealed class ABPlcAdvancedCoverageTests
         DateTimeOffset now)
     {
         await Assert.That(simulator.RemoveTagItem(ValueTagName)).IsTrue();
-        var missingWrite = await client.WriteAsync(new LogicalTagValue(ValueTagName, SampleValue, now));
+        var missingWrite = await client.WriteAsync(new(ValueTagName, SampleValue, now));
         var missingRead = await client.ReadAsync(ValueTagName);
         var missingBulkWrite = await client.WriteManyAsync(
             [new LogicalTagValue(ValueTagName, SampleValue, now)]);
@@ -249,8 +248,8 @@ public sealed class ABPlcAdvancedCoverageTests
 
         await Assert.That(missingWrite.Succeeded).IsFalse();
         await Assert.That(missingRead.Succeeded).IsFalse();
-        await Assert.That(missingBulkWrite.Single().Succeeded).IsFalse();
-        await Assert.That(missingBulkRead.Single().Succeeded).IsFalse();
+        await Assert.That(missingBulkWrite[0].Succeeded).IsFalse();
+        await Assert.That(missingBulkRead[0].Succeeded).IsFalse();
     }
 
     /// <summary>Registers and seeds one integral bit projection.</summary>
@@ -271,7 +270,7 @@ public sealed class ABPlcAdvancedCoverageTests
         T value)
     {
         client.RegisterTag(
-            new LogicalTag(
+            new(
                 name,
                 address,
                 dataType,
@@ -308,6 +307,24 @@ public sealed class ABPlcAdvancedCoverageTests
     /// <returns>The simulator.</returns>
     private static ABPlcSimulator CreateSimulator() =>
         new(PlcType.LGX, ScanInterval, OperationTimeout, "1,0", TimeProvider.System);
+
+    /// <summary>Determines whether every value satisfies a predicate.</summary>
+    /// <typeparam name="T">The value type.</typeparam>
+    /// <param name="values">The values to inspect.</param>
+    /// <param name="predicate">The predicate to apply.</param>
+    /// <returns><see langword="true"/> when every value matches; otherwise, <see langword="false"/>.</returns>
+    private static bool AllMatch<T>(IEnumerable<T> values, Func<T, bool> predicate)
+    {
+        foreach (var value in values)
+        {
+            if (!predicate(value))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     /// <summary>Observer that forwards values to an action.</summary>
     /// <typeparam name="T">The observed value type.</typeparam>

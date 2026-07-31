@@ -3,19 +3,22 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using IoT.DriverCore.Core;
-using IoT.DriverCore.S7PlcRx.SourceGeneration;
-using IoT.DriverCore.S7PlcRx.SourceGenerators;
+using IoT.Driver.Core;
+using IoT.Driver.S7PlcRx.SourceGeneration;
+using IoT.Driver.S7PlcRx.SourceGenerators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using ReflectionAssembly = System.Reflection.Assembly;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.SourceGenerators;
+namespace IoT.Driver.S7PlcRx.Tests.SourceGenerators;
 
 /// <summary>Tests for S7 tag binding source generation.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
 public sealed class S7TagBindingSourceGeneratorTests
 {
+    /// <summary>Gets compilation options for dynamically linked library test inputs.</summary>
+    internal static CSharpCompilationOptions DynamicallyLinkedLibraryCompilationOptions { get; } = new(OutputKind.DynamicallyLinkedLibrary);
+
     /// <summary>Gets the debugger display text.</summary>
     [System.Diagnostics.DebuggerBrowsable(System.Diagnostics.DebuggerBrowsableState.Never)]
     private string DebuggerDisplay
@@ -30,7 +33,7 @@ public sealed class S7TagBindingSourceGeneratorTests
     {
         System.Diagnostics.Debug.WriteLine(DebuggerDisplay);
         const string source = """
-            using IoT.DriverCore.S7PlcRx.SourceGeneration;
+            using IoT.Driver.S7PlcRx.SourceGeneration;
 
             namespace Demo;
 
@@ -52,9 +55,9 @@ public sealed class S7TagBindingSourceGeneratorTests
         var generated = string.Join("\n---\n", result.GeneratedTrees.Select(static tree => tree.GetText().ToString()));
 
         await TUnit.Assertions.Assert.That(generated)
-            .Contains("global::IoT.DriverCore.S7PlcRx.Binding.S7TagRuntimeBinding.Bind");
+            .Contains("global::IoT.Driver.S7PlcRx.Binding.S7TagRuntimeBinding.Bind");
         await TUnit.Assertions.Assert.That(generated)
-            .Contains("new global::IoT.DriverCore.S7PlcRx.Binding.S7TagDefinition");
+            .Contains("new global::IoT.Driver.S7PlcRx.Binding.S7TagDefinition");
         await TUnit.Assertions.Assert.That(generated).Contains("nameof(Temperature)");
         await TUnit.Assertions.Assert.That(generated).Contains("\"DB1.DBD0\"");
         await TUnit.Assertions.Assert.That(generated).Contains("S7TagDirection.ReadOnly");
@@ -71,7 +74,7 @@ public sealed class S7TagBindingSourceGeneratorTests
     {
         System.Diagnostics.Debug.WriteLine(DebuggerDisplay);
         const string source = """
-            using IoT.DriverCore.S7PlcRx.SourceGeneration;
+            using IoT.Driver.S7PlcRx.SourceGeneration;
 
             namespace Demo;
 
@@ -101,7 +104,7 @@ public sealed class S7TagBindingSourceGeneratorTests
     {
         System.Diagnostics.Debug.WriteLine(DebuggerDisplay);
         const string source = """
-            using IoT.DriverCore.S7PlcRx.SourceGeneration;
+            using IoT.Driver.S7PlcRx.SourceGeneration;
 
             [S7PlcBinding]
             public class MachineTags
@@ -112,7 +115,11 @@ public sealed class S7TagBindingSourceGeneratorTests
             """;
 
         var result = RunGenerator(source, validateOutputCompilation: false);
-        var identifiers = result.Diagnostics.Select(static diagnostic => diagnostic.Id).ToArray();
+        var identifiers = new List<string>();
+        foreach (var diagnostic in result.Diagnostics)
+        {
+            identifiers.Add(diagnostic.Id);
+        }
 
         await TUnit.Assertions.Assert.That(identifiers).Contains("S7GEN001");
         await TUnit.Assertions.Assert.That(identifiers).Contains("S7GEN002");
@@ -153,7 +160,7 @@ public sealed class S7TagBindingSourceGeneratorTests
             "GeneratorTests",
             [syntaxTree],
             references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            DynamicallyLinkedLibraryCompilationOptions);
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             [new S7TagBindingSourceGenerator().AsSourceGenerator()],
@@ -163,16 +170,28 @@ public sealed class S7TagBindingSourceGeneratorTests
             out var outputCompilation,
             out var generatorDiagnostics);
 
-        var errors = generatorDiagnostics
-            .Concat(outputCompilation.GetDiagnostics())
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .Select(static diagnostic => diagnostic.ToString())
-            .ToArray();
-        if (validateOutputCompilation && errors.Length > 0)
+        var errors = new List<string>();
+        AddErrors(generatorDiagnostics, errors);
+        AddErrors(outputCompilation.GetDiagnostics(), errors);
+        if (validateOutputCompilation && errors.Count > 0)
         {
             throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
         }
 
         return driver.GetRunResult();
+    }
+
+    /// <summary>Adds error diagnostics to the supplied collection.</summary>
+    /// <param name="diagnostics">The diagnostics to inspect.</param>
+    /// <param name="errors">The collection that receives error diagnostic text.</param>
+    private static void AddErrors(IEnumerable<Diagnostic> diagnostics, List<string> errors)
+    {
+        foreach (var diagnostic in diagnostics)
+        {
+            if (diagnostic.Severity == DiagnosticSeverity.Error)
+            {
+                errors.Add(diagnostic.ToString());
+            }
+        }
     }
 }

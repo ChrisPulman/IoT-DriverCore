@@ -5,9 +5,9 @@
 using System.Collections.Generic;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Channels;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core.Channels;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core.Channels;
+namespace IoT.Driver.OmronPlcRx.Core.Channels;
 #endif
 
 /// <summary>Provides Toolbus serial frame buffer helpers.</summary>

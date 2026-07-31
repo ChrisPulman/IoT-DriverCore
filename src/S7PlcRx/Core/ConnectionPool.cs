@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Enterprise;
+using IoT.Driver.S7PlcRx.Reactive.Enterprise;
 #else
-using IoT.DriverCore.S7PlcRx.Enterprise;
+using IoT.Driver.S7PlcRx.Enterprise;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Core;
+namespace IoT.Driver.S7PlcRx.Reactive.Core;
 #else
-namespace IoT.DriverCore.S7PlcRx.Core;
+namespace IoT.Driver.S7PlcRx.Core;
 #endif
 
 /// <summary>
@@ -50,10 +50,7 @@ public class ConnectionPool : IDisposable
     {
         _config = poolConfig ?? throw new ArgumentNullException(nameof(poolConfig));
 
-        if (connectionConfigs is null)
-        {
-            throw new ArgumentNullException(nameof(connectionConfigs));
-        }
+        Guard.NotNull(connectionConfigs, nameof(connectionConfigs));
 
         var addedConnections = 0;
         foreach (var config in connectionConfigs)
@@ -78,12 +75,17 @@ public class ConnectionPool : IDisposable
     {
         _config = poolConfig ?? throw new ArgumentNullException(nameof(poolConfig));
 
-        if (connections is null)
-        {
-            throw new ArgumentNullException(nameof(connections));
-        }
+        Guard.NotNull(connections, nameof(connections));
 
-        _connections.AddRange(connections.Take(poolConfig.MaxConnections));
+        foreach (var connection in connections)
+        {
+            if (_connections.Count >= poolConfig.MaxConnections)
+            {
+                break;
+            }
+
+            _connections.Add(connection);
+        }
     }
 
     /// <summary>Gets the maximum number of connections in the pool.</summary>

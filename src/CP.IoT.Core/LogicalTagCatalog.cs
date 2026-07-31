@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.Core;
+namespace IoT.Driver.Core;
 
 /// <summary>Thread-safe in-memory implementation of <see cref="ILogicalTagCatalog"/>.</summary>
 public sealed class LogicalTagCatalog : ILogicalTagCatalog, IDisposable
@@ -132,7 +132,11 @@ public sealed class LogicalTagCatalog : ILogicalTagCatalog, IDisposable
 
         try
         {
-            return _tags.Values.OrderBy(static tag => tag.Name, StringComparer.Ordinal).ToArray();
+            var tags = new List<LogicalTag>(_tags.Count);
+            tags.AddRange(_tags.Values);
+
+            tags.Sort(static (left, right) => StringComparer.Ordinal.Compare(left.Name, right.Name));
+            return tags.ToArray();
         }
         finally
         {

@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Performance;
+using IoT.Driver.S7PlcRx.Performance;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Performance;
+namespace IoT.Driver.S7PlcRx.Tests.Performance;
 
 /// <summary>Provides deterministic coverage for S7 performance helpers.</summary>
 public sealed class S7PerformanceDeterministicCoverageTests
@@ -33,7 +33,7 @@ public sealed class S7PerformanceDeterministicCoverageTests
         await TUnit.Assertions.Assert.That(values[FirstTagName]).IsEqualTo(Value);
         await TUnit.Assertions.Assert.That(plc.WrittenValues[FirstTagName]).IsEqualTo(Value);
         await TUnit.Assertions.Assert.That(plc.WrittenValues.ContainsKey("Other")).IsFalse();
-        await TUnit.Assertions.Assert.That(() => new HighPerformanceTagGroup<int>(null!, "Line", [FirstTagName]))
+        await TUnit.Assertions.Assert.That(static () => new HighPerformanceTagGroup<int>(null!, "Line", [FirstTagName]))
             .Throws<ArgumentNullException>();
         await TUnit.Assertions.Assert.That(() => new HighPerformanceTagGroup<int>(plc, " ", [FirstTagName]))
             .Throws<ArgumentException>();
@@ -51,12 +51,12 @@ public sealed class S7PerformanceDeterministicCoverageTests
         var reads = await PerformanceExtensions.ReadOptimizedAsync(plc, [FirstTagName], Value, null);
         var writes = await PerformanceExtensions.WriteOptimizedAsync(plc, new Dictionary<string, int> { [FirstTagName] = Value }, null);
         var statistics = PerformanceExtensions.GetPerformanceStatistics(plc, TimeProvider.System);
-        Func<Task> nullRead = async () => _ = await PerformanceExtensions.ReadOptimizedAsync(
+        Func<Task> nullRead = static async () => _ = await PerformanceExtensions.ReadOptimizedAsync(
             null!,
             [FirstTagName],
             Value,
             null);
-        Func<Task> nullWrite = async () => _ = await PerformanceExtensions.WriteOptimizedAsync<int>(null!, [], null);
+        Func<Task> nullWrite = static async () => _ = await PerformanceExtensions.WriteOptimizedAsync<int>(null!, [], null);
 
         await TUnit.Assertions.Assert.That(reads[FirstTagName]).IsEqualTo(Value);
         await TUnit.Assertions.Assert.That(writes.SuccessfulWrites.ContainsKey(FirstTagName)).IsTrue();
@@ -65,7 +65,7 @@ public sealed class S7PerformanceDeterministicCoverageTests
             .Throws<ArgumentNullException>();
         await TUnit.Assertions.Assert.That(nullWrite)
             .Throws<ArgumentNullException>();
-        await TUnit.Assertions.Assert.That(() => PerformanceExtensions.GetPerformanceStatistics(null!))
+        await TUnit.Assertions.Assert.That(static () => PerformanceExtensions.GetPerformanceStatistics(null!))
             .Throws<ArgumentNullException>();
     }
 }

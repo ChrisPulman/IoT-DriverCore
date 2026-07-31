@@ -4,20 +4,20 @@
 
 using System.Diagnostics;
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Message;
+using IoT.Driver.ModbusRx.Reactive.Message;
 #else
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Message;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Utility;
+using IoT.Driver.ModbusRx.Reactive.Utility;
 #else
-using IoT.DriverCore.ModbusRx.Utility;
+using IoT.Driver.ModbusRx.Utility;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.IO;
+namespace IoT.Driver.ModbusRx.Reactive.IO;
 #else
-namespace IoT.DriverCore.ModbusRx.IO;
+namespace IoT.Driver.ModbusRx.IO;
 #endif
 
 /// <summary>Refined Abstraction - http://en.wikipedia.org/wiki/Bridge_Pattern.</summary>
@@ -123,7 +123,7 @@ internal sealed class ModbusRtuTransport : ModbusSerialTransport
             int br;
             try
             {
-                br = StreamResource.ReadAsync(frameBytes, i, 1).GetAwaiter().GetResult();
+                br = WaitForCompletion(StreamResource.ReadAsync(frameBytes, i, 1));
             }
             catch (TimeoutException error)
             {
@@ -148,7 +148,7 @@ internal sealed class ModbusRtuTransport : ModbusSerialTransport
 
     internal override byte[] BuildMessageFrame(IModbusMessage message)
     {
-        var messageFrame = message.MessageFrame;
+        var messageFrame = message.ToMessageFrame();
         var crc = ModbusUtility.CalculateCrc(messageFrame);
         using var messageBody = new MemoryStream(messageFrame.Length + crc.Length);
 
@@ -160,7 +160,7 @@ internal sealed class ModbusRtuTransport : ModbusSerialTransport
 
     internal override bool ChecksumsMatch(IModbusMessage message, byte[] messageFrame) =>
         BitConverter.ToUInt16(messageFrame, messageFrame.Length - Two) ==
-            BitConverter.ToUInt16(ModbusUtility.CalculateCrc(message.MessageFrame), 0);
+            BitConverter.ToUInt16(ModbusUtility.CalculateCrc(message.ToMessageFrame()), 0);
 
     internal override Task<IModbusMessage> ReadResponseAsync<T>(Func<T> responseFactory)
     {

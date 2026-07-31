@@ -5,18 +5,18 @@
 using System.IO.Ports;
 
 #if REACTIVE_SHIM
-using InMemoryPortPair = IoT.DriverCore.Serial.Reactive.InMemoryPortRxPair;
+using InMemoryPortPair = IoT.Driver.Serial.Reactive.InMemoryPortRxPair;
 #else
-using InMemoryPortPair = IoT.DriverCore.Serial.InMemoryPortRxPair;
+using InMemoryPortPair = IoT.Driver.Serial.InMemoryPortRxPair;
 #endif
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 #endif
 
@@ -77,9 +77,15 @@ internal sealed class MitsubishiReactiveSerialTransportTests
         await Assert.That(adapter.IsOpen).IsTrue();
         await Assert.That(peerRead).IsEqualTo(peerBuffer.Length);
         await Assert.That(peerBuffer).IsEquivalentTo(AdapterRequest);
-        await Assert.That(written.Single()).IsEquivalentTo(peerBuffer);
-        await Assert.That(received.SelectMany(static value => value))
-            .IsEquivalentTo(AdapterResponse);
+        await Assert.That(written).Count().IsEqualTo(1);
+        await Assert.That(written[0]).IsEquivalentTo(peerBuffer);
+        var receivedBytes = new List<byte>();
+        foreach (var receivedChunk in received)
+        {
+            receivedBytes.AddRange(receivedChunk);
+        }
+
+        await Assert.That(receivedBytes).IsEquivalentTo(AdapterResponse);
 
         adapter.Close();
         await Assert.That(adapter.IsOpen).IsFalse();
@@ -105,7 +111,7 @@ internal sealed class MitsubishiReactiveSerialTransportTests
         var request = new byte[] { 0x05, 0x30 };
         var requestBuffer = new byte[request.Length];
         var exchangeTask = transport.ExchangeAsync(
-            new MitsubishiTransportRequest(request, null, "In-memory serial exchange"),
+            new(request, null, "In-memory serial exchange"),
             CancellationToken.None).AsTask();
         await WaitUntilAsync(() => pair.Second.BytesToRead >= request.Length);
         var peerRead = await pair.Second
@@ -128,30 +134,28 @@ internal sealed class MitsubishiReactiveSerialTransportTests
     internal async Task TransportGuardrailsAreDeterministicAsync()
     {
         var unconfigured = new ReactiveSerialMitsubishiTransport();
-        _ = Assert.Throws<InvalidOperationException>(
-            () => unconfigured.ExchangeAsync(
-                new MitsubishiTransportRequest([1], null, "Unconfigured serial"),
-                CancellationToken.None).AsTask().GetAwaiter().GetResult());
-        _ = Assert.Throws<InvalidOperationException>(
-            () => unconfigured.ConnectAsync(
-                new MitsubishiClientOptions(
+        _ = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await unconfigured.ExchangeAsync(
+                new([1], null, "Unconfigured serial"),
+                CancellationToken.None));
+        _ = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await unconfigured.ConnectAsync(
+                new(
                     "127.0.0.1",
                     ValidationPort,
                     MitsubishiFrameType.ThreeE,
                     CommunicationDataCode.Binary,
                     MitsubishiTransportKind.Tcp),
-                CancellationToken.None).AsTask().GetAwaiter().GetResult());
-        _ = Assert.Throws<ArgumentNullException>(
-            () => unconfigured.ConnectAsync(null!, CancellationToken.None)
-                .AsTask().GetAwaiter().GetResult());
-        _ = Assert.Throws<ArgumentNullException>(
-            () => unconfigured.ExchangeAsync(null!, CancellationToken.None)
-                .AsTask().GetAwaiter().GetResult());
+                CancellationToken.None));
+        _ = await Assert.ThrowsAsync<ArgumentNullException>(
+            async () => await unconfigured.ConnectAsync(null!, CancellationToken.None));
+        _ = await Assert.ThrowsAsync<ArgumentNullException>(
+            async () => await unconfigured.ExchangeAsync(null!, CancellationToken.None));
         await unconfigured.DisconnectAsync(CancellationToken.None);
         unconfigured.Dispose();
 
         _ = Assert.Throws<ArgumentNullException>(
-            () =>
+            static () =>
             {
                 var unexpected = new ReactiveSerialMitsubishiTransport(null!);
                 GC.KeepAlive(unexpected);
@@ -164,9 +168,10 @@ internal sealed class MitsubishiReactiveSerialTransportTests
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         using var cancellation = new CancellationTokenSource(SerialTimeout);
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(1));
         while (!condition())
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(1), cancellation.Token);
+            await timer.WaitForNextTickAsync(cancellation.Token);
         }
     }
 

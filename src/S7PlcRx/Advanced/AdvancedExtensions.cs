@@ -3,22 +3,25 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+#if NET5_0_OR_GREATER
+using System.Runtime.InteropServices;
+#endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.BatchOperations;
-using IoT.DriverCore.S7PlcRx.Reactive.Enums;
-using IoT.DriverCore.S7PlcRx.Reactive.Performance;
-using IoT.DriverCore.S7PlcRx.Reactive.Production;
+using IoT.Driver.S7PlcRx.Reactive.BatchOperations;
+using IoT.Driver.S7PlcRx.Reactive.Enums;
+using IoT.Driver.S7PlcRx.Reactive.Performance;
+using IoT.Driver.S7PlcRx.Reactive.Production;
 #else
-using IoT.DriverCore.S7PlcRx.BatchOperations;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.Performance;
-using IoT.DriverCore.S7PlcRx.Production;
+using IoT.Driver.S7PlcRx.BatchOperations;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Performance;
+using IoT.Driver.S7PlcRx.Production;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Advanced;
+namespace IoT.Driver.S7PlcRx.Reactive.Advanced;
 #else
-namespace IoT.DriverCore.S7PlcRx.Advanced;
+namespace IoT.Driver.S7PlcRx.Advanced;
 #endif
 
 /// <summary>
@@ -75,10 +78,7 @@ public static class AdvancedExtensions
         T typeValue,
         params string[] variables)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc), PlcNullMessage);
-        }
+        Guard.NotNull(plc, nameof(plc));
 
         if (variables is null || variables.Length == 0)
         {
@@ -104,8 +104,8 @@ public static class AdvancedExtensions
 
         return plc.ObserveAll
             .Where(t => t is not null && variables.Contains(t.Name) && TagValueIsValid<T>(t))
-            .Select(t => new KeyValuePair<string, T?>(t!.Name!, (T?)t.Value))
-            .Scan(new Dictionary<string, T?>(), (acc, kvp) =>
+            .Select(static t => new KeyValuePair<string, T?>(t!.Name!, (T?)t.Value))
+            .Scan(new Dictionary<string, T?>(), static (acc, kvp) =>
             {
                 acc[kvp.Key] = kvp.Value;
                 return new Dictionary<string, T?>(acc);
@@ -135,10 +135,7 @@ public static class AdvancedExtensions
         T typeValue,
         params string[] variables)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc), PlcNullMessage);
-        }
+        Guard.NotNull(plc, nameof(plc));
 
         return await AsyncExtensions.ReadValuesAsync(
             plc,
@@ -162,10 +159,7 @@ public static class AdvancedExtensions
             return;
         }
 
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc), PlcNullMessage);
-        }
+        Guard.NotNull(plc, nameof(plc));
 
         await AsyncExtensions.WriteValuesAsync(plc, values, CancellationToken.None).ConfigureAwait(false);
     }
@@ -190,10 +184,7 @@ public static class AdvancedExtensions
         Dictionary<string, string> tagMapping,
         int timeoutMs)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc), PlcNullMessage);
-        }
+        Guard.NotNull(plc, nameof(plc));
 
         var result = new BatchReadResult<T>();
 
@@ -238,10 +229,7 @@ public static class AdvancedExtensions
         bool verifyWrites,
         bool enableRollback)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc), PlcNullMessage);
-        }
+        Guard.NotNull(plc, nameof(plc));
 
         var result = new BatchWriteResult();
         var originalValues = new Dictionary<string, T>();
@@ -293,10 +281,7 @@ public static class AdvancedExtensions
     /// <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception>
     public static async Task<ProductionDiagnostics> GetDiagnosticsAsync(IRxS7 plc, TimeProvider timeProvider)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc), PlcNullMessage);
-        }
+        Guard.NotNull(plc, nameof(plc));
 
         var diagnostics = new ProductionDiagnostics
         {
@@ -353,10 +338,7 @@ public static class AdvancedExtensions
         TimeSpan monitoringDuration,
         TimeProvider timeProvider)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc), PlcNullMessage);
-        }
+        Guard.NotNull(plc, nameof(plc));
 
         var analysis = new PerformanceAnalysis { StartTime = timeProvider.GetUtcNow().UtcDateTime };
         var tagChangeCounts = new ConcurrentDictionary<string, int>();
@@ -378,7 +360,7 @@ public static class AdvancedExtensions
                 }
 
                 lastValues[tag.Name] = tag.Value;
-                _ = tagChangeCounts.AddOrUpdate(tag.Name, 1, (_, count) => count + 1);
+                _ = tagChangeCounts.AddOrUpdate(tag.Name, 1, static (_, count) => count + 1);
             });
 
         // Monitor for specified duration
@@ -471,7 +453,15 @@ public static class AdvancedExtensions
     private static void CollectTagMetrics(IRxS7 plc, ProductionDiagnostics diagnostics)
     {
         var allTags = plc.TagList.ToList();
-        var inactiveTags = allTags.Count(tag => tag.DoNotPoll);
+        var inactiveTags = 0;
+        foreach (var tag in allTags)
+        {
+            if (tag.DoNotPoll)
+            {
+                inactiveTags++;
+            }
+        }
+
         diagnostics.TagMetrics = new ProductionTagMetrics
         {
             TotalTags = allTags.Count,
@@ -512,6 +502,15 @@ public static class AdvancedExtensions
         foreach (var mapping in tagMapping)
         {
             var dataBlock = ExtractDataBlockId(mapping.Value);
+#if NET5_0_OR_GREATER
+            ref var group = ref CollectionsMarshal.GetValueRefOrAddDefault(dataBlockGroups, dataBlock, out var exists);
+            if (!exists)
+            {
+                group = [];
+            }
+
+            group!.Add(mapping);
+#else
             if (!dataBlockGroups.TryGetValue(dataBlock, out var group))
             {
                 group = [];
@@ -519,6 +518,7 @@ public static class AdvancedExtensions
             }
 
             group.Add(mapping);
+#endif
         }
 
         return dataBlockGroups;

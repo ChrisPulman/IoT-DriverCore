@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.Core;
+namespace IoT.Driver.Core;
 
 /// <summary>Provides typed convenience methods that compose implementations of logical tag contracts.</summary>
 public static class LogicalTagMixins
@@ -52,7 +52,12 @@ public static class LogicalTagMixins
                 throw new ArgumentNullException(nameof(tagNames));
             }
 
-            var names = tagNames.Select(name => LogicalTag.Required(name, nameof(tagNames))).ToArray();
+            var names = new List<string>();
+            foreach (var tagName in tagNames)
+            {
+                names.Add(LogicalTag.Required(tagName, nameof(tagNames)));
+            }
+
             return reader.ReadManyAsync(names, cancellationToken);
         }
     }
@@ -104,9 +109,9 @@ public static class LogicalTagMixins
                 throw new ArgumentNullException(nameof(values));
             }
 
-            var materialized = values.ToArray();
+            var materialized = new List<LogicalTagValue>(values);
 
-            if (materialized.Any(static v => v is null))
+            if (materialized.Exists(static value => value is null))
             {
                 throw new ArgumentException("Values cannot contain null entries.", nameof(values));
             }

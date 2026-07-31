@@ -4,19 +4,19 @@
 
 using System.Diagnostics;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Core;
-using IoT.DriverCore.S7PlcRx.Reactive.Enums;
+using IoT.Driver.S7PlcRx.Reactive.Core;
+using IoT.Driver.S7PlcRx.Reactive.Enums;
 #else
-using IoT.DriverCore.S7PlcRx.Core;
-using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Core;
+using IoT.Driver.S7PlcRx.Enums;
 #endif
 
 using DateTime = System.DateTime;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive;
+namespace IoT.Driver.S7PlcRx.Reactive;
 #else
-namespace IoT.DriverCore.S7PlcRx;
+namespace IoT.Driver.S7PlcRx;
 #endif
 
 /// <summary>
@@ -290,10 +290,7 @@ public partial class RxS7 : IRxS7
     public RxS7(RxS7Options options, TimeProvider timeProvider)
     {
         _timeProvider = timeProvider;
-        if (options is null)
-        {
-            throw new ArgumentNullException(nameof(options));
-        }
+        Guard.NotNull(options, nameof(options));
 
         var connection = options.Connection ??
             throw new ArgumentNullException(nameof(options), "Connection options cannot be null.");
@@ -446,7 +443,7 @@ public partial class RxS7 : IRxS7
         Guard.NotNull(tag, nameof(tag));
         return ObserveAll
             .Where(t => TagValueIsValid<T>(t, tag.Name))
-            .Select(t => (T?)t?.Value)
+            .Select(static t => (T?)t?.Value)
             .OnErrorRetry()
             .Publish()
             .RefCount();
@@ -466,7 +463,7 @@ public partial class RxS7 : IRxS7
         _pause = true;
         try
         {
-            _ = await _paused.Where(x => x).FirstAsync();
+            _ = await _paused.Where(static x => x).FirstAsync();
             var storedTag = TagList[tag.Name];
             if (storedTag?.Type == typeof(object))
             {

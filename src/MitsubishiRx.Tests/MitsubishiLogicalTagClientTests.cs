@@ -2,14 +2,14 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Tests common logical-tag composition.</summary>
@@ -59,7 +59,7 @@ internal sealed class MitsubishiLogicalTagClientTests
             null);
         using var logical = owner.CreateLogicalTagClient(null, null, null);
 
-        logical.RegisterTag(new LogicalTag(
+        logical.RegisterTag(new(
             MotorSpeedTagName,
             "D100",
             "Float",
@@ -121,7 +121,13 @@ internal sealed class MitsubishiLogicalTagClientTests
             using var reloaded = reloadedOwner.CreateLogicalTagClient(null, null, store);
             var loaded = await reloaded.LoadTagsAsync(CancellationToken.None);
 
-            await Assert.That(loaded.Select(static item => item.Name)).IsEquivalentTo(["Mode"]);
+            var loadedTagNames = new string[loaded.Count];
+            for (var index = 0; index < loaded.Count; index++)
+            {
+                loadedTagNames[index] = loaded[index].Name;
+            }
+
+            await Assert.That(loadedTagNames).IsEquivalentTo(["Mode"]);
             await Assert.That(reloadedOwner.TagDatabase!.GetRequired("Mode").Address).IsEqualTo("D101");
             await Assert.That(await reloaded.DeleteTagAsync("Mode", CancellationToken.None)).IsTrue();
             await Assert.That(await reloaded.GetTagAsync("Mode", CancellationToken.None)).IsNull();
@@ -196,7 +202,7 @@ internal sealed class MitsubishiLogicalTagClientTests
 
         logical.Dispose();
         _ = Assert.Throws<ObjectDisposedException>(
-            () => logical.RegisterTag(new LogicalTag("Disposed", "D200", UInt16DataType)));
+            () => logical.RegisterTag(new("Disposed", "D200", UInt16DataType)));
     }
 
     /// <summary>Registers tags used by logical operation tests.</summary>
@@ -219,7 +225,7 @@ internal sealed class MitsubishiLogicalTagClientTests
                 new LogicalTagOptions { AccessMode = LogicalTagAccessMode.Write }),
         ]);
         return logical.CreateTag(
-            new MitsubishiLogicalTagRegistration(
+            new(
                 CreatedTagName,
                 "D103",
                 UInt16DataType,

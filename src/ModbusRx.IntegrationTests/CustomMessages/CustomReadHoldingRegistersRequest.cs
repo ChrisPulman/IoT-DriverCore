@@ -5,9 +5,9 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.IntegrationTests.CustomMessages;
+namespace IoT.Driver.ModbusRx.IntegrationTests.CustomMessages;
 
 /// <summary>Custom read holding registers request.</summary>
 /// <seealso cref="IModbusMessage" />
@@ -40,37 +40,6 @@ public class CustomReadHoldingRegistersRequest(
     /// <summary>The frame index at which the number of points begins.</summary>
     private const int NumberOfPointsIndex = 4;
 
-    /// <summary>Gets composition of the slave address and protocol data unit.</summary>
-    public byte[] MessageFrame
-    {
-        get
-        {
-            var frame = new List<byte>
-            {
-                SlaveAddress,
-            };
-            frame.AddRange(ProtocolDataUnit);
-
-            return frame.ToArray();
-        }
-    }
-
-    /// <summary>Gets composition of the function code and message data.</summary>
-    public byte[] ProtocolDataUnit
-    {
-        get
-        {
-            var pdu = new List<byte>
-            {
-                FunctionCode,
-            };
-            pdu.AddRange(BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)StartAddress)));
-            pdu.AddRange(BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)NumberOfPoints)));
-
-            return pdu.ToArray();
-        }
-    }
-
     /// <summary>Gets or sets a unique identifier assigned to a message when using the IP protocol.</summary>
     public ushort TransactionId { get; set; }
 
@@ -92,16 +61,38 @@ public class CustomReadHoldingRegistersRequest(
     /// </value>
     public ushort NumberOfPoints { get; set; } = numberOfPoints;
 
+    /// <inheritdoc/>
+    public byte[] ToMessageFrame()
+    {
+        var frame = new List<byte>
+        {
+            SlaveAddress,
+        };
+        frame.AddRange(ToProtocolDataUnit());
+
+        return frame.ToArray();
+    }
+
+    /// <inheritdoc/>
+    public byte[] ToProtocolDataUnit()
+    {
+        var pdu = new List<byte>
+        {
+            FunctionCode,
+        };
+        pdu.AddRange(BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)StartAddress)));
+        pdu.AddRange(BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)NumberOfPoints)));
+
+        return pdu.ToArray();
+    }
+
     /// <summary>Initializes a modbus message from the specified message frame.</summary>
     /// <param name="frame">Bytes of Modbus frame.</param>
     /// <exception cref="System.ArgumentNullException">frame.</exception>
     /// <exception cref="System.ArgumentException">Invalid frame. - frame.</exception>
     public void Initialize(byte[] frame)
     {
-        if (frame is null)
-        {
-            throw new ArgumentNullException(nameof(frame));
-        }
+        ArgumentNullException.ThrowIfNull(frame);
 
         if (frame.Length != FrameLength)
         {

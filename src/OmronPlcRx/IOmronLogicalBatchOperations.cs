@@ -7,9 +7,9 @@ using System.Threading;
 using System.Threading.Tasks;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive;
+namespace IoT.Driver.OmronPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.OmronPlcRx;
+namespace IoT.Driver.OmronPlcRx;
 #endif
 
 /// <summary>Abstracts grouped FINS memory operations used by the logical-tag client.</summary>

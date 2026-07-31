@@ -3,13 +3,14 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>Result returned by PLC tag operations.</summary>
 [Serializable]
+[System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
 public class PlcTagResult
 {
     /// <summary>Initializes a new instance of the <see cref="PlcTagResult"/> class.</summary>
@@ -49,6 +50,16 @@ public class PlcTagResult
     /// </value>
     public int StatusCode { get; }
 
+    /// <summary>Gets the debugger display text.</summary>
+    [System.Diagnostics.DebuggerBrowsable(System.Diagnostics.DebuggerBrowsableState.Never)]
+    private string DebuggerDisplay
+    {
+        get
+        {
+            return ToString();
+        }
+    }
+
     /// <summary>Reduce multiple result to one.</summary>
     /// <param name="results">The results.</param>
     /// <returns>
@@ -68,10 +79,7 @@ public class PlcTagResult
 #if NET8_0_OR_GREATER
         ArgumentExceptionHelper.ThrowIfNull(results, nameof(results));
 #else
-        if (results is null)
-        {
-            throw new ArgumentNullException(nameof(results));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(results, nameof(results));
 #endif
 
         IPlcTag? tag = null;
@@ -101,7 +109,7 @@ public class PlcTagResult
             }
         }
 
-        return new PlcTagResult(
+        return new(
             tag!,
             minTs == DateTimeOffset.MaxValue ? timeProvider.GetUtcNow() : minTs,
             execSum,

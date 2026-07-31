@@ -5,13 +5,13 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.IO;
-using IoT.DriverCore.ModbusRx.Message;
-using IoT.DriverCore.ModbusRx.Utility;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.IO;
+using IoT.Driver.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Utility;
 using Moq;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.IO;
+namespace IoT.Driver.ModbusRx.UnitTests.IO;
 
 /// <summary>Tests the ModbusTransportFixture behavior.</summary>
 public class ModbusTransportFixture
@@ -85,15 +85,15 @@ public class ModbusTransportFixture
 
         _ = mock.Setup(t => t.Write(It.IsNotNull<IModbusMessage>()));
         _ = mock.Setup(t => t.ReadResponseAsync(
-                It.IsAny<Func<ReadCoilsInputsResponse>>()).Result)
-            .Returns(new ReadCoilsInputsResponse(Modbus.ReadCoils, Num.Value2, 1, data));
+                It.IsAny<Func<ReadCoilsInputsResponse>>()))
+            .ReturnsAsync(new ReadCoilsInputsResponse(Modbus.ReadCoils, Num.Value2, 1, data));
         _ = mock.Setup(t => t.OnValidateResponse(It.IsNotNull<IModbusMessage>(), It.IsNotNull<IModbusMessage>()));
 
         var request = new ReadCoilsInputsRequest(Modbus.ReadCoils, Num.Value2, Num.Value3, Num.Value4);
         var expectedResponse = new ReadCoilsInputsResponse(Modbus.ReadCoils, Num.Value2, 1, data);
         var response = transport.UnicastMessage(request, static () => new ReadCoilsInputsResponse());
 
-        Assert.Equal(expectedResponse.MessageFrame, response.MessageFrame);
+        Assert.Equal(expectedResponse.ToMessageFrame(), response.ToMessageFrame());
         mock.VerifyAll();
     }
 
@@ -110,8 +110,8 @@ public class ModbusTransportFixture
         _ = mock.Setup(t => t.Write(It.IsNotNull<IModbusMessage>())).Callback(() => ++writeCallsCount);
 
         _ = mock.Setup(t => t.ReadResponseAsync(
-                It.IsAny<Func<ReadCoilsInputsResponse>>()).Result)
-            .Returns(new ReadCoilsInputsResponse(Modbus.ReadCoils, Num.Value2, 0, new DiscreteCollection()))
+                It.IsAny<Func<ReadCoilsInputsResponse>>()))
+            .ReturnsAsync(new ReadCoilsInputsResponse(Modbus.ReadCoils, Num.Value2, 0, new DiscreteCollection()))
             .Callback(() => ++readResponseCallsCount);
 
         _ = Assert.Throws<IOException>(
@@ -155,19 +155,20 @@ public class ModbusTransportFixture
 
         // Configure repeated slave exceptions to verify retry handling.
         _ = mock.Setup(t => t.ReadResponseAsync(
-                It.IsAny<Func<ReadHoldingInputRegistersResponse>>()).Result)
+                It.IsAny<Func<ReadHoldingInputRegistersResponse>>()))
             .Returns(() =>
             {
                 if (callsCount < transport.Retries + 1)
                 {
                     ++callsCount;
-                    return new SlaveExceptionResponse(
+                    return Task.FromResult<IModbusMessage>(new SlaveExceptionResponse(
                         1,
                         Modbus.ReadHoldingRegisters + Modbus.ExceptionOffset,
-                        Modbus.Acknowledge);
+                        Modbus.Acknowledge));
                 }
 
-                return new ReadHoldingInputRegistersResponse(Modbus.ReadHoldingRegisters, 1, new RegisterCollection(1));
+                return Task.FromResult<IModbusMessage>(
+                    new ReadHoldingInputRegistersResponse(Modbus.ReadHoldingRegisters, 1, new RegisterCollection(1)));
             });
 
         _ = mock.Setup(t => t.OnValidateResponse(It.IsNotNull<IModbusMessage>(), It.IsNotNull<IModbusMessage>()));
@@ -180,7 +181,7 @@ public class ModbusTransportFixture
         var response = transport.UnicastMessage(request, static () => new ReadHoldingInputRegistersResponse());
 
         Assert.Equal(transport.Retries + 1, callsCount);
-        Assert.Equal(expectedResponse.MessageFrame, response.MessageFrame);
+        Assert.Equal(expectedResponse.ToMessageFrame(), response.ToMessageFrame());
         mock.VerifyAll();
     }
 
@@ -201,8 +202,8 @@ public class ModbusTransportFixture
 
         // Configure repeated slave exceptions to verify retry handling.
         _ = mock.Setup(t => t.ReadResponseAsync(
-                It.IsAny<Func<ReadHoldingInputRegistersResponse>>()).Result)
-            .Returns(() => readResponseCallsCount == 0
+                It.IsAny<Func<ReadHoldingInputRegistersResponse>>()))
+            .Returns(() => Task.FromResult<IModbusMessage>(readResponseCallsCount == 0
                 ? new SlaveExceptionResponse(
                     1,
                     Modbus.ReadHoldingRegisters + Modbus.ExceptionOffset,
@@ -210,7 +211,7 @@ public class ModbusTransportFixture
                 : new ReadHoldingInputRegistersResponse(
                     Modbus.ReadHoldingRegisters,
                     1,
-                    new RegisterCollection(1)))
+                    new RegisterCollection(1))))
             .Callback(() => ++readResponseCallsCount);
 
         _ = mock.Setup(t => t.OnValidateResponse(It.IsNotNull<IModbusMessage>(), It.IsNotNull<IModbusMessage>()));
@@ -224,7 +225,7 @@ public class ModbusTransportFixture
 
         Assert.Equal(Num.Value2, writeCallsCount);
         Assert.Equal(Num.Value2, readResponseCallsCount);
-        Assert.Equal(expectedResponse.MessageFrame, response.MessageFrame);
+        Assert.Equal(expectedResponse.ToMessageFrame(), response.ToMessageFrame());
 
         mock.VerifyAll();
     }
@@ -246,8 +247,8 @@ public class ModbusTransportFixture
 
         // Configure repeated slave exceptions to verify retry handling.
         _ = mock.Setup(t => t.ReadResponseAsync(
-                It.IsAny<Func<ReadHoldingInputRegistersResponse>>()).Result)
-            .Returns(() => readResponseCallsCount < transport.Retries
+                It.IsAny<Func<ReadHoldingInputRegistersResponse>>()))
+            .Returns(() => Task.FromResult<IModbusMessage>(readResponseCallsCount < transport.Retries
                 ? new SlaveExceptionResponse(
                     1,
                     Modbus.ReadHoldingRegisters + Modbus.ExceptionOffset,
@@ -255,7 +256,7 @@ public class ModbusTransportFixture
                 : new ReadHoldingInputRegistersResponse(
                     Modbus.ReadHoldingRegisters,
                     1,
-                    new RegisterCollection(1)))
+                    new RegisterCollection(1))))
             .Callback(() => ++readResponseCallsCount);
 
         _ = mock.Setup(t => t.OnValidateResponse(It.IsNotNull<IModbusMessage>(), It.IsNotNull<IModbusMessage>()));
@@ -269,7 +270,7 @@ public class ModbusTransportFixture
 
         Assert.Equal(transport.Retries + 1, writeCallsCount);
         Assert.Equal(transport.Retries + 1, readResponseCallsCount);
-        Assert.Equal(expectedResponse.MessageFrame, response.MessageFrame);
+        Assert.Equal(expectedResponse.ToMessageFrame(), response.ToMessageFrame());
 
         mock.VerifyAll();
     }
@@ -283,10 +284,8 @@ public class ModbusTransportFixture
     [TUnit.Core.Arguments(typeof(FormatException))]
     public void UnicastMessage_TooManyFailingExceptions(Type exceptionType)
     {
-        if (exceptionType is null)
-        {
+        Type checkedExceptionType = exceptionType ??
             throw new ArgumentNullException(nameof(exceptionType));
-        }
 
         var mock = new Mock<ModbusTransport>() { CallBase = true };
         var transport = mock.Object;
@@ -299,7 +298,7 @@ public class ModbusTransportFixture
         _ = mock.Setup(t => t.ReadResponseAsync(
                 It.IsAny<Func<ReadCoilsInputsResponse>>()))
             .Callback(() => ++readResponseCallsCount)
-            .Throws(CreateException(exceptionType));
+            .Throws(CreateException(checkedExceptionType));
 
         var request = new ReadCoilsInputsRequest(Modbus.ReadCoils, Num.Value2, Num.Value3, Num.Value4);
 
@@ -418,8 +417,8 @@ public class ModbusTransportFixture
             });
 
         _ = mock.Setup(t => t.ReadResponseAsync(
-                It.IsAny<Func<ReadHoldingInputRegistersResponse>>()).Result)
-            .Returns(expectedResponse)
+                It.IsAny<Func<ReadHoldingInputRegistersResponse>>()))
+            .ReturnsAsync(expectedResponse)
             .Callback(() => ++readResponseCallsCount);
 
         var request = new ReadHoldingInputRegistersRequest(Modbus.ReadHoldingRegisters, 1, 1, 1);
@@ -427,7 +426,7 @@ public class ModbusTransportFixture
 
         Assert.Equal(Num.Value2, readResponseCallsCount);
         Assert.Equal(Num.Value2, onShouldRetryResponseCallsCount);
-        Assert.Equal(expectedResponse.MessageFrame, response.MessageFrame);
+        Assert.Equal(expectedResponse.ToMessageFrame(), response.ToMessageFrame());
         mock.VerifyAll();
     }
 

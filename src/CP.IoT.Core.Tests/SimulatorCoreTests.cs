@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 using TUnit.Assertions;
 using TUnit.Core;
 
-namespace IoT.DriverCore.Core.Tests;
+namespace IoT.Driver.Core.Tests;
 
 /// <summary>Direct behavior and branch coverage for the reusable deterministic simulator primitives.</summary>
 public sealed class SimulatorCoreTests
@@ -87,7 +87,7 @@ public sealed class SimulatorCoreTests
         await Assert.That(clock.PendingDelayCount).IsEqualTo(Two);
         clock.AdvanceBy(TimeSpan.FromSeconds(1));
         await Assert.That(first.IsCompleted).IsFalse();
-        cancellation.Cancel();
+        await cancellation.CancelAsync();
         await Assert.That(await ThrowsAsync<OperationCanceledException>(() => cancelled)).IsTrue();
         await Assert.That(clock.PendingDelayCount).IsEqualTo(1);
 
@@ -97,7 +97,7 @@ public sealed class SimulatorCoreTests
         await Assert.That(clock.UtcNow).IsEqualTo(StartUtc.AddSeconds(Two));
 
         using var alreadyCancelled = new CancellationTokenSource();
-        alreadyCancelled.Cancel();
+        await alreadyCancelled.CancelAsync();
         _ = Assert.Throws<OperationCanceledException>(
             () => clock.DelayAsync(TimeSpan.FromSeconds(1), alreadyCancelled.Token));
     }
@@ -110,10 +110,10 @@ public sealed class SimulatorCoreTests
         await Assert.That(SystemSimulatorClock.Instance.UtcNow.Offset).IsEqualTo(TimeSpan.Zero);
         await SystemSimulatorClock.Instance.DelayAsync(TimeSpan.Zero, CancellationToken.None);
         _ = Assert.Throws<ArgumentOutOfRangeException>(
-            () => SystemSimulatorClock.Instance.DelayAsync(TimeSpan.FromTicks(-1), CancellationToken.None));
+            static () => SystemSimulatorClock.Instance.DelayAsync(TimeSpan.FromTicks(-1), CancellationToken.None));
 
         using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        await cancellation.CancelAsync();
         var delay = SystemSimulatorClock.Instance.DelayAsync(TimeSpan.FromSeconds(1), cancellation.Token);
         await Assert.That(await ThrowsAsync<OperationCanceledException>(() => delay)).IsTrue();
     }
@@ -147,7 +147,7 @@ public sealed class SimulatorCoreTests
         await Assert.That((await script.NextAsync(SimulatorOperationKind.Read)).Succeeded).IsTrue();
         await Assert.That((await script.NextAsync(SimulatorOperationKind.Write)).Succeeded).IsTrue();
 
-        _ = Assert.Throws<ArgumentNullException>(() => _ = new SimulatorScript(null!));
+        _ = Assert.Throws<ArgumentNullException>(static () => _ = new SimulatorScript(null!));
         _ = Assert.Throws<ArgumentNullException>(
             () => script.Enqueue(SimulatorOperationKind.Read, null!));
         _ = Assert.Throws<ArgumentOutOfRangeException>(
@@ -172,10 +172,10 @@ public sealed class SimulatorCoreTests
         await Assert.That(thrown.Exception).IsEqualTo(exception);
         await Assert.That(SimulatorOutcome.Failure("failure").Succeeded).IsFalse();
         await Assert.That(SimulatorOutcome.Throw(exception).Latency).IsEqualTo(TimeSpan.Zero);
-        _ = Assert.Throws<ArgumentException>(() => SimulatorOutcome.Failure(" "));
-        _ = Assert.Throws<ArgumentNullException>(() => SimulatorOutcome.Throw(null!));
+        _ = Assert.Throws<ArgumentException>(static () => SimulatorOutcome.Failure(" "));
+        _ = Assert.Throws<ArgumentNullException>(static () => SimulatorOutcome.Throw(null!));
         _ = Assert.Throws<ArgumentOutOfRangeException>(
-            () => SimulatorOutcome.Success(TimeSpan.FromTicks(-1)));
+            static () => SimulatorOutcome.Success(TimeSpan.FromTicks(-1)));
     }
 
     /// <summary>Verifies sparse bytes, typed codecs, overlapping ranges, journal retention, and observers.</summary>
@@ -208,12 +208,21 @@ public sealed class SimulatorCoreTests
         await Assert.That(second.PreviousBytes).IsEquivalentTo([byte.MinValue, byte.MinValue]);
         await Assert.That(memory.Read(firstAddress))
             .IsEquivalentTo([(byte)Ten, byte.MinValue, (byte)Nine, (byte)Eight]);
-        await Assert.That(memory.Read(otherRoute, bytes => BitConverter.ToInt32(bytes.ToArray(), 0)))
+        await Assert.That(memory.Read(otherRoute, DecodeInt32))
             .IsEqualTo(Thirty);
         await Assert.That(memory.CurrentSequence).IsEqualTo((long)Three);
-        await Assert.That(memory.GetChanges().Select(change => change.Sequence).ToArray())
+        var retainedChanges = memory.GetChanges();
+        var retainedSequences = new long[retainedChanges.Count];
+        for (var index = 0; index < retainedChanges.Count; index++)
+        {
+            retainedSequences[index] = retainedChanges[index].Sequence;
+        }
+
+        await Assert.That(retainedSequences)
             .IsEquivalentTo([(long)Two, Three]);
-        await Assert.That(memory.GetChanges(Two).Single()).IsEqualTo(third);
+        var changesAfterSecond = memory.GetChanges(Two);
+        await Assert.That(changesAfterSecond.Count).IsEqualTo(1);
+        await Assert.That(changesAfterSecond[0]).IsEqualTo(third);
         await Assert.That(observer.Values.Count).IsEqualTo(Three);
 
         var snapshot = memory.Read(firstAddress);
@@ -229,9 +238,9 @@ public sealed class SimulatorCoreTests
     [Test]
     public async Task MemoryImageValidatesInputsAndPartitionsAsync()
     {
-        _ = Assert.Throws<ArgumentNullException>(() => _ = new SimulatorMemoryImage(null!));
+        _ = Assert.Throws<ArgumentNullException>(static () => _ = new SimulatorMemoryImage(null!));
         _ = Assert.Throws<ArgumentOutOfRangeException>(
-            () => _ = new SimulatorMemoryImage(SystemSimulatorClock.Instance, 0));
+            static () => _ = new SimulatorMemoryImage(SystemSimulatorClock.Instance, 0));
         var memory = new SimulatorMemoryImage();
         var address = Address(length: Two);
         _ = Assert.Throws<ArgumentNullException>(() => memory.Read(null!));
@@ -265,8 +274,13 @@ public sealed class SimulatorCoreTests
 
         var changes = memory.GetChanges();
         await Assert.That(changes.Count).IsEqualTo(ConcurrentWriteCount);
-        await Assert.That(changes.Select(change => change.Sequence).Distinct().Count())
-            .IsEqualTo(ConcurrentWriteCount);
+        var observedSequences = new HashSet<long>();
+        foreach (var change in changes)
+        {
+            _ = observedSequences.Add(change.Sequence);
+        }
+
+        await Assert.That(observedSequences.Count).IsEqualTo(ConcurrentWriteCount);
         for (var index = 0; index < ConcurrentWriteCount; index++)
         {
             await Assert.That(memory.Read(Address(offset: index))[0]).IsEqualTo(checked((byte)index));
@@ -419,7 +433,7 @@ public sealed class SimulatorCoreTests
             Tag("Malformed"),
             Address(offset: Eight, length: Int32Length),
             DecodeInt32,
-            _ => new byte[1]);
+            static _ => new byte[1]);
         var malformedClient = new SimulatorLogicalTagClient(
             [malformed],
             memory,
@@ -444,7 +458,7 @@ public sealed class SimulatorCoreTests
             () => client.WriteManyAsync([null!], CancellationToken.None))).IsTrue();
 
         using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        await cancellation.CancelAsync();
         await Assert.That(await ThrowsAsync<OperationCanceledException>(
             () => client.ReadAsync("A", cancellation.Token))).IsTrue();
         await Assert.That(await ThrowsAsync<OperationCanceledException>(
@@ -497,7 +511,7 @@ public sealed class SimulatorCoreTests
         await Assert.That(enumerator.Current.Value).IsEqualTo(1);
         await Assert.That(await enumerator.MoveNextAsync()).IsTrue();
         await Assert.That(enumerator.Current.Value).IsEqualTo(Two);
-        enumerationCancellation.Cancel();
+        await enumerationCancellation.CancelAsync();
         await Assert.That(await ThrowsAsync<OperationCanceledException>(
             () => enumerator.MoveNextAsync().AsTask())).IsTrue();
         await enumerator.DisposeAsync();
@@ -505,7 +519,7 @@ public sealed class SimulatorCoreTests
 
         using var directCancellation = new CancellationTokenSource();
         var direct = client.ObserveAsync("A", directCancellation.Token).GetAsyncEnumerator();
-        directCancellation.Cancel();
+        await directCancellation.CancelAsync();
         await Assert.That(await ThrowsAsync<OperationCanceledException>(
             () => direct.MoveNextAsync().AsTask())).IsTrue();
         await direct.DisposeAsync();
@@ -523,7 +537,7 @@ public sealed class SimulatorCoreTests
         await waiting.DisposeAsync();
 
         using var preCancelledSource = new CancellationTokenSource();
-        preCancelledSource.Cancel();
+        await preCancelledSource.CancelAsync();
         var preCancelled = client.ObserveAsync("A", preCancelledSource.Token).GetAsyncEnumerator();
         await Assert.That(await ThrowsAsync<OperationCanceledException>(
             () => preCancelled.MoveNextAsync().AsTask())).IsTrue();
@@ -536,10 +550,10 @@ public sealed class SimulatorCoreTests
     public async Task ExistingContractsRejectCorruptAndIncompleteInputsAsync()
     {
         _ = Assert.Throws<ArgumentNullException>(
-            () => _ = new LogicalTagChangedEventArgs(LogicalTagChangeKind.Added, null!));
-        _ = Assert.Throws<ArgumentNullException>(() => _ = new TagTransferRequest("A", null!));
+            static () => _ = new LogicalTagChangedEventArgs(LogicalTagChangeKind.Added, null!));
+        _ = Assert.Throws<ArgumentNullException>(static () => _ = new TagTransferRequest("A", null!));
 
-        using var writer = new StringWriter();
+        await using var writer = new StringWriter();
         await LogicalTagCsv.ExportAsync([Tag("A")], writer, CancellationToken.None);
         var imported = await LogicalTagCsv.ImportAsync(new StringReader(writer.ToString()), CancellationToken.None);
         await Assert.That(imported.Count).IsEqualTo(1);
@@ -548,7 +562,7 @@ public sealed class SimulatorCoreTests
             "Name,Address,DataType,GroupName,Description,Metadata,AccessMode,ScanIntervalMilliseconds\r\n"
             + "A,D0,Int32,,,missing-equals,ReadWrite,";
         await Assert.That(await ThrowsAsync<FormatException>(
-            () => LogicalTagCsv.ImportAsync(new StringReader(malformedMetadata)))).IsTrue();
+            static () => LogicalTagCsv.ImportAsync(new StringReader(malformedMetadata)))).IsTrue();
 
         var nullReader = new NullResultReader();
         var typedResult = await nullReader.ReadAsync(new LogicalTagKey<int>("A"));
@@ -565,7 +579,17 @@ public sealed class SimulatorCoreTests
             new("Route", Address(partition: "A", memoryArea: OtherName, encoding: "Raw", access: TagTransferAccess.Write, route: "B")),
         ]);
         await Assert.That(plan.Ranges.Count).IsEqualTo(Five);
-        await Assert.That(plan.Ranges.All(range => range.EndOffset == 1)).IsTrue();
+        var allRangesEndAtOne = true;
+        foreach (var range in plan.Ranges)
+        {
+            if (range.EndOffset != 1)
+            {
+                allRangesEndAtOne = false;
+                break;
+            }
+        }
+
+        await Assert.That(allRangesEndAtOne).IsTrue();
     }
 
     /// <summary>Creates a standard byte transport address.</summary>
@@ -620,8 +644,16 @@ public sealed class SimulatorCoreTests
     /// <summary>Decodes an Int32 from simulator bytes.</summary>
     /// <param name="bytes">The source bytes.</param>
     /// <returns>The decoded value.</returns>
-    private static int DecodeInt32(IReadOnlyList<byte> bytes) =>
-        BitConverter.ToInt32(bytes.ToArray(), 0);
+    private static int DecodeInt32(IReadOnlyList<byte> bytes)
+    {
+        var buffer = new byte[Int32Length];
+        for (var index = 0; index < buffer.Length; index++)
+        {
+            buffer[index] = bytes[index];
+        }
+
+        return BitConverter.ToInt32(buffer, 0);
+    }
 
     /// <summary>Encodes an Int32 to simulator bytes.</summary>
     /// <param name="value">The source value.</param>

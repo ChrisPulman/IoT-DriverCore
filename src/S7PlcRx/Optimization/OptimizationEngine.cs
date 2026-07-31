@@ -4,16 +4,19 @@
 
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+#if NET8_0_OR_GREATER
+using System.Runtime.InteropServices;
+#endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Cache;
+using IoT.Driver.S7PlcRx.Reactive.Cache;
 #else
-using IoT.DriverCore.S7PlcRx.Cache;
+using IoT.Driver.S7PlcRx.Cache;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Optimization;
+namespace IoT.Driver.S7PlcRx.Reactive.Optimization;
 #else
-namespace IoT.DriverCore.S7PlcRx.Optimization;
+namespace IoT.Driver.S7PlcRx.Optimization;
 #endif
 
 /// <summary>
@@ -134,10 +137,12 @@ internal class OptimizationEngine : IDisposable
     /// <param name="tagName">The unique tag name used to identify the cached value. Cannot be null.</param>
     /// <param name="value">The value to store in the cache for the specified tag name.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void UpdateCache(string tagName, object value) => _valueCache.AddOrUpdate(
-            tagName,
-            new CachedValue(value, _timeProvider.GetUtcNow().UtcDateTime),
-            (_, existing) => new CachedValue(value, _timeProvider.GetUtcNow().UtcDateTime, existing.HitCount));
+    internal void UpdateCache(string tagName, object value)
+    {
+        var timestamp = _timeProvider.GetUtcNow().UtcDateTime;
+        var replacement = new CachedValue(value, timestamp);
+        _ = _valueCache.AddOrUpdate(tagName, replacement, replacement.PreserveHitCount);
+    }
 
     /// <summary>Removes all cache entries that have expired based on the specified maximum age.</summary>
     /// <remarks>Use this method to periodically clean up expired items and free memory. The method compares
@@ -236,6 +241,15 @@ internal class OptimizationEngine : IDisposable
         foreach (var request in requests)
         {
             var dataBlock = GetDataBlockFromAddress(request.Tag.Address);
+#if NET8_0_OR_GREATER
+            ref var group = ref CollectionsMarshal.GetValueRefOrAddDefault(groupedRequests, dataBlock, out var exists);
+            if (!exists)
+            {
+                group = [];
+            }
+
+            group!.Add(request);
+#else
             if (!groupedRequests.TryGetValue(dataBlock, out var group))
             {
                 group = [];
@@ -243,6 +257,7 @@ internal class OptimizationEngine : IDisposable
             }
 
             group.Add(request);
+#endif
         }
 
         var orderedGroups = new List<KeyValuePair<int, List<OptimizedRequest>>>(groupedRequests);
@@ -386,9 +401,9 @@ internal class OptimizationEngine : IDisposable
         }
 
         var totalHits = 0L;
-        foreach (var cachedValue in _valueCache.Values)
+        foreach (var cachedValue in _valueCache)
         {
-            totalHits += cachedValue.HitCount;
+            totalHits += cachedValue.Value.HitCount;
         }
 
         var totalRequests = _valueCache.Count + totalHits;

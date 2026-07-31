@@ -2,10 +2,10 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
+namespace IoT.Driver.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the ReturnQueryDataRequestResponseFixture behavior.</summary>
 public class ReturnQueryDataRequestResponseFixture
@@ -19,7 +19,7 @@ public class ReturnQueryDataRequestResponseFixture
         Assert.Equal(Modbus.Diagnostics, request.FunctionCode);
         Assert.Equal(Modbus.DiagnosticsReturnQueryData, request.SubFunctionCode);
         Assert.Equal(Num.Value5, request.SlaveAddress);
-        Assert.Equal(data.NetworkBytes, request.Data.NetworkBytes);
+        Assert.Equal(data.ToNetworkBytes(), request.Data.ToNetworkBytes());
     }
 
     /// <summary>Protocols the data unit.</summary>
@@ -28,6 +28,6 @@ public class ReturnQueryDataRequestResponseFixture
     {
         var data = new RegisterCollection(1, Num.Value2, Num.Value3, Num.Value4);
         var request = new DiagnosticsRequestResponse(Modbus.DiagnosticsReturnQueryData, Num.Value5, data);
-        Assert.Equal([ Num.Value8, 0, 0, 0, 1, 0, Num.Value2, 0, Num.Value3, 0, Num.Value4], request.ProtocolDataUnit);
+        Assert.Equal([ Num.Value8, 0, 0, 0, 1, 0, Num.Value2, 0, Num.Value3, 0, Num.Value4], request.ToProtocolDataUnit());
     }
 }

@@ -4,17 +4,17 @@
 
 using System.Net;
 using System.Numerics;
-using IoT.DriverCore.Core;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.IO;
-using IoT.DriverCore.ModbusRx.LogicalTags;
-using IoT.DriverCore.ModbusRx.Message;
-using IoT.DriverCore.ModbusRx.Unme.Common;
-using IoT.DriverCore.ModbusRx.Utility;
+using IoT.Driver.Core;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx.IO;
+using IoT.Driver.ModbusRx.LogicalTags;
+using IoT.Driver.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Unme.Common;
+using IoT.Driver.ModbusRx.Utility;
 using NativeAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Deterministic coverage for the in-memory data, framing, pooling, and reactive server seams.</summary>
 public sealed class DeterministicSimulationCoverageTests
@@ -124,6 +124,15 @@ public sealed class DeterministicSimulationCoverageTests
     /// <summary>A maximum register value used by constant patterns.</summary>
     private const ushort MaximumRegister = ushort.MaxValue;
 
+    /// <summary>The expected boolean values used by codec round-trip tests.</summary>
+    private static readonly bool[] CodecBooleanExpectedValues = [true, false, true];
+
+    /// <summary>The boolean values encoded by codec round-trip tests.</summary>
+    private static readonly bool[] CodecBooleanInputValues = [true, false, true];
+
+    /// <summary>The invalid codec array value used by guard tests.</summary>
+    private static readonly ushort[] InvalidCodecArrayValue = [FirstAddress];
+
     /// <summary>Exercises optimized bulk reads, writes, clears, copies, comparisons, and guards.</summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [TUnit.Core.Test]
@@ -173,7 +182,7 @@ public sealed class DeterministicSimulationCoverageTests
             .IsEquivalentTo([false, false, false]);
 
         await NativeAssert.That(
-                () => DataStoreExtensions.ReadHoldingRegistersOptimized(null!, 0, 1))
+                static () => DataStoreExtensions.ReadHoldingRegistersOptimized(null!, 0, 1))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(
                 () => DataStoreExtensions.BulkCopyHoldingRegisters(source, null!, 0, 1))
@@ -188,11 +197,13 @@ public sealed class DeterministicSimulationCoverageTests
     [TUnit.Core.Test]
     public async Task ModbusDataExtensions_RoundTripScalarAndVectorDataAsync()
     {
-        var booleans = Enumerable.Range(
-                0,
-                Math.Max(Vector<byte>.Count + VectorTailLength, BooleanSampleCount))
-            .Select(static index => index % BooleanPatternPeriod == 0)
-            .ToArray();
+        var booleanLength = Math.Max(Vector<byte>.Count + VectorTailLength, BooleanSampleCount);
+        var booleans = new bool[booleanLength];
+        for (var index = 0; index < booleans.Length; index++)
+        {
+            booleans[index] = index % BooleanPatternPeriod == 0;
+        }
+
         var packed = ModbusDataExtensions.PackBooleans(booleans);
         var unpacked = ModbusDataExtensions.UnpackBooleans(packed, booleans.Length);
 
@@ -210,7 +221,12 @@ public sealed class DeterministicSimulationCoverageTests
                 scalarBooleans.Length))
             .IsEquivalentTo(scalarBooleans);
 
-        var vectorBytes = Enumerable.Repeat((byte)FirstAddress, Vector<byte>.Count + VectorTailLength).ToArray();
+        var vectorBytes = new byte[Vector<byte>.Count + VectorTailLength];
+        for (var index = 0; index < vectorBytes.Length; index++)
+        {
+            vectorBytes[index] = (byte)FirstAddress;
+        }
+
         var vectorDifference = (byte[])vectorBytes.Clone();
         vectorDifference[FirstAddress] = (byte)SecondAddress;
         var tailDifference = (byte[])vectorBytes.Clone();
@@ -233,12 +249,12 @@ public sealed class DeterministicSimulationCoverageTests
                 .IsEqualTo(LongValue);
         }
 
-        await NativeAssert.That(() => ModbusDataExtensions.ToInt32([], 0, false))
+        await NativeAssert.That(static () => ModbusDataExtensions.ToInt32([], 0, false))
             .Throws<ArgumentException>();
-        await NativeAssert.That(() => ModbusDataExtensions.ToUInt32(null!, 0, false))
+        await NativeAssert.That(static () => ModbusDataExtensions.ToUInt32(null!, 0, false))
             .Throws<ArgumentException>();
         await NativeAssert.That(
-                () => ModbusDataExtensions.ToInt64(
+                static () => ModbusDataExtensions.ToInt64(
                     [FirstAddress, SecondAddress, ThreeValues],
                     0,
                     false))
@@ -341,10 +357,10 @@ public sealed class DeterministicSimulationCoverageTests
             .IsTrue();
         await NativeAssert.That(
                 ValuesEqual(
-                    new[] { true, false, true },
+                    CodecBooleanExpectedValues,
                     ModbusTagCodec.Decode(
                         boolArrayTag,
-                        ModbusTagCodec.Encode(boolArrayTag, new[] { true, false, true }),
+                        ModbusTagCodec.Encode(boolArrayTag, CodecBooleanInputValues),
                         0)))
             .IsTrue();
     }
@@ -355,16 +371,16 @@ public sealed class DeterministicSimulationCoverageTests
     public async Task TagCodec_RejectsInvalidTypeCountAndValueAsync()
     {
         await NativeAssert.That(
-                () => ModbusTagCodec.ValidateType(ModbusDataArea.Coil, FirstAddress, typeof(int)))
+                static () => ModbusTagCodec.ValidateType(ModbusDataArea.Coil, FirstAddress, typeof(int)))
             .Throws<NotSupportedException>();
         await NativeAssert.That(
-                () => ModbusTagCodec.ValidateType(
+                static () => ModbusTagCodec.ValidateType(
                     ModbusDataArea.HoldingRegister,
                     FirstAddress,
                     typeof(decimal)))
             .Throws<NotSupportedException>();
         await NativeAssert.That(
-                () => ModbusTagCodec.ValidateType(
+                static () => ModbusTagCodec.ValidateType(
                     ModbusDataArea.HoldingRegister,
                     FirstAddress,
                     typeof(int)))
@@ -374,7 +390,7 @@ public sealed class DeterministicSimulationCoverageTests
         var arrayTag = CreateCodecTag(TwoPoints, typeof(ushort[]), ModbusByteOrder.BigEndian);
         await NativeAssert.That(() => ModbusTagCodec.Encode(scalarTag, null)).Throws<ArgumentException>();
         await NativeAssert.That(() => ModbusTagCodec.Encode(scalarTag, "wrong")).Throws<ArgumentException>();
-        await NativeAssert.That(() => ModbusTagCodec.Encode(arrayTag, new ushort[] { FirstAddress }))
+        await NativeAssert.That(() => ModbusTagCodec.Encode(arrayTag, InvalidCodecArrayValue))
             .Throws<ArgumentException>();
     }
 
@@ -391,7 +407,12 @@ public sealed class DeterministicSimulationCoverageTests
         slave.ModbusSlaveRequestReceived += (_, _) => requestCount++;
         slave.WriteComplete += (_, _) => writeCount++;
 
-        var responses = CreateSlaveDispatchRequests().Select(slave.ApplyRequest).ToArray();
+        var requests = CreateSlaveDispatchRequests();
+        var responses = new IModbusMessage[requests.Length];
+        for (var index = 0; index < requests.Length; index++)
+        {
+            responses[index] = slave.ApplyRequest(requests[index]);
+        }
 
         await NativeAssert.That(responses.Length).IsEqualTo(TenRequests);
         await NativeAssert.That(responses[0].GetType()).IsEqualTo(typeof(ReadCoilsInputsResponse));
@@ -411,7 +432,7 @@ public sealed class DeterministicSimulationCoverageTests
             .IsEqualTo(Modbus.IllegalFunction);
 
         EventHandler<ModbusSlaveRequestEventArgs> reject =
-            (_, _) => throw new InvalidModbusRequestException(Modbus.IllegalDataAddress);
+            static (_, _) => throw new InvalidModbusRequestException(Modbus.IllegalDataAddress);
         slave.ModbusSlaveRequestReceived += reject;
         var rejected = (SlaveExceptionResponse)slave.ApplyRequest(
             new ReadCoilsInputsRequest(Modbus.ReadCoils, SlaveAddress, 0, FirstAddress));
@@ -429,8 +450,11 @@ public sealed class DeterministicSimulationCoverageTests
         var writeEvents = 0;
         dataStore.DataStoreReadFrom += (_, _) => readEvents++;
         dataStore.DataStoreWrittenTo += (_, _) => writeEvents++;
-        IEnumerable<ushort> generated = Enumerable.Range(FirstAddress, ThreeValues)
-            .Select(static value => (ushort)value);
+        var generated = new ushort[ThreeValues];
+        for (var index = 0; index < generated.Length; index++)
+        {
+            generated[index] = (ushort)(FirstAddress + index);
+        }
 
         dataStore.WriteDataOptimized(generated, dataStore.HoldingRegisters, 0);
         var values = dataStore.ReadDataOptimized<RegisterCollection, ushort>(
@@ -493,16 +517,16 @@ public sealed class DeterministicSimulationCoverageTests
         await NativeAssert.That(dataStore.HoldingRegisters[ThreeValues]).IsEqualTo(FirstRegisterValue);
         await NativeAssert.That(dataStore.CoilDiscretes[ThreeValues]).IsTrue();
         await NativeAssert.That(
-                () => DataStoreExtensions.ReadInputRegistersOptimized(null!, 0, FirstAddress))
+                static () => DataStoreExtensions.ReadInputRegistersOptimized(null!, 0, FirstAddress))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => DataStoreExtensions.ReadCoilsOptimized(null!, 0, FirstAddress))
+        await NativeAssert.That(static () => DataStoreExtensions.ReadCoilsOptimized(null!, 0, FirstAddress))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => DataStoreExtensions.ReadInputsOptimized(null!, 0, FirstAddress))
+        await NativeAssert.That(static () => DataStoreExtensions.ReadInputsOptimized(null!, 0, FirstAddress))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(
-                () => DataStoreExtensions.WriteHoldingRegistersOptimized(null!, 0, []))
+                static () => DataStoreExtensions.WriteHoldingRegistersOptimized(null!, 0, []))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => DataStoreExtensions.WriteCoilsOptimized(null!, 0, []))
+        await NativeAssert.That(static () => DataStoreExtensions.WriteCoilsOptimized(null!, 0, []))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(
                 () => DataStoreExtensions.BulkCopyHoldingRegisters(null!, dataStore, 0, FirstAddress))
@@ -516,9 +540,9 @@ public sealed class DeterministicSimulationCoverageTests
         await NativeAssert.That(
                 () => DataStoreExtensions.BulkCopyCoils(dataStore, null!, 0, FirstAddress))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => DataStoreExtensions.ClearHoldingRegisters(null!, 0, FirstAddress))
+        await NativeAssert.That(static () => DataStoreExtensions.ClearHoldingRegisters(null!, 0, FirstAddress))
             .Throws<ArgumentNullException>();
-        await NativeAssert.That(() => DataStoreExtensions.ClearCoils(null!, 0, FirstAddress))
+        await NativeAssert.That(static () => DataStoreExtensions.ClearCoils(null!, 0, FirstAddress))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(
                 () => DataStoreExtensions.CompareHoldingRegisters(null!, dataStore, 0, FirstAddress))
@@ -550,9 +574,9 @@ public sealed class DeterministicSimulationCoverageTests
         int[] sliceSource = [FirstAddress, SecondAddress, ThreeValues];
         await NativeAssert.That(SequenceExtensions.Slice(sliceSource, FirstAddress, TwoPoints))
             .IsEquivalentTo([SecondAddress, ThreeValues]);
-        await NativeAssert.That(SequenceExtensions.Slice(sliceSource.Where(static _ => true), 0, FirstAddress))
+        await NativeAssert.That(SequenceExtensions.Slice(sliceSource, 0, FirstAddress))
             .IsEquivalentTo([(int)FirstAddress]);
-        await NativeAssert.That(() => SequenceExtensions.Slice<int>(null!, 0, 0))
+        await NativeAssert.That(static () => SequenceExtensions.Slice<int>(null!, 0, 0))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(() => SequenceExtensions.Slice(sliceSource, -1, FirstAddress))
             .Throws<ArgumentOutOfRangeException>();
@@ -651,7 +675,9 @@ public sealed class DeterministicSimulationCoverageTests
             0x78,
         ];
         var registerCrc = ModbusUtility.CalculateCrc(registerData);
-        var registerResponse = registerData.Concat(registerCrc).ToArray();
+        var registerResponse = new byte[registerData.Length + registerCrc.Length];
+        registerData.CopyTo(registerResponse, 0);
+        registerCrc.CopyTo(registerResponse, registerData.Length);
         await NativeAssert.That(
                 OptimizedModbusMessageFactory.ParseReadHoldingRegistersResponse(registerResponse))
             .IsEquivalentTo([FramedRegisterOne, FramedRegisterTwo]);
@@ -664,7 +690,10 @@ public sealed class DeterministicSimulationCoverageTests
             0b01010101,
             0b00000001,
         ];
-        var coilResponse = coilData.Concat(ModbusUtility.CalculateCrc(coilData)).ToArray();
+        var coilCrc = ModbusUtility.CalculateCrc(coilData);
+        var coilResponse = new byte[coilData.Length + coilCrc.Length];
+        coilData.CopyTo(coilResponse, 0);
+        coilCrc.CopyTo(coilResponse, coilData.Length);
         await NativeAssert.That(OptimizedModbusMessageFactory.ParseReadCoilsResponse(coilResponse, NineCoils))
             .IsEquivalentTo([true, false, true, false, true, false, true, false, true]);
 
@@ -684,20 +713,20 @@ public sealed class DeterministicSimulationCoverageTests
     public async Task OptimizedMessageFactory_RejectsInvalidFramesAsync()
     {
         await NativeAssert.That(
-                () => OptimizedModbusMessageFactory.CreateWriteMultipleRegistersRequest(
+                static () => OptimizedModbusMessageFactory.CreateWriteMultipleRegistersRequest(
                     SlaveAddress,
                     0,
                     null!))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(
-                () => OptimizedModbusMessageFactory.CreateWriteMultipleCoilsRequest(SlaveAddress, 0, null!))
+                static () => OptimizedModbusMessageFactory.CreateWriteMultipleCoilsRequest(SlaveAddress, 0, null!))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(
-                () => OptimizedModbusMessageFactory.ParseReadHoldingRegistersResponse(
+                static () => OptimizedModbusMessageFactory.ParseReadHoldingRegistersResponse(
                     [SlaveAddress, Modbus.ReadHoldingRegisters, CoilResponseByteCount, 0]))
             .Throws<ArgumentException>();
         await NativeAssert.That(
-                () => OptimizedModbusMessageFactory.ParseReadCoilsResponse(
+                static () => OptimizedModbusMessageFactory.ParseReadCoilsResponse(
                     [SlaveAddress, Modbus.ReadCoils, CoilResponseByteCount, SlaveAddress],
                     SlaveAddress))
             .Throws<ArgumentException>();
@@ -731,7 +760,7 @@ public sealed class DeterministicSimulationCoverageTests
         byte[] crcInput = [SlaveAddress, Modbus.ReadHoldingRegisters, 0, 0, 0, SlaveAddress];
         var crc = new byte[SecondAddress];
         await NativeAssert.That(ModbusUtility.CalculateCrc(crcInput, crc)).IsEqualTo(SecondAddress);
-        await NativeAssert.That(crc.ToArray()).IsEquivalentTo(ModbusUtility.CalculateCrc(crcInput));
+        await NativeAssert.That(crc).IsEquivalentTo(ModbusUtility.CalculateCrc(crcInput));
         await NativeAssert.That(ModbusUtility.CalculateLrc(crcInput.AsSpan()))
             .IsEqualTo(ModbusUtility.CalculateLrc(crcInput));
 
@@ -746,13 +775,13 @@ public sealed class DeterministicSimulationCoverageTests
             await NativeAssert.That(ModbusUtility.ReadSingle(floatRegisters, swapWords)).IsEqualTo(FloatValue);
         }
 
-        await NativeAssert.That(() => ModbusUtility.HexToBytes("0")).Throws<FormatException>();
-        await NativeAssert.That(() => ModbusUtility.HexToBytes("GG")).Throws<FormatException>();
-        await NativeAssert.That(() => ModbusUtility.NetworkBytesToHostUInt16([1]))
+        await NativeAssert.That(static () => ModbusUtility.HexToBytes("0")).Throws<FormatException>();
+        await NativeAssert.That(static () => ModbusUtility.HexToBytes("GG")).Throws<FormatException>();
+        await NativeAssert.That(static () => ModbusUtility.NetworkBytesToHostUInt16([1]))
             .Throws<FormatException>();
-        await NativeAssert.That(() => ModbusUtility.WriteDouble(1, new ushort[3], false))
+        await NativeAssert.That(static () => ModbusUtility.WriteDouble(1, new ushort[3], false))
             .Throws<ArgumentException>();
-        await NativeAssert.That(() => ModbusUtility.ReadSingle(new ushort[1], false))
+        await NativeAssert.That(static () => ModbusUtility.ReadSingle(new ushort[1], false))
             .Throws<ArgumentException>();
     }
 
@@ -911,10 +940,30 @@ public sealed class DeterministicSimulationCoverageTests
     /// <param name="expected">The expected value.</param>
     /// <param name="actual">The actual value.</param>
     /// <returns><c>true</c> when both values are equal.</returns>
-    private static bool ValuesEqual(object expected, object actual) =>
-        expected is Array expectedArray && actual is Array actualArray
-            ? expectedArray.Cast<object>().SequenceEqual(actualArray.Cast<object>())
-            : expected.Equals(actual);
+    private static bool ValuesEqual(object expected, object actual)
+    {
+        if (expected is not Array expectedArray || actual is not Array actualArray)
+        {
+            return expected.Equals(actual);
+        }
+
+        if (expectedArray.Length != actualArray.Length)
+        {
+            return false;
+        }
+
+        var expectedEnumerator = expectedArray.GetEnumerator();
+        var actualEnumerator = actualArray.GetEnumerator();
+        while (expectedEnumerator.MoveNext())
+        {
+            if (!actualEnumerator.MoveNext() || !Equals(expectedEnumerator.Current, actualEnumerator.Current))
+            {
+                return false;
+            }
+        }
+
+        return !actualEnumerator.MoveNext();
+    }
 
     /// <summary>Provides a stable local time to simulation modes.</summary>
     private sealed class FixedTimeProvider : TimeProvider

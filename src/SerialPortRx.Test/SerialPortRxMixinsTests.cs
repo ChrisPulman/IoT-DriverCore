@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.Serial.Tests;
+namespace IoT.Driver.Serial.Tests;
 
 /// <summary>Tests for SerialPortRx mixin helpers.</summary>
 public sealed class SerialPortRxMixinsTests
@@ -96,8 +96,8 @@ public sealed class SerialPortRxMixinsTests
     [Test]
     public async Task PendingRequest_StoresConstructorValuesAsync()
     {
-        var completion = new TaskCompletionSource<bool>();
-        var request = new PendingRequest("G0", _ => { }, completion);
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var request = new PendingRequest("G0", static _ => { }, completion);
 
         await Assert.That(request.Command).IsEqualTo("G0");
         await Assert.That(request.Completion).IsEqualTo(completion);
@@ -134,7 +134,7 @@ public sealed class SerialPortRxMixinsTests
         source.OnNext(']');
 
         await Assert.That(values.Count).IsEqualTo(Four);
-        await Assert.That(values.All(value => value == "[A]")).IsTrue();
+        await Assert.That(values.TrueForAll(static value => value == "[A]")).IsTrue();
     }
 
     /// <summary>Verifies the default-value buffer overload emits after its timeout.</summary>
@@ -245,7 +245,7 @@ public sealed class SerialPortRxMixinsTests
     /// <typeparam name="T">The observed value type.</typeparam>
     /// <param name="observable">The observable sequence.</param>
     /// <returns>A task that completes with the first observed value.</returns>
-    private static Task<T> FirstValueAsync<T>(IObservable<T> observable)
+    private static async Task<T> FirstValueAsync<T>(IObservable<T> observable)
     {
         var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         var subscription = observable.Subscribe(
@@ -261,12 +261,13 @@ public sealed class SerialPortRxMixinsTests
                 _ = completion.TrySetException(new InvalidOperationException("Observable completed without a value."));
             });
 
-        return completion.Task.ContinueWith(
-            task =>
-            {
-                subscription.Dispose();
-                return task.GetAwaiter().GetResult();
-            },
-            TaskScheduler.Default);
+        try
+        {
+            return await completion.Task.ConfigureAwait(false);
+        }
+        finally
+        {
+            subscription.Dispose();
+        }
     }
 }

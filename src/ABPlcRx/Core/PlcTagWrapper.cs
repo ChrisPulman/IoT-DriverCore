@@ -6,12 +6,13 @@ using System.Collections;
 using System.Text;
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>Plc Tag Wrapper.</summary>
+[System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
 public class PlcTagWrapper
 {
     /// <summary>Number of bits in a byte.</summary>
@@ -41,6 +42,16 @@ public class PlcTagWrapper
         _native = native ?? LibPlcTagNative.Instance;
     }
 
+    /// <summary>Gets the debugger display text.</summary>
+    [System.Diagnostics.DebuggerBrowsable(System.Diagnostics.DebuggerBrowsableState.Never)]
+    private string DebuggerDisplay
+    {
+        get
+        {
+            return ToString() ?? string.Empty;
+        }
+    }
+
     /// <summary>Get bit from index.</summary>
     /// <param name="index">The index.</param>
     /// <returns>A Value.</returns>
@@ -52,11 +63,27 @@ public class PlcTagWrapper
 
     /// <summary>Get bit array from value.</summary>
     /// <returns>A Value.</returns>
-    public bool[] GetBitsArray() => [.. GetBits().Cast<bool>()];
+    public bool[] GetBitsArray()
+    {
+        var bits = GetBits();
+        var values = new bool[bits.Length];
+        bits.CopyTo(values, 0);
+        return values;
+    }
 
     /// <summary>Get bit string format.</summary>
     /// <returns>A Value.</returns>
-    public string GetBitsString() => new([.. GetBits().Cast<bool>().Select(a => a ? '1' : '0')]);
+    public string GetBitsString()
+    {
+        var bits = GetBits();
+        var values = new char[bits.Length];
+        for (var index = 0; index < bits.Length; index++)
+        {
+            values[index] = bits[index] ? '1' : '0';
+        }
+
+        return new(values);
+    }
 
     /// <summary>Get local value Bool.</summary>
     /// <param name="offset">The offset.</param>
@@ -184,10 +211,7 @@ public class PlcTagWrapper
 #if NET8_0_OR_GREATER
         ArgumentExceptionHelper.ThrowIfNull(bits, nameof(bits));
 #else
-        if (bits is null)
-        {
-            throw new ArgumentNullException(nameof(bits));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(bits, nameof(bits));
 #endif
 
         var data = new int[1];
@@ -266,10 +290,7 @@ public class PlcTagWrapper
 #if NET8_0_OR_GREATER
         ArgumentExceptionHelper.ThrowIfNull(obj, nameof(obj));
 #else
-        if (obj is null)
-        {
-            throw new ArgumentNullException(nameof(obj));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(obj, nameof(obj));
 #endif
 
         foreach (var property in TagHelper.GetAccessableProperties(obj.GetType()))

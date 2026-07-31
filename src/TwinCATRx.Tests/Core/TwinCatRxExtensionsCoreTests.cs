@@ -4,10 +4,10 @@
 
 using System;
 using System.IO;
-using IoT.DriverCore.TwinCATRx.Core;
-using CoreTwinCatRxExtensions = IoT.DriverCore.TwinCATRx.Core.TwinCatRxExtensions;
+using IoT.Driver.TwinCATRx.Core;
+using CoreTwinCatRxExtensions = IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Core;
+namespace IoT.Driver.TwinCATRx.Tests.Core;
 
 /// <summary>Tests for core TwinCatRx extensions and helpers.</summary>
 public class TwinCatRxExtensionsCoreTests
@@ -72,7 +72,7 @@ public class TwinCatRxExtensionsCoreTests
 
         var result = 0;
         foreach (var value in CoreTwinCatRxExtensions
-                     .OnErrorRetry<int, InvalidOperationException>(seq, _ => { })
+                      .OnErrorRetry<int, InvalidOperationException>(seq, static _ => { })
                      .ToEnumerable())
         {
             result = value;

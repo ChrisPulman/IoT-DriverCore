@@ -7,11 +7,11 @@ using System.Reflection;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Async;
 using ReactiveUI.Primitives.Disposables;
-using ReactiveBridge = IoT.DriverCore.TwinCATRx.Reactive.ObservableBridgeExtensions;
-using ReactiveExtensions = IoT.DriverCore.TwinCATRx.Reactive.TwinCatRxExtensions;
-using ReactiveRxClient = IoT.DriverCore.TwinCATRx.Reactive.RxTcAdsClient;
+using ReactiveBridge = IoT.Driver.TwinCATRx.Reactive.ObservableBridgeExtensions;
+using ReactiveExtensions = IoT.Driver.TwinCATRx.Reactive.TwinCatRxExtensions;
+using ReactiveRxClient = IoT.Driver.TwinCATRx.Reactive.RxTcAdsClient;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Exercises the System.Reactive runtime implementation without a live ADS endpoint.</summary>
 public class ReactiveRuntimeCoverageTests
@@ -118,23 +118,23 @@ public class ReactiveRuntimeCoverageTests
         await TUnitAssert.That(values).IsEquivalentTo([ExpectedValue]);
         await TUnitAssert.That(completed).IsTrue();
         await TUnitAssert.That(receivedError).IsSameReferenceAs(expectedError);
-        await TUnitAssert.That(() => ReactiveBridge.ToAsyncObservable<int>(null!)).Throws<ArgumentNullException>();
-        await TUnitAssert.That(() => ReactiveBridge.SubscribeTo<int>(null!, _ => { }, _ => { }, () => { }))
+        await TUnitAssert.That(static () => ReactiveBridge.ToAsyncObservable<int>(null!)).Throws<ArgumentNullException>();
+        await TUnitAssert.That(static () => ReactiveBridge.SubscribeTo<int>(null!, static _ => { }, static _ => { }, static () => { }))
             .Throws<ArgumentNullException>();
-        await TUnitAssert.That(() => ReactiveBridge.SubscribeTo(
+        await TUnitAssert.That(static () => ReactiveBridge.SubscribeTo(
             System.Reactive.Linq.Observable.Empty<int>(),
             null!,
-            _ => { },
-            () => { })).Throws<ArgumentNullException>();
-        await TUnitAssert.That(() => ReactiveBridge.SubscribeTo(
+            static _ => { },
+            static () => { })).Throws<ArgumentNullException>();
+        await TUnitAssert.That(static () => ReactiveBridge.SubscribeTo(
             System.Reactive.Linq.Observable.Empty<int>(),
-            _ => { },
+            static _ => { },
             null!,
-            () => { })).Throws<ArgumentNullException>();
-        await TUnitAssert.That(() => ReactiveBridge.SubscribeTo(
+            static () => { })).Throws<ArgumentNullException>();
+        await TUnitAssert.That(static () => ReactiveBridge.SubscribeTo(
             System.Reactive.Linq.Observable.Empty<int>(),
-            _ => { },
-            _ => { },
+            static _ => { },
+            static _ => { },
             null!)).Throws<ArgumentNullException>();
     }
 
@@ -147,7 +147,7 @@ public class ReactiveRuntimeCoverageTests
 
         var exception = await TUnitAssert.That(() => ReactiveBridge.SubscribeTo(
             System.Reactive.Linq.Observable.Throw<int>(expected),
-            _ => { })).Throws<InvalidOperationException>();
+            static _ => { })).Throws<InvalidOperationException>();
 
         await TUnitAssert.That(exception).IsSameReferenceAs(expected);
     }
@@ -165,7 +165,7 @@ public class ReactiveRuntimeCoverageTests
 
         source.OnNext(ExpectedValue);
         source.OnError(new InvalidOperationException(ExpectedErrorMessage));
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
         await cancellation.CancelAsync();
 #else
         cancellation.Cancel();

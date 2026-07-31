@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive;
+namespace IoT.Driver.S7PlcRx.Reactive;
 #else
-namespace IoT.DriverCore.S7PlcRx;
+namespace IoT.Driver.S7PlcRx;
 #endif
 
 /// <summary>Provides compositional operations for managing S7 tags.</summary>
@@ -123,13 +123,12 @@ public static class TagOperations
         Guard.NotNullOrWhiteSpace(address, nameof(address));
 
         var tag = CreateTag(type, tagName, address, arrayLength);
-        if (plc is not RxS7 concretePlc)
+        if (plc is RxS7 concretePlc)
         {
-            return new TagRegistration(tag, plc);
+            concretePlc.AddUpdateTagItemInternal(tag);
         }
 
-        concretePlc.AddUpdateTagItemInternal(tag);
-        return new TagRegistration(tag, plc);
+        return new(tag, plc);
     }
 
     /// <summary>Creates a tag using the optional fixed length when required.</summary>

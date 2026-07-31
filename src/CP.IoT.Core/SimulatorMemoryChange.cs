@@ -4,7 +4,7 @@
 
 using System.Collections.ObjectModel;
 
-namespace IoT.DriverCore.Core;
+namespace IoT.Driver.Core;
 
 /// <summary>Represents one immutable, ordered write to a <see cref="SimulatorMemoryImage"/>.</summary>
 public sealed class SimulatorMemoryChange

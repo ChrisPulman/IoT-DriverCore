@@ -5,7 +5,7 @@
 using ReactiveUI;
 using ReactiveUI.SourceGenerators;
 
-namespace IoT.DriverCore.ModbusRx.Server.UI.Visualization;
+namespace IoT.Driver.ModbusRx.Server.UI.Visualization;
 
 /// <summary>Data model for register display using ReactiveUI.</summary>
 public partial class RegisterData : ReactiveObject

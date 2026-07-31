@@ -4,14 +4,14 @@
 
 using System.Collections.Concurrent;
 using System.Reflection;
-using IoT.DriverCore.S7PlcRx.Binding;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.PlcTypes;
+using IoT.Driver.S7PlcRx.Binding;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.PlcTypes;
 using BclDateTime = System.DateTime;
 using BclTimeSpan = System.TimeSpan;
-using PlcString = IoT.DriverCore.S7PlcRx.PlcTypes.String;
+using PlcString = IoT.Driver.S7PlcRx.PlcTypes.String;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Binding;
+namespace IoT.Driver.S7PlcRx.Tests.Binding;
 
 /// <summary>Exercises residual runtime-binding and observable lifecycle behavior with an in-memory PLC.</summary>
 [NotInParallel]
@@ -345,14 +345,12 @@ public sealed class S7BindingResidualCoverageTests
         using var plc = new DeterministicPlc();
         plc.SetReadBuffer(GroupedWriteTagName, [0]);
         var definitions = CreateWriteDefinitions();
-        using var binding = S7TagRuntimeBinding.Bind(plc, definitions, (_, _) => { });
+        using var binding = S7TagRuntimeBinding.Bind(plc, definitions, static (_, _) => { });
 
         QueueSupportedWrites(binding);
 
-        await WaitUntilAsync(() => plc.Writes.Any(write =>
-            string.Equals(write.Name, GroupedWriteTagName, StringComparison.Ordinal)));
-        var write = plc.Writes.Last(item =>
-            string.Equals(item.Name, GroupedWriteTagName, StringComparison.Ordinal));
+        await WaitUntilAsync(() => ContainsWriteNamed(plc.Writes, GroupedWriteTagName));
+        var write = GetLastWriteNamed(plc.Writes, GroupedWriteTagName);
         var bytes = (byte[])write.Value!;
 
         await AssertSupportedWriteBytesAsync(bytes);
@@ -360,13 +358,10 @@ public sealed class S7BindingResidualCoverageTests
         await Task.Delay(PostDisposeDelayMilliseconds);
         binding.Write(BitTagName, false);
         await InvokePrivateBindingTaskAsync(binding, FlushWritesAsyncMethodName);
-        await WaitUntilAsync(() =>
-            plc.Writes.LastOrDefault(item =>
-                string.Equals(item.Name, SingleBitWriteTagName, StringComparison.Ordinal)).Value
-            is byte[] candidate &&
+        await WaitUntilAsync(() => TryGetLastWriteNamed(plc.Writes, SingleBitWriteTagName, out var latest) &&
+            latest.Value is byte[] candidate &&
             !Bit.FromByte(candidate[0], 1));
-        var clearedBitBytes = (byte[])plc.Writes.Last(item =>
-            string.Equals(item.Name, SingleBitWriteTagName, StringComparison.Ordinal)).Value!;
+        var clearedBitBytes = (byte[])GetLastWriteNamed(plc.Writes, SingleBitWriteTagName).Value!;
         await TUnit.Assertions.Assert.That(Bit.FromByte(clearedBitBytes[0], 1)).IsFalse();
 
         binding.Dispose();
@@ -439,22 +434,19 @@ public sealed class S7BindingResidualCoverageTests
             new S7TagDefinition("Gap", "DB3.DBB40", typeof(byte), 0, S7TagDirection.WriteOnly, 1),
             new S7TagDefinition("OtherDb", "DB4.DBB0", typeof(byte), 0, S7TagDirection.WriteOnly, 1),
         };
-        using var first = S7TagRuntimeBinding.Bind(plc, writes, (_, _) => { });
-        using var rebound = S7TagRuntimeBinding.Bind(plc, writes, (_, _) => { });
+        using var first = S7TagRuntimeBinding.Bind(plc, writes, static (_, _) => { });
+        using var rebound = S7TagRuntimeBinding.Bind(plc, writes, static (_, _) => { });
         first.Write("First", (byte)1);
         first.Write("Gap", (byte)SecondReplayValue);
         first.Write("OtherDb", (byte)ThirdReplayValue);
 
         await WaitUntilAsync(() => plc.Writes.Count >= SeparatedRangeCount);
 
-        await TUnit.Assertions.Assert.That(plc.Writes.Select(write => write.Name)).Contains(
-            "__s7_binding_db3_0_1");
-        await TUnit.Assertions.Assert.That(plc.Writes.Select(write => write.Name)).Contains(
-            "__s7_binding_db3_40_1");
-        await TUnit.Assertions.Assert.That(plc.Writes.Select(write => write.Name)).Contains(
-            "__s7_binding_db4_0_1");
+        await TUnit.Assertions.Assert.That(ContainsWriteNamed(plc.Writes, "__s7_binding_db3_0_1")).IsTrue();
+        await TUnit.Assertions.Assert.That(ContainsWriteNamed(plc.Writes, "__s7_binding_db3_40_1")).IsTrue();
+        await TUnit.Assertions.Assert.That(ContainsWriteNamed(plc.Writes, "__s7_binding_db4_0_1")).IsTrue();
         await TUnit.Assertions.Assert.That(
-                () => S7TagRuntimeBinding.Bind(plc, null!, (_, _) => { }))
+                () => S7TagRuntimeBinding.Bind(plc, null!, static (_, _) => { }))
             .Throws<ArgumentNullException>();
         await TUnit.Assertions.Assert.That(
                 () => S7TagRuntimeBinding.Bind(plc, writes, null!))
@@ -567,7 +559,7 @@ public sealed class S7BindingResidualCoverageTests
         await AsyncCompatibility.CancelAsync(cancellation);
         await TUnit.Assertions.Assert.That(() => pendingCancellation).Throws<OperationCanceledException>();
         await TUnit.Assertions.Assert.That(
-                () => S7TagObservableAdapter.ToAsyncEnumerable<int>(null!))
+                static () => S7TagObservableAdapter.ToAsyncEnumerable<int>(null!))
             .Throws<ArgumentNullException>();
     }
 
@@ -717,7 +709,7 @@ public sealed class S7BindingResidualCoverageTests
         S7TagRuntimeBinding.Bind(
             plc,
             [new S7TagDefinition("Invalid", address, typeof(int), 0, S7TagDirection.WriteOnly, 1)],
-            (_, _) => { });
+            static (_, _) => { });
 
     /// <summary>Gets a private static runtime-binding helper method.</summary>
     /// <param name="methodName">The helper method name.</param>
@@ -752,16 +744,79 @@ public sealed class S7BindingResidualCoverageTests
     private static void Copy(byte[] source, byte[] destination, int offset) =>
         source.CopyTo(destination, offset);
 
+    /// <summary>Determines whether a recorded write has the specified tag name.</summary>
+    /// <param name="writes">The recorded writes.</param>
+    /// <param name="tagName">The tag name to locate.</param>
+    /// <returns><see langword="true"/> when the tag name was recorded; otherwise, <see langword="false"/>.</returns>
+    private static bool ContainsWriteNamed(
+        ConcurrentQueue<(string Name, object? Value)> writes,
+        string tagName) =>
+        TryGetLastWriteNamed(writes, tagName, out _);
+
+    /// <summary>Gets the latest recorded write with the specified tag name.</summary>
+    /// <param name="writes">The recorded writes.</param>
+    /// <param name="tagName">The tag name to locate.</param>
+    /// <returns>The latest matching write.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when no matching write exists.</exception>
+    private static (string Name, object? Value) GetLastWriteNamed(
+        ConcurrentQueue<(string Name, object? Value)> writes,
+        string tagName)
+    {
+        if (TryGetLastWriteNamed(writes, tagName, out var write))
+        {
+            return write;
+        }
+
+        throw new InvalidOperationException($"No write was recorded for {tagName}.");
+    }
+
+    /// <summary>Attempts to get the latest recorded write with the specified tag name.</summary>
+    /// <param name="writes">The recorded writes.</param>
+    /// <param name="tagName">The tag name to locate.</param>
+    /// <param name="write">Receives the latest matching write when found.</param>
+    /// <returns><see langword="true"/> when a matching write was found; otherwise, <see langword="false"/>.</returns>
+    private static bool TryGetLastWriteNamed(
+        ConcurrentQueue<(string Name, object? Value)> writes,
+        string tagName,
+        out (string Name, object? Value) write)
+    {
+        write = default;
+        var found = false;
+        foreach (var candidate in writes)
+        {
+            if (System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                    System.Text.Encoding.UTF8.GetBytes(candidate.Name),
+                    System.Text.Encoding.UTF8.GetBytes(tagName)))
+            {
+                write = candidate;
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
     /// <summary>Waits for an asynchronous binding condition.</summary>
     /// <param name="condition">The condition that signals completion.</param>
     /// <returns>A task representing the asynchronous wait.</returns>
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         var expires = BclDateTime.UtcNow + WaitTimeout;
+#if NETFRAMEWORK
         while (!condition() && BclDateTime.UtcNow < expires)
         {
             await Task.Delay(PollIntervalMilliseconds);
         }
+#else
+        using var timer = new PeriodicTimer(BclTimeSpan.FromMilliseconds(PollIntervalMilliseconds));
+        while (!condition() && BclDateTime.UtcNow < expires)
+        {
+            if (!await timer.WaitForNextTickAsync())
+            {
+                break;
+            }
+        }
+#endif
 
         await TUnit.Assertions.Assert.That(condition()).IsTrue();
     }
@@ -910,7 +965,7 @@ public sealed class S7BindingResidualCoverageTests
         public IObservable<string> Status => Observable.Empty<string>();
 
         /// <inheritdoc />
-        public global::IoT.DriverCore.S7PlcRx.Tags TagList { get; } = [];
+        public global::IoT.Driver.S7PlcRx.Tags TagList { get; } = [];
 
         /// <inheritdoc />
         public bool IsDisposed { get; private set; }
@@ -956,8 +1011,9 @@ public sealed class S7BindingResidualCoverageTests
                 return Task.FromResult(default(T));
             }
 
-            object clone = bytes.ToArray();
-            return Task.FromResult((T?)clone);
+            var clone = new byte[bytes.Length];
+            bytes.CopyTo(clone, 0);
+            return Task.FromResult((T?)(object)clone);
         }
 
         /// <inheritdoc />

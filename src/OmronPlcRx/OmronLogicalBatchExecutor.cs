@@ -4,15 +4,14 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive;
+namespace IoT.Driver.OmronPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.OmronPlcRx;
+namespace IoT.Driver.OmronPlcRx;
 #endif
 
 /// <summary>Executes grouped logical-tag transfers over native FINS memory-area operations.</summary>
@@ -40,10 +39,7 @@ internal sealed class OmronLogicalBatchExecutor(IOmronMemoryAreaOperations memor
         IReadOnlyList<OmronLogicalBatchItem> items,
         CancellationToken cancellationToken)
     {
-        if (items is null)
-        {
-            throw new ArgumentNullException(nameof(items));
-        }
+        ThrowIfNull(items, nameof(items));
 
         var results = new List<OmronLogicalBatchResult>(items.Count);
         var prepared = PrepareReadItems(items, results);
@@ -52,7 +48,7 @@ internal sealed class OmronLogicalBatchExecutor(IOmronMemoryAreaOperations memor
             var planner = new TagTransferPlanner(
                 new TagTransferCapabilities(_memory.MaximumReadWordCount));
             await ExecuteReadPlanAsync(
-                planner.Plan(prepared.Select(static item => item.Request)),
+                planner.Plan(CreateRequests(prepared)),
                 prepared,
                 results,
                 cancellationToken).ConfigureAwait(false);
@@ -69,10 +65,7 @@ internal sealed class OmronLogicalBatchExecutor(IOmronMemoryAreaOperations memor
         IReadOnlyList<OmronLogicalBatchItem> items,
         CancellationToken cancellationToken)
     {
-        if (items is null)
-        {
-            throw new ArgumentNullException(nameof(items));
-        }
+        ThrowIfNull(items, nameof(items));
 
         var results = new List<OmronLogicalBatchResult>(items.Count);
         var prepared = PrepareWriteItems(items, results);
@@ -81,13 +74,124 @@ internal sealed class OmronLogicalBatchExecutor(IOmronMemoryAreaOperations memor
             var planner = new TagTransferPlanner(
                 new TagTransferCapabilities(_memory.MaximumWriteWordCount));
             await ExecuteWritePlanAsync(
-                planner.Plan(prepared.Select(static item => item.Request)),
+                planner.Plan(CreateRequests(prepared)),
                 prepared,
                 results,
                 cancellationToken).ConfigureAwait(false);
         }
 
         return OrderResults(items, results);
+    }
+
+    /// <summary>Adds a successful decoded result.</summary>
+    /// <param name="item">Prepared source item.</param>
+    /// <param name="value">Decoded value.</param>
+    /// <param name="results">Result accumulator.</param>
+    private static void AddDecodedResult(
+        OmronPreparedBatchItem item,
+        object? value,
+        List<OmronLogicalBatchResult> results) =>
+        results.Add(OmronLogicalBatchResult.Success(item.Item.InputIndex, value));
+
+    /// <summary>Adds successful results for a completed native range.</summary>
+    /// <param name="items">Prepared range members.</param>
+    /// <param name="results">Result accumulator.</param>
+    private static void AddSuccesses(
+        IEnumerable<OmronPreparedBatchItem> items,
+        List<OmronLogicalBatchResult> results)
+    {
+        foreach (var item in items)
+        {
+            AddDecodedResult(item, item.Item.Value, results);
+        }
+    }
+
+    /// <summary>Adds a shared failure for every member of a failed native range.</summary>
+    /// <param name="items">Prepared range members.</param>
+    /// <param name="results">Result accumulator.</param>
+    /// <param name="error">Failure detail.</param>
+    private static void AddFailures(
+        IEnumerable<OmronPreparedBatchItem> items,
+        List<OmronLogicalBatchResult> results,
+        string error)
+    {
+        foreach (var item in items)
+        {
+            results.Add(OmronLogicalBatchResult.Failure(item.Item.InputIndex, error));
+        }
+    }
+
+    /// <summary>Returns results in exact source order and detects executor omissions.</summary>
+    /// <param name="items">Source items.</param>
+    /// <param name="results">Unordered results.</param>
+    /// <returns>Ordered results.</returns>
+    private static OmronLogicalBatchResult[] OrderResults(
+        IReadOnlyList<OmronLogicalBatchItem> items,
+        List<OmronLogicalBatchResult> results)
+    {
+        var byIndex = new Dictionary<int, OmronLogicalBatchResult>(results.Count);
+        foreach (var result in results)
+        {
+            byIndex.Add(result.InputIndex, result);
+        }
+
+        var ordered = new OmronLogicalBatchResult[items.Count];
+        for (var index = 0; index < items.Count; index++)
+        {
+            var item = items[index];
+            ordered[index] = byIndex.TryGetValue(item.InputIndex, out var result)
+                ? result
+                : OmronLogicalBatchResult.Failure(
+                    item.InputIndex,
+                    "The grouped FINS operation did not return a result.");
+        }
+
+        return ordered;
+    }
+
+    /// <summary>Creates planner requests without allocating a LINQ iterator.</summary>
+    /// <param name="prepared">Prepared batch items.</param>
+    /// <returns>The planner requests.</returns>
+    private static List<TagTransferRequest> CreateRequests(List<OmronPreparedBatchItem> prepared)
+    {
+        var requests = new List<TagTransferRequest>(prepared.Count);
+        foreach (var item in prepared)
+        {
+            requests.Add(item.Request);
+        }
+
+        return requests;
+    }
+
+    /// <summary>Gets the prepared members for a planned transfer range.</summary>
+    /// <param name="range">Planned transfer range.</param>
+    /// <param name="prepared">Prepared source items.</param>
+    /// <returns>The range members in planner order.</returns>
+    private static OmronPreparedBatchItem[] GetRangeItems(
+        TagTransferRange range,
+        List<OmronPreparedBatchItem> prepared)
+    {
+        var rangeItems = new OmronPreparedBatchItem[range.Items.Count];
+        for (var index = 0; index < range.Items.Count; index++)
+        {
+            rangeItems[index] = prepared[range.Items[index].InputIndex];
+        }
+
+        return rangeItems;
+    }
+
+    /// <summary>Validates a reference argument on all supported target frameworks.</summary>
+    /// <typeparam name="T">Reference argument type.</typeparam>
+    /// <param name="value">Value to validate.</param>
+    /// <param name="paramName">Parameter name.</param>
+    private static void ThrowIfNull<T>(T? value, string paramName)
+        where T : class
+    {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(value, paramName);
+#else
+        _ = value ?? throw new ArgumentNullException(paramName);
+#endif
     }
 
     /// <summary>Prepares readable items and retains address failures per item.</summary>
@@ -178,7 +282,7 @@ internal sealed class OmronLogicalBatchExecutor(IOmronMemoryAreaOperations memor
             isBit,
             wordCount,
             TagTransferAccess.Read);
-        return new OmronPreparedBatchItem(
+        return new(
             item,
             new TagTransferRequest(item.TagName, transferAddress),
             area,
@@ -207,7 +311,7 @@ internal sealed class OmronLogicalBatchExecutor(IOmronMemoryAreaOperations memor
             isBit,
             wordCount,
             TagTransferAccess.Write);
-        return new OmronPreparedBatchItem(
+        return new(
             item,
             new TagTransferRequest(item.TagName, transferAddress),
             area,
@@ -231,7 +335,7 @@ internal sealed class OmronLogicalBatchExecutor(IOmronMemoryAreaOperations memor
     {
         foreach (var range in plan.Ranges)
         {
-            var rangeItems = range.Items.Select(item => prepared[item.InputIndex]).ToArray();
+            var rangeItems = GetRangeItems(range, prepared);
             await ExecuteReadRangeAsync(
                 range,
                 rangeItems,
@@ -322,7 +426,8 @@ internal sealed class OmronLogicalBatchExecutor(IOmronMemoryAreaOperations memor
             try
             {
                 var offset = checked((int)(item.Address - range.Offset));
-                var valueWords = words.Skip(offset).Take(item.WordCount).ToArray();
+                var valueWords = new short[item.WordCount];
+                Array.Copy(words, offset, valueWords, 0, item.WordCount);
                 var value = OmronLogicalBatchCodec.DecodeWords(
                     item.Item.ValueType,
                     item.StringLength,
@@ -354,7 +459,7 @@ internal sealed class OmronLogicalBatchExecutor(IOmronMemoryAreaOperations memor
     {
         foreach (var range in plan.Ranges)
         {
-            var rangeItems = range.Items.Select(item => prepared[item.InputIndex]).ToArray();
+            var rangeItems = GetRangeItems(range, prepared);
             await ExecuteWriteRangeAsync(
                 range,
                 rangeItems,
@@ -447,63 +552,6 @@ internal sealed class OmronLogicalBatchExecutor(IOmronMemoryAreaOperations memor
             checked((ushort)range.Offset),
             OmronLogicalBatchCodec.ToWordType(rangeItems[0].Area),
             cancellationToken);
-    }
-
-    /// <summary>Adds a successful decoded result.</summary>
-    /// <param name="item">Prepared source item.</param>
-    /// <param name="value">Decoded value.</param>
-    /// <param name="results">Result accumulator.</param>
-    private void AddDecodedResult(
-        OmronPreparedBatchItem item,
-        object? value,
-        List<OmronLogicalBatchResult> results) =>
-        results.Add(OmronLogicalBatchResult.Success(item.Item.InputIndex, value));
-
-    /// <summary>Adds successful results for a completed native range.</summary>
-    /// <param name="items">Prepared range members.</param>
-    /// <param name="results">Result accumulator.</param>
-    private void AddSuccesses(
-        IEnumerable<OmronPreparedBatchItem> items,
-        List<OmronLogicalBatchResult> results)
-    {
-        foreach (var item in items)
-        {
-            AddDecodedResult(item, item.Item.Value, results);
-        }
-    }
-
-    /// <summary>Adds a shared failure for every member of a failed native range.</summary>
-    /// <param name="items">Prepared range members.</param>
-    /// <param name="results">Result accumulator.</param>
-    /// <param name="error">Failure detail.</param>
-    private void AddFailures(
-        IEnumerable<OmronPreparedBatchItem> items,
-        List<OmronLogicalBatchResult> results,
-        string error)
-    {
-        foreach (var item in items)
-        {
-            results.Add(OmronLogicalBatchResult.Failure(item.Item.InputIndex, error));
-        }
-    }
-
-    /// <summary>Returns results in exact source order and detects executor omissions.</summary>
-    /// <param name="items">Source items.</param>
-    /// <param name="results">Unordered results.</param>
-    /// <returns>Ordered results.</returns>
-    private OmronLogicalBatchResult[] OrderResults(
-        IReadOnlyList<OmronLogicalBatchItem> items,
-        IReadOnlyCollection<OmronLogicalBatchResult> results)
-    {
-        var byIndex = results.ToDictionary(static result => result.InputIndex);
-        return items
-            .Select(
-                item => byIndex.TryGetValue(item.InputIndex, out var result)
-                    ? result
-                    : OmronLogicalBatchResult.Failure(
-                        item.InputIndex,
-                        "The grouped FINS operation did not return a result."))
-            .ToArray();
     }
 
     /// <summary>Creates a planner address from parsed Omron memory coordinates.</summary>

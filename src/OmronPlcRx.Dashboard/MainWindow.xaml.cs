@@ -4,7 +4,7 @@
 
 using System.Windows;
 
-namespace IoT.DriverCore.OmronPlcRx.Dashboard;
+namespace IoT.Driver.OmronPlcRx.Dashboard;
 
 /// <summary>Main dashboard window.</summary>
 public partial class MainWindow : Window

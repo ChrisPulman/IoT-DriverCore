@@ -5,17 +5,17 @@
 using System.Net;
 using System.Net.Sockets;
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Data;
-using IoT.DriverCore.Serial.Reactive;
+using IoT.Driver.ModbusRx.Reactive.Data;
+using IoT.Driver.Serial.Reactive;
 #else
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.Serial;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.Serial;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Device;
+namespace IoT.Driver.ModbusRx.Reactive.Device;
 #else
-namespace IoT.DriverCore.ModbusRx.Device;
+namespace IoT.Driver.ModbusRx.Device;
 #endif
 
 /// <summary>Represents a running IPv4 Modbus TCP loopback endpoint.</summary>

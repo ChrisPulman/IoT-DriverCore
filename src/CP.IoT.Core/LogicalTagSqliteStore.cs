@@ -4,7 +4,7 @@
 
 using Microsoft.Data.Sqlite;
 
-namespace IoT.DriverCore.Core;
+namespace IoT.Driver.Core;
 
 /// <summary>Persists logical tag definitions and groups in SQLite.</summary>
 public sealed class LogicalTagSqliteStore
@@ -395,11 +395,11 @@ public sealed class LogicalTagSqliteStore
             ? (TimeSpan?)null
             : TimeSpan.FromMilliseconds(reader.GetDouble(TagScanIntervalColumn));
 
-        return new LogicalTag(
+        return new(
             reader.GetString(TagNameColumn),
             reader.GetString(TagAddressColumn),
             reader.GetString(TagDataTypeColumn),
-            new LogicalTagOptions
+            new()
             {
                 GroupName = reader.GetString(TagGroupNameColumn),
                 Description = reader.GetString(TagDescriptionColumn),

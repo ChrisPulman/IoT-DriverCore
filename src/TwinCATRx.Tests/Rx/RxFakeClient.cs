@@ -4,10 +4,10 @@
 
 using System;
 using System.Collections.Generic;
-using IoT.DriverCore.TwinCATRx;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx;
+using IoT.Driver.TwinCATRx.Core;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Simple fake implementation of IRxTcAdsClient for testing extensions.</summary>
 internal sealed class RxFakeClient : IRxTcAdsClient

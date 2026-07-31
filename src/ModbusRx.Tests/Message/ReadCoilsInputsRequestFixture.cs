@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
+namespace IoT.Driver.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the ReadCoilsInputsRequestFixture behavior.</summary>
 public class ReadCoilsInputsRequestFixture
@@ -35,7 +35,7 @@ public class ReadCoilsInputsRequestFixture
     /// <summary>Creates the read coils inputs request too much data.</summary>
     [TUnit.Core.Test]
     public void CreateReadCoilsInputsRequestTooMuchData() =>
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        Assert.Throws<ArgumentOutOfRangeException>(static () =>
             _ = new ReadCoilsInputsRequest(
                 Modbus.ReadCoils,
                 1,

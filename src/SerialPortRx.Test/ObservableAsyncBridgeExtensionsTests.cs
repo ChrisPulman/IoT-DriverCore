@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.Serial.Tests;
+namespace IoT.Driver.Serial.Tests;
 
 /// <summary>Tests for observable/async-observable bridge helpers.</summary>
 public sealed class ObservableAsyncBridgeExtensionsTests
@@ -90,7 +90,7 @@ public sealed class ObservableAsyncBridgeExtensionsTests
     {
         var values = new List<int>();
         var completed = false;
-        var source = new ManualAsyncObservable<int>(async (observer, token) =>
+        var source = new ManualAsyncObservable<int>(static async (observer, token) =>
         {
             await observer.OnNextAsync(Seven, token);
             await observer.OnCompletedAsync(Result.Success);
@@ -98,7 +98,7 @@ public sealed class ObservableAsyncBridgeExtensionsTests
 
         using var subscription = ObservableAsyncBridgeExtensions.ToObservable(source).Subscribe(
             values.Add,
-            _ => { },
+            static _ => { },
             () => completed = true);
 
         await Assert.That(values.Count).IsEqualTo(1);
@@ -116,7 +116,7 @@ public sealed class ObservableAsyncBridgeExtensionsTests
         var source = new ManualAsyncObservable<int>((observer, token) => observer.OnErrorResumeAsync(expected, token));
 
         using var subscription = ObservableAsyncBridgeExtensions.ToObservable(source).Subscribe(
-            _ => { },
+            static _ => { },
             receivedErrors.Add);
 
         await Assert.That(receivedErrors.Count).IsEqualTo(1);
@@ -144,6 +144,7 @@ public sealed class ObservableAsyncBridgeExtensionsTests
 
         using var subscription = ObservableAsyncBridgeExtensions.ToObservable(source).Subscribe(values.Add, errors.Add);
 
+        await deferredObserver.NextValue;
         await Assert.That(deferredObserver.Values).IsEquivalentTo([Seven]);
         await Assert.That(values).IsEmpty();
         await Assert.That(errors.Count).IsEqualTo(1);
@@ -206,8 +207,14 @@ public sealed class ObservableAsyncBridgeExtensionsTests
     /// <typeparam name="T">The observed value type.</typeparam>
     private sealed class YieldingAsyncObserver<T> : IObserverAsync<T>
     {
+        /// <summary>Signals when the observer has recorded a value after its asynchronous continuation.</summary>
+        private readonly TaskCompletionSource<T> _nextValue = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         /// <summary>Gets the values received after yielding.</summary>
         public List<T> Values { get; } = [];
+
+        /// <summary>Gets a task that completes when the next value has been recorded.</summary>
+        public Task<T> NextValue => _nextValue.Task;
 
         /// <inheritdoc/>
         public ValueTask DisposeAsync() => default;
@@ -223,6 +230,7 @@ public sealed class ObservableAsyncBridgeExtensionsTests
         {
             await Task.Yield();
             Values.Add(value);
+            _ = _nextValue.TrySetResult(value);
         }
     }
 

@@ -7,15 +7,15 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-using static IoT.DriverCore.MitsubishiRx.Reactive.MitsubishiNumericConstants;
+using static IoT.Driver.MitsubishiRx.Reactive.MitsubishiNumericConstants;
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-using static IoT.DriverCore.MitsubishiRx.MitsubishiNumericConstants;
+using static IoT.Driver.MitsubishiRx.MitsubishiNumericConstants;
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -39,7 +39,7 @@ internal static partial class MitsubishiProtocolEncoding
                 : BuildAsciiPasswordPayload(password);
         return Encode(
             options,
-            new MitsubishiRawCommandRequest(
+            new(
                 command,
                 0x0000,
                 body,
@@ -79,7 +79,7 @@ internal static partial class MitsubishiProtocolEncoding
 
         return Encode(
             options,
-            new MitsubishiRawCommandRequest(command, 0x0000, list, $"Memory op {command:X4}"));
+            new(command, 0x0000, list, $"Memory op {command:X4}"));
     }
 
     /// <summary>Executes the Encode1E operation.</summary>
@@ -342,7 +342,7 @@ internal static partial class MitsubishiProtocolEncoding
         MitsubishiClientOptions options,
         bool bitUnits)
     {
-        var baseBody = Encode1EDeviceBody(address, values.Length, options).ToList();
+        var baseBody = new List<byte>(Encode1EDeviceBody(address, values.Length, options));
         if (options.DataCode == CommunicationDataCode.Binary)
         {
             Append1EBinaryWriteValues(baseBody, values, options, bitUnits);

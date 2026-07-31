@@ -5,7 +5,7 @@
 using System.ComponentModel;
 using System.Globalization;
 
-namespace IoT.DriverCore.Serial.Tests;
+namespace IoT.Driver.Serial.Tests;
 
 /// <summary>Tests for generated stream value conversion.</summary>
 public sealed class SerialPortReactiveValueConverterTests

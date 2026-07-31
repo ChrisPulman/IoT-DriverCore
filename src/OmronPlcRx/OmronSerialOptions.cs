@@ -6,9 +6,11 @@ using System;
 using System.IO.Ports;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive;
+using IoT.Driver.OmronPlcRx.Reactive.Core;
+namespace IoT.Driver.OmronPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.OmronPlcRx;
+using IoT.Driver.OmronPlcRx.Core;
+namespace IoT.Driver.OmronPlcRx;
 #endif
 
 /// <summary>Gets or sets the omron serial options value.</summary>
@@ -18,11 +20,7 @@ public sealed record OmronSerialOptions
     /// <param name="portName">Serial port name, e.g. COM1 or /dev/ttyUSB0.</param>
     public OmronSerialOptions(string portName)
     {
-        if (portName is null || portName.Trim().Length == 0)
-        {
-            throw new ArgumentException("Serial port name cannot be null or whitespace.", nameof(portName));
-        }
-
+        OmronArgumentGuards.ThrowIfNullOrWhiteSpace(portName, nameof(portName));
         PortName = portName;
     }
 
@@ -107,10 +105,14 @@ public sealed record OmronSerialOptions
                 "The response wait time must be between 0 and 15.");
         }
 
+#if NET8_0_OR_GREATER
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(BaudRate);
+#else
         if (BaudRate <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(BaudRate), "The baud rate must be greater than zero.");
         }
+#endif
 
         if (DataBits < ProtocolConstants.Five || DataBits > ProtocolConstants.Eight)
         {

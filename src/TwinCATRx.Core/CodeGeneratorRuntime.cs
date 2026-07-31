@@ -8,9 +8,9 @@ using TwinCAT.Ads.TypeSystem;
 using TwinCAT.TypeSystem;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Core.Reactive;
+namespace IoT.Driver.TwinCATRx.Core.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx.Core;
+namespace IoT.Driver.TwinCATRx.Core;
 #endif
 
 /// <summary>Provides native Beckhoff symbol loading for <see cref="CodeGenerator"/>.</summary>

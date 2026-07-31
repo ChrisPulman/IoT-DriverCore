@@ -8,7 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Testing;
+namespace IoT.Driver.ModbusRx.UnitTests.Testing;
 
 /// <summary>Provides xUnit-compatible assertion helpers that throw on failure so TUnit can detect them.</summary>
 internal static class Assert
@@ -221,23 +221,21 @@ internal static class Assert
     /// <returns>The caught exception.</returns>
     internal static Exception Throws(Type exceptionType, Action action)
     {
-        if (exceptionType is null)
-        {
+        Type checkedExceptionType = exceptionType ??
             throw new ArgumentNullException(nameof(exceptionType));
-        }
 
         try
         {
             action();
         }
-        catch (Exception ex) when (exceptionType.IsInstanceOfType(ex))
+        catch (Exception ex) when (checkedExceptionType.IsInstanceOfType(ex))
         {
             return ex;
         }
         catch (Exception ex)
         {
             throw new InvalidOperationException(
-                $"Assert.{nameof(Throws)}({exceptionType.Name}) Failure: caught {ex.GetType().Name} instead",
+                $"Assert.{nameof(Throws)}({checkedExceptionType.Name}) Failure: caught {ex.GetType().Name} instead",
                 ex);
         }
 
@@ -276,8 +274,18 @@ internal static class Assert
     /// <param name="actEnum">The actual sequence.</param>
     private static void CheckSequencesNotEqual(IEnumerable unexpEnum, IEnumerable actEnum)
     {
-        var unexpList = unexpEnum.Cast<object?>().ToList();
-        var actList = actEnum.Cast<object?>().ToList();
+        var unexpList = new List<object?>();
+        foreach (var item in unexpEnum)
+        {
+            unexpList.Add(item);
+        }
+
+        var actList = new List<object?>();
+        foreach (var item in actEnum)
+        {
+            actList.Add(item);
+        }
+
         _ = !unexpList.SequenceEqual(actList, EqualityComparer<object?>.Default)
             ? default(object?)
             : throw new InvalidOperationException(
@@ -290,8 +298,18 @@ internal static class Assert
     /// <param name="methodName">The calling assertion method name used in the failure message.</param>
     private static void CheckSequenceEqual(IEnumerable expEnum, IEnumerable actEnum, string methodName)
     {
-        var expList = expEnum.Cast<object?>().ToList();
-        var actList = actEnum.Cast<object?>().ToList();
+        var expList = new List<object?>();
+        foreach (var item in expEnum)
+        {
+            expList.Add(item);
+        }
+
+        var actList = new List<object?>();
+        foreach (var item in actEnum)
+        {
+            actList.Add(item);
+        }
+
         _ = expList.SequenceEqual(actList, EqualityComparer<object?>.Default)
             ? default(object?)
             : throw new InvalidOperationException(

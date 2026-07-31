@@ -8,7 +8,7 @@ using System.Globalization;
 using System.Text;
 using Microsoft.CodeAnalysis;
 
-namespace IoT.DriverCore.TwinCATRx.SourceGenerators;
+namespace IoT.Driver.TwinCATRx.SourceGenerators;
 
 /// <summary>Generates TwinCAT reactive stream binding members.</summary>
 public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerator
@@ -27,7 +27,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
                 continue;
             }
 
-            registrations.Add(new NotificationRegistration(property.Address, property.CycleTime, property.ArraySize));
+            registrations.Add(new(property.Address, property.CycleTime, property.ArraySize));
         }
 
         return registrations;
@@ -70,7 +70,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
             return;
         }
 
-        registrations.Add(new WriteRegistration(writeAddress, arraySize));
+        registrations.Add(new(writeAddress, arraySize));
     }
 
     /// <summary>Gets unique structured notification root variables.</summary>
@@ -125,7 +125,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
             var target = GetStructuredWriteTarget(property, structuredVariables);
             if (target is not null)
             {
-                structuredWriteProperties.Add(new StructuredWritePropertySpec(property, target));
+                structuredWriteProperties.Add(new(property, target));
             }
         }
 
@@ -203,7 +203,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
     {
         if (property.Kind == StructuredKind && !string.IsNullOrWhiteSpace(property.MemberAddress))
         {
-            return new StructuredWriteTarget(property.Address, property.MemberAddress!);
+            return new(property.Address, property.MemberAddress!);
         }
 
         if (property.Kind != WriteOnlyKind)
@@ -217,7 +217,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
             var prefix = root.EndsWith(".", StringComparison.Ordinal) ? root : $"{root}.";
             if (property.Address.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
-                return new StructuredWriteTarget(root, property.Address.Substring(prefix.Length));
+                return new(root, property.Address.Substring(prefix.Length));
             }
         }
 
@@ -427,7 +427,7 @@ public sealed partial class TwinCatReactiveStreamGenerator : IIncrementalGenerat
 
         var characters = value.ToCharArray();
         characters[0] = char.ToLowerInvariant(characters[0]);
-        return new string(characters);
+        return new(characters);
     }
 
     /// <summary>Gets a local variable name for a structured notification root.</summary>

@@ -2,14 +2,14 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiReactiveScanRuntimeTests type.</summary>
@@ -34,7 +34,7 @@ internal sealed class MitsubishiReactiveScanRuntimeTests
     {
         var scheduler = new TestScheduler();
         await using var transport = new FakeTransport(
-            _ =>
+            static _ =>
             [
                 0xD0, 0x00, 0x00, 0xFF, 0xFF, 0x03, 0x00,
                 0x04, 0x00, 0x00, 0x00, 0x34, 0x12,
@@ -68,7 +68,7 @@ internal sealed class MitsubishiReactiveScanRuntimeTests
     {
         var scheduler = new TestScheduler();
         await using var transport = new FakeTransport(
-            _ =>
+            static _ =>
             [
                 0xD0, 0x00, 0x00, 0xFF, 0xFF, 0x03, 0x00,
                 0x04, 0x00, 0x00, 0x00, 0x34, 0x12,
@@ -104,7 +104,7 @@ internal sealed class MitsubishiReactiveScanRuntimeTests
     {
         var scheduler = new TestScheduler();
         await using var transport = new FakeTransport(
-            _ =>
+            static _ =>
             [
                 0xD0, 0x00, 0x00, 0xFF, 0xFF, 0x03, 0x00,
                 0x06, 0x00, 0x00, 0x00, 0x34, 0x12, 0x78, 0x56,
@@ -115,7 +115,7 @@ internal sealed class MitsubishiReactiveScanRuntimeTests
             new MitsubishiTagDefinition(RecipeTagName, "D100", DataType: UInt16DataType),
             new MitsubishiTagDefinition(SetpointTagName, "D101", DataType: UInt16DataType),
         ]);
-        client.TagDatabase.AddGroup(new MitsubishiTagGroupDefinition("Line1", [RecipeTagName, SetpointTagName]));
+        client.TagDatabase.AddGroup(new("Line1", [RecipeTagName, SetpointTagName]));
 
         var received = new List<MitsubishiReactiveValue<MitsubishiTagGroupSnapshot>>();
         using var subscription = client
@@ -144,7 +144,7 @@ internal sealed class MitsubishiReactiveScanRuntimeTests
     {
         var scheduler = new TestScheduler();
         await using var transport = new FakeTransport(
-            _ =>
+            static _ =>
             [
                 0xD0, 0x00, 0x00, 0xFF, 0xFF, 0x03, 0x00,
                 0x04, 0x00, 0x00, 0x00, 0x34, 0x12,

@@ -4,15 +4,15 @@
 
 using System.Collections.Concurrent;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Cache;
+using IoT.Driver.S7PlcRx.Reactive.Cache;
 #else
-using IoT.DriverCore.S7PlcRx.Cache;
+using IoT.Driver.S7PlcRx.Cache;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Optimization;
+namespace IoT.Driver.S7PlcRx.Reactive.Optimization;
 #else
-namespace IoT.DriverCore.S7PlcRx.Optimization;
+namespace IoT.Driver.S7PlcRx.Optimization;
 #endif
 
 /// <summary>
@@ -64,10 +64,7 @@ public static class OptimizationExtensions
         int debounceMs,
         TimeProvider timeProvider)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc));
-        }
+        Guard.NotNull(plc, nameof(plc));
 
 #if NET8_0_OR_GREATER
         Guard.NotNullOrWhiteSpace(tagName, nameof(tagName));
@@ -82,12 +79,12 @@ public static class OptimizationExtensions
             .Timestamp()
             .Scan(
                 (Previous: default(T), Current: default(T), PrevTime: DateTimeOffset.MinValue, IsFirst: true),
-                (acc, timestamped) => (
+                static (acc, timestamped) => (
                     Previous: acc.Current,
                     Current: timestamped.Value,
                     PrevTime: acc.IsFirst ? timestamped.Timestamp : acc.PrevTime,
                     IsFirst: false))
-            .Where(state => !state.IsFirst)
+            .Where(static state => !state.IsFirst)
             .Where(state => IsSignificantChange(state.Previous, state.Current, comparer, changeThreshold))
             .Select(state => new SmartTagChange<T>
                 {
@@ -97,7 +94,7 @@ public static class OptimizationExtensions
                     ChangeTime = timeProvider.GetUtcNow(),
                     ChangeAmount = CalculateChangeAmount(state.Previous, state.Current),
                 })
-            .Where(change => change is not null)
+            .Where(static change => change is not null)
             .Sample(TimeSpan.FromMilliseconds(debounceMs))
             .Publish()
             .RefCount();
@@ -132,10 +129,7 @@ public static class OptimizationExtensions
         TimeSpan cacheTimeout,
         TimeProvider timeProvider)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc));
-        }
+        Guard.NotNull(plc, nameof(plc));
 
 #if NET8_0_OR_GREATER
         Guard.NotNullOrWhiteSpace(tagName, nameof(tagName));
@@ -182,10 +176,7 @@ public static class OptimizationExtensions
     /// <param name="tagName">The name of the tag to clear from the cache.</param>
     public static void ClearCache(IRxS7 plc, string? tagName)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc));
-        }
+        Guard.NotNull(plc, nameof(plc));
 
         lock (CacheLock)
         {
@@ -193,8 +184,9 @@ public static class OptimizationExtensions
             {
                 var prefix = $"{plc.IP}_";
                 var keysToRemove = new List<string>();
-                foreach (var key in ValueCache.Keys)
+                foreach (var cacheEntry in ValueCache)
                 {
+                    var key = cacheEntry.Key;
                     if (key.StartsWith(prefix, StringComparison.Ordinal))
                     {
                         keysToRemove.Add(key);
@@ -226,10 +218,7 @@ public static class OptimizationExtensions
     /// <returns>A CacheStatistics object containing aggregated cache metrics for the specified PLC.</returns>
     public static CacheStatistics GetCacheStatistics(IRxS7 plc, TimeProvider timeProvider)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc));
-        }
+        Guard.NotNull(plc, nameof(plc));
 
         lock (CacheLock)
         {

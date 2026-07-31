@@ -4,15 +4,15 @@
 
 using System.Buffers.Binary;
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Utility;
+using IoT.Driver.ModbusRx.Reactive.Utility;
 #else
-using IoT.DriverCore.ModbusRx.Utility;
+using IoT.Driver.ModbusRx.Utility;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.IO;
+namespace IoT.Driver.ModbusRx.Reactive.IO;
 #else
-namespace IoT.DriverCore.ModbusRx.IO;
+namespace IoT.Driver.ModbusRx.IO;
 #endif
 
 /// <summary>High-performance Modbus message factory with cross-platform optimizations.</summary>
@@ -124,10 +124,7 @@ public static class OptimizedModbusMessageFactory
     /// <returns>The serialized message bytes.</returns>
     public static byte[] CreateWriteMultipleRegistersRequest(byte slaveAddress, ushort startAddress, ushort[] values)
     {
-        if (values is null)
-        {
-            throw new ArgumentNullException(nameof(values));
-        }
+        values = ModbusGuard.NotNull(values, nameof(values));
 
         var messageLength = Nine + (values.Length * Two); // Header + byte count + data + CRC
         var bufferManager = Volatile.Read(ref _bufferManager);
@@ -201,10 +198,7 @@ public static class OptimizedModbusMessageFactory
     /// <returns>The serialized message bytes.</returns>
     public static byte[] CreateWriteMultipleCoilsRequest(byte slaveAddress, ushort startAddress, bool[] values)
     {
-        if (values is null)
-        {
-            throw new ArgumentNullException(nameof(values));
-        }
+        values = ModbusGuard.NotNull(values, nameof(values));
 
         var byteCount = (values.Length + Seven) / Eight; // Round up to next byte
         var messageLength = Nine + byteCount; // Header + byte count + data + CRC
@@ -252,10 +246,7 @@ public static class OptimizedModbusMessageFactory
     /// <exception cref="ArgumentException">Thrown when response data is invalid.</exception>
     public static ushort[] ParseReadHoldingRegistersResponse(byte[] responseData)
     {
-        if (responseData is null)
-        {
-            throw new ArgumentNullException(nameof(responseData));
-        }
+        responseData = ModbusGuard.NotNull(responseData, nameof(responseData));
 
         if (responseData.Length < 5)
         {
@@ -289,10 +280,7 @@ public static class OptimizedModbusMessageFactory
     /// <exception cref="ArgumentException">Thrown when response data is invalid.</exception>
     public static bool[] ParseReadCoilsResponse(byte[] responseData, int numberOfCoils)
     {
-        if (responseData is null)
-        {
-            throw new ArgumentNullException(nameof(responseData));
-        }
+        responseData = ModbusGuard.NotNull(responseData, nameof(responseData));
 
         if (responseData.Length < 5)
         {
@@ -351,5 +339,5 @@ public static class OptimizedModbusMessageFactory
     /// after the final in-flight operation releases it.
     /// </remarks>
     public static void DisposeSharedResources() =>
-        _ = Interlocked.Exchange(ref _bufferManager, new ModbusBufferManager());
+        _ = Interlocked.Exchange(ref _bufferManager, new());
 }

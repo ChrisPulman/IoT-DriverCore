@@ -2,21 +2,21 @@
   <img src="https://raw.githubusercontent.com/ChrisPulman/IoT-DriverCore/main/images/cp-iot-core.png" alt="CP.IoT.Core package logo" width="320" />
 </p>
 
-# CP.IoT.Core
+# IoT-Driver.Core
 
 ## Overview
 
-`CP.IoT.Core` is the protocol-neutral composition layer shared by the IoT-DriverCore PLC drivers. It gives applications stable logical names while each protocol adapter remains responsible for physical addresses, value conversion, batching, and transport failures.
+`IoT-Driver.Core` (project and assembly `CP.IoT.Core`) is the protocol-neutral composition layer shared by the IoT-DriverCore PLC drivers. It gives applications stable logical names while each protocol adapter remains responsible for physical addresses, value conversion, batching, and transport failures.
 
 Use it to define logical tags once, compose clients from different PLC families, persist definitions, plan contiguous transfers, or test application behavior without PLC hardware.
 
 ## Install
 
 ```bash
-dotnet add package CP.IoT.Core
+dotnet add package IoT-Driver.Core
 ```
 
-The public namespace is `IoT.DriverCore.Core`.
+The public namespace is `IoT.Driver.Core`.
 
 ## Core model
 
@@ -32,7 +32,7 @@ The public namespace is `IoT.DriverCore.Core`.
 ## Define and catalogue tags
 
 ```csharp
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 using var catalog = new LogicalTagCatalog();
 
@@ -60,7 +60,7 @@ The address string remains protocol-specific. Create it with the syntax expected
 Protocol packages expose or compose an `ILogicalTagClient`. Typed extension methods preserve the logical key type:
 
 ```csharp
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 static async Task<float> ReadTemperatureAsync(
     ILogicalTagClient client,

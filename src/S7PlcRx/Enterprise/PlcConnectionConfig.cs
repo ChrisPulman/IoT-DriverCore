@@ -3,15 +3,15 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Enums;
+using IoT.Driver.S7PlcRx.Reactive.Enums;
 #else
-using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Enterprise;
+namespace IoT.Driver.S7PlcRx.Reactive.Enterprise;
 #else
-namespace IoT.DriverCore.S7PlcRx.Enterprise;
+namespace IoT.Driver.S7PlcRx.Enterprise;
 #endif
 
 /// <summary>Represents the settings required to establish a programmable logic controller connection.</summary>

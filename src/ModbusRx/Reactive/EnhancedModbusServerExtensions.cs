@@ -3,25 +3,25 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Data;
+using IoT.Driver.ModbusRx.Reactive.Data;
 #else
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Device;
+using IoT.Driver.ModbusRx.Reactive.Device;
 #else
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Device;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Utility;
+using IoT.Driver.ModbusRx.Reactive.Utility;
 #else
-using IoT.DriverCore.ModbusRx.Utility;
+using IoT.Driver.ModbusRx.Utility;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive;
+namespace IoT.Driver.ModbusRx.Reactive;
 #else
-namespace IoT.DriverCore.ModbusRx;
+namespace IoT.Driver.ModbusRx;
 #endif
 
 /// <summary>Enhanced reactive extensions for ModbusServer with performance optimizations.</summary>
@@ -43,10 +43,7 @@ public static class EnhancedModbusServerExtensions
         TimeProvider? timeProvider,
         ModbusObservationMetrics? metrics)
     {
-        if (server is null)
-        {
-            throw new ArgumentNullException(nameof(server));
-        }
+        server = ModbusGuard.NotNull(server, nameof(server));
 
         var dataStore = server.DataStore ?? throw new InvalidOperationException("The server data store is not initialized.");
         var snapshotTimeProvider = timeProvider ?? TimeProvider.System;
@@ -71,7 +68,7 @@ public static class EnhancedModbusServerExtensions
             }
 
             dataStore.DataStoreWrittenTo += OnDataStoreWritten;
-            return Disposable.Create(() => dataStore.DataStoreWrittenTo -= OnDataStoreWritten);
+            return new DataStoreWriteSubscription(() => dataStore.DataStoreWrittenTo -= OnDataStoreWritten);
         });
     }
 
@@ -92,10 +89,7 @@ public static class EnhancedModbusServerExtensions
         int interval,
         TimeProvider? timeProvider)
     {
-        if (server is null)
-        {
-            throw new ArgumentNullException(nameof(server));
-        }
+        server = ModbusGuard.NotNull(server, nameof(server));
 
         var snapshotTimeProvider = timeProvider ?? TimeProvider.System;
 
@@ -111,7 +105,7 @@ public static class EnhancedModbusServerExtensions
                 var writeSubscription = Observable.FromEventPattern<DataStoreEventArgs>(
                     handler => server.DataStore.DataStoreWrittenTo += handler,
                     handler => server.DataStore.DataStoreWrittenTo -= handler)
-                    .Select(pattern => pattern.EventArgs)
+                    .Select(static pattern => pattern.EventArgs)
                     .Subscribe(_ => hasChanged = true);
 
                 disposables.Add(writeSubscription);
@@ -147,10 +141,7 @@ public static class EnhancedModbusServerExtensions
         ushort count,
         int interval)
     {
-        if (server is null)
-        {
-            throw new ArgumentNullException(nameof(server));
-        }
+        server = ModbusGuard.NotNull(server, nameof(server));
 
         return Observable.Create<ushort[]>(observer =>
         {
@@ -165,7 +156,7 @@ public static class EnhancedModbusServerExtensions
                 var writeSubscription = Observable.FromEventPattern<DataStoreEventArgs>(
                     handler => server.DataStore.DataStoreWrittenTo += handler,
                     handler => server.DataStore.DataStoreWrittenTo -= handler)
-                    .Select(pattern => pattern.EventArgs)
+                    .Select(static pattern => pattern.EventArgs)
                     .Where(args => IsAddressInRange(args.StartAddress, GetDataLength(args), startAddress, count))
                     .Subscribe(_ => hasChanged = true);
 
@@ -214,10 +205,7 @@ public static class EnhancedModbusServerExtensions
         ushort count,
         int interval)
     {
-        if (server is null)
-        {
-            throw new ArgumentNullException(nameof(server));
-        }
+        server = ModbusGuard.NotNull(server, nameof(server));
 
         return Observable.Create<bool[]>(observer =>
         {
@@ -232,7 +220,7 @@ public static class EnhancedModbusServerExtensions
                 var writeSubscription = Observable.FromEventPattern<DataStoreEventArgs>(
                     handler => server.DataStore.DataStoreWrittenTo += handler,
                     handler => server.DataStore.DataStoreWrittenTo -= handler)
-                    .Select(pattern => pattern.EventArgs)
+                    .Select(static pattern => pattern.EventArgs)
                     .Where(args => IsAddressInRange(args.StartAddress, GetDataLength(args), startAddress, count))
                     .Subscribe(_ => hasChanged = true);
 
@@ -292,15 +280,12 @@ public static class EnhancedModbusServerExtensions
         int bufferTimeMilliseconds,
         TimeProvider? timeProvider)
     {
-        if (server is null)
-        {
-            throw new ArgumentNullException(nameof(server));
-        }
+        server = ModbusGuard.NotNull(server, nameof(server));
 
         return ObserveDataChangesOptimized(server, OneHundred, timeProvider)
             .Buffer(bufferSize)
             .Select(CopyBufferedSnapshots)
-            .Where(buffer => buffer.Length > 0);
+            .Where(static buffer => buffer.Length > 0);
     }
 
     /// <summary>Executes the Create Snapshot operation.</summary>
@@ -314,7 +299,7 @@ public static class EnhancedModbusServerExtensions
             var dataStore = server.DataStore;
             if (dataStore is null)
             {
-                return new ModbusServerDataSnapshot();
+                return new();
             }
 
             // Read a reasonable range of data for snapshot
@@ -338,7 +323,7 @@ public static class EnhancedModbusServerExtensions
                 1,
                 Math.Min(maxCoils, (ushort)Math.Max(1, dataStore.InputDiscretes.Count - 1)));
 
-            return new ModbusServerDataSnapshot(
+            return new(
                 holdingRegisters,
                 inputRegisters,
                 coils,
@@ -347,7 +332,7 @@ public static class EnhancedModbusServerExtensions
         }
         catch
         {
-            return new ModbusServerDataSnapshot();
+            return new();
         }
     }
 
@@ -432,5 +417,26 @@ public static class EnhancedModbusServerExtensions
         }
 
         return result;
+    }
+
+    /// <summary>Unsubscribes an event handler from a Modbus data store exactly once.</summary>
+    /// <param name="unsubscribe">Removes the event handler from the data store.</param>
+    private sealed class DataStoreWriteSubscription(
+        Action unsubscribe) : IDisposable
+    {
+        /// <summary>Stores the unsubscription action until disposal.</summary>
+        private Action? _unsubscribe = unsubscribe;
+
+        /// <summary>Removes the handler from the data-store event.</summary>
+        public void Dispose()
+        {
+            var unsubscribe = Interlocked.Exchange(ref _unsubscribe, null);
+            if (unsubscribe is null)
+            {
+                return;
+            }
+
+            unsubscribe();
+        }
     }
 }

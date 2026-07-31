@@ -7,23 +7,25 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Signals;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Enums;
-using IoT.DriverCore.OmronPlcRx.Reactive.Results;
-using IoT.DriverCore.OmronPlcRx.Reactive.Tags;
+using IoT.Driver.OmronPlcRx.Reactive.Core;
+using IoT.Driver.OmronPlcRx.Reactive.Enums;
+using IoT.Driver.OmronPlcRx.Reactive.Results;
+using IoT.Driver.OmronPlcRx.Reactive.Tags;
 #else
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Results;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Results;
+using IoT.Driver.OmronPlcRx.Tags;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive;
+namespace IoT.Driver.OmronPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.OmronPlcRx;
+namespace IoT.Driver.OmronPlcRx;
 #endif
 
 /// <summary>Provides a deterministic, in-memory Omron PLC through <see cref="IOmronPlcRx"/>.</summary>
@@ -47,6 +49,9 @@ public sealed class OmronPlcSimulator : IOmronPlcRx
     /// <summary>Stores completed operation records.</summary>
     private readonly ConcurrentQueue<OmronSimulatorOperationRecord> _operations = new();
 
+    /// <summary>Exposes completed operation records without creating snapshots on each read.</summary>
+    private readonly IReadOnlyList<OmronSimulatorOperationRecord> _operationsView;
+
     /// <summary>Publishes aggregate tag changes.</summary>
     private readonly Signal<IPlcTag?> _all = new();
 
@@ -54,7 +59,11 @@ public sealed class OmronPlcSimulator : IOmronPlcRx
     private readonly Signal<OmronPLCException?> _errors = new();
 
     /// <summary>Synchronizes connection and disposal state.</summary>
+#if NET9_0_OR_GREATER
+    private readonly Lock _stateGate = new();
+#else
     private readonly object _stateGate = new();
+#endif
 
     /// <summary>Stores the next operation sequence number.</summary>
     private long _sequence;
@@ -112,6 +121,7 @@ public sealed class OmronPlcSimulator : IOmronPlcRx
         ControllerVersion = controllerVersion;
         _connected = initiallyConnected;
         _clock = initialClock;
+        _operationsView = new OperationListView(_operations);
     }
 
     /// <inheritdoc />
@@ -156,8 +166,8 @@ public sealed class OmronPlcSimulator : IOmronPlcRx
     /// <summary>Gets the number of successful reconnections.</summary>
     public int ReconnectCount { get; private set; }
 
-    /// <summary>Gets a snapshot of completed simulator operations.</summary>
-    public IReadOnlyList<OmronSimulatorOperationRecord> Operations => _operations.ToArray();
+    /// <summary>Gets a read-only view of completed simulator operations.</summary>
+    public IReadOnlyList<OmronSimulatorOperationRecord> Operations => _operationsView;
 
     /// <summary>Gets or sets simulated minimum cycle time in milliseconds.</summary>
     public double MinimumCycleTime { get; set; } = 1;
@@ -232,15 +242,8 @@ public sealed class OmronPlcSimulator : IOmronPlcRx
         bool disconnect)
     {
         ThrowIfDisposed();
-        if (exception is null)
-        {
-            throw new ArgumentNullException(nameof(exception));
-        }
-
-        if (occurrences <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(occurrences));
-        }
+        OmronArgumentGuards.ThrowIfNull(exception, nameof(exception));
+        OmronArgumentGuards.ThrowIfNegativeOrZero(occurrences, nameof(occurrences));
 
         var queue = _faults.GetOrAdd(operation, static _ => new());
         for (var index = 0; index < occurrences; index++)
@@ -263,16 +266,10 @@ public sealed class OmronPlcSimulator : IOmronPlcRx
     public void AddUpdateTagItem<T>(PlcTag<T> tag)
     {
         ThrowIfDisposed();
-        if (tag is null)
-        {
-            throw new ArgumentNullException(nameof(tag));
-        }
+        OmronArgumentGuards.ThrowIfNull(tag, nameof(tag));
 
         _tags[tag.TagName] = tag;
-        _ = _subjects.GetOrAdd(
-            tag.TagName,
-            name => new BehaviorSignal<object?>(
-                _values.TryGetValue(name, out var current) ? current : default));
+        _ = _subjects.GetOrAdd(tag.TagName, CreateSubject);
         if (!_values.TryGetValue(tag.TagName, out var value))
         {
             return;
@@ -301,15 +298,9 @@ public sealed class OmronPlcSimulator : IOmronPlcRx
     public IObservable<T?> Observe<T>(LogicalTagKey<T> tag)
     {
         ThrowIfDisposed();
-        if (tag is null)
-        {
-            throw new ArgumentNullException(nameof(tag));
-        }
+        OmronArgumentGuards.ThrowIfNull(tag, nameof(tag));
 
-        var subject = _subjects.GetOrAdd(
-            tag.Name,
-            name => new BehaviorSignal<object?>(
-                _values.TryGetValue(name, out var current) ? current : default));
+        var subject = _subjects.GetOrAdd(tag.Name, CreateSubject);
         return subject.Select(ConvertValue<T>);
     }
 
@@ -317,10 +308,7 @@ public sealed class OmronPlcSimulator : IOmronPlcRx
     public T? GetValue<T>(LogicalTagKey<T> tag)
     {
         ThrowIfDisposed();
-        if (tag is null)
-        {
-            throw new ArgumentNullException(nameof(tag));
-        }
+        OmronArgumentGuards.ThrowIfNull(tag, nameof(tag));
 
         return _values.TryGetValue(tag.Name, out var value) ? ConvertValue<T>(value) : default;
     }
@@ -451,8 +439,9 @@ public sealed class OmronPlcSimulator : IOmronPlcRx
             _connected = false;
         }
 
-        foreach (var subject in _subjects.Values)
+        foreach (var pair in _subjects)
         {
+            var subject = pair.Value;
             subject.OnCompleted();
             subject.Dispose();
         }
@@ -463,6 +452,24 @@ public sealed class OmronPlcSimulator : IOmronPlcRx
         _all.Dispose();
         _errors.Dispose();
     }
+
+    /// <summary>Converts a cached simulator value to a requested tag type.</summary>
+    /// <typeparam name="T">Requested tag type.</typeparam>
+    /// <param name="value">Cached value.</param>
+    /// <returns>The typed value.</returns>
+    private static T? ConvertValue<T>(object? value) =>
+        value switch
+        {
+            null => default,
+            T typed => typed,
+            _ => (T)Convert.ChangeType(value, typeof(T)),
+        };
+
+    /// <summary>Creates the observable signal for a tag when it is first requested.</summary>
+    /// <param name="name">Tag name.</param>
+    /// <returns>The new observable signal.</returns>
+    private BehaviorSignal<object?> CreateSubject(string name) =>
+        new(_values.TryGetValue(name, out var current) ? current : default);
 
     /// <summary>Publishes and caches a tag value.</summary>
     /// <typeparam name="T">Tag value type.</typeparam>
@@ -511,10 +518,7 @@ public sealed class OmronPlcSimulator : IOmronPlcRx
     /// <param name="tag">Logical tag key.</param>
     private void EnsureRegistered<T>(LogicalTagKey<T> tag)
     {
-        if (tag is null)
-        {
-            throw new ArgumentNullException(nameof(tag));
-        }
+        OmronArgumentGuards.ThrowIfNull(tag, nameof(tag));
 
         _ = _tags.TryGetValue(tag.Name, out var registered) && registered.TagType == typeof(T)
             ? 0
@@ -550,18 +554,6 @@ public sealed class OmronPlcSimulator : IOmronPlcRx
             value,
             succeeded));
 
-    /// <summary>Converts a cached simulator value to a requested tag type.</summary>
-    /// <typeparam name="T">Requested tag type.</typeparam>
-    /// <param name="value">Cached value.</param>
-    /// <returns>The typed value.</returns>
-    private T? ConvertValue<T>(object? value) =>
-        value switch
-        {
-            null => default,
-            T typed => typed,
-            _ => (T)Convert.ChangeType(value, typeof(T)),
-        };
-
     /// <summary>Provides framework-compatible simulator argument validation.</summary>
     private static class ArgumentGuards
     {
@@ -577,10 +569,60 @@ public sealed class OmronPlcSimulator : IOmronPlcRx
             {
                 case null:
                     throw new ArgumentNullException(parameterName);
-                case var text when text.Trim().Length == 0:
+                case var text when string.IsNullOrWhiteSpace(text):
                     throw new ArgumentException("The value cannot be empty or whitespace.", parameterName);
             }
 #endif
+        }
+    }
+
+    /// <summary>Provides an allocation-free read-only view over the operation queue.</summary>
+    private sealed class OperationListView : IReadOnlyList<OmronSimulatorOperationRecord>
+    {
+        /// <summary>Stores the queue exposed through this view.</summary>
+        private readonly ConcurrentQueue<OmronSimulatorOperationRecord> _operations;
+
+        /// <summary>Initializes a new instance of the <see cref="OperationListView"/> class.</summary>
+        /// <param name="operations">Operation queue to expose.</param>
+        internal OperationListView(ConcurrentQueue<OmronSimulatorOperationRecord> operations) => _operations = operations;
+
+        /// <inheritdoc />
+        public int Count => _operations.Count;
+
+        /// <inheritdoc />
+        public OmronSimulatorOperationRecord this[int index]
+        {
+            get => GetAt(index);
+        }
+
+        /// <inheritdoc />
+        public IEnumerator<OmronSimulatorOperationRecord> GetEnumerator() => _operations.GetEnumerator();
+
+        /// <inheritdoc />
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+        /// <summary>Gets the operation at a queue index.</summary>
+        /// <param name="index">Zero-based operation index.</param>
+        /// <returns>The operation record at the requested index.</returns>
+        private OmronSimulatorOperationRecord GetAt(int index)
+        {
+            if ((uint)index >= (uint)Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            var currentIndex = 0;
+            foreach (var operation in _operations)
+            {
+                if (currentIndex == index)
+                {
+                    return operation;
+                }
+
+                currentIndex++;
+            }
+
+            throw new ArgumentOutOfRangeException(nameof(index));
         }
     }
 

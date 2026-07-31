@@ -9,15 +9,15 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Results;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Results;
 #else
-using IoT.DriverCore.OmronPlcRx.Core.Results;
+using IoT.Driver.OmronPlcRx.Core.Results;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Channels;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core.Channels;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core.Channels;
+namespace IoT.Driver.OmronPlcRx.Core.Channels;
 #endif
 
 /// <summary>Represents the s er ia lh os tl in kf in sc ha nn el type.</summary>
@@ -102,7 +102,7 @@ internal sealed class SerialHostLinkFinsChannel : BaseChannel
 
     internal override async Task InitializeAsync(int timeout, CancellationToken cancellationToken)
     {
-        if (!Semaphore.Wait(0, cancellationToken))
+        if (!await Semaphore.WaitAsync(0, cancellationToken).ConfigureAwait(false))
         {
             await Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
         }

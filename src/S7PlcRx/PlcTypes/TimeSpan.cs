@@ -5,9 +5,9 @@
 using System.Buffers;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace IoT.DriverCore.S7PlcRx.PlcTypes;
+namespace IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>Converts between S7 PLC time values and .NET TimeSpan values.</summary>
@@ -136,10 +136,7 @@ public static class TimeSpan
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="timeSpans"/> is null.</exception>
     public static byte[] ToByteArray(System.TimeSpan[] timeSpans)
     {
-        if (timeSpans is null)
-        {
-            throw new ArgumentNullException(nameof(timeSpans));
-        }
+        Guard.NotNull(timeSpans, nameof(timeSpans));
 
         // Use ArrayPool for large allocations
         var totalBytes = timeSpans.Length * TypeLengthInBytes;

@@ -6,14 +6,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.IO;
-using IoT.DriverCore.ModbusRx.Message;
-using IoT.DriverCore.ModbusRx.UnitTests.Message;
-using IoT.DriverCore.ModbusRx.Utility;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.IO;
+using IoT.Driver.ModbusRx.Message;
+using IoT.Driver.ModbusRx.UnitTests.Message;
+using IoT.Driver.ModbusRx.Utility;
 using Moq;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.IO;
+namespace IoT.Driver.ModbusRx.UnitTests.IO;
 
 /// <summary>Tests the ModbusSerialTransportFixture behavior.</summary>
 public class ModbusSerialTransportFixture
@@ -35,7 +35,8 @@ public class ModbusSerialTransportFixture
             Num.Value2,
             1,
             new DiscreteCollection(true, false, false, false, false, false, false, true));
-        var lrc = ModbusUtility.CalculateLrc(expectedResponse.MessageFrame);
+        var expectedResponseFrame = expectedResponse.ToMessageFrame();
+        var lrc = ModbusUtility.CalculateLrc(expectedResponseFrame);
         var frame = Task.FromResult<byte[]>([ Num.Value2, Modbus.ReadCoils, 1, Num.Value129, lrc]);
         var response = await transport.CreateResponseAsync(frame, static () => new ReadCoilsInputsResponse());
 
@@ -94,21 +95,22 @@ public class ModbusSerialTransportFixture
             Num.Value2,
             1,
             new DiscreteCollection(true, false, true, false, false, false, false, false));
-        var crc = ModbusUtility.CalculateCrc(response.MessageFrame);
-        var responseFrame = new byte[response.MessageFrame.Length + crc.Length];
-        Array.Copy(response.MessageFrame, responseFrame, response.MessageFrame.Length);
-        Array.Copy(crc, 0, responseFrame, response.MessageFrame.Length, crc.Length);
+        var messageFrame = response.ToMessageFrame();
+        var crc = ModbusUtility.CalculateCrc(messageFrame);
+        var responseFrame = new byte[messageFrame.Length + crc.Length];
+        Array.Copy(messageFrame, responseFrame, messageFrame.Length);
+        Array.Copy(crc, 0, responseFrame, messageFrame.Length, crc.Length);
         var responseBytes = new Queue<byte>(responseFrame);
 
         // write request
         _ = mock.Setup(s => s.Write(It.Is<byte[]>(x => x.Length == 8), 0, Num.Value8));
 
         // read response
-        _ = mock.Setup(s => s.ReadAsync(It.IsAny<byte[]>(), It.IsAny<int>(), 1).Result)
+        _ = mock.Setup(s => s.ReadAsync(It.IsAny<byte[]>(), It.IsAny<int>(), 1))
             .Returns((byte[] buf, int offset, int count) =>
             {
                 buf[offset] = responseBytes.Dequeue();
-                return 1;
+                return Task.FromResult(1);
             });
 
         var request = new ReadCoilsInputsRequest(Modbus.ReadCoils, Num.Value2, Num.Value3, Num.Value4);

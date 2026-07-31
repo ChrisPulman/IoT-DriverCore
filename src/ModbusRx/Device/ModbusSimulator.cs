@@ -5,19 +5,19 @@
 using System.Collections.Concurrent;
 using System.Net;
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Data;
-using IoT.DriverCore.ModbusRx.Reactive.IO;
-using IoT.DriverCore.ModbusRx.Reactive.Message;
+using IoT.Driver.ModbusRx.Reactive.Data;
+using IoT.Driver.ModbusRx.Reactive.IO;
+using IoT.Driver.ModbusRx.Reactive.Message;
 #else
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.IO;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.IO;
+using IoT.Driver.ModbusRx.Message;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Device;
+namespace IoT.Driver.ModbusRx.Reactive.Device;
 #else
-namespace IoT.DriverCore.ModbusRx.Device;
+namespace IoT.Driver.ModbusRx.Device;
 #endif
 
 /// <summary>Provides a deterministic, stateful Modbus device for development, testing, and offline operation.</summary>
@@ -251,7 +251,7 @@ public sealed class ModbusSimulator : IDisposable
     private static byte[] BuildIpFrame(IModbusMessage response)
     {
         var header = ModbusIpTransport.GetMbapHeader(response);
-        var protocolDataUnit = response.ProtocolDataUnit;
+        var protocolDataUnit = response.ToProtocolDataUnit();
         var result = new byte[header.Length + protocolDataUnit.Length];
         Array.Copy(header, result, header.Length);
         Array.Copy(protocolDataUnit, 0, result, header.Length, protocolDataUnit.Length);

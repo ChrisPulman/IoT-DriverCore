@@ -7,17 +7,17 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Responses;
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Results;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Responses;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Results;
 #else
-using IoT.DriverCore.OmronPlcRx.Core.Responses;
-using IoT.DriverCore.OmronPlcRx.Core.Results;
+using IoT.Driver.OmronPlcRx.Core.Responses;
+using IoT.Driver.OmronPlcRx.Core.Results;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Channels;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core.Channels;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core.Channels;
+namespace IoT.Driver.OmronPlcRx.Core.Channels;
 #endif
 
 /// <summary>Represents the t cp ch an ne l type.</summary>
@@ -78,7 +78,7 @@ internal sealed class TCPChannel : BaseChannel
 
     internal override async Task InitializeAsync(int timeout, CancellationToken cancellationToken)
     {
-        if (!Semaphore.Wait(0, cancellationToken))
+        if (!await Semaphore.WaitAsync(0, cancellationToken).ConfigureAwait(false))
         {
             await Semaphore.WaitAsync(cancellationToken);
         }
@@ -170,6 +170,30 @@ internal sealed class TCPChannel : BaseChannel
         }
     }
 
+    /// <summary>Reads one TCP packet into the receive state.</summary>
+    /// <param name="client">The TCP client.</param>
+    /// <param name="state">The receive state.</param>
+    /// <param name="timeout">The timeout in milliseconds.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private static async Task ReadPacketAsync(
+        TcpClient client,
+        TcpReceiveState state,
+        int timeout,
+        CancellationToken cancellationToken)
+    {
+        var buffer = new byte[4096];
+        var receivedBytes = await client.ReceiveAsync(buffer, timeout, cancellationToken);
+        if (receivedBytes <= 0)
+        {
+            return;
+        }
+
+        state.Data.AddRange(buffer.AsSpan(0, receivedBytes).ToArray());
+        state.Bytes += receivedBytes;
+        state.Packets++;
+    }
+
     /// <summary>Checks whether an exception represents a completed purge operation.</summary>
     /// <param name="exception">The transport exception.</param>
     /// <returns><see langword="true"/> for expected purge termination exceptions.</returns>
@@ -241,30 +265,6 @@ internal sealed class TCPChannel : BaseChannel
 
             await ReadPacketAsync(client, state, remainingMs, cancellationToken);
         }
-    }
-
-    /// <summary>Reads one TCP packet into the receive state.</summary>
-    /// <param name="client">The TCP client.</param>
-    /// <param name="state">The receive state.</param>
-    /// <param name="timeout">The timeout in milliseconds.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
-    private async Task ReadPacketAsync(
-        TcpClient client,
-        TcpReceiveState state,
-        int timeout,
-        CancellationToken cancellationToken)
-    {
-        var buffer = new byte[4096];
-        var receivedBytes = await client.ReceiveAsync(buffer, timeout, cancellationToken);
-        if (receivedBytes <= 0)
-        {
-            return;
-        }
-
-        state.Data.AddRange(buffer.AsSpan(0, receivedBytes).ToArray());
-        state.Bytes += receivedBytes;
-        state.Packets++;
     }
 
     /// <summary>Initializes a new instance of the <see cref="InitializeClientAsync"/> class.</summary>

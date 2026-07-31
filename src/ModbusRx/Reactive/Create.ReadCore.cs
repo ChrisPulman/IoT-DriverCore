@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive;
+namespace IoT.Driver.ModbusRx.Reactive;
 #else
-namespace IoT.DriverCore.ModbusRx;
+namespace IoT.Driver.ModbusRx;
 #endif
 
 /// <summary>Provides ModbusRx functionality.</summary>
@@ -34,7 +34,7 @@ public static partial class Create
                 .Where(_ => isConnected)
                 .StartWith(long.MinValue);
             var subscription = source
-                .CombineLatest(timer, (modbus, _) => modbus)
+                .CombineLatest(timer, static (modbus, _) => modbus)
                 .Retry(int.MaxValue)
                 .SelectMany(modbus => Observable.FromAsync(async () =>
                 {
@@ -67,7 +67,7 @@ public static partial class Create
 
                     return RxVoid.Default;
                 }))
-                .Subscribe(_ => { }, observer.OnError);
+                .Subscribe(static _ => { }, observer.OnError);
 
             return Disposable.Create(subscription.Dispose);
         }).Retry(int.MaxValue);

@@ -7,23 +7,23 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Net.Sockets;
 #if REACTIVE_SHIM
-using IoT.DriverCore.Serial.Reactive;
+using IoT.Driver.Serial.Reactive;
 #else
-using IoT.DriverCore.Serial;
+using IoT.Driver.Serial;
 #endif
 #if TIMER
     using System.Timers;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.IO;
+using IoT.Driver.ModbusRx.Reactive.IO;
 #else
-using IoT.DriverCore.ModbusRx.IO;
+using IoT.Driver.ModbusRx.IO;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Device;
+namespace IoT.Driver.ModbusRx.Reactive.Device;
 #else
-namespace IoT.DriverCore.ModbusRx.Device;
+namespace IoT.Driver.ModbusRx.Device;
 #endif
 
 /// <summary>Modbus TCP slave device.</summary>
@@ -51,12 +51,12 @@ public sealed class ModbusTcpSlave : ModbusSlave
     private ModbusTcpSlave(byte unitId, TcpListener tcpListener)
         : base(unitId, new EmptyTransport())
     {
-        if (tcpListener is null)
-        {
-            throw new ArgumentNullException(nameof(tcpListener));
-        }
-
+#if NET6_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(tcpListener);
         _server = tcpListener;
+#else
+        _server = tcpListener ?? throw new ArgumentNullException(nameof(tcpListener));
+#endif
     }
 
 #if TIMER
@@ -78,9 +78,9 @@ public sealed class ModbusTcpSlave : ModbusSlave
         get
         {
             var masters = new List<TcpClientRx>(_masters.Count);
-            foreach (var masterConnection in _masters.Values)
+            foreach (var master in _masters)
             {
-                masters.Add(masterConnection.TcpClient);
+                masters.Add(master.Value.TcpClient);
             }
 
             return new(masters);
@@ -206,9 +206,9 @@ public sealed class ModbusTcpSlave : ModbusSlave
                 }
 #endif
 
-                foreach (var key in _masters.Keys)
+                foreach (var master in _masters)
                 {
-                    if (_masters.TryRemove(key, out var connection))
+                    if (_masters.TryRemove(master.Key, out var connection))
                     {
                         connection.ModbusMasterTcpConnectionClosed -= OnMasterConnectionClosedHandler;
                         connection.Dispose();

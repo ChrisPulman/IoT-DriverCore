@@ -3,25 +3,19 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Data;
+using IoT.Driver.ModbusRx.Reactive.Data;
 #else
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Device;
+using IoT.Driver.ModbusRx.Reactive.Device;
 #else
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Device;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Message;
+namespace IoT.Driver.ModbusRx.Reactive;
 #else
-using IoT.DriverCore.ModbusRx.Message;
-#endif
-
-#if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive;
-#else
-namespace IoT.DriverCore.ModbusRx;
+namespace IoT.Driver.ModbusRx;
 #endif
     /// <summary>Writes observable values to UDP slave data stores.</summary>
     public sealed class ModbusUdpSlaveExtensions
@@ -54,9 +48,9 @@ namespace IoT.DriverCore.ModbusRx;
         {
             _ = slave.CombineLatest(
                 valuesToWrite,
-                (currentSlave, data) => (currentSlave, data)).Subscribe(source =>
+                static (currentSlave, data) => (currentSlave, data)).Subscribe(source =>
                     ModbusSlave.WriteMultipleRegisters(
-                        new WriteMultipleRegistersRequest(
+                        new(
                             _unitIdentifier,
                             startAddress,
                             new RegisterCollection(source.data)),
@@ -77,9 +71,9 @@ namespace IoT.DriverCore.ModbusRx;
         {
             _ = slave.CombineLatest(
                 valuesToWrite,
-                (currentSlave, data) => (currentSlave, data)).Subscribe(source =>
+                static (currentSlave, data) => (currentSlave, data)).Subscribe(source =>
                     ModbusSlave.WriteMultipleRegisters(
-                        new WriteMultipleRegistersRequest(
+                        new(
                             _unitIdentifier,
                             startAddress,
                             new RegisterCollection(source.data)),
@@ -100,9 +94,9 @@ namespace IoT.DriverCore.ModbusRx;
         {
             _ = slave.CombineLatest(
                 valuesToWrite,
-                (currentSlave, data) => (currentSlave, data)).Subscribe(source =>
+                static (currentSlave, data) => (currentSlave, data)).Subscribe(source =>
                     ModbusSlave.WriteMultipleCoils(
-                        new WriteMultipleCoilsRequest(
+                        new(
                             _unitIdentifier,
                             startAddress,
                             new DiscreteCollection(source.data)),
@@ -123,9 +117,9 @@ namespace IoT.DriverCore.ModbusRx;
         {
             _ = slave.CombineLatest(
                 valuesToWrite,
-                (currentSlave, data) => (currentSlave, data)).Subscribe(source =>
+                static (currentSlave, data) => (currentSlave, data)).Subscribe(source =>
                     ModbusSlave.WriteMultipleCoils(
-                        new WriteMultipleCoilsRequest(
+                        new(
                             _unitIdentifier,
                             startAddress,
                             new DiscreteCollection(source.data)),

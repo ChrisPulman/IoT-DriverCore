@@ -6,11 +6,11 @@ using System.Text;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -65,8 +65,7 @@ internal static partial class MitsubishiSerialProtocolEncoding
         EnsureAscii(options);
         var serial = options.ResolvedSerial;
         var header = Format3CAsciiHeader(serial);
-        var deviceAddresses = string.Concat(addresses.Select(static address =>
-            FormatDeviceAddressModern(address, address.Descriptor)));
+        var deviceAddresses = FormatDeviceAddresses(addresses);
         var body =
             $"{header}08010000{FormatAsciiUInt16(checked((ushort)addresses.Count))}0000{deviceAddresses}";
         return WrapAscii(body, serial.MessageFormat);
@@ -168,7 +167,7 @@ internal static partial class MitsubishiSerialProtocolEncoding
     {
         EnsureAscii(options);
         var serial = options.ResolvedSerial;
-        var payload = body.Count == 0 ? string.Empty : Encoding.ASCII.GetString(body.ToArray());
+        var payload = body.Count == 0 ? string.Empty : Encoding.ASCII.GetString(ToByteArray(body));
         var requestBody =
             FormatAsciiByte(serial.StationNumber)
             + FormatAsciiByte(serial.PcNumber)
@@ -183,8 +182,7 @@ internal static partial class MitsubishiSerialProtocolEncoding
     /// <returns>The Build1CRandomReadBody operation result.</returns>
     private static byte[] Build1CRandomReadBody(IReadOnlyList<MitsubishiDeviceAddress> addresses)
     {
-        var deviceAddresses = string.Concat(addresses.Select(static address =>
-            FormatDeviceAddressModern(address, address.Descriptor)));
+        var deviceAddresses = FormatDeviceAddresses(addresses);
         return Encoding.ASCII.GetBytes(
             $"{FormatAsciiUInt16(checked((ushort)addresses.Count))}0000{deviceAddresses}");
     }
@@ -194,9 +192,7 @@ internal static partial class MitsubishiSerialProtocolEncoding
     /// <returns>The Build1CRandomWriteBody operation result.</returns>
     private static byte[] Build1CRandomWriteBody(IReadOnlyList<MitsubishiDeviceValue> values)
     {
-        var deviceValues = string.Concat(values.Select(static value =>
-            FormatDeviceAddressModern(value.Address, value.Address.Descriptor)
-            + value.Value.ToString("X4", CultureInfo.InvariantCulture)));
+        var deviceValues = FormatDeviceValues(values);
         return Encoding.ASCII.GetBytes(
             $"{FormatAsciiUInt16(checked((ushort)values.Count))}0000{deviceValues}");
     }
@@ -252,9 +248,7 @@ internal static partial class MitsubishiSerialProtocolEncoding
         EnsureAscii(options);
         var serial = options.ResolvedSerial;
         var header = Format3CAsciiHeader(serial);
-        var deviceValues = string.Concat(values.Select(static value =>
-            FormatDeviceAddressModern(value.Address, value.Address.Descriptor)
-            + value.Value.ToString("X4", CultureInfo.InvariantCulture)));
+        var deviceValues = FormatDeviceValues(values);
         var body =
             $"{header}14020000{FormatAsciiUInt16(checked((ushort)values.Count))}0000{deviceValues}";
         return WrapAscii(body, serial.MessageFormat);
@@ -324,7 +318,7 @@ internal static partial class MitsubishiSerialProtocolEncoding
     {
         EnsureAscii(options);
         var serial = options.ResolvedSerial;
-        var payload = body.Count == 0 ? string.Empty : Encoding.ASCII.GetString(body.ToArray());
+        var payload = body.Count == 0 ? string.Empty : Encoding.ASCII.GetString(ToByteArray(body));
         var requestBody =
             FormatAsciiByte(ThreeCFrameId)
             + FormatAsciiByte(serial.StationNumber)

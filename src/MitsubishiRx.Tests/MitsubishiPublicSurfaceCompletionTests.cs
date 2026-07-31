@@ -7,26 +7,25 @@ using System.Net.Sockets;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 #endif
 
 /// <summary>Completes small generated-attribute, serial-route, and socket-helper surfaces.</summary>
 internal sealed class MitsubishiPublicSurfaceCompletionTests
 {
-    /// <summary>Stores the generated attribute namespace.</summary>
-    private const string AttributeNamespace = "IoT.DriverCore.MitsubishiRx.";
-
     /// <summary>Exercises generated attribute constructors and property accessors in the product assembly.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
     internal async Task GeneratedProductAttributesExposeTheirArgumentsAsync()
     {
-        var assembly = typeof(MitsubishiRx).Assembly;
+        var attributeType = typeof(MitsubishiTagAttribute);
+        var assembly = attributeType.Assembly;
+        string attributeNamespace = $"{attributeType.Namespace}.";
         var cases = new[]
         {
             ("MitsubishiTagAttribute", "TagName", "Value"),
@@ -36,7 +35,7 @@ internal sealed class MitsubishiPublicSurfaceCompletionTests
 
         foreach (var (typeName, propertyName, value) in cases)
         {
-            var type = assembly.GetType(AttributeNamespace + typeName, throwOnError: true)!;
+            var type = assembly.GetType($"{attributeNamespace}{typeName}", throwOnError: true)!;
             var instance = Activator.CreateInstance(type, value);
             var property = type.GetProperty(propertyName)!;
             await Assert.That(property.GetValue(instance)).IsEqualTo(value);

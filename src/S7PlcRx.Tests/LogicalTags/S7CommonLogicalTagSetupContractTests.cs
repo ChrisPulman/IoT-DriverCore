@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.LogicalTags;
+using IoT.Driver.Core;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.LogicalTags;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.LogicalTags;
+namespace IoT.Driver.S7PlcRx.Tests.LogicalTags;
 
 /// <summary>Validates S7 adoption of the common logical-tag setup contract.</summary>
 public sealed class S7CommonLogicalTagSetupContractTests
@@ -48,7 +48,11 @@ public sealed class S7CommonLogicalTagSetupContractTests
                 "Name;Address;DataType;GroupName;Description;Metadata;AccessMode;ScanIntervalMilliseconds\r\n" +
                 "Enabled;DB1.DBX4.0;BOOL;Process;Enabled state;;ReadWrite;\r\n");
             var imported = await concrete.ImportCsvAsync(reader, ';', CancellationToken.None);
+#if NET8_0_OR_GREATER
+            await using var writer = new StringWriter();
+#else
             using var writer = new StringWriter();
+#endif
             await concrete.ExportCsvAsync(writer, ';', CancellationToken.None);
 
             await TUnit.Assertions.Assert.That(imported.Count).IsEqualTo(1);

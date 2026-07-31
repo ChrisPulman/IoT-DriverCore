@@ -8,9 +8,9 @@ using SystemDateTimeOffset = System.DateTimeOffset;
 using SystemTimeSpan = System.TimeSpan;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace IoT.DriverCore.S7PlcRx.PlcTypes;
+namespace IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>Converts offset-aware values to and from the S7 DateTimeLong representation.</summary>
@@ -95,7 +95,7 @@ public static class DateTimeLong
                     $"{bytes.Length} bytes long."));
         }
 
-        return new SystemDateTimeOffset(FromSpanImpl(bytes), SystemTimeSpan.Zero);
+        return new(FromSpanImpl(bytes), SystemTimeSpan.Zero);
     }
 
     /// <summary>Parses an array of <see cref="T:System.DateTime" /> values from bytes.</summary>
@@ -146,10 +146,7 @@ public static class DateTimeLong
     /// <returns>A byte array containing the S7 DateTimeLong representations of <paramref name="dateTimes" />.</returns>
     public static byte[] ToByteArray(SystemDateTimeOffset[] dateTimes)
     {
-        if (dateTimes is null)
-        {
-            throw new ArgumentNullException(nameof(dateTimes));
-        }
+        Guard.NotNull(dateTimes, nameof(dateTimes));
 
         // Use ArrayPool for large allocations
         var totalBytes = dateTimes.Length * TypeLengthInBytes;

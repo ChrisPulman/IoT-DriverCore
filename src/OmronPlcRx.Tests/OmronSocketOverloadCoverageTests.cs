@@ -4,13 +4,13 @@
 
 using System.Net;
 using System.Net.Sockets;
-using IoT.DriverCore.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Core;
 using TUnit.Core;
-using CoreTcpClient = IoT.DriverCore.OmronPlcRx.Core.TcpClient;
-using CoreUdpClient = IoT.DriverCore.OmronPlcRx.Core.UdpClient;
+using CoreTcpClient = IoT.Driver.OmronPlcRx.Core.TcpClient;
+using CoreUdpClient = IoT.Driver.OmronPlcRx.Core.UdpClient;
 using NetUdpClient = System.Net.Sockets.UdpClient;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Exercises every modern TCP and UDP socket-wrapper overload through loopback peers.</summary>
 public sealed class OmronSocketOverloadCoverageTests
@@ -252,10 +252,12 @@ public sealed class OmronSocketOverloadCoverageTests
         await using var stream = accepted.GetStream();
         var request = new byte[OperationCount];
         await stream.ReadExactlyAsync(request, CancellationToken.None);
-        var response = Enumerable
-            .Range(FirstTcpResponse, OperationCount)
-            .Select(static value => (byte)value)
-            .ToArray();
+        var response = new byte[OperationCount];
+        for (var index = 0; index < response.Length; index++)
+        {
+            response[index] = (byte)(FirstTcpResponse + index);
+        }
+
         await stream.WriteAsync(response, CancellationToken.None);
         await stream.FlushAsync(CancellationToken.None);
         await releaseSource.Task;

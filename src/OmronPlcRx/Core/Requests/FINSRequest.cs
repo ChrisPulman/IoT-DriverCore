@@ -5,15 +5,15 @@
 using System;
 using System.Collections.Generic;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Channels;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Channels;
 #else
-using IoT.DriverCore.OmronPlcRx.Core.Channels;
+using IoT.Driver.OmronPlcRx.Core.Channels;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Requests;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core.Requests;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core.Requests;
+namespace IoT.Driver.OmronPlcRx.Core.Requests;
 #endif
 
 /// <summary>Represents the f in sr eq ue st type.</summary>
@@ -108,7 +108,7 @@ internal abstract class FINSRequest
         // Request Data
         message.AddRange(BuildRequestData());
 
-        return new ReadOnlyMemory<byte>([.. message]);
+        return new([.. message]);
     }
 
     /// <summary>Initializes a new instance of the <see cref="BuildRequestData"/> class.</summary>

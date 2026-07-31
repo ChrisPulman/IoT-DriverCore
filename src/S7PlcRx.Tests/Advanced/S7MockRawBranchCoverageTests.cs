@@ -5,10 +5,11 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
-using IoT.DriverCore.S7PlcRx.Mock;
+using IoT.Driver.S7PlcRx.Mock;
+using IoT.Driver.S7PlcRx.Tests.Testing;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Advanced;
+namespace IoT.Driver.S7PlcRx.Tests.Advanced;
 
 /// <summary>Exercises deterministic raw mock-server protocol and native-wrapper edge cases.</summary>
 [NotInParallel]
@@ -28,7 +29,7 @@ public sealed class S7MockRawBranchCoverageTests
     [Test]
     public async Task ManagedServer_RawFrames_ShouldClassifyAndBuildShortRequestsAsync()
     {
-        await TUnitAssert.That(() => new ManagedS7Server(null!)).Throws<ArgumentNullException>();
+        await TUnitAssert.That(static () => new ManagedS7Server(null!)).Throws<ArgumentNullException>();
 
         using var server = new ManagedS7Server();
         await TUnitAssert.That((S7ServerOperation)InvokePrivateStatic(
@@ -65,18 +66,18 @@ public sealed class S7MockRawBranchCoverageTests
             server,
             "BuildWriteResponse",
             [shortRequest, (byte)0xff])!).Length).IsGreaterThan(0);
-        await TUnitAssert.That(((byte[])InvokePrivateInstance(
-            server,
+        await TUnitAssert.That(((byte[])InvokePrivateStatic(
+            typeof(ManagedS7Server),
             "BuildSzlResponse",
             [shortRequest, (byte)0xff])!).Length).IsGreaterThan(0);
 
         var copyPduReference = typeof(ManagedS7Server).GetMethod(
             "CopyPduReference",
-            BindingFlags.Instance | BindingFlags.NonPublic)
+            BindingFlags.Static | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("CopyPduReference was not found.");
-        _ = copyPduReference.Invoke(server, [(byte[])[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], new byte[13]]);
-        _ = copyPduReference.Invoke(server, [new byte[13], new byte[12]]);
-        _ = copyPduReference.Invoke(server, [new byte[13], new byte[13]]);
+        _ = copyPduReference.Invoke(null, [(byte[])[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], new byte[13]]);
+        _ = copyPduReference.Invoke(null, [new byte[13], new byte[12]]);
+        _ = copyPduReference.Invoke(null, [new byte[13], new byte[13]]);
     }
 
     /// <summary>Verifies lifecycle states and accept-loop cancellation remain deterministic without a real PLC.</summary>
@@ -100,7 +101,7 @@ public sealed class S7MockRawBranchCoverageTests
             try
             {
                 cancelledListener.Start();
-                cancellation.Cancel();
+                await AsyncCompatibility.CancelAsync(cancellation);
                 await (Task)(acceptLoop.Invoke(server, [cancelledListener, cancellation.Token])
                     ?? throw new InvalidOperationException("Cancelled accept loop was not created."));
             }
@@ -175,7 +176,7 @@ public sealed class S7MockRawBranchCoverageTests
     public async Task MockServer_NativeRawSurface_ShouldExerciseBundledInteropEdgesAsync()
     {
         var nativeMethods = typeof(MockServer).Assembly.GetType(
-            "IoT.DriverCore.S7PlcRx.Mock.NativeMethods",
+            "IoT.Driver.S7PlcRx.Mock.NativeMethods",
             throwOnError: false)
             ?? throw new InvalidOperationException("NativeMethods was not found.");
         await TUnitAssert.That((string)InvokePrivateStatic(

@@ -7,9 +7,9 @@ using System.Collections.Generic;
 using System.Text;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Responses;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core.Responses;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core.Responses;
+namespace IoT.Driver.OmronPlcRx.Core.Responses;
 #endif
 
 /// <summary>Represents the r ea dc pu un it da ta re sp on se type.</summary>
@@ -61,7 +61,7 @@ internal static class ReadCPUUnitDataResponse
 
         foreach (var byteValue in bytes)
         {
-            if (byteValue > 0)
+            if (byteValue != 0)
             {
                 stringBytes.Add(byteValue);
             }

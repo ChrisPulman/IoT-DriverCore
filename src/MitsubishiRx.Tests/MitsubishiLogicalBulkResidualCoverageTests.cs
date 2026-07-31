@@ -2,15 +2,15 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 #endif
 
@@ -79,12 +79,41 @@ internal sealed class MitsubishiLogicalBulkResidualCoverageTests
         ],
             CancellationToken.None);
 
-        await Assert.That(reads.Select(static result => result.Succeeded).All(static value => value)).IsTrue();
+        var readsSucceeded = true;
+        foreach (var result in reads)
+        {
+            if (!result.Succeeded)
+            {
+                readsSucceeded = false;
+                break;
+            }
+        }
+
+        var writesSucceeded = true;
+        foreach (var result in writes)
+        {
+            if (!result.Succeeded)
+            {
+                writesSucceeded = false;
+                break;
+            }
+        }
+
+        var containsReadWordsRequest = false;
+        foreach (var request in simulator.Requests)
+        {
+            if (request.Description == "Read words D10")
+            {
+                containsReadWordsRequest = true;
+                break;
+            }
+        }
+
+        await Assert.That(readsSucceeded).IsTrue();
         await Assert.That(reads[0].Value!.Value).IsEqualTo(FloatValue);
         await Assert.That((bool)reads[1].Value!.Value!).IsFalse();
-        await Assert.That(writes.Select(static result => result.Succeeded).All(static value => value)).IsTrue();
-        await Assert.That(simulator.Requests.Select(static request => request.Description))
-            .Contains("Read words D10");
+        await Assert.That(writesSucceeded).IsTrue();
+        await Assert.That(containsReadWordsRequest).IsTrue();
     }
 
     /// <summary>Verifies a short contiguous response and PLC failure retain bulk caller correlation.</summary>
@@ -109,9 +138,29 @@ internal sealed class MitsubishiLogicalBulkResidualCoverageTests
         ],
             CancellationToken.None);
 
-        await Assert.That(shortReads.Select(static result => result.Succeeded).All(static value => !value)).IsTrue();
+        var shortReadsFailed = true;
+        foreach (var result in shortReads)
+        {
+            if (result.Succeeded)
+            {
+                shortReadsFailed = false;
+                break;
+            }
+        }
+
+        var failedWritesFailed = true;
+        foreach (var result in failedWrites)
+        {
+            if (result.Succeeded)
+            {
+                failedWritesFailed = false;
+                break;
+            }
+        }
+
+        await Assert.That(shortReadsFailed).IsTrue();
         await Assert.That(shortReads[0].Error.Contains("Expected 2 words but received 1", StringComparison.Ordinal)).IsTrue();
-        await Assert.That(failedWrites.Select(static result => result.Succeeded).All(static value => !value)).IsTrue();
+        await Assert.That(failedWritesFailed).IsTrue();
         await Assert.That(failedWrites[0].Error.Contains("[0]", StringComparison.Ordinal)).IsTrue();
         await Assert.That(failedWrites[1].Error.Contains("[1]", StringComparison.Ordinal)).IsTrue();
     }
@@ -143,11 +192,40 @@ internal sealed class MitsubishiLogicalBulkResidualCoverageTests
         ],
             CancellationToken.None);
 
-        await Assert.That(shortReads.Select(static result => result.Succeeded).All(static value => !value)).IsTrue();
+        var shortReadsFailed = true;
+        foreach (var result in shortReads)
+        {
+            if (result.Succeeded)
+            {
+                shortReadsFailed = false;
+                break;
+            }
+        }
+
+        var failedWritesFailed = true;
+        foreach (var result in failedWrites)
+        {
+            if (result.Succeeded)
+            {
+                failedWritesFailed = false;
+                break;
+            }
+        }
+
+        var containsRandomWriteRequest = false;
+        foreach (var request in simulator.Requests)
+        {
+            if (request.Description == "Random write words")
+            {
+                containsRandomWriteRequest = true;
+                break;
+            }
+        }
+
+        await Assert.That(shortReadsFailed).IsTrue();
         await Assert.That(shortReads[0].Error.Contains("Expected 2 words but received 1", StringComparison.Ordinal)).IsTrue();
-        await Assert.That(failedWrites.Select(static result => result.Succeeded).All(static value => !value)).IsTrue();
-        await Assert.That(simulator.Requests.Select(static request => request.Description))
-            .Contains("Random write words");
+        await Assert.That(failedWritesFailed).IsTrue();
+        await Assert.That(containsRandomWriteRequest).IsTrue();
     }
 
     /// <summary>Verifies missing and access-limited tags return stable individual and indexed failures.</summary>
@@ -180,10 +258,10 @@ internal sealed class MitsubishiLogicalBulkResidualCoverageTests
             CancellationToken.None);
         var blockedRead = await logical.ReadAsync("WriteOnly", CancellationToken.None);
         var missingWrite = await logical.WriteAsync(
-            new LogicalTagValue(MissingTagName, FirstWordValue, DateTimeOffset.UnixEpoch),
+            new(MissingTagName, FirstWordValue, DateTimeOffset.UnixEpoch),
             CancellationToken.None);
         var blockedWrite = await logical.WriteAsync(
-            new LogicalTagValue("ReadOnly", FirstWordValue, DateTimeOffset.UnixEpoch),
+            new("ReadOnly", FirstWordValue, DateTimeOffset.UnixEpoch),
             CancellationToken.None);
         simulator.EnqueueResponse(MitsubishiSimulatorTransport.CreateErrorResponse(options, 0xC051));
         var bulkReads = await logical.ReadManyAsync([MissingTagName, FloatTagName], CancellationToken.None);
@@ -197,7 +275,17 @@ internal sealed class MitsubishiLogicalBulkResidualCoverageTests
         await Assert.That(blockedRead.Succeeded).IsFalse();
         await Assert.That(missingWrite.Succeeded).IsFalse();
         await Assert.That(blockedWrite.Succeeded).IsFalse();
-        await Assert.That(bulkReads.All(static result => !result.Succeeded)).IsTrue();
+        var bulkReadsFailed = true;
+        foreach (var result in bulkReads)
+        {
+            if (result.Succeeded)
+            {
+                bulkReadsFailed = false;
+                break;
+            }
+        }
+
+        await Assert.That(bulkReadsFailed).IsTrue();
         await Assert.That(bulkWrites[0].Succeeded).IsFalse();
     }
 
@@ -219,10 +307,13 @@ internal sealed class MitsubishiLogicalBulkResidualCoverageTests
             TagDatabase = new(definitions),
         };
         using var logical = owner.CreateLogicalTagClient(null, null, null);
-        LogicalTag[] logicalTags = definitions
-            .Select(static definition =>
-                new LogicalTag(definition.Name, definition.Address, definition.DataType!))
-            .ToArray();
+        var logicalTags = new LogicalTag[definitions.Length];
+        for (var index = 0; index < definitions.Length; index++)
+        {
+            var definition = definitions[index];
+            logicalTags[index] = new(definition.Name, definition.Address, definition.DataType!);
+        }
+
         logical.RegisterRange(logicalTags);
 
         var method = typeof(MitsubishiLogicalTagClient).GetMethod(
@@ -308,19 +399,9 @@ internal sealed class MitsubishiLogicalBulkResidualCoverageTests
                 }),
         ]);
 
-        var successful = await logical.WriteManyAsync(
-        [
-            new LogicalTagValue("D0", FirstWordValue, DateTimeOffset.UnixEpoch),
-            new LogicalTagValue("D2", GappedWordValue, DateTimeOffset.UnixEpoch),
-        ],
-            CancellationToken.None);
+        var successful = await WriteLegacyValuesAsync(logical);
         simulator.EnqueueResponse(MitsubishiSimulatorTransport.CreateErrorResponse(options, 0xC051));
-        var mixed = await logical.WriteManyAsync(
-        [
-            new LogicalTagValue("D0", FirstWordValue, DateTimeOffset.UnixEpoch),
-            new LogicalTagValue("D2", GappedWordValue, DateTimeOffset.UnixEpoch),
-        ],
-            CancellationToken.None);
+        var mixed = await WriteLegacyValuesAsync(logical);
         var typedSuccess = await logical.WriteAsync("D0", FirstWordValue, CancellationToken.None);
         simulator.EnqueueResponse(MitsubishiSimulatorTransport.CreateErrorResponse(options, 0xC052));
         var typedFailure = await logical.WriteAsync("D0", FirstWordValue, CancellationToken.None);
@@ -330,14 +411,34 @@ internal sealed class MitsubishiLogicalBulkResidualCoverageTests
         _ = Assert.Throws<InvalidOperationException>(() => logical.Observe(MissingTagName));
 
         bool rejectedNullEntry = await RejectNullBulkEntryAsync(logical);
+        var successfulResults = true;
+        foreach (var result in successful)
+        {
+            if (!result.Succeeded)
+            {
+                successfulResults = false;
+                break;
+            }
+        }
 
-        await Assert.That(successful.All(static result => result.Succeeded)).IsTrue();
+        await Assert.That(successfulResults).IsTrue();
         await Assert.That(mixed[0].Succeeded).IsFalse();
         await Assert.That(mixed[1].Succeeded).IsTrue();
         await Assert.That(typedSuccess.Succeeded).IsTrue();
         await Assert.That(typedFailure.Succeeded).IsFalse();
         await Assert.That(rejectedNullEntry).IsTrue();
     }
+
+    /// <summary>Writes the legacy values used by fallback assertions.</summary>
+    /// <param name="logical">The logical client.</param>
+    /// <returns>The individual write results.</returns>
+    private static Task<IReadOnlyList<TagOperationResult<LogicalTagValue>>> WriteLegacyValuesAsync(MitsubishiLogicalTagClient logical)
+        => logical.WriteManyAsync(
+        [
+            new LogicalTagValue("D0", FirstWordValue, DateTimeOffset.UnixEpoch),
+            new LogicalTagValue("D2", GappedWordValue, DateTimeOffset.UnixEpoch),
+        ],
+            CancellationToken.None);
 
     /// <summary>Passes a runtime-created null array through the bulk argument guard.</summary>
     /// <param name="logical">The logical client.</param>

@@ -5,9 +5,9 @@
 using System.Text;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.IO;
+namespace IoT.Driver.ModbusRx.Reactive.IO;
 #else
-namespace IoT.DriverCore.ModbusRx.IO;
+namespace IoT.Driver.ModbusRx.IO;
 #endif
 
 /// <summary>Provides Stream Resource Utility functionality.</summary>
@@ -37,7 +37,7 @@ internal static class StreamResourceUtility
             _ = Encoding.UTF8.GetChars(singleByteBuffer, 0, 1, singleCharBuffer, 0);
             _ = result.Append(singleCharBuffer[0]);
         }
-        while (!result.ToString().EndsWith(Modbus.NewLine));
+        while (!result.ToString().EndsWith(Modbus.NewLine, StringComparison.Ordinal));
 
         return result.ToString(0, result.Length - Modbus.NewLine.Length);
     }

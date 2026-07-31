@@ -4,17 +4,17 @@
 
 using System;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Converters;
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Requests;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Converters;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Requests;
 #else
-using IoT.DriverCore.OmronPlcRx.Core.Converters;
-using IoT.DriverCore.OmronPlcRx.Core.Requests;
+using IoT.Driver.OmronPlcRx.Core.Converters;
+using IoT.Driver.OmronPlcRx.Core.Requests;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Responses;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core.Responses;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core.Responses;
+namespace IoT.Driver.OmronPlcRx.Core.Responses;
 #endif
 
 /// <summary>Represents the r ea dc yc le ti me re sp on se type.</summary>
@@ -58,7 +58,7 @@ internal static class ReadCycleTimeResponse
         Array.Reverse(bytes);
         var cycleTimeValue = BCDConverter.ToUInt32(bytes);
 
-        return cycleTimeValue > 0 ? cycleTimeValue / ProtocolConstants.TenDouble : 0;
+        return cycleTimeValue != 0 ? cycleTimeValue / ProtocolConstants.TenDouble : 0;
     }
 
     /// <summary>Initializes a new instance of the <see cref="SubArray"/> class.</summary>

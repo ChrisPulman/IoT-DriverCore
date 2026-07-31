@@ -1,6 +1,6 @@
 ---
 name: s7-plc-rx
-description: Implement, review, or troubleshoot Siemens S7 integrations with S7PlcRx, including typed tags, addressing, polling, reads and writes, logical tags, diagnostics, batching, bindings, and generation.
+description: Implement, review, or troubleshoot Siemens S7 integrations with IoT-Driver.S7PlcRx, including typed tags, addressing, polling, reads and writes, logical tags, diagnostics, batching, bindings, and generation.
 ---
 
 # S7PlcRx
@@ -13,18 +13,18 @@ Read the co-packaged `../../README.md`; in a repository checkout use `packagerea
 
 ## Package choice
 
-- Use `S7PlcRx` with `IoT.DriverCore.S7PlcRx` by default.
-- Use `S7PlcRx.Reactive` and its `.Reactive` namespace for System.Reactive applications.
-- Runtime packages do not embed the analyzer. Install `S7PlcRx.Generators` alongside the selected runtime only when generated bindings are required.
+- Use `IoT-Driver.S7PlcRx` with `IoT.Driver.S7PlcRx` by default.
+- Use `IoT-Driver.S7PlcRx.Reactive` and its `.Reactive` namespace for System.Reactive applications.
+- Runtime packages do not embed the analyzer. Install `IoT-Driver.S7PlcRx.Generators` alongside the selected runtime only when generated bindings are required.
 
 ## Connect and register
 
 Create `IRxS7` through a CPU factory or `RxS7Options`, then dispose it. Confirm CPU family, IP address, rack, slot, and PLC protection.
 
 ```csharp
-using IoT.DriverCore.Core;
-using IoT.DriverCore.S7PlcRx;
-using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.Driver.Core;
+using IoT.Driver.S7PlcRx;
+using IoT.Driver.S7PlcRx.Enums;
 using ReactiveUI.Primitives;
 
 var options = new RxS7Options(
@@ -75,7 +75,7 @@ Configure watchdogs only with a reviewed `DBW` address and safe interval. A watc
 
 ## Bindings and generation
 
-Use runtime binding APIs after a basic registered-tag workflow is proven. For generated binding, install `S7PlcRx.Generators`, mark binding types partial, use documented attributes, build once, and inspect diagnostics and generated members.
+Use runtime binding APIs after a basic registered-tag workflow is proven. For generated binding, install `IoT-Driver.S7PlcRx.Generators`, mark binding types partial, use documented attributes, build once, and inspect diagnostics and generated members.
 
 Test generated reads, queued writes, observations, byte-array grouping, conversion, and disposal. Do not assume generated code fixes an incorrect PLC address or CLR type.
 

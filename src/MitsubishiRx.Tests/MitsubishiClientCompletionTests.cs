@@ -4,11 +4,11 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 #endif
 
@@ -104,12 +104,12 @@ internal sealed class MitsubishiClientCompletionTests
     [Test]
     internal async Task CompatibilityLifecycleAndDiagnosticPropertiesAreOperationalAsync()
     {
-        using var legacyOneE = new MitsubishiRx(
+        await using var legacyOneE = new MitsubishiRx(
             CpuType.ASeries,
             LoopbackHost,
             LoopbackPort,
             TimeoutMilliseconds);
-        using var legacyThreeE = new MitsubishiRx(
+        await using var legacyThreeE = new MitsubishiRx(
             CpuType.QSeries,
             LoopbackHost,
             LoopbackPort,
@@ -125,16 +125,16 @@ internal sealed class MitsubishiClientCompletionTests
         using var stateSubscription = client.ConnectionStates.Subscribe(states.Add);
         using var logSubscription = client.OperationLogs.Subscribe(logs.Add);
 
-        await Assert.That(client.Open().IsSucceed).IsTrue();
+        await Assert.That((await client.OpenAsync(CancellationToken.None)).IsSucceed).IsTrue();
         await Assert.That(client.Connected).IsTrue();
-        await Assert.That(client.Close().IsSucceed).IsTrue();
+        await Assert.That((await client.CloseAsync(CancellationToken.None)).IsSucceed).IsTrue();
         await Assert.That((await client.OpenAsync(CancellationToken.None)).IsSucceed).IsTrue();
         await Assert.That((await client.CloseAsync(CancellationToken.None)).IsSucceed).IsTrue();
         client.Dispose();
         client.Dispose();
 
         await Assert.That(states).Contains(MitsubishiConnectionState.Connected);
-        await Assert.That(logs.Any(static log => log.Description.Contains("Close", StringComparison.Ordinal)))
+        await Assert.That(logs.Exists(static log => log.Description.Contains("Close", StringComparison.Ordinal)))
             .IsTrue();
     }
 
@@ -156,10 +156,10 @@ internal sealed class MitsubishiClientCompletionTests
         await Assert.That(failed.Exception).IsTypeOf<InvalidOperationException>();
     }
 
-    /// <summary>Exercises legacy raw wrappers through simulator framing.</summary>
+    /// <summary>Exercises asynchronous raw package operations through simulator framing.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
-    internal async Task LegacyRawPackageWrappersUseSimulatorFramingAsync()
+    internal async Task RawPackageAsyncMethodsUseSimulatorFramingAsync()
     {
         var options = CreateOptions();
         await using var simulator = CreateSimulator(options);
@@ -170,9 +170,9 @@ internal sealed class MitsubishiClientCompletionTests
             0x04, 0x00, 0x10, 0x00,
         };
 
-        var fixedLength = client.SendPackage(command, RawResponseLength);
-        var single = client.SendPackageSingle(command);
-        var reliable = client.SendPackageReliable(command);
+        var fixedLength = await client.SendPackageAsync(command, RawResponseLength, CancellationToken.None);
+        var single = await client.SendPackageSingleAsync(command, CancellationToken.None);
+        var reliable = await client.SendPackageReliableAsync(command, CancellationToken.None);
 
         await Assert.That(fixedLength.IsSucceed).IsTrue();
         await Assert.That(single.IsSucceed).IsTrue();
@@ -262,13 +262,13 @@ internal sealed class MitsubishiClientCompletionTests
         using var staleSubscription = client
             .ObserveWordsStale("D0", 1, TimeSpan.FromSeconds(PollSeconds), TimeSpan.FromSeconds(1), null)
             .Take(1)
-            .Subscribe(_ => { });
+            .Subscribe(static _ => { });
         using var latestSubscription = client
             .ObserveWordsLatest("D0", 1, Observable.Return(Unit.Default, scheduler))
             .Take(1)
-            .Subscribe(_ => { });
-        using var diagnostics = client.SampleDiagnostics(Observable.Never<object>()).Subscribe(_ => { });
-        using var health = client.ObserveConnectionHealth(TimeSpan.FromSeconds(1)).Subscribe(_ => { });
+            .Subscribe(static _ => { });
+        using var diagnostics = client.SampleDiagnostics(Observable.Never<object>()).Subscribe(static _ => { });
+        using var health = client.ObserveConnectionHealth(TimeSpan.FromSeconds(1)).Subscribe(static _ => { });
 
         TestSchedulerDriver.AdvanceBy(
             scheduler,
@@ -316,8 +316,8 @@ internal sealed class MitsubishiClientCompletionTests
                 CancellationToken.None),
         };
 
-        await Assert.That(reads.All(static result => result.IsSucceed)).IsTrue();
-        await Assert.That(writes.All(static result => result.IsSucceed)).IsTrue();
+        await Assert.That(reads.TrueForAll(static result => result.IsSucceed)).IsTrue();
+        await Assert.That(Array.TrueForAll(writes, static result => result.IsSucceed)).IsTrue();
     }
 
     /// <summary>Exercises group value validation and all numeric scaled-read projections.</summary>
@@ -479,7 +479,7 @@ internal sealed class MitsubishiClientCompletionTests
             ]),
         };
         client.TagDatabase.AddGroup(
-            new MitsubishiTagGroupDefinition(
+            new(
                 AllTypesGroupName,
                 [
                     BitTagName, StringTagName, FloatTagName, DWordTagName,

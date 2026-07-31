@@ -2,10 +2,10 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.Mock;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Mock;
 
-namespace IoT.DriverCore.S7PlcRx.Tests;
+namespace IoT.Driver.S7PlcRx.Tests;
 
 /// <summary>Integration tests covering controlled S7PlcRx scenarios.</summary>
 [NotInParallel]
@@ -80,8 +80,9 @@ public class S7PlcRxIntegrationTests
     private string DebuggerDisplay => GetType().Name;
 
     /// <summary>Test basic PLC creation and configuration.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void S7PlcCreation_WithDifferentTypes_ShouldWorkCorrectly()
+    public async Task S7PlcCreation_WithDifferentTypes_ShouldWorkCorrectly()
     {
         _ = DebuggerDisplay;
 
@@ -92,33 +93,34 @@ public class S7PlcRxIntegrationTests
             DefaultSlot,
             null,
             StandardPollingIntervalMilliseconds);
-        Assert.That(plc1500, Is.Not.Null);
-        Assert.That(plc1500.PLCType, Is.EqualTo(CpuType.S71500));
+        await Assert.That(plc1500, Is.Not.Null);
+        await Assert.That(plc1500.PLCType, Is.EqualTo(CpuType.S71500));
 
         // Test S7400 creation
         using var plc400 = new RxS7(new(new(CpuType.S7400, MockServer.Localhost, DefaultRack, DefaultSlot)));
-        Assert.That(plc400, Is.Not.Null);
-        Assert.That(plc400.PLCType, Is.EqualTo(CpuType.S7400));
+        await Assert.That(plc400, Is.Not.Null);
+        await Assert.That(plc400.PLCType, Is.EqualTo(CpuType.S7400));
 
         // Test S7300 creation
         using var plc300 = new RxS7(new(new(CpuType.S7300, MockServer.Localhost, DefaultRack, DefaultSlot)));
-        Assert.That(plc300, Is.Not.Null);
-        Assert.That(plc300.PLCType, Is.EqualTo(CpuType.S7300));
+        await Assert.That(plc300, Is.Not.Null);
+        await Assert.That(plc300.PLCType, Is.EqualTo(CpuType.S7300));
 
         // Test S71200 creation
         using var plc1200 = new RxS7(new(new(CpuType.S71200, MockServer.Localhost, DefaultRack, DefaultSlot)));
-        Assert.That(plc1200, Is.Not.Null);
-        Assert.That(plc1200.PLCType, Is.EqualTo(CpuType.S71200));
+        await Assert.That(plc1200, Is.Not.Null);
+        await Assert.That(plc1200.PLCType, Is.EqualTo(CpuType.S71200));
 
         // Test S7200 creation
         using var plc200 = new RxS7(new(new(CpuType.S7200, MockServer.Localhost, DefaultRack, DefaultSlot)));
-        Assert.That(plc200, Is.Not.Null);
-        Assert.That(plc200.PLCType, Is.EqualTo(CpuType.S7200));
+        await Assert.That(plc200, Is.Not.Null);
+        await Assert.That(plc200.PLCType, Is.EqualTo(CpuType.S7200));
     }
 
     /// <summary>Test tag creation and management for different data types.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void TagManagement_WithDifferentDataTypes_ShouldWorkCorrectly()
+    public async Task TagManagement_WithDifferentDataTypes_ShouldWorkCorrectly()
     {
         _ = DebuggerDisplay;
 
@@ -132,25 +134,25 @@ public class S7PlcRxIntegrationTests
 
         // Act & Assert - Test different data types
         var (byteTag, _) = TagOperations.AddUpdateTagItem(plc, typeof(byte), ByteTagName, ByteTagAddress);
-        Assert.That(byteTag, Is.Not.Null);
+        await Assert.That(byteTag, Is.Not.Null);
 
         var (wordTag, _) = TagOperations.AddUpdateTagItem(plc, typeof(ushort), WordTagName, "DB1.DBW2");
-        Assert.That(wordTag, Is.Not.Null);
+        await Assert.That(wordTag, Is.Not.Null);
 
         var (intTag, _) = TagOperations.AddUpdateTagItem(plc, typeof(short), "TestInt", "DB1.DBW4");
-        Assert.That(intTag, Is.Not.Null);
+        await Assert.That(intTag, Is.Not.Null);
 
         var (dwordTag, _) = TagOperations.AddUpdateTagItem(plc, typeof(uint), "TestDWord", "DB1.DBD6");
-        Assert.That(dwordTag, Is.Not.Null);
+        await Assert.That(dwordTag, Is.Not.Null);
 
         var (dintTag, _) = TagOperations.AddUpdateTagItem(plc, typeof(int), "TestDInt", "DB1.DBD10");
-        Assert.That(dintTag, Is.Not.Null);
+        await Assert.That(dintTag, Is.Not.Null);
 
         var (realTag, _) = TagOperations.AddUpdateTagItem(plc, typeof(float), "TestReal", "DB1.DBD14");
-        Assert.That(realTag, Is.Not.Null);
+        await Assert.That(realTag, Is.Not.Null);
 
         var (lrealTag, _) = TagOperations.AddUpdateTagItem(plc, typeof(double), "TestLReal", "DB1.DBD18");
-        Assert.That(lrealTag, Is.Not.Null);
+        await Assert.That(lrealTag, Is.Not.Null);
 
         // Test arrays
         var (byteArrayTag, _) = TagOperations.AddUpdateTagItem(
@@ -159,7 +161,7 @@ public class S7PlcRxIntegrationTests
             "TestByteArray",
             "DB1.DBB26",
             ByteArrayLength);
-        Assert.That(byteArrayTag, Is.Not.Null);
+        await Assert.That(byteArrayTag, Is.Not.Null);
 
         var (realArrayTag, _) = TagOperations.AddUpdateTagItem(
             plc,
@@ -167,18 +169,19 @@ public class S7PlcRxIntegrationTests
             "TestRealArray",
             "DB1.DBD36",
             RealArrayLength);
-        Assert.That(realArrayTag, Is.Not.Null);
+        await Assert.That(realArrayTag, Is.Not.Null);
 
         // Verify tags are in TagList
-        Assert.That(plc.TagList.ContainsKey(ByteTagName), Is.True);
-        Assert.That(plc.TagList.ContainsKey(WordTagName), Is.True);
-        Assert.That(plc.TagList.ContainsKey("TestReal"), Is.True);
-        Assert.That(plc.TagList.ContainsKey("TestRealArray"), Is.True);
+        await Assert.That(plc.TagList.ContainsKey(ByteTagName), Is.True);
+        await Assert.That(plc.TagList.ContainsKey(WordTagName), Is.True);
+        await Assert.That(plc.TagList.ContainsKey("TestReal"), Is.True);
+        await Assert.That(plc.TagList.ContainsKey("TestRealArray"), Is.True);
     }
 
     /// <summary>Test tag removal functionality.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void TagRemoval_ShouldWorkCorrectly()
+    public async Task TagRemoval_ShouldWorkCorrectly()
     {
         _ = DebuggerDisplay;
 
@@ -196,17 +199,18 @@ public class S7PlcRxIntegrationTests
         TagOperations.RemoveTagItem(plc, ByteTagName);
 
         // Assert
-        Assert.That(plc.TagList.ContainsKey(ByteTagName), Is.False);
-        Assert.That(plc.TagList.ContainsKey(WordTagName), Is.True);
+        await Assert.That(plc.TagList.ContainsKey(ByteTagName), Is.False);
+        await Assert.That(plc.TagList.ContainsKey(WordTagName), Is.True);
 
         // Cleanup remaining tag
         TagOperations.RemoveTagItem(plc, WordTagName);
-        Assert.That(plc.TagList.ContainsKey(WordTagName), Is.False);
+        await Assert.That(plc.TagList.ContainsKey(WordTagName), Is.False);
     }
 
     /// <summary>Test tag observables creation.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void TagObservables_ShouldBeCreated()
+    public async Task TagObservables_ShouldBeCreated()
     {
         _ = DebuggerDisplay;
 
@@ -223,13 +227,14 @@ public class S7PlcRxIntegrationTests
         var observable = plc.Observe(new LogicalTagKey<ushort>(WordTagName));
 
         // Assert
-        Assert.That(observable, Is.Not.Null);
-        Assert.That(observable, Is.AssignableTo<IObservable<ushort>>());
+        await Assert.That(observable, Is.Not.Null);
+        await Assert.That(observable, Is.AssignableTo<IObservable<ushort>>());
     }
 
     /// <summary>Test watchdog configuration.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void WatchdogConfiguration_ShouldWorkCorrectly()
+    public async Task WatchdogConfiguration_ShouldWorkCorrectly()
     {
         _ = DebuggerDisplay;
 
@@ -240,24 +245,25 @@ public class S7PlcRxIntegrationTests
                 watchdog: new("DB10.DBW100")));
 
         // Assert
-        Assert.That(plc.WatchDogAddress, Is.EqualTo("DB10.DBW100"));
-        Assert.That(plc.WatchDogValueToWrite, Is.EqualTo(DefaultWatchdogValue));
-        Assert.That(plc.WatchDogWritingTime, Is.EqualTo(S7WatchdogOptions.DefaultIntervalSeconds));
+        await Assert.That(plc.WatchDogAddress, Is.EqualTo("DB10.DBW100"));
+        await Assert.That(plc.WatchDogValueToWrite, Is.EqualTo(DefaultWatchdogValue));
+        await Assert.That(plc.WatchDogWritingTime, Is.EqualTo(S7WatchdogOptions.DefaultIntervalSeconds));
 
         // Test invalid watchdog address
-        var ex = Assert.Throws<ArgumentException>(() =>
+        var ex = await Assert.Throws<ArgumentException>(static () =>
         {
             _ = new RxS7(
                 new(
                     new(CpuType.S71500, MockServer.Localhost, DefaultRack, DefaultSlot),
                     watchdog: new("DB10.DBB100")));
         });
-        Assert.That(ex?.Message, Does.Contain("WatchDogAddress must be a DBW address"));
+        await Assert.That(ex?.Message, Does.Contain("WatchDogAddress must be a DBW address"));
     }
 
     /// <summary>Test PLC status observables.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void PLCStatusObservables_ShouldBeCreated()
+    public async Task PLCStatusObservables_ShouldBeCreated()
     {
         _ = DebuggerDisplay;
 
@@ -270,43 +276,45 @@ public class S7PlcRxIntegrationTests
             StandardPollingIntervalMilliseconds);
 
         // Act & Assert
-        Assert.That(plc.IsConnected, Is.Not.Null);
-        Assert.That(plc.LastError, Is.Not.Null);
-        Assert.That(plc.LastErrorCode, Is.Not.Null);
-        Assert.That(plc.Status, Is.Not.Null);
-        Assert.That(plc.ObserveAll, Is.Not.Null);
-        Assert.That(plc.IsPaused, Is.Not.Null);
-        Assert.That(plc.ReadTime, Is.Not.Null);
+        await Assert.That(plc.IsConnected, Is.Not.Null);
+        await Assert.That(plc.LastError, Is.Not.Null);
+        await Assert.That(plc.LastErrorCode, Is.Not.Null);
+        await Assert.That(plc.Status, Is.Not.Null);
+        await Assert.That(plc.ObserveAll, Is.Not.Null);
+        await Assert.That(plc.IsPaused, Is.Not.Null);
+        await Assert.That(plc.ReadTime, Is.Not.Null);
     }
 
     /// <summary>Test error handling with invalid parameters.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void ErrorHandling_WithInvalidParameters_ShouldThrowCorrectExceptions()
+    public async Task ErrorHandling_WithInvalidParameters_ShouldThrowCorrectExceptions()
     {
         _ = DebuggerDisplay;
 
         // Test invalid rack
-        var ex1 = Assert.Throws<ArgumentOutOfRangeException>(
-            () => S71500.Create(MockServer.Localhost, -1, DefaultSlot));
-        Assert.That(ex1?.ParamName, Is.EqualTo("rack"));
+        var ex1 = await Assert.Throws<ArgumentOutOfRangeException>(
+            static () => S71500.Create(MockServer.Localhost, -1, DefaultSlot));
+        await Assert.That(ex1?.ParamName, Is.EqualTo("rack"));
 
-        var ex2 = Assert.Throws<ArgumentOutOfRangeException>(
-            () => S71500.Create(MockServer.Localhost, InvalidRack, DefaultSlot));
-        Assert.That(ex2?.ParamName, Is.EqualTo("rack"));
+        var ex2 = await Assert.Throws<ArgumentOutOfRangeException>(
+            static () => S71500.Create(MockServer.Localhost, InvalidRack, DefaultSlot));
+        await Assert.That(ex2?.ParamName, Is.EqualTo("rack"));
 
         // Test invalid slot
-        var ex3 = Assert.Throws<ArgumentOutOfRangeException>(
-            () => S71500.Create(MockServer.Localhost, DefaultRack, DefaultRack));
-        Assert.That(ex3?.ParamName, Is.EqualTo("slot"));
+        var ex3 = await Assert.Throws<ArgumentOutOfRangeException>(
+            static () => S71500.Create(MockServer.Localhost, DefaultRack, DefaultRack));
+        await Assert.That(ex3?.ParamName, Is.EqualTo("slot"));
 
-        var ex4 = Assert.Throws<ArgumentOutOfRangeException>(
-            () => S71500.Create(MockServer.Localhost, DefaultRack, InvalidMaximumSlot));
-        Assert.That(ex4?.ParamName, Is.EqualTo("slot"));
+        var ex4 = await Assert.Throws<ArgumentOutOfRangeException>(
+            static () => S71500.Create(MockServer.Localhost, DefaultRack, InvalidMaximumSlot));
+        await Assert.That(ex4?.ParamName, Is.EqualTo("slot"));
     }
 
     /// <summary>Test address parsing for different memory areas.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void AddressParsing_WithDifferentMemoryAreas_ShouldWorkCorrectly()
+    public async Task AddressParsing_WithDifferentMemoryAreas_ShouldWorkCorrectly()
     {
         _ = DebuggerDisplay;
 
@@ -319,40 +327,41 @@ public class S7PlcRxIntegrationTests
             StandardPollingIntervalMilliseconds);
 
         // Act & Assert - Data Block addresses
-        Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(byte), "DB_Test", ByteTagAddress));
+        await Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(byte), "DB_Test", ByteTagAddress));
 
-        Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "DBW_Test", WordTagAddress));
+        await Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "DBW_Test", WordTagAddress));
 
-        Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(uint), "DBD_Test", "DB1.DBD0"));
+        await Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(uint), "DBD_Test", "DB1.DBD0"));
 
-        Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(bool), "DBX_Test", "DB1.DBX0.0"));
+        await Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(bool), "DBX_Test", "DB1.DBX0.0"));
 
         // Input addresses
-        Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(byte), "IB_Test", "IB0"));
+        await Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(byte), "IB_Test", "IB0"));
 
-        Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "IW_Test", "IW0"));
+        await Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "IW_Test", "IW0"));
 
-        Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(bool), "I_Test", "I0.0"));
+        await Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(bool), "I_Test", "I0.0"));
 
         // Output addresses
-        Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(byte), "QB_Test", "QB0"));
+        await Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(byte), "QB_Test", "QB0"));
 
-        Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "QW_Test", "QW0"));
+        await Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "QW_Test", "QW0"));
 
         // Memory addresses
-        Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(byte), "MB_Test", "MB0"));
+        await Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(byte), "MB_Test", "MB0"));
 
-        Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "MW_Test", "MW0"));
+        await Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "MW_Test", "MW0"));
 
         // Timer and Counter
-        Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(double), "T_Test", "T1"));
+        await Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(double), "T_Test", "T1"));
 
-        Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "C_Test", "C1"));
+        await Assert.DoesNotThrow(() => _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "C_Test", "C1"));
     }
 
     /// <summary>Test CPU information observable creation.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void GetCpuInfo_ShouldReturnObservable()
+    public async Task GetCpuInfo_ShouldReturnObservable()
     {
         _ = DebuggerDisplay;
 
@@ -368,13 +377,14 @@ public class S7PlcRxIntegrationTests
         var cpuInfoObservable = plc.GetCpuInfo();
 
         // Assert
-        Assert.That(cpuInfoObservable, Is.Not.Null);
-        Assert.That(cpuInfoObservable, Is.AssignableTo<IObservable<string[]>>());
+        await Assert.That(cpuInfoObservable, Is.Not.Null);
+        await Assert.That(cpuInfoObservable, Is.AssignableTo<IObservable<string[]>>());
     }
 
     /// <summary>Test high-frequency tag operations simulation.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void HighFrequencyOperations_Simulation_ShouldBeStable()
+    public async Task HighFrequencyOperations_Simulation_ShouldBeStable()
     {
         _ = DebuggerDisplay;
 
@@ -388,7 +398,7 @@ public class S7PlcRxIntegrationTests
             FastPollingIntervalMilliseconds);
 
         // Act - Create many tags quickly
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var startTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
 
         for (var i = 0; i < PerformanceTagCount; i++)
         {
@@ -399,18 +409,20 @@ public class S7PlcRxIntegrationTests
                 $"DB1.DBW{i * WordByteOffsetMultiplier}");
         }
 
-        stopwatch.Stop();
-
         // Assert
-        var creationRate = PerformanceTagCount / stopwatch.Elapsed.TotalSeconds;
-        Assert.That(creationRate, Is.GreaterThan(StandardPollingIntervalMilliseconds), "Tag creation should be fast");
+        var creationRate = PerformanceTagCount / System.Diagnostics.Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds;
+        await Assert.That(
+            creationRate,
+            Is.GreaterThan(StandardPollingIntervalMilliseconds),
+            "Tag creation should be fast");
 
-        Assert.That(plc.TagList.Count, Is.EqualTo(PerformanceTagCount), "All tags should be created");
+        await Assert.That(plc.TagList.Count, Is.EqualTo(PerformanceTagCount), "All tags should be created");
     }
 
     /// <summary>Test memory usage patterns.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void MemoryUsage_WithManyTags_ShouldBeReasonable()
+    public async Task MemoryUsage_WithManyTags_ShouldBeReasonable()
     {
         _ = DebuggerDisplay;
 
@@ -443,7 +455,7 @@ public class S7PlcRxIntegrationTests
 
             // Simulate some operations
             var observable = plc.Observe(new LogicalTagKey<ushort>("Tag0"));
-            Assert.That(observable, Is.Not.Null);
+            await Assert.That(observable, Is.Not.Null);
         }
 
         // Force garbage collection after operations
@@ -457,15 +469,16 @@ public class S7PlcRxIntegrationTests
         // Assert reasonable memory usage
         var memoryPerPLC = memoryUsed / MemoryTestPlcCount;
 
-        Assert.That(
+        await Assert.That(
             memoryPerPLC,
             Is.LessThan(MaximumMemoryUsagePerPlc),
             $"Memory usage should be reasonable. Actual: {memoryPerPLC} bytes per PLC");
     }
 
     /// <summary>Test resource disposal.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void ResourceDisposal_ShouldCleanupCorrectly()
+    public async Task ResourceDisposal_ShouldCleanupCorrectly()
     {
         _ = DebuggerDisplay;
 
@@ -482,21 +495,22 @@ public class S7PlcRxIntegrationTests
         plc.Dispose();
 
         // Assert
-        Assert.That(plc.IsDisposed, Is.True, "PLC should be marked as disposed");
+        await Assert.That(plc.IsDisposed, Is.True, "PLC should be marked as disposed");
 
         // Verify multiple dispose calls don't cause issues
-        Assert.DoesNotThrow(() => plc.Dispose(), "Multiple dispose calls should be safe");
+        await Assert.DoesNotThrow(() => plc.Dispose(), "Multiple dispose calls should be safe");
     }
 
     /// <summary>Test comprehensive PLC type coverage.</summary>
     /// <param name="cpuType">Type of the cpu.</param>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
     [Arguments(CpuType.S71500)]
     [Arguments(CpuType.S7400)]
     [Arguments(CpuType.S7300)]
     [Arguments(CpuType.S71200)]
     [Arguments(CpuType.S7200)]
-    public void PLCTypeSupport_ShouldCoverAllTypes(CpuType cpuType)
+    public async Task PLCTypeSupport_ShouldCoverAllTypes(CpuType cpuType)
     {
         _ = DebuggerDisplay;
 
@@ -504,20 +518,21 @@ public class S7PlcRxIntegrationTests
         using var plc = new RxS7(new(new(cpuType, MockServer.Localhost, DefaultRack, DefaultSlot)));
 
         // Assert
-        Assert.That(plc, Is.Not.Null);
-        Assert.That(plc.PLCType, Is.EqualTo(cpuType));
-        Assert.That(plc.IP, Is.EqualTo(MockServer.Localhost));
-        Assert.That(plc.Rack, Is.EqualTo(DefaultRack));
-        Assert.That(plc.Slot, Is.EqualTo(DefaultSlot));
+        await Assert.That(plc, Is.Not.Null);
+        await Assert.That(plc.PLCType, Is.EqualTo(cpuType));
+        await Assert.That(plc.IP, Is.EqualTo(MockServer.Localhost));
+        await Assert.That(plc.Rack, Is.EqualTo(DefaultRack));
+        await Assert.That(plc.Slot, Is.EqualTo(DefaultSlot));
 
         // Test tag creation works for all PLC types
         var (tag, _) = TagOperations.AddUpdateTagItem(plc, typeof(ushort), "TestTag", WordTagAddress);
-        Assert.That(tag, Is.Not.Null);
+        await Assert.That(tag, Is.Not.Null);
     }
 
     /// <summary>Test tag value setting and getting (synchronous).</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void TagValueOperations_Synchronous_ShouldWorkCorrectly()
+    public async Task TagValueOperations_Synchronous_ShouldWorkCorrectly()
     {
         _ = DebuggerDisplay;
 
@@ -531,11 +546,13 @@ public class S7PlcRxIntegrationTests
         _ = TagOperations.AddUpdateTagItem(plc, typeof(ushort), WordTagName, WordTagAddress);
 
         // Act - Set value (this will be queued for when connection is available)
-        Assert.DoesNotThrow(() => plc.Value(WordTagName, SynchronousTagValue), "Setting value should not throw");
+        await Assert.DoesNotThrow(
+            () => plc.Value(WordTagName, SynchronousTagValue),
+            "Setting value should not throw");
 
         // The actual value setting will be attempted when PLC connects
         // For this test, we just verify the API works
-        Assert.Pass("Tag value operations API test completed");
+        await Assert.Pass("Tag value operations API test completed");
     }
 
     /// <summary>Test connection reconnection after simulated cable unplug.</summary>
@@ -571,7 +588,7 @@ public class S7PlcRxIntegrationTests
         await WaitForConnectionStateAsync(plc, true);
 
         // Assert
-        Assert.That(plc.IsConnectedValue, Is.True, "PLC should reconnect after cable is plugged back");
+        await Assert.That(plc.IsConnectedValue, Is.True, "PLC should reconnect after cable is plugged back");
     }
 
     /// <summary>Test connection reconnection after PLC stop and run.</summary>
@@ -607,7 +624,7 @@ public class S7PlcRxIntegrationTests
         await WaitForConnectionStateAsync(plc, true);
 
         // Assert
-        Assert.That(plc.IsConnectedValue, Is.True, "PLC should reconnect after PLC is run again");
+        await Assert.That(plc.IsConnectedValue, Is.True, "PLC should reconnect after PLC is run again");
     }
 
     /// <summary>Waits for the PLC to report the expected connection state within a bounded interval.</summary>

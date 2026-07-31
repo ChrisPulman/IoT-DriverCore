@@ -3,20 +3,20 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Device;
+using IoT.Driver.ModbusRx.Reactive.Device;
 #else
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Device;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Utility;
+using IoT.Driver.ModbusRx.Reactive.Utility;
 #else
-using IoT.DriverCore.ModbusRx.Utility;
+using IoT.Driver.ModbusRx.Utility;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Extensions.Enron;
+namespace IoT.Driver.ModbusRx.Reactive.Extensions.Enron;
 #else
-namespace IoT.DriverCore.ModbusRx.Extensions.Enron;
+namespace IoT.Driver.ModbusRx.Extensions.Enron;
 #endif
 
 /// <summary>Utility extensions for the Enron Modbus dialect.</summary>
@@ -34,10 +34,7 @@ public static class EnronModbusExtensions
         ushort startAddress,
         ushort numberOfPoints)
     {
-        if (master is null)
-        {
-            throw new ArgumentNullException(nameof(master));
-        }
+        master = ModbusGuard.NotNull(master, nameof(master));
 
         ValidateNumberOfPoints(numberOfPoints, SixtyTwo);
 
@@ -62,10 +59,7 @@ public static class EnronModbusExtensions
         ushort startAddress,
         ushort numberOfPoints)
     {
-        if (master is null)
-        {
-            throw new ArgumentNullException(nameof(master));
-        }
+        master = ModbusGuard.NotNull(master, nameof(master));
 
         ValidateNumberOfPoints(numberOfPoints, SixtyTwo);
 
@@ -89,10 +83,7 @@ public static class EnronModbusExtensions
         ushort registerAddress,
         uint value)
     {
-        if (master is null)
-        {
-            throw new ArgumentNullException(nameof(master));
-        }
+        master = ModbusGuard.NotNull(master, nameof(master));
 
         return WriteMultipleRegisters32Async(master, slaveAddress, registerAddress, [value]);
     }
@@ -109,15 +100,8 @@ public static class EnronModbusExtensions
         ushort startAddress,
         uint[] data)
     {
-        if (master is null)
-        {
-            throw new ArgumentNullException(nameof(master));
-        }
-
-        if (data is null)
-        {
-            throw new ArgumentNullException(nameof(data));
-        }
+        master = ModbusGuard.NotNull(master, nameof(master));
+        data = ModbusGuard.NotNull(data, nameof(data));
 
         if (data.Length is 0 or > SixtyOne)
         {

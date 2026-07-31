@@ -7,7 +7,7 @@ using System.IO;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Core;
+namespace IoT.Driver.TwinCATRx.Tests.Core;
 
 /// <summary>Tests for the internal C# language service.</summary>
 public class CSharpLanguageTests
@@ -96,7 +96,7 @@ public class CSharpLanguageTests
     /// <summary>Gets the internal language service type.</summary>
     /// <returns>The language service type.</returns>
     private static Type GetLanguageServiceType() =>
-        typeof(IoT.DriverCore.TwinCATRx.Core.Settings).Assembly.GetType("IoT.DriverCore.TwinCATRx.Core.CSharpLanguage")
+        typeof(IoT.Driver.TwinCATRx.Core.Settings).Assembly.GetType("IoT.Driver.TwinCATRx.Core.CSharpLanguage")
         ?? throw new TypeLoadException("CSharpLanguage was not found.");
 
     /// <summary>Returns a reflected value when it has the requested type.</summary>

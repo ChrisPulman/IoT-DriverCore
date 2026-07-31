@@ -4,18 +4,17 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Types;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Types;
 #else
-using IoT.DriverCore.OmronPlcRx.Core.Types;
+using IoT.Driver.OmronPlcRx.Core.Types;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive;
+namespace IoT.Driver.OmronPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.OmronPlcRx;
+namespace IoT.Driver.OmronPlcRx;
 #endif
 
 /// <summary>Contains conversion and result helpers for grouped logical-tag operations.</summary>
@@ -40,12 +39,18 @@ public sealed partial class OmronLogicalTagClient
     /// <param name="results">Caller-positioned result array.</param>
     /// <returns>The completed result array.</returns>
     private static TagOperationResult<LogicalTagValue>[] CompleteResults(
-        TagOperationResult<LogicalTagValue>?[] results) =>
-        results.Select(
-            static result => result
+        TagOperationResult<LogicalTagValue>?[] results)
+    {
+        var completed = new TagOperationResult<LogicalTagValue>[results.Length];
+        for (var index = 0; index < results.Length; index++)
+        {
+            completed[index] = results[index]
                 ?? TagOperationResult<LogicalTagValue>.Failure(
-                    "The grouped FINS operation did not return a result."))
-            .ToArray();
+                    "The grouped FINS operation did not return a result.");
+        }
+
+        return completed;
+    }
 
     /// <summary>Gets the runtime tag type represented by a logical definition.</summary>
     /// <param name="tag">Logical tag definition.</param>

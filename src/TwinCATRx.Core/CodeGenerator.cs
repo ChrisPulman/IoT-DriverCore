@@ -10,9 +10,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Microsoft.CSharp;
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Core.Reactive;
+namespace IoT.Driver.TwinCATRx.Core.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx.Core;
+namespace IoT.Driver.TwinCATRx.Core;
 #endif
 /// <summary>Code Generator.</summary>
 /// <seealso cref="ICodeGenerator"/>
@@ -455,7 +455,7 @@ public partial class CodeGenerator : ICodeGenerator
         }
 
         var normalizedSymbolName = symbolName!;
-        if (normalizedSymbolName.StartsWith(".", StringComparison.Ordinal))
+        if (normalizedSymbolName[0] == '.')
         {
             normalizedSymbolName = normalizedSymbolName.Remove(0, 1);
         }

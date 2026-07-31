@@ -4,16 +4,17 @@
 
 using System.Diagnostics;
 using System.Linq.Expressions;
-using IoT.DriverCore.Core;
+using System.Reflection;
+using IoT.Driver.Core;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides Mitsubishi generated-client test helpers.</summary>
@@ -33,7 +34,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         await Assert.That(
             generated.Contains(
                 "public static GeneratedMitsubishiTagClient Generated(this " +
-                "global::IoT.DriverCore.MitsubishiRx.MitsubishiRx owner) => new(owner);"))
+                "global::IoT.Driver.MitsubishiRx.MitsubishiRx owner) => new(owner);"))
             .IsTrue();
         await Assert.That(
             generated.Contains("public sealed partial class GeneratedMitsubishiTagClient"))
@@ -148,7 +149,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
     /// <returns>The source text.</returns>
     private static string CreateSchemaMarkerSource(string schema)
         => $$"""
-        using IoT.DriverCore.MitsubishiRx;
+        using IoT.Driver.MitsubishiRx;
 
         /// <summary>Provides the SchemaMarker type.</summary>
         [MitsubishiTagClientSchema({{ToLiteral(schema)}})]
@@ -162,7 +163,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
         => $$"""
         using System;
         using System.Threading.Tasks;
-        using IoT.DriverCore.MitsubishiRx;
+        using IoT.Driver.MitsubishiRx;
 
         /// <summary>Provides the SchemaMarker type.</summary>
         [MitsubishiTagClientSchema({{ToLiteral(schema)}})]
@@ -174,7 +175,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
             /// <summary>Executes the ExecuteAsync operation.</summary>
             /// <param name="client">The client parameter.</param>
             /// <returns>The ExecuteAsync operation result.</returns>
-            public static async Task ExecuteAsync(global::IoT.DriverCore.MitsubishiRx.MitsubishiRx client)
+            public static async Task ExecuteAsync(global::IoT.Driver.MitsubishiRx.MitsubishiRx client)
             {
                 _ = client.Generated().Tags.MotorSpeed;
                 _ = client.Generated().Groups.Line1;
@@ -199,20 +200,20 @@ internal sealed partial class MitsubishiGeneratedClientTests
     /// <param name="diagnostics">The generator diagnostics.</param>
     private static void ThrowIfGeneratorErrors(IReadOnlyList<Diagnostic> diagnostics)
     {
-        var errors = diagnostics
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        if (errors.Length > 0)
+        var errors = GetErrorDiagnostics(diagnostics);
+        if (errors.Length == 0)
         {
-            throw new InvalidOperationException(
-                string.Join(Environment.NewLine, errors.Select(static diagnostic => diagnostic.ToString())));
+            return;
         }
+
+        throw new InvalidOperationException(
+            FormatDiagnostics(errors));
     }
 
     /// <summary>Writes the generated-client consumer project files.</summary>
     /// <param name="consumerProjectPath">The consumer project path.</param>
     /// <param name="programPath">The consumer source path.</param>
-    /// <param name="version">The MitsubishiRx package version.</param>
+    /// <param name="version">The package version shared by the runtime and generator packages.</param>
     /// <returns>A task that completes after both files are written.</returns>
     private static async Task WriteConsumerProjectFilesAsync(
         string consumerProjectPath,
@@ -225,7 +226,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
 
     /// <summary>Writes the generated-client consumer project definition.</summary>
     /// <param name="consumerProjectPath">The consumer project path.</param>
-    /// <param name="version">The MitsubishiRx package version.</param>
+    /// <param name="version">The package version shared by the runtime and generator packages.</param>
     /// <returns>A task that completes after the file is written.</returns>
     private static Task WriteConsumerProjectFileAsync(string consumerProjectPath, string version)
     {
@@ -240,7 +241,8 @@ internal sealed partial class MitsubishiGeneratedClientTests
                 <Nullable>enable</Nullable>
               </PropertyGroup>
               <ItemGroup>
-                <PackageReference Include="MitsubishiRx" Version="{{version}}" />
+                <PackageReference Include="{{RuntimePackageId}}" Version="{{version}}" />
+                <PackageReference Include="{{GeneratorPackageId}}" Version="{{version}}" PrivateAssets="all" />
               </ItemGroup>
             </Project>
             """,
@@ -255,7 +257,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
             programPath,
             """
             using System.Threading.Tasks;
-            using IoT.DriverCore.MitsubishiRx;
+            using IoT.Driver.MitsubishiRx;
 
             /// <summary>Provides the SchemaMarker type.</summary>
             [MitsubishiTagClientSchema(
@@ -269,7 +271,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
                 /// <summary>Executes the ExecuteAsync operation.</summary>
                 /// <param name="client">The client parameter.</param>
                 /// <returns>The ExecuteAsync operation result.</returns>
-                public static async Task ExecuteAsync(global::IoT.DriverCore.MitsubishiRx.MitsubishiRx client)
+                public static async Task ExecuteAsync(global::IoT.Driver.MitsubishiRx.MitsubishiRx client)
                 {
                     _ = client.Generated().Tags.MotorSpeed;
                     _ = await client.Generated().Tags.MotorSpeed.ReadAsync();
@@ -305,12 +307,15 @@ internal sealed partial class MitsubishiGeneratedClientTests
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
         var generatorAssembly = typeof(MitsubishiTagClientGenerator).Assembly;
-        var references = AppDomain.CurrentDomain
-            .GetAssemblies()
-            .Where(static assembly => !assembly.IsDynamic && !string.IsNullOrWhiteSpace(assembly.Location))
-            .Select(static assembly => MetadataReference.CreateFromFile(assembly.Location))
-            .Cast<MetadataReference>()
-            .ToList();
+        var references = new List<MetadataReference>();
+        foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            if (!assembly.IsDynamic && !string.IsNullOrWhiteSpace(assembly.Location))
+            {
+                references.Add(MetadataReference.CreateFromFile(assembly.Location));
+            }
+        }
+
         AddReference(references, generatorAssembly.Location);
         AddReference(references, typeof(MitsubishiRx).Assembly.Location);
         AddReference(references, typeof(LogicalTag).Assembly.Location);
@@ -321,7 +326,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
             assemblyName: "GeneratorTests",
             syntaxTrees: [syntaxTree],
             references: references,
-            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            options: new(OutputKind.DynamicallyLinkedLibrary));
 
         IIncrementalGenerator generator = new MitsubishiTagClientGenerator();
         GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
@@ -331,16 +336,22 @@ internal sealed partial class MitsubishiGeneratedClientTests
             out var generatorDiagnostics);
         var runResult = driver.GetRunResult();
 
+        var generatedSources = new List<string>();
+        foreach (GeneratorRunResult generatorResult in runResult.Results)
+        {
+            foreach (GeneratedSourceResult generatedSource in generatorResult.GeneratedSources)
+            {
+                generatedSources.Add(generatedSource.SourceText.ToString());
+            }
+        }
+
         var generated = string.Join(
             $"{Environment.NewLine}// ----{Environment.NewLine}",
-            runResult.Results
-                .SelectMany(static result => result.GeneratedSources)
-                .Select(static generatedSource => generatedSource.SourceText.ToString()));
+            generatedSources);
 
-        var diagnostics = outputCompilation.GetDiagnostics()
-            .Concat(generatorDiagnostics)
-            .Concat(runResult.Diagnostics)
-            .ToArray();
+        var diagnostics = new List<Diagnostic>(outputCompilation.GetDiagnostics());
+        diagnostics.AddRange(generatorDiagnostics);
+        diagnostics.AddRange(runResult.Diagnostics);
 
         return (generated, diagnostics);
     }
@@ -350,14 +361,13 @@ internal sealed partial class MitsubishiGeneratedClientTests
     /// <param name="assemblyLocation">The assemblyLocation parameter.</param>
     private static void AddReference(List<MetadataReference> references, string assemblyLocation)
     {
-        if (references
-            .OfType<PortableExecutableReference>()
-            .Any(reference => string.Equals(
-                reference.FilePath,
-                assemblyLocation,
-                StringComparison.OrdinalIgnoreCase)))
+        foreach (MetadataReference metadataReference in references)
         {
-            return;
+            if (metadataReference is PortableExecutableReference reference
+                && string.Equals(reference.FilePath, assemblyLocation, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
         }
 
         references.Add(MetadataReference.CreateFromFile(assemblyLocation));
@@ -401,51 +411,116 @@ internal sealed partial class MitsubishiGeneratedClientTests
     /// <returns>The PackMitsubishiRxPackageAsync operation result.</returns>
     private static async Task<string> PackMitsubishiRxPackageAsync()
     {
-        if (!string.IsNullOrWhiteSpace(_cachedPackedPackagePath) && File.Exists(_cachedPackedPackagePath))
+        if (HasValidPackageCache())
         {
-            return _cachedPackedPackagePath;
+            return _cachedPackedPackagePath!;
         }
 
         await PackagePackGate.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (!string.IsNullOrWhiteSpace(_cachedPackedPackagePath) && File.Exists(_cachedPackedPackagePath))
+            if (HasValidPackageCache())
             {
-                return _cachedPackedPackagePath;
+                return _cachedPackedPackagePath!;
             }
 
             string repoRoot = GetRepositoryRoot();
-            string projectPath = Path.Combine(repoRoot, "src", "MitsubishiRx", "MitsubishiRx.csproj");
             string outputDirectory = CreateTemporaryDirectory();
             string targetFramework = GetCurrentTargetFramework();
+            await PackMitsubishiPackagesAsync(repoRoot, outputDirectory, targetFramework).ConfigureAwait(false);
+            _cachedPackedPackagePath = FindRuntimePackage(outputDirectory);
+            _cachedPackedGeneratorPackagePath = FindPackage(outputDirectory, GeneratorPackageId);
 
-            await PackProjectAsync(
-                Path.Combine(repoRoot, "src", "CP.IoT.Core", "CP.IoT.Core.csproj"),
-                outputDirectory,
-                repoRoot,
-                "netstandard2.0").ConfigureAwait(false);
-            await PackProjectAsync(
-                Path.Combine(repoRoot, "src", "SerialPortRx", "SerialPortRx.csproj"),
-                outputDirectory,
-                repoRoot,
-                targetFramework).ConfigureAwait(false);
-            await PackProjectAsync(
-                projectPath,
-                outputDirectory,
-                repoRoot,
-                targetFramework).ConfigureAwait(false);
-
-            _cachedPackedPackagePath = Directory
-                .GetFiles(outputDirectory, "MitsubishiRx.*.nupkg", SearchOption.TopDirectoryOnly)
-                .FirstOrDefault(static path => !path.EndsWith(".symbols.nupkg", StringComparison.OrdinalIgnoreCase))
-                ?? throw new InvalidOperationException("Expected MitsubishiRx package was not created.");
-
-            return _cachedPackedPackagePath;
+            return _cachedPackedPackagePath
+                ?? throw new InvalidOperationException("Expected MitsubishiRx runtime package was not created.");
         }
         finally
         {
             _ = PackagePackGate.Release();
         }
+    }
+
+    /// <summary>Checks whether both cached package paths still identify existing files.</summary>
+    /// <returns><see langword="true"/> when the runtime and generator packages are cached.</returns>
+    private static bool HasValidPackageCache() =>
+        !string.IsNullOrWhiteSpace(_cachedPackedPackagePath)
+        && File.Exists(_cachedPackedPackagePath)
+        && !string.IsNullOrWhiteSpace(_cachedPackedGeneratorPackagePath)
+        && File.Exists(_cachedPackedGeneratorPackagePath);
+
+    /// <summary>Packs the Mitsubishi runtime and each local dependency used by the consumer test.</summary>
+    /// <param name="repoRoot">The repository root.</param>
+    /// <param name="outputDirectory">The local package source.</param>
+    /// <param name="targetFramework">The active test target framework.</param>
+    /// <returns>A task that completes after every package has been created.</returns>
+    private static async Task PackMitsubishiPackagesAsync(
+        string repoRoot,
+        string outputDirectory,
+        string targetFramework)
+    {
+        string sourceRoot = Path.Combine(repoRoot, "src");
+        await PackProjectAsync(
+            Path.Combine(sourceRoot, "CP.IoT.Core", "CP.IoT.Core.csproj"),
+            outputDirectory,
+            repoRoot,
+            "netstandard2.0").ConfigureAwait(false);
+        await PackProjectAsync(
+            Path.Combine(sourceRoot, "SerialPortRx", "SerialPortRx.csproj"),
+            outputDirectory,
+            repoRoot,
+            targetFramework).ConfigureAwait(false);
+        await PackProjectAsync(
+            Path.Combine(sourceRoot, "MitsubishiRx.Generators", "MitsubishiRx.Generators.csproj"),
+            outputDirectory,
+            repoRoot,
+            "netstandard2.0").ConfigureAwait(false);
+        await PackProjectAsync(
+            Path.Combine(sourceRoot, "MitsubishiRx", "MitsubishiRx.csproj"),
+            outputDirectory,
+            repoRoot,
+            targetFramework).ConfigureAwait(false);
+    }
+
+    /// <summary>Finds the generated runtime package while excluding its similarly prefixed generator package.</summary>
+    /// <param name="outputDirectory">The package output directory.</param>
+    /// <returns>The runtime package path, or <see langword="null"/> when absent.</returns>
+    private static string? FindRuntimePackage(string outputDirectory)
+    {
+        foreach (string packagePath in Directory.GetFiles(
+            outputDirectory,
+            $"{RuntimePackageId}.*.nupkg",
+            SearchOption.TopDirectoryOnly))
+        {
+            if (!packagePath.EndsWith(".symbols.nupkg", StringComparison.OrdinalIgnoreCase)
+                && !Path.GetFileName(packagePath).StartsWith(
+                    $"{GeneratorPackageId}.",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return packagePath;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Finds a non-symbol package with the requested identifier.</summary>
+    /// <param name="outputDirectory">The package output directory.</param>
+    /// <param name="packageId">The package identifier.</param>
+    /// <returns>The package path, or <see langword="null"/> when absent.</returns>
+    private static string? FindPackage(string outputDirectory, string packageId)
+    {
+        foreach (string packagePath in Directory.GetFiles(
+            outputDirectory,
+            $"{packageId}.*.nupkg",
+            SearchOption.TopDirectoryOnly))
+        {
+            if (!packagePath.EndsWith(".symbols.nupkg", StringComparison.OrdinalIgnoreCase))
+            {
+                return packagePath;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>Packs one project target into the package-consumer test source.</summary>
@@ -543,7 +618,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
     {
         var startInfo = new ProcessStartInfo
         {
-            FileName = @"C:\Program Files\dotnet\dotnet.exe",
+            FileName = GetCurrentDotNetHostPath(),
             WorkingDirectory = workingDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -590,6 +665,38 @@ internal sealed partial class MitsubishiGeneratedClientTests
         string standardOutput = await standardOutputTask.ConfigureAwait(false);
         string standardError = await standardErrorTask.ConfigureAwait(false);
         return (process.ExitCode, standardOutput + Environment.NewLine + standardError);
+    }
+
+    /// <summary>Gets the .NET host that loaded the current test process.</summary>
+    /// <returns>The absolute path to the current .NET host.</returns>
+    private static string GetCurrentDotNetHostPath()
+    {
+        string? hostPath = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");
+        if (!string.IsNullOrWhiteSpace(hostPath) && File.Exists(hostPath))
+        {
+            return hostPath;
+        }
+
+        string? processPath = Environment.ProcessPath;
+        if (!string.IsNullOrWhiteSpace(processPath)
+            && string.Equals(
+                Path.GetFileNameWithoutExtension(processPath),
+                "dotnet",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return processPath;
+        }
+
+        var runtimeDirectory = new DirectoryInfo(System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory());
+        string? runtimeHostPath = runtimeDirectory.Parent?.Parent?.Parent is DirectoryInfo dotnetRoot
+            ? Path.Combine(dotnetRoot.FullName, "dotnet.exe")
+            : null;
+        if (!string.IsNullOrWhiteSpace(runtimeHostPath) && File.Exists(runtimeHostPath))
+        {
+            return runtimeHostPath;
+        }
+
+        throw new FileNotFoundException("Could not locate the .NET host for the active test runtime.");
     }
 
     /// <summary>Executes the TryDeleteDirectory operation.</summary>

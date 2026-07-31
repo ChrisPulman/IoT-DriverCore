@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Optimization;
+using IoT.Driver.S7PlcRx.Optimization;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Optimization;
+namespace IoT.Driver.S7PlcRx.Tests.Optimization;
 
 /// <summary>Provides deterministic coverage for S7 optimization helpers.</summary>
 public sealed class S7OptimizationDeterministicCoverageTests
@@ -49,7 +49,7 @@ public sealed class S7OptimizationDeterministicCoverageTests
 
         await TUnit.Assertions.Assert.That(monitor).IsNotNull();
         await TUnit.Assertions.Assert.That(
-                () => OptimizationExtensions.MonitorTagSmart(
+                static () => OptimizationExtensions.MonitorTagSmart(
                     null!,
                     CachedTagName,
                     EqualityComparer<int>.Default,
@@ -111,8 +111,8 @@ public sealed class S7OptimizationDeterministicCoverageTests
         await TUnit.Assertions.Assert.That(fallback).IsEqualTo(MissingFallback);
         await TUnit.Assertions.Assert.That(clearedStatistics.TotalEntries).IsEqualTo(1);
         await TUnit.Assertions.Assert.That(emptyStatistics.TotalEntries).IsEqualTo(0);
-        await TUnit.Assertions.Assert.That(() => OptimizationExtensions.ClearCache(null!)).Throws<ArgumentNullException>();
-        await TUnit.Assertions.Assert.That(() => OptimizationExtensions.GetCacheStatistics(null!)).Throws<ArgumentNullException>();
+        await TUnit.Assertions.Assert.That(static () => OptimizationExtensions.ClearCache(null!)).Throws<ArgumentNullException>();
+        await TUnit.Assertions.Assert.That(static () => OptimizationExtensions.GetCacheStatistics(null!)).Throws<ArgumentNullException>();
     }
 
     /// <summary>Verifies the optimization engine groups queued requests, tracks cache entries, and disposes safely.</summary>

@@ -4,17 +4,17 @@
 
 using System.IO.Ports;
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Device;
-using IoT.DriverCore.Serial.Reactive;
+using IoT.Driver.ModbusRx.Reactive.Device;
+using IoT.Driver.Serial.Reactive;
 #else
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.Serial;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.Serial;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive;
+namespace IoT.Driver.ModbusRx.Reactive;
 #else
-namespace IoT.DriverCore.ModbusRx;
+namespace IoT.Driver.ModbusRx;
 #endif
 
 /// <summary>Provides ModbusRx functionality.</summary>

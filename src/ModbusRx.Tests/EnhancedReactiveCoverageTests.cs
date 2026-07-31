@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
 using NativeAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Loopback-only behavioral coverage for optimized server observation.</summary>
 public sealed class EnhancedReactiveCoverageTests
@@ -145,24 +145,24 @@ public sealed class EnhancedReactiveCoverageTests
     public async Task OptimizedObservations_RejectNullServerAsync()
     {
         await NativeAssert.That(
-                () => EnhancedModbusServerExtensions.ObserveDataChangesOptimized(null!, ObservationInterval))
+                static () => EnhancedModbusServerExtensions.ObserveDataChangesOptimized(null!, ObservationInterval))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(
-                () => EnhancedModbusServerExtensions.ObserveHoldingRegistersOptimized(
+                static () => EnhancedModbusServerExtensions.ObserveHoldingRegistersOptimized(
                     null!,
                     FirstAddress,
                     PointCount,
                     ObservationInterval))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(
-                () => EnhancedModbusServerExtensions.ObserveCoilsOptimized(
+                static () => EnhancedModbusServerExtensions.ObserveCoilsOptimized(
                     null!,
                     FirstAddress,
                     PointCount,
                     ObservationInterval))
             .Throws<ArgumentNullException>();
         await NativeAssert.That(
-                () => EnhancedModbusServerExtensions.ObserveDataChangesBuffered(
+                static () => EnhancedModbusServerExtensions.ObserveDataChangesBuffered(
                     null!,
                     1,
                     ObservationInterval))
@@ -207,7 +207,7 @@ public sealed class EnhancedReactiveCoverageTests
         await NativeAssert.That(empty).IsEmpty();
         await NativeAssert.That(reactiveServer).IsNotNull();
         await NativeAssert.That(
-                async () => await ModbusServerExtensions
+                static async () => await ModbusServerExtensions
                     .CreateReactiveServer(static _ => throw new InvalidOperationException("configure"))
                     .FirstAsync())
             .Throws<InvalidOperationException>();

@@ -3,15 +3,17 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Data;
+using IoT.Driver.ModbusRx.Reactive.Data;
+using IoT.Driver.ModbusRx.Reactive.Utility;
 #else
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Utility;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive;
+namespace IoT.Driver.ModbusRx.Reactive;
 #else
-namespace IoT.DriverCore.ModbusRx;
+namespace IoT.Driver.ModbusRx;
 #endif
 
 /// <summary>Provides deterministic work counters for event-driven Modbus server observation.</summary>
@@ -39,11 +41,7 @@ public sealed class ModbusObservationMetrics
     /// <param name="eventArgs">The data-store event that triggered observation.</param>
     internal void RecordWriteNotification(DataStoreEventArgs eventArgs)
     {
-        if (eventArgs is null)
-        {
-            throw new ArgumentNullException(nameof(eventArgs));
-        }
-
+        _ = ModbusGuard.NotNull(eventArgs, nameof(eventArgs));
         _ = Interlocked.Increment(ref _writeNotifications);
     }
 

@@ -6,9 +6,9 @@ using System.Collections.ObjectModel;
 using System.Runtime.CompilerServices;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive.Data;
+namespace IoT.Driver.ModbusRx.Reactive.Data;
 #else
-namespace IoT.DriverCore.ModbusRx.Data;
+namespace IoT.Driver.ModbusRx.Data;
 #endif
 
 /// <summary>
@@ -120,15 +120,8 @@ public class DataStore : IDisposable
         where T : Collection<TU>, new()
         where TU : struct
     {
-        if (dataSource is null)
-        {
-            throw new ArgumentNullException(nameof(dataSource));
-        }
-
-        if (resultFactory is null)
-        {
-            throw new ArgumentNullException(nameof(resultFactory));
-        }
+        dataSource = ArgumentGuard.NotNull(dataSource, nameof(dataSource));
+        resultFactory = ArgumentGuard.NotNull(resultFactory, nameof(resultFactory));
 
         var startIndex = startAddress + 1;
 
@@ -172,10 +165,7 @@ public class DataStore : IDisposable
         ushort startAddress)
         where TData : struct
     {
-        if (destination is null)
-        {
-            throw new ArgumentNullException(nameof(destination));
-        }
+        destination = ArgumentGuard.NotNull(destination, nameof(destination));
 
         var materializedItems = MaterializeItems(items, out var materialized);
         var startIndex = startAddress + 1;
@@ -331,10 +321,7 @@ public class DataStore : IDisposable
     /// <returns>An indexable view of the input.</returns>
     private static IReadOnlyList<T> MaterializeItems<T>(IEnumerable<T> items, out bool materialized)
     {
-        if (items is null)
-        {
-            throw new ArgumentNullException(nameof(items));
-        }
+        items = ArgumentGuard.NotNull(items, nameof(items));
 
         if (items is not IReadOnlyList<T> indexedItems)
         {

@@ -8,15 +8,27 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Generators;
+using IoT.Driver.ModbusRx.Generators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
-namespace IoT.DriverCore.ModbusRx.Generators.Tests;
+namespace IoT.Driver.ModbusRx.Generators.Tests;
 
 /// <summary>Tests for the reactive stream source generator.</summary>
 public class ModbusReactiveStreamGeneratorTests
 {
+    /// <summary>Verifies the generator does not emit marker declarations into consumer compilations.</summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [TUnit.Core.Test]
+    public async Task DoesNotEmitRuntimeMarkerDeclarationsAsync()
+    {
+        const string source = "namespace Maps; public partial class UntaggedMap { }";
+
+        var result = RunGenerator(source);
+
+        await TUnit.Assertions.Assert.That(result.GeneratedTrees).IsEmpty();
+    }
+
     /// <summary>Verifies generated properties expose a matching observable and binding method.</summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [TUnit.Core.Test]
@@ -24,8 +36,8 @@ public class ModbusReactiveStreamGeneratorTests
     {
         const string source = """
 using System;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.Generators;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx;
 
 [ModbusReactiveDevice(ConnectionMember = "MasterStream")]
 public partial class BoilerMap
@@ -44,7 +56,7 @@ public partial class BoilerMap
         await TUnit.Assertions.Assert.That(generatedSource).Contains("TemperatureObservable");
         await TUnit.Assertions.Assert.That(generatedSource).Contains("BindGeneratedModbusStreams");
         await TUnit.Assertions.Assert.That(generatedSource).Contains(
-            "global::IoT.DriverCore.ModbusRx.Create.ReadHoldingRegisters(this.MasterStream, 0, 1, 1000");
+            "global::IoT.Driver.ModbusRx.Create.ReadHoldingRegisters(this.MasterStream, 0, 1, 1000");
     }
 
     /// <summary>Verifies generated code compiles against ModbusRx and ReactiveUI.Primitives.</summary>
@@ -54,8 +66,8 @@ public partial class BoilerMap
     {
         const string source = """
 using System;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.Generators;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx;
 
 namespace Maps;
 
@@ -86,8 +98,8 @@ public partial class BoilerMap
     {
         const string source = """
 using System;
-using IoT.DriverCore.ModbusRx.Generators;
-using IoT.DriverCore.ModbusRx.Reactive.Device;
+using IoT.Driver.ModbusRx.Reactive;
+using IoT.Driver.ModbusRx.Reactive.Device;
 
 namespace Maps;
 
@@ -107,7 +119,7 @@ public partial class BoilerMap
         var diagnostics = CollectErrors(result.Compilation.GetDiagnostics());
 
         await TUnit.Assertions.Assert.That(generatedSource).Contains(
-            "global::IoT.DriverCore.ModbusRx.Reactive.Create.ReadHoldingRegisters(this.MasterStream, 0, 1, 1000");
+            "global::IoT.Driver.ModbusRx.Reactive.Create.ReadHoldingRegisters(this.MasterStream, 0, 1, 1000");
         await TUnit.Assertions.Assert.That(diagnostics).IsEmpty();
     }
 
@@ -118,9 +130,9 @@ public partial class BoilerMap
     {
         const string source = """
 using System;
-using IoT.DriverCore.Core;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.Generators;
+using IoT.Driver.Core;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx;
 
 [ModbusReactiveDevice(ConnectionMember = "MasterStream", TagClientMember = "TagClient")]
 public partial class BoilerMap
@@ -151,9 +163,9 @@ public partial class BoilerMap
     {
         const string source = """
 using System;
-using IoT.DriverCore.Core;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.Generators;
+using IoT.Driver.Core;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx;
 
 [ModbusReactiveDevice(
     ConnectionMember = "SerialConnection",
@@ -208,7 +220,7 @@ public partial class CompleteMap
     {
         const string source = """
 using System;
-using IoT.DriverCore.ModbusRx.Generators;
+using IoT.Driver.ModbusRx;
 
 namespace Maps;
 
@@ -218,7 +230,7 @@ namespace Maps;
     MasterKind = ModbusReactiveMasterKind.Ip)]
 internal partial class ReactiveMap
 {
-    internal IObservable<(bool connected, Exception? error, IoT.DriverCore.ModbusRx.Reactive.Device.ModbusIpMaster? master)>
+    internal IObservable<(bool connected, Exception? error, IoT.Driver.ModbusRx.Reactive.Device.ModbusIpMaster? master)>
         ReactiveConnection { get; set; } = default!;
 
     [InputRegister(22, Count = 3, SwapWords = false, TagName = " ")]
@@ -246,11 +258,11 @@ public partial class OtherMemberMap
         var generatedSource = ConcatenateGeneratedSources(result.GeneratedTrees);
 
         await TUnit.Assertions.Assert.That(generatedSource).Contains(
-            "global::IoT.DriverCore.ModbusRx.Reactive.Create.ReadInputRegisters(this.ReactiveConnection, 22, 3, 1000");
+            "global::IoT.Driver.ModbusRx.Reactive.Create.ReadInputRegisters(this.ReactiveConnection, 22, 3, 1000");
         await TUnit.Assertions.Assert.That(generatedSource).Contains(
-            "global::IoT.DriverCore.ModbusRx.Create.ReadInputs(this.MissingConnection, 0, 1, 1000");
+            "global::IoT.Driver.ModbusRx.Create.ReadInputs(this.MissingConnection, 0, 1, 1000");
         await TUnit.Assertions.Assert.That(generatedSource).Contains(
-            "global::IoT.DriverCore.ModbusRx.Create.ReadCoils(this.ConnectionEvent, 5, 1, 1000");
+            "global::IoT.Driver.ModbusRx.Create.ReadCoils(this.ConnectionEvent, 5, 1, 1000");
     }
 
     /// <summary>Verifies invalid declaration shapes report all generator diagnostics without hiding compiler failures.</summary>
@@ -260,8 +272,8 @@ public partial class OtherMemberMap
     {
         const string source = """
 using System;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.ModbusRx.Generators;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx;
 
 [ModbusReactiveDevice]
 public class NonPartialMap
@@ -344,19 +356,19 @@ public partial class TaglessMap
         string source,
         bool validateGeneratorDiagnostics = true)
     {
-        var syntaxTree = CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview));
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, new(LanguageVersion.Preview));
         var compilation = CSharpCompilation.Create(
             "GeneratorTests",
             [syntaxTree],
             GetReferences(),
-            new CSharpCompilationOptions(
+            new(
                 OutputKind.DynamicallyLinkedLibrary,
                 nullableContextOptions: NullableContextOptions.Enable));
 
         var generator = new ModbusReactiveStreamGenerator();
         var driver = CSharpGeneratorDriver.Create(
             [generator.AsSourceGenerator()],
-            parseOptions: new CSharpParseOptions(LanguageVersion.Preview));
+            parseOptions: new(LanguageVersion.Preview));
         driver = (CSharpGeneratorDriver)driver.RunGeneratorsAndUpdateCompilation(
             compilation,
             out var outputCompilation,
@@ -368,7 +380,7 @@ public partial class TaglessMap
             throw new InvalidOperationException(FormatDiagnostics(errors));
         }
 
-        return new GeneratorRunResult(
+        return new(
             driver.GetRunResult().GeneratedTrees,
             outputCompilation,
             diagnostics);
@@ -394,7 +406,7 @@ public partial class TaglessMap
         yield return MetadataReference.CreateFromFile(
             typeof(ModbusRx.Reactive.Device.ModbusIpMaster).Assembly.Location);
         yield return MetadataReference.CreateFromFile(typeof(ReactiveUI.Primitives.Signals.Signal).Assembly.Location);
-        yield return MetadataReference.CreateFromFile(typeof(IoT.DriverCore.Core.ILogicalTagClient).Assembly.Location);
+        yield return MetadataReference.CreateFromFile(typeof(IoT.Driver.Core.ILogicalTagClient).Assembly.Location);
     }
 
     /// <summary>Collects error diagnostics from a diagnostic sequence.</summary>

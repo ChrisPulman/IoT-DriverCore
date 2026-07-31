@@ -7,9 +7,9 @@ using System.Globalization;
 using System.Text;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive;
+namespace IoT.Driver.OmronPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.OmronPlcRx;
+namespace IoT.Driver.OmronPlcRx;
 #endif
 
 /// <summary>Encodes and decodes Omron FINS frames carried in Host Link serial frames.</summary>
@@ -36,10 +36,14 @@ public sealed class HostLinkFinsFrameCodec
     /// <returns>Two-character uppercase hexadecimal FCS.</returns>
     public static string CalculateFcs(string frameText)
     {
+#if NET6_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(frameText);
+#else
         if (frameText is null)
         {
             throw new ArgumentNullException(nameof(frameText));
         }
+#endif
 
         byte value = 0;
         foreach (var ch in Encoding.ASCII.GetBytes(frameText))
@@ -90,10 +94,14 @@ public sealed class HostLinkFinsFrameCodec
     /// <returns>Binary FINS response message.</returns>
     public Memory<byte> DecodeResponse(string frame)
     {
+#if NET6_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(frame);
+#else
         if (frame is null)
         {
             throw new ArgumentNullException(nameof(frame));
         }
+#endif
 
         if (!frame.EndsWith("*\r", StringComparison.Ordinal))
         {

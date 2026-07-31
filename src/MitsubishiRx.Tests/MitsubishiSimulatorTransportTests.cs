@@ -3,15 +3,14 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.IO.Ports;
-using System.Text;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 #endif
 
@@ -36,11 +35,20 @@ internal sealed class MitsubishiSimulatorTransportTests
     /// <summary>Stores the expanded memory snapshot size.</summary>
     private const int ExpandedSnapshotCount = 6;
 
-    /// <summary>Stores a two-word ASCII payload.</summary>
-    private const string AsciiWordPayload = "12345678";
-
     /// <summary>Stores the simulated request description.</summary>
     private const string SimulationRequestDescription = "Simulator request";
+
+    /// <summary>Stores the simulator password used by advanced command tests.</summary>
+    private const string SimulatorPassword = "1234";
+
+    /// <summary>Stores the advanced word block values.</summary>
+    private static readonly ushort[] AdvancedWordBlockValues = [0x3001, 0x3002];
+
+    /// <summary>Stores the advanced bit block values.</summary>
+    private static readonly bool[] AdvancedBitBlockValues = [true, false, true];
+
+    /// <summary>Stores the expected captured request payload.</summary>
+    private static readonly byte[] ExpectedCapturedPayload = [0x04, 0x05, 0x06];
 
     /// <summary>Verifies scripted responses, request snapshots, and lifecycle state.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
@@ -54,7 +62,7 @@ internal sealed class MitsubishiSimulatorTransportTests
         await simulator.ConnectAsync(options, CancellationToken.None);
         var payload = new byte[] { 0x04, 0x05, 0x06 };
         var response = await simulator.ExchangeAsync(
-            new MitsubishiTransportRequest(payload, null, SimulationRequestDescription),
+            new(payload, null, SimulationRequestDescription),
             CancellationToken.None);
         payload[0] = 0;
         queuedResponse[0] = 0;
@@ -64,9 +72,7 @@ internal sealed class MitsubishiSimulatorTransportTests
         await Assert.That(simulator.ConnectedOptions).IsEqualTo(options);
         await Assert.That(simulator.ConnectCount).IsEqualTo(1);
         await Assert.That(simulator.Requests.Count).IsEqualTo(1);
-        await Assert.That(
-                simulator.Requests[0].Payload.Select(static value => (int)value).ToArray())
-            .IsEquivalentTo([0x04, 0x05, 0x06]);
+        await Assert.That(simulator.Requests[0].Payload).IsEquivalentTo(ExpectedCapturedPayload);
 
         simulator.ClearRequests();
         await simulator.DisconnectAsync(CancellationToken.None);
@@ -109,7 +115,7 @@ internal sealed class MitsubishiSimulatorTransportTests
         var options = CreateMcOptions(frameType, CommunicationDataCode.Ascii);
         var response = MitsubishiSimulatorTransport.CreateSuccessResponse(
             options,
-            Encoding.ASCII.GetBytes(AsciiWordPayload));
+            CreateAsciiWordResponse());
         await using var simulator = new MitsubishiSimulatorTransport([response]);
         await using var client = new MitsubishiRx(options, simulator, Scheduler.Immediate);
 
@@ -144,7 +150,7 @@ internal sealed class MitsubishiSimulatorTransportTests
     {
         var options = CreateSerialOptions(frameType, dataCode, messageFormat);
         var decodedPayload = dataCode == CommunicationDataCode.Ascii
-            ? Encoding.ASCII.GetBytes(AsciiWordPayload)
+            ? CreateAsciiWordResponse()
             : new byte[] { 0x34, 0x12, 0x78, 0x56 };
         await using var simulator = new MitsubishiSimulatorTransport(
             [MitsubishiSimulatorTransport.CreateSuccessResponse(options, decodedPayload)]);
@@ -173,11 +179,11 @@ internal sealed class MitsubishiSimulatorTransportTests
         _ = Assert.Throws<ArgumentOutOfRangeException>(
             () => MitsubishiSimulatorTransport.CreateErrorResponse(options, 0));
         _ = Assert.Throws<ArgumentException>(
-            () => MitsubishiSimulatorTransport.CreateSuccessResponse(
+            static () => MitsubishiSimulatorTransport.CreateSuccessResponse(
                 CreateMcOptions(MitsubishiFrameType.ThreeE, CommunicationDataCode.Ascii),
                 [0x31]));
         _ = Assert.Throws<NotSupportedException>(
-            () => MitsubishiSimulatorTransport.CreateSuccessResponse(
+            static () => MitsubishiSimulatorTransport.CreateSuccessResponse(
                 CreateSerialOptions(
                     MitsubishiFrameType.ThreeC,
                     CommunicationDataCode.Binary,
@@ -191,7 +197,7 @@ internal sealed class MitsubishiSimulatorTransportTests
     internal async Task FactoryGuardrailsAndSerialErrorsAreDeterministicAsync()
     {
         _ = Assert.Throws<ArgumentNullException>(
-            () =>
+            static () =>
             {
                 var unexpectedSimulator = new MitsubishiSimulatorTransport(
                     (Func<MitsubishiTransportRequest, byte[]>)null!);
@@ -216,22 +222,22 @@ internal sealed class MitsubishiSimulatorTransportTests
         }
 
         _ = Assert.Throws<ArgumentOutOfRangeException>(
-            () => MitsubishiSimulatorTransport.CreateSuccessResponse(
+            static () => MitsubishiSimulatorTransport.CreateSuccessResponse(
                 CreateMcOptions((MitsubishiFrameType)int.MaxValue, CommunicationDataCode.Binary),
                 []));
         _ = Assert.Throws<ArgumentOutOfRangeException>(
-            () => MitsubishiSimulatorTransport.CreateSuccessResponse(
+            static () => MitsubishiSimulatorTransport.CreateSuccessResponse(
                 CreateMcOptions((MitsubishiFrameType)int.MaxValue, CommunicationDataCode.Ascii),
                 []));
         _ = Assert.Throws<ArgumentOutOfRangeException>(
-            () => MitsubishiSimulatorTransport.CreateSuccessResponse(
+            static () => MitsubishiSimulatorTransport.CreateSuccessResponse(
                 CreateSerialOptions(
                     (MitsubishiFrameType)int.MaxValue,
                     CommunicationDataCode.Ascii,
                     MitsubishiSerialMessageFormat.Format1),
                 []));
         _ = Assert.Throws<NotSupportedException>(
-            () => MitsubishiSimulatorTransport.CreateSuccessResponse(
+            static () => MitsubishiSimulatorTransport.CreateSuccessResponse(
                 CreateSerialOptions(
                     MitsubishiFrameType.FourC,
                     CommunicationDataCode.Ascii,
@@ -242,10 +248,10 @@ internal sealed class MitsubishiSimulatorTransportTests
         await nullFactorySimulator.ConnectAsync(
             CreateMcOptions(MitsubishiFrameType.ThreeE, CommunicationDataCode.Binary),
             CancellationToken.None);
-        _ = Assert.Throws<InvalidOperationException>(
-            () => nullFactorySimulator.ExchangeAsync(
-                new MitsubishiTransportRequest([], null, SimulationRequestDescription),
-                CancellationToken.None).AsTask().GetAwaiter().GetResult());
+        _ = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await nullFactorySimulator.ExchangeAsync(
+                new([], null, SimulationRequestDescription),
+                CancellationToken.None));
         await nullFactorySimulator.DisposeAsync();
         await nullFactorySimulator.DisconnectAsync(CancellationToken.None);
     }
@@ -280,27 +286,27 @@ internal sealed class MitsubishiSimulatorTransportTests
         var simulator = new MitsubishiSimulatorTransport(static _ => [0x01, 0x02, 0x03]);
         simulator.EnqueueConnectFault(new IOException("Deterministic connect failure."));
 
-        _ = Assert.Throws<IOException>(
-            () => simulator.ConnectAsync(options, CancellationToken.None).AsTask().GetAwaiter().GetResult());
-        _ = Assert.Throws<InvalidOperationException>(
-            () => simulator.ExchangeAsync(
-                new MitsubishiTransportRequest([], null, SimulationRequestDescription),
-                CancellationToken.None).AsTask().GetAwaiter().GetResult());
+        _ = await Assert.ThrowsAsync<IOException>(
+            async () => await simulator.ConnectAsync(options, CancellationToken.None));
+        _ = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await simulator.ExchangeAsync(
+                new([], null, SimulationRequestDescription),
+                CancellationToken.None));
 
         await simulator.ConnectAsync(options, CancellationToken.None);
         using var cancelled = new CancellationTokenSource();
         await cancelled.CancelAsync();
-        _ = Assert.Throws<OperationCanceledException>(
-            () => simulator.ExchangeAsync(
-                new MitsubishiTransportRequest([], null, SimulationRequestDescription),
-                cancelled.Token).AsTask().GetAwaiter().GetResult());
+        _ = await Assert.ThrowsAsync<OperationCanceledException>(
+            async () => await simulator.ExchangeAsync(
+                new([], null, SimulationRequestDescription),
+                cancelled.Token));
 
         await simulator.DisposeAsync();
         simulator.Dispose();
 
         await Assert.That(simulator.IsConnected).IsFalse();
-        _ = Assert.Throws<ObjectDisposedException>(
-            () => simulator.ConnectAsync(options, CancellationToken.None).AsTask().GetAwaiter().GetResult());
+        _ = await Assert.ThrowsAsync<ObjectDisposedException>(
+            async () => await simulator.ConnectAsync(options, CancellationToken.None));
     }
 
     /// <summary>Verifies the default automatic acknowledgement supports advanced write/control operations.</summary>
@@ -341,7 +347,7 @@ internal sealed class MitsubishiSimulatorTransportTests
     {
         var options = CreateSerialOptions(MitsubishiFrameType.FourC, dataCode, messageFormat);
         var decodedPayload = dataCode == CommunicationDataCode.Ascii
-            ? Encoding.ASCII.GetBytes(AsciiWordPayload)
+            ? CreateAsciiWordResponse()
             : new byte[] { 0x34, 0x12, 0x78, 0x56 };
         await using var simulator = new MitsubishiSimulatorTransport(
             _ => MitsubishiSimulatorTransport.CreateSuccessResponse(options, decodedPayload));
@@ -372,7 +378,7 @@ internal sealed class MitsubishiSimulatorTransportTests
         var pause = await client.RemotePauseAsync(CancellationToken.None);
         var reset = await client.RemoteResetAsync(CancellationToken.None);
         var raw = await client.ExecuteRawAsync(
-            new MitsubishiRawCommandRequest(0x0001, 0x0000, [0x31, 0x32], "Raw simulation"),
+            new(0x0001, 0x0000, [0x31, 0x32], "Raw simulation"),
             CancellationToken.None);
 
         await AssertAllSucceededAsync(
@@ -393,7 +399,7 @@ internal sealed class MitsubishiSimulatorTransportTests
     {
         var options = CreateMcOptions(MitsubishiFrameType.FourE, dataCode);
         var decodedPayload = dataCode == CommunicationDataCode.Ascii
-            ? Encoding.ASCII.GetBytes(AsciiWordPayload)
+            ? CreateAsciiWordResponse()
             : new byte[] { 0x34, 0x12, 0x78, 0x56 };
         await using var simulator = new MitsubishiSimulatorTransport(
             _ => MitsubishiSimulatorTransport.CreateSuccessResponse(options, decodedPayload));
@@ -420,8 +426,8 @@ internal sealed class MitsubishiSimulatorTransportTests
         var pause = await client.RemotePauseAsync(CancellationToken.None);
         var latchClear = await client.RemoteLatchClearAsync(CancellationToken.None);
         var reset = await client.RemoteResetAsync(CancellationToken.None);
-        var unlock = await client.UnlockAsync("1234", CancellationToken.None);
-        var @lock = await client.LockAsync("1234", CancellationToken.None);
+        var unlock = await client.UnlockAsync(SimulatorPassword, CancellationToken.None);
+        var @lock = await client.LockAsync(SimulatorPassword, CancellationToken.None);
         var clear = await client.ClearErrorAsync(CancellationToken.None);
         var memoryRead = await client.ReadMemoryAsync(
             MitsubishiCommands.MemoryRead,
@@ -658,6 +664,10 @@ internal sealed class MitsubishiSimulatorTransportTests
         await Assert.That(loopback.Value).IsEquivalentTo([(byte)0x41, (byte)0x42]);
     }
 
+    /// <summary>Creates the ASCII payload for two representative words.</summary>
+    /// <returns>The ASCII response bytes.</returns>
+    private static byte[] CreateAsciiWordResponse() => "12345678"u8.ToArray();
+
     /// <summary>Creates the advanced block-write request.</summary>
     /// <returns>The populated word and bit block request.</returns>
     private static MitsubishiBlockRequest CreateAdvancedWriteBlockRequest() =>
@@ -665,12 +675,12 @@ internal sealed class MitsubishiSimulatorTransportTests
             [
                 new MitsubishiWordBlock(
                     MitsubishiDeviceAddress.Parse("D110", XyAddressNotation.Octal),
-                    new ushort[] { 0x3001, 0x3002 }),
+                    AdvancedWordBlockValues),
             ],
             [
                 new MitsubishiBitBlock(
                     MitsubishiDeviceAddress.Parse("M20", XyAddressNotation.Octal),
-                    new[] { true, false, true }),
+                    AdvancedBitBlockValues),
             ]);
 
     /// <summary>Creates the advanced block-read request.</summary>

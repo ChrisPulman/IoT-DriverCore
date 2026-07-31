@@ -6,14 +6,14 @@ using System.Globalization;
 using System.Net;
 using System.Reflection;
 using System.Text;
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Core.Channels;
-using IoT.DriverCore.OmronPlcRx.Core.Requests;
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.Serial;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Core.Channels;
+using IoT.Driver.OmronPlcRx.Core.Requests;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.Serial;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Exercises serial Omron FINS channels through a composed in-memory serial transport.</summary>
 public sealed class OmronSerialChannelSimulatorTests
@@ -64,7 +64,7 @@ public sealed class OmronSerialChannelSimulatorTests
     {
         var ports = new List<ScriptedOmronSerialPort>();
         using var channel = CreateChannel(
-            new OmronSerialOptions("SIM-HOST"),
+            new("SIM-HOST"),
             CreateHostLinkResponse,
             ports);
         using var connection = CreateRequestConnection();
@@ -119,13 +119,13 @@ public sealed class OmronSerialChannelSimulatorTests
         using var connection = CreateRequestConnection();
         var request = ReadClockRequest.CreateNew(connection);
 
-        await AssertChannelFailureAsync(new OmronSerialOptions("SIM-NONE"), [], request);
+        await AssertChannelFailureAsync(new("SIM-NONE"), [], request);
         await AssertChannelFailureAsync(
-            new OmronSerialOptions("SIM-PARTIAL"),
-            Encoding.ASCII.GetBytes("@"),
+            new("SIM-PARTIAL"),
+            "@"u8.ToArray(),
             request);
         await AssertChannelFailureAsync(
-            new OmronSerialOptions("SIM-LONG")
+            new("SIM-LONG")
             {
                 MaximumFrameLength = ShortMaximumFrameLength,
             },
@@ -154,11 +154,17 @@ public sealed class OmronSerialChannelSimulatorTests
                 0,
                 CancellationToken.None));
         await AssertThrowsAsync<ArgumentNullException>(
-            () => Task.FromResult(
-                new SerialHostLinkFinsChannel(options, null!)));
+            () =>
+            {
+                _ = new SerialHostLinkFinsChannel(options, null!);
+                return Task.CompletedTask;
+            });
         await AssertThrowsAsync<ArgumentNullException>(
-            () => Task.FromResult(
-                new OmronSerialPortAdapter(null!, TimeoutMilliseconds)));
+            static () =>
+            {
+                _ = new OmronSerialPortAdapter(null!, TimeoutMilliseconds);
+                return Task.CompletedTask;
+            });
     }
 
     /// <summary>Verifies the production serial adapter through connected in-memory serial endpoints.</summary>
@@ -177,7 +183,7 @@ public sealed class OmronSerialChannelSimulatorTests
 
         adapter.Write([1], 0, 1);
         var peerBuffer = new byte[1];
-        var peerRead = pair.Second.Read(peerBuffer, 0, peerBuffer.Length);
+        var peerRead = await pair.Second.ReadAsync(peerBuffer, 0, peerBuffer.Length);
         pair.Second.Write([RemoteNode], 0, 1);
         var response = new byte[1];
         var received = adapter.Read(response, 0, response.Length);
@@ -204,11 +210,17 @@ public sealed class OmronSerialChannelSimulatorTests
 
         await Assert.That(closedAdapter.RtsEnable).IsTrue();
         await Assert.That(closedAdapter.DtrEnable).IsTrue();
-        await Assert.That(
-            new[] { bytesToReadError, discardError, writeError, readError }
-                .Where(static error => error is not null)
-                .All(static error => !string.IsNullOrEmpty(error!.Message)))
-            .IsTrue();
+        var capturedErrorsHaveMessages = true;
+        foreach (var error in new[] { bytesToReadError, discardError, writeError, readError })
+        {
+            if (error is not null && string.IsNullOrEmpty(error.Message))
+            {
+                capturedErrorsHaveMessages = false;
+                break;
+            }
+        }
+
+        await Assert.That(capturedErrorsHaveMessages).IsTrue();
     }
 
     /// <summary>Verifies serial channel reinitialization, purge, and uninitialized guards.</summary>
@@ -220,7 +232,7 @@ public sealed class OmronSerialChannelSimulatorTests
         var request = ReadClockRequest.CreateNew(connection);
         var ports = new List<ScriptedOmronSerialPort>();
         using var channel = CreateChannel(
-            new OmronSerialOptions("SIM-REINIT"),
+            new("SIM-REINIT"),
             CreateHostLinkResponse,
             ports);
 
@@ -262,7 +274,12 @@ public sealed class OmronSerialChannelSimulatorTests
         var syncOptions = OmronSerialOptions.CreateToolbus("SIM-SYNC-TIMEOUT");
         using var syncFailure = CreateChannel(
             syncOptions,
-            _ => Enumerable.Repeat((byte)0x55, syncOptions.MaximumFrameLength + 1).ToArray(),
+            _ =>
+            {
+                var response = new byte[syncOptions.MaximumFrameLength + 1];
+                Array.Fill(response, (byte)0x55);
+                return response;
+            },
             []);
         await AssertThrowsAsync<OmronPLCException>(
             () => syncFailure.InitializeAsync(

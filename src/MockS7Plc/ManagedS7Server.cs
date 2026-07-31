@@ -6,7 +6,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
-namespace IoT.DriverCore.S7PlcRx.Mock;
+namespace IoT.Driver.S7PlcRx.Mock;
 
 /// <summary>Hosts a deterministic managed ISO-on-TCP/S7 server.</summary>
 /// <remarks>
@@ -87,12 +87,6 @@ public sealed class ManagedS7Server : IDisposable
     /// <summary>The TPKT header length.</summary>
     private const int TpktHeaderLength = 4;
 
-    /// <summary>The number of seconds allowed for listener shutdown.</summary>
-    private const int ShutdownWaitSeconds = 2;
-
-    /// <summary>The interval used to poll the listener backlog before accepting a client.</summary>
-    private const int AcceptPollIntervalMilliseconds = 10;
-
     /// <summary>The deterministic CPU information payload length.</summary>
     private const int CpuInformationLength = 204;
 
@@ -154,7 +148,11 @@ public sealed class ManagedS7Server : IDisposable
     private const int HighAddressShift = 16;
 
     /// <summary>Synchronizes lifecycle and client tracking.</summary>
+#if NET9_0_OR_GREATER
+    private readonly Lock _syncRoot = new();
+#else
     private readonly object _syncRoot = new();
+#endif
 
     /// <summary>Stores queued single-use faults.</summary>
     private readonly List<S7ServerFault> _faults = [];
@@ -191,8 +189,18 @@ public sealed class ManagedS7Server : IDisposable
 
     /// <summary>Initializes a new instance of the <see cref="ManagedS7Server"/> class.</summary>
     /// <param name="memory">The memory store.</param>
-    public ManagedS7Server(ManagedS7Memory memory) =>
-        Memory = memory ?? throw new ArgumentNullException(nameof(memory));
+    public ManagedS7Server(ManagedS7Memory memory)
+    {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(memory);
+#else
+        if (memory is null)
+        {
+            throw new ArgumentNullException(nameof(memory));
+        }
+#endif
+        Memory = memory;
+    }
 
     /// <summary>Gets the server memory.</summary>
     public ManagedS7Memory Memory { get; }
@@ -228,10 +236,14 @@ public sealed class ManagedS7Server : IDisposable
     /// <param name="fault">The scripted fault.</param>
     public void EnqueueFault(S7ServerFault fault)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(fault);
+#else
         if (fault is null)
         {
             throw new ArgumentNullException(nameof(fault));
         }
+#endif
 
         lock (_syncRoot)
         {
@@ -295,6 +307,7 @@ public sealed class ManagedS7Server : IDisposable
     public void Stop()
     {
         Task[] shutdownTasks;
+        CancellationTokenSource? cancellation;
         lock (_syncRoot)
         {
             if (!IsRunning)
@@ -303,7 +316,8 @@ public sealed class ManagedS7Server : IDisposable
             }
 
             IsRunning = false;
-            _cancellation?.Cancel();
+            cancellation = _cancellation;
+            cancellation?.Cancel();
             _listener?.Stop();
 #if NET8_0_OR_GREATER
             _listener?.Dispose();
@@ -318,34 +332,28 @@ public sealed class ManagedS7Server : IDisposable
             shutdownTasks = CaptureShutdownTasks();
             _acceptLoop = null;
             _listener = null;
+            _cancellation = null;
         }
 
-        try
-        {
-            if (shutdownTasks.Length > 0)
-            {
-                _ = Task.WaitAll(shutdownTasks, TimeSpan.FromSeconds(ShutdownWaitSeconds));
-            }
-        }
-        catch (AggregateException)
-        {
-            // Listener and client shutdown intentionally interrupt pending network operations.
-        }
-
-        _cancellation?.Dispose();
-        _cancellation = null;
+        ShutdownOperation.Begin(shutdownTasks, cancellation);
     }
 
     /// <summary>Disposes the server.</summary>
     public void Dispose()
     {
-        if (_disposed)
+        lock (_syncRoot)
         {
-            return;
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
         }
 
         Stop();
-        _disposed = true;
+        _cancellation?.Dispose();
+        _cancellation = null;
     }
 
     /// <summary>Classifies an incoming frame.</summary>
@@ -372,6 +380,319 @@ public sealed class ManagedS7Server : IDisposable
         };
     }
 
+    /// <summary>Consumes and applies one matching fault.</summary>
+    /// <param name="stream">The connected network stream.</param>
+    /// <param name="fault">The optional fault to apply.</param>
+    /// <param name="cancellationToken">The shutdown token.</param>
+    /// <returns><see langword="true"/> when normal response handling should continue.</returns>
+    private static async Task<bool> ApplyFaultAsync(
+        NetworkStream stream,
+        S7ServerFault? fault,
+        CancellationToken cancellationToken)
+    {
+        if (fault is null || fault.Kind == S7ServerFaultKind.ReturnCode)
+        {
+            return true;
+        }
+
+        if (fault.Kind == S7ServerFaultKind.Delay)
+        {
+            if (fault.Delay > TimeSpan.Zero)
+            {
+                await Task.Delay(fault.Delay, cancellationToken).ConfigureAwait(false);
+            }
+
+            return true;
+        }
+
+        if (fault.Kind != S7ServerFaultKind.MalformedFrame)
+        {
+            return false;
+        }
+
+        byte[] invalid = [3, 0, 0, 3];
+#if NET8_0_OR_GREATER
+        await stream.WriteAsync(invalid.AsMemory(), cancellationToken).ConfigureAwait(false);
+#else
+        await stream.WriteAsync(invalid, 0, invalid.Length, cancellationToken).ConfigureAwait(false);
+#endif
+
+        return false;
+    }
+
+    /// <summary>Builds a COTP connection-confirm packet.</summary>
+    /// <param name="request">The COTP connection request.</param>
+    /// <returns>The COTP connection-confirm frame.</returns>
+    private static byte[] BuildCotpConnectionResponse(byte[] request)
+    {
+        byte[] response =
+        [
+            0x03, 0x00, 0x00, 0x16, 0x11, 0xd0, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0xc1, 0x02, 0x01, 0x00, 0xc2, 0x02, 0x01, 0x02, 0xc0, 0x01, 0x09,
+        ];
+        if (request.Length > 18)
+        {
+            response[13] = request[13];
+            response[14] = request[14];
+            response[17] = request[17];
+            response[18] = request[18];
+        }
+
+        return response;
+    }
+
+    /// <summary>Builds a standard S7 AckData response.</summary>
+    /// <param name="request">The request frame.</param>
+    /// <param name="function">The S7 function code.</param>
+    /// <param name="itemCount">The number of response items.</param>
+    /// <param name="data">The encoded item data.</param>
+    /// <returns>The complete AckData response.</returns>
+    private static byte[] BuildAckDataResponse(
+        byte[] request,
+        byte function,
+        byte itemCount,
+        List<byte> data)
+    {
+        var response = new byte[AckDataItemOffset + data.Count];
+        response[0] = 0x03;
+        WriteUInt16(response, TpktLengthOffset, (ushort)response.Length);
+        response[4] = 0x02;
+        response[5] = 0xf0;
+        response[6] = 0x80;
+        response[7] = 0x32;
+        response[8] = 0x03;
+        CopyPduReference(request, response);
+        WriteUInt16(response, ParameterLengthOffset, AckDataParameterLength);
+        WriteUInt16(response, AckDataLengthOffset, (ushort)data.Count);
+        response[19] = function;
+        response[20] = itemCount;
+        var responseOffset = AckDataItemOffset;
+        foreach (var item in data)
+        {
+            response[responseOffset] = item;
+            responseOffset++;
+        }
+
+        return response;
+    }
+
+    /// <summary>Parses one S7ANY variable specification.</summary>
+    /// <param name="request">The request frame.</param>
+    /// <param name="offset">The start of the variable specification.</param>
+    /// <returns>The parsed variable specification.</returns>
+    private static VariableSpecification ParseVariableSpecification(byte[] request, int offset)
+    {
+        if (offset < 0 || offset + VariableSpecificationLength > request.Length ||
+            request[offset] != 0x12 || request[offset + S7AnySyntaxOffset] != 0x10)
+        {
+            throw new InvalidDataException("Invalid S7ANY variable specification.");
+        }
+
+        var area = (S7MemoryArea)request[offset + S7AnyAreaOffset];
+#if NET8_0_OR_GREATER
+        if (!Enum.IsDefined(area))
+#else
+        if (!Enum.IsDefined(typeof(S7MemoryArea), area))
+#endif
+        {
+            throw new InvalidDataException("Unsupported S7 memory area.");
+        }
+
+        var dbNumber = ReadUInt16(request, offset + S7AnyDbNumberOffset);
+        var count = ReadUInt16(request, offset + S7AnyCountOffset);
+        var address =
+            (request[offset + S7AnyAddressHighOffset] << HighAddressShift) |
+            (request[offset + S7AnyAddressMiddleOffset] << BitsPerByte) |
+            request[offset + S7AnyAddressLowOffset];
+        var byteOffset = area is S7MemoryArea.Timer or S7MemoryArea.Counter
+            ? address
+            : address / BitsPerByte;
+        return new(area, dbNumber, byteOffset, count);
+    }
+
+    /// <summary>Reads a complete TPKT frame.</summary>
+    /// <param name="stream">The connected network stream.</param>
+    /// <param name="cancellationToken">The shutdown token.</param>
+    /// <returns>The complete frame, or <see langword="null"/> for an invalid or closed stream.</returns>
+    private static async Task<byte[]?> ReadFrameAsync(NetworkStream stream, CancellationToken cancellationToken)
+    {
+        var header = new byte[TpktHeaderLength];
+        if (!await ReadExactAsync(stream, header, header.Length, cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        var length = ReadUInt16(header, TpktLengthOffset);
+        if (header[0] != TpktVersion || length < header.Length)
+        {
+            return null;
+        }
+
+        var frame = new byte[length];
+        Buffer.BlockCopy(header, 0, frame, 0, header.Length);
+        return length == header.Length ||
+            await ReadExactAsync(stream, frame, length - header.Length, cancellationToken, header.Length)
+                .ConfigureAwait(false)
+            ? frame
+            : null;
+    }
+
+    /// <summary>Reads exactly the requested number of bytes.</summary>
+    /// <param name="stream">The connected network stream.</param>
+    /// <param name="buffer">The destination buffer.</param>
+    /// <param name="count">The number of bytes to read.</param>
+    /// <param name="cancellationToken">The shutdown token.</param>
+    /// <param name="offset">The destination offset.</param>
+    /// <returns><see langword="true"/> when all bytes were read.</returns>
+    private static async Task<bool> ReadExactAsync(
+        NetworkStream stream,
+        byte[] buffer,
+        int count,
+        CancellationToken cancellationToken,
+        int offset = 0)
+    {
+        var total = 0;
+        while (total < count)
+        {
+#if NET8_0_OR_GREATER
+            var read = await stream.ReadAsync(
+                buffer.AsMemory(offset + total, count - total),
+                cancellationToken).ConfigureAwait(false);
+#else
+            var read = await stream.ReadAsync(
+                buffer,
+                offset + total,
+                count - total,
+                cancellationToken).ConfigureAwait(false);
+#endif
+            if (read == 0)
+            {
+                return false;
+            }
+
+            total += read;
+        }
+
+        return true;
+    }
+
+    /// <summary>Creates deterministic CPU information.</summary>
+    /// <returns>The CPU information payload.</returns>
+    private static byte[] CreateCpuInformation()
+    {
+        var data = new byte[CpuInformationLength];
+        WriteAscii(data, CpuAsNameOffset, CpuTextLength, "SIMULATOR");
+        WriteAscii(data, CpuModuleNameOffset, CpuTextLength, "Managed S7 PLC");
+        WriteAscii(data, CpuCopyrightOffset, CpuCopyrightLength, "Copyright CP");
+        WriteAscii(data, CpuSerialNumberOffset, CpuTextLength, "SIM0000001");
+        WriteAscii(data, CpuModuleTypeOffset, CpuModuleTypeLength, "CPU 1516-3 PN/DP");
+        return data;
+    }
+
+    /// <summary>Creates deterministic order-code information.</summary>
+    /// <returns>The order-code payload.</returns>
+    private static byte[] CreateOrderCode()
+    {
+        var data = new byte[OrderCodeLength];
+        WriteAscii(data, OrderCodeOffset, OrderCodeTextLength, "6ES7 516-3AN02-0AB0");
+        data[22] = 1;
+        data[23] = 0;
+        data[24] = 0;
+        return data;
+    }
+
+    /// <summary>Writes an ASCII field.</summary>
+    /// <param name="destination">The destination buffer.</param>
+    /// <param name="offset">The field offset.</param>
+    /// <param name="length">The maximum field length.</param>
+    /// <param name="value">The ASCII value.</param>
+    private static void WriteAscii(byte[] destination, int offset, int length, string value)
+    {
+        var bytes = Encoding.ASCII.GetBytes(value);
+        Buffer.BlockCopy(bytes, 0, destination, offset, Math.Min(length, bytes.Length));
+    }
+
+    /// <summary>Copies an S7 PDU reference.</summary>
+    /// <param name="request">The request frame.</param>
+    /// <param name="response">The response frame.</param>
+    private static void CopyPduReference(byte[] request, byte[] response)
+    {
+        if (request.Length <= 12 || response.Length <= 12)
+        {
+            return;
+        }
+
+        response[11] = request[11];
+        response[12] = request[12];
+    }
+
+    /// <summary>Reads an unsigned big-endian word.</summary>
+    /// <param name="buffer">The source buffer.</param>
+    /// <param name="offset">The word offset.</param>
+    /// <returns>The decoded value.</returns>
+    private static ushort ReadUInt16(byte[] buffer, int offset) =>
+        (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
+
+    /// <summary>Writes an unsigned big-endian word.</summary>
+    /// <param name="buffer">The destination buffer.</param>
+    /// <param name="offset">The word offset.</param>
+    /// <param name="value">The value.</param>
+    private static void WriteUInt16(byte[] buffer, int offset, ushort value)
+    {
+        buffer[offset] = (byte)(value >> 8);
+        buffer[offset + 1] = (byte)value;
+    }
+
+    /// <summary>Adds an unsigned big-endian word.</summary>
+    /// <param name="destination">The destination list.</param>
+    /// <param name="value">The value.</param>
+    private static void AddUInt16(List<byte> destination, ushort value)
+    {
+        destination.Add((byte)(value >> 8));
+        destination.Add((byte)value);
+    }
+
+    /// <summary>Builds a one-packet SZL response.</summary>
+    /// <param name="request">The SZL request.</param>
+    /// <param name="returnCode">The scripted return code.</param>
+    /// <returns>The SZL response.</returns>
+    private static byte[] BuildSzlResponse(byte[] request, byte returnCode)
+    {
+        var szlId = request.Length > SzlIdentifierOffset + 1
+            ? ReadUInt16(request, SzlIdentifierOffset)
+            : (ushort)0;
+        var payload = szlId switch
+        {
+            0x001c => CreateCpuInformation(),
+            0x0011 => CreateOrderCode(),
+            _ => Array.Empty<byte>(),
+        };
+        var response = new byte[SzlPayloadOffset + payload.Length];
+        response[0] = 0x03;
+        response[3] = (byte)response.Length;
+        response[4] = 0x02;
+        response[5] = 0xf0;
+        response[6] = 0x80;
+        response[7] = 0x32;
+        response[8] = 0x07;
+        CopyPduReference(request, response);
+        response[14] = 0x0c;
+        WriteUInt16(response, SzlHeaderDataLengthOffset, (ushort)(payload.Length + SzlDataOverhead));
+        response[19] = 0x12;
+        response[20] = 0x08;
+        response[21] = 0x12;
+        response[22] = 0x44;
+        response[23] = 0x01;
+        response[24] = 0x01;
+        response[26] = 0;
+        response[29] = returnCode;
+        response[30] = 0x09;
+        WriteUInt16(response, SzlDataLengthOffset, (ushort)(payload.Length + SzlMetadataLength));
+        WriteUInt16(response, SzlTotalLengthOffset, (ushort)payload.Length);
+        payload.CopyTo(response, SzlPayloadOffset);
+        return response;
+    }
+
     /// <summary>Accepts clients until stopped.</summary>
     /// <param name="listener">The active TCP listener.</param>
     /// <param name="cancellationToken">The shutdown token.</param>
@@ -383,13 +704,11 @@ public sealed class ManagedS7Server : IDisposable
             TcpClient client;
             try
             {
-                if (!listener.Pending())
-                {
-                    await Task.Delay(AcceptPollIntervalMilliseconds, cancellationToken).ConfigureAwait(false);
-                    continue;
-                }
-
-                client = listener.AcceptTcpClient();
+#if NET8_0_OR_GREATER
+                client = await listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
+#else
+                client = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
+#endif
             }
             catch (Exception ex) when (
                 ex is InvalidOperationException or ObjectDisposedException or OperationCanceledException or SocketException)
@@ -408,7 +727,7 @@ public sealed class ManagedS7Server : IDisposable
 
                 _clients.Add(client);
                 _ = _clientSessions.RemoveAll(static session => session.Completion.IsCompleted);
-                _clientSessions.Add(new ClientSession(this, client, cancellationToken));
+                _clientSessions.Add(new(this, client, cancellationToken));
             }
         }
     }
@@ -441,7 +760,11 @@ public sealed class ManagedS7Server : IDisposable
     {
         try
         {
+#if NET8_0_OR_GREATER
+            await using var stream = client.GetStream();
+#else
             using var stream = client.GetStream();
+#endif
             while (!cancellationToken.IsCancellationRequested)
             {
                 var frame = await ReadFrameAsync(stream, cancellationToken).ConfigureAwait(false);
@@ -463,7 +786,11 @@ public sealed class ManagedS7Server : IDisposable
                     return;
                 }
 
+#if NET8_0_OR_GREATER
+                await stream.WriteAsync(response.AsMemory(), cancellationToken).ConfigureAwait(false);
+#else
                 await stream.WriteAsync(response, 0, response.Length, cancellationToken).ConfigureAwait(false);
+#endif
             }
         }
         catch (Exception ex) when (
@@ -502,42 +829,6 @@ public sealed class ManagedS7Server : IDisposable
         };
     }
 
-    /// <summary>Consumes and applies one matching fault.</summary>
-    /// <param name="stream">The connected network stream.</param>
-    /// <param name="fault">The optional fault to apply.</param>
-    /// <param name="cancellationToken">The shutdown token.</param>
-    /// <returns><see langword="true"/> when normal response handling should continue.</returns>
-    private async Task<bool> ApplyFaultAsync(
-        NetworkStream stream,
-        S7ServerFault? fault,
-        CancellationToken cancellationToken)
-    {
-        if (fault is null || fault.Kind == S7ServerFaultKind.ReturnCode)
-        {
-            return true;
-        }
-
-        if (fault.Kind == S7ServerFaultKind.Delay)
-        {
-            if (fault.Delay > TimeSpan.Zero)
-            {
-                await Task.Delay(fault.Delay, cancellationToken).ConfigureAwait(false);
-            }
-
-            return true;
-        }
-
-        if (fault.Kind != S7ServerFaultKind.MalformedFrame)
-        {
-            return false;
-        }
-
-        byte[] invalid = [3, 0, 0, 3];
-        await stream.WriteAsync(invalid, 0, invalid.Length, cancellationToken).ConfigureAwait(false);
-
-        return false;
-    }
-
     /// <summary>Gets and removes the first matching fault.</summary>
     /// <param name="operation">The current operation.</param>
     /// <returns>The matching fault, or <see langword="null"/>.</returns>
@@ -559,27 +850,6 @@ public sealed class ManagedS7Server : IDisposable
         }
 
         return null;
-    }
-
-    /// <summary>Builds a COTP connection-confirm packet.</summary>
-    /// <param name="request">The COTP connection request.</param>
-    /// <returns>The COTP connection-confirm frame.</returns>
-    private byte[] BuildCotpConnectionResponse(byte[] request)
-    {
-        byte[] response =
-        [
-            0x03, 0x00, 0x00, 0x16, 0x11, 0xd0, 0x00, 0x00, 0x00, 0x01, 0x00,
-            0xc1, 0x02, 0x01, 0x00, 0xc2, 0x02, 0x01, 0x02, 0xc0, 0x01, 0x09,
-        ];
-        if (request.Length > 18)
-        {
-            response[13] = request[13];
-            response[14] = request[14];
-            response[17] = request[17];
-            response[18] = request[18];
-        }
-
-        return response;
     }
 
     /// <summary>Builds an S7 setup-communication response.</summary>
@@ -699,252 +969,6 @@ public sealed class ManagedS7Server : IDisposable
         return BuildAckDataResponse(request, 0x05, itemCount, returnCodes);
     }
 
-    /// <summary>Builds a one-packet SZL response.</summary>
-    /// <param name="request">The SZL request.</param>
-    /// <param name="returnCode">The scripted return code.</param>
-    /// <returns>The SZL response.</returns>
-    private byte[] BuildSzlResponse(byte[] request, byte returnCode)
-    {
-        var szlId = request.Length > SzlIdentifierOffset + 1
-            ? ReadUInt16(request, SzlIdentifierOffset)
-            : (ushort)0;
-        var payload = szlId switch
-        {
-            0x001c => CreateCpuInformation(),
-            0x0011 => CreateOrderCode(),
-            _ => Array.Empty<byte>(),
-        };
-        var response = new byte[SzlPayloadOffset + payload.Length];
-        response[0] = 0x03;
-        response[3] = (byte)response.Length;
-        response[4] = 0x02;
-        response[5] = 0xf0;
-        response[6] = 0x80;
-        response[7] = 0x32;
-        response[8] = 0x07;
-        CopyPduReference(request, response);
-        response[14] = 0x0c;
-        WriteUInt16(response, SzlHeaderDataLengthOffset, (ushort)(payload.Length + SzlDataOverhead));
-        response[19] = 0x12;
-        response[20] = 0x08;
-        response[21] = 0x12;
-        response[22] = 0x44;
-        response[23] = 0x01;
-        response[24] = 0x01;
-        response[26] = 0;
-        response[29] = returnCode;
-        response[30] = 0x09;
-        WriteUInt16(response, SzlDataLengthOffset, (ushort)(payload.Length + SzlMetadataLength));
-        WriteUInt16(response, SzlTotalLengthOffset, (ushort)payload.Length);
-        payload.CopyTo(response, SzlPayloadOffset);
-        return response;
-    }
-
-    /// <summary>Builds a standard S7 AckData response.</summary>
-    /// <param name="request">The request frame.</param>
-    /// <param name="function">The S7 function code.</param>
-    /// <param name="itemCount">The number of response items.</param>
-    /// <param name="data">The encoded item data.</param>
-    /// <returns>The complete AckData response.</returns>
-    private byte[] BuildAckDataResponse(
-        byte[] request,
-        byte function,
-        byte itemCount,
-        List<byte> data)
-    {
-        var response = new byte[AckDataItemOffset + data.Count];
-        response[0] = 0x03;
-        WriteUInt16(response, TpktLengthOffset, (ushort)response.Length);
-        response[4] = 0x02;
-        response[5] = 0xf0;
-        response[6] = 0x80;
-        response[7] = 0x32;
-        response[8] = 0x03;
-        CopyPduReference(request, response);
-        WriteUInt16(response, ParameterLengthOffset, AckDataParameterLength);
-        WriteUInt16(response, AckDataLengthOffset, (ushort)data.Count);
-        response[19] = function;
-        response[20] = itemCount;
-        var responseOffset = AckDataItemOffset;
-        foreach (var item in data)
-        {
-            response[responseOffset] = item;
-            responseOffset++;
-        }
-
-        return response;
-    }
-
-    /// <summary>Parses one S7ANY variable specification.</summary>
-    /// <param name="request">The request frame.</param>
-    /// <param name="offset">The start of the variable specification.</param>
-    /// <returns>The parsed variable specification.</returns>
-    private VariableSpecification ParseVariableSpecification(byte[] request, int offset)
-    {
-        if (offset < 0 || offset + VariableSpecificationLength > request.Length ||
-            request[offset] != 0x12 || request[offset + S7AnySyntaxOffset] != 0x10)
-        {
-            throw new InvalidDataException("Invalid S7ANY variable specification.");
-        }
-
-        var area = (S7MemoryArea)request[offset + S7AnyAreaOffset];
-#if NET8_0_OR_GREATER
-        if (!Enum.IsDefined(area))
-#else
-        if (!Enum.IsDefined(typeof(S7MemoryArea), area))
-#endif
-        {
-            throw new InvalidDataException("Unsupported S7 memory area.");
-        }
-
-        var dbNumber = ReadUInt16(request, offset + S7AnyDbNumberOffset);
-        var count = ReadUInt16(request, offset + S7AnyCountOffset);
-        var address =
-            (request[offset + S7AnyAddressHighOffset] << HighAddressShift) |
-            (request[offset + S7AnyAddressMiddleOffset] << BitsPerByte) |
-            request[offset + S7AnyAddressLowOffset];
-        var byteOffset = area is S7MemoryArea.Timer or S7MemoryArea.Counter
-            ? address
-            : address / BitsPerByte;
-        return new(area, dbNumber, byteOffset, count);
-    }
-
-    /// <summary>Reads a complete TPKT frame.</summary>
-    /// <param name="stream">The connected network stream.</param>
-    /// <param name="cancellationToken">The shutdown token.</param>
-    /// <returns>The complete frame, or <see langword="null"/> for an invalid or closed stream.</returns>
-    private async Task<byte[]?> ReadFrameAsync(NetworkStream stream, CancellationToken cancellationToken)
-    {
-        var header = new byte[TpktHeaderLength];
-        if (!await ReadExactAsync(stream, header, header.Length, cancellationToken).ConfigureAwait(false))
-        {
-            return null;
-        }
-
-        var length = ReadUInt16(header, TpktLengthOffset);
-        if (header[0] != TpktVersion || length < header.Length)
-        {
-            return null;
-        }
-
-        var frame = new byte[length];
-        Buffer.BlockCopy(header, 0, frame, 0, header.Length);
-        return length == header.Length ||
-            await ReadExactAsync(stream, frame, length - header.Length, cancellationToken, header.Length)
-                .ConfigureAwait(false)
-            ? frame
-            : null;
-    }
-
-    /// <summary>Reads exactly the requested number of bytes.</summary>
-    /// <param name="stream">The connected network stream.</param>
-    /// <param name="buffer">The destination buffer.</param>
-    /// <param name="count">The number of bytes to read.</param>
-    /// <param name="cancellationToken">The shutdown token.</param>
-    /// <param name="offset">The destination offset.</param>
-    /// <returns><see langword="true"/> when all bytes were read.</returns>
-    private async Task<bool> ReadExactAsync(
-        NetworkStream stream,
-        byte[] buffer,
-        int count,
-        CancellationToken cancellationToken,
-        int offset = 0)
-    {
-        var total = 0;
-        while (total < count)
-        {
-            var read = await stream.ReadAsync(
-                buffer,
-                offset + total,
-                count - total,
-                cancellationToken).ConfigureAwait(false);
-            if (read == 0)
-            {
-                return false;
-            }
-
-            total += read;
-        }
-
-        return true;
-    }
-
-    /// <summary>Creates deterministic CPU information.</summary>
-    /// <returns>The CPU information payload.</returns>
-    private byte[] CreateCpuInformation()
-    {
-        var data = new byte[CpuInformationLength];
-        WriteAscii(data, CpuAsNameOffset, CpuTextLength, "SIMULATOR");
-        WriteAscii(data, CpuModuleNameOffset, CpuTextLength, "Managed S7 PLC");
-        WriteAscii(data, CpuCopyrightOffset, CpuCopyrightLength, "Copyright CP");
-        WriteAscii(data, CpuSerialNumberOffset, CpuTextLength, "SIM0000001");
-        WriteAscii(data, CpuModuleTypeOffset, CpuModuleTypeLength, "CPU 1516-3 PN/DP");
-        return data;
-    }
-
-    /// <summary>Creates deterministic order-code information.</summary>
-    /// <returns>The order-code payload.</returns>
-    private byte[] CreateOrderCode()
-    {
-        var data = new byte[OrderCodeLength];
-        WriteAscii(data, OrderCodeOffset, OrderCodeTextLength, "6ES7 516-3AN02-0AB0");
-        data[22] = 1;
-        data[23] = 0;
-        data[24] = 0;
-        return data;
-    }
-
-    /// <summary>Writes an ASCII field.</summary>
-    /// <param name="destination">The destination buffer.</param>
-    /// <param name="offset">The field offset.</param>
-    /// <param name="length">The maximum field length.</param>
-    /// <param name="value">The ASCII value.</param>
-    private void WriteAscii(byte[] destination, int offset, int length, string value)
-    {
-        var bytes = Encoding.ASCII.GetBytes(value);
-        Buffer.BlockCopy(bytes, 0, destination, offset, Math.Min(length, bytes.Length));
-    }
-
-    /// <summary>Copies an S7 PDU reference.</summary>
-    /// <param name="request">The request frame.</param>
-    /// <param name="response">The response frame.</param>
-    private void CopyPduReference(byte[] request, byte[] response)
-    {
-        if (request.Length <= 12 || response.Length <= 12)
-        {
-            return;
-        }
-
-        response[11] = request[11];
-        response[12] = request[12];
-    }
-
-    /// <summary>Reads an unsigned big-endian word.</summary>
-    /// <param name="buffer">The source buffer.</param>
-    /// <param name="offset">The word offset.</param>
-    /// <returns>The decoded value.</returns>
-    private ushort ReadUInt16(byte[] buffer, int offset) =>
-        (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
-
-    /// <summary>Writes an unsigned big-endian word.</summary>
-    /// <param name="buffer">The destination buffer.</param>
-    /// <param name="offset">The word offset.</param>
-    /// <param name="value">The value.</param>
-    private void WriteUInt16(byte[] buffer, int offset, ushort value)
-    {
-        buffer[offset] = (byte)(value >> 8);
-        buffer[offset + 1] = (byte)value;
-    }
-
-    /// <summary>Adds an unsigned big-endian word.</summary>
-    /// <param name="destination">The destination list.</param>
-    /// <param name="value">The value.</param>
-    private void AddUInt16(List<byte> destination, ushort value)
-    {
-        destination.Add((byte)(value >> 8));
-        destination.Add((byte)value);
-    }
-
     /// <summary>Throws after disposal.</summary>
     private void ThrowIfDisposed()
     {
@@ -983,6 +1007,56 @@ public sealed class ManagedS7Server : IDisposable
 
         /// <summary>Gets the requested byte count.</summary>
         public int Count { get; }
+    }
+
+    /// <summary>Owns the disposable state needed to drain one stopped server generation.</summary>
+    private sealed class ShutdownOperation
+    {
+        /// <summary>The cancellation source owned by this operation.</summary>
+        private readonly CancellationTokenSource? _cancellation;
+
+        /// <summary>The listener and client tasks to observe before releasing cancellation state.</summary>
+        private readonly Task[] _shutdownTasks;
+
+        /// <summary>Initializes a new instance of the <see cref="ShutdownOperation"/> class.</summary>
+        /// <param name="shutdownTasks">The listener and client tasks to observe.</param>
+        /// <param name="cancellation">The cancellation source that owns the tasks.</param>
+        private ShutdownOperation(Task[] shutdownTasks, CancellationTokenSource? cancellation)
+        {
+            _shutdownTasks = shutdownTasks;
+            _cancellation = cancellation;
+        }
+
+        /// <summary>Begins draining a stopped server generation.</summary>
+        /// <param name="shutdownTasks">The listener and client tasks to observe.</param>
+        /// <param name="cancellation">The cancellation source that owns the tasks.</param>
+        internal static void Begin(Task[] shutdownTasks, CancellationTokenSource? cancellation) =>
+            new ShutdownOperation(shutdownTasks, cancellation).Start();
+
+        /// <summary>Starts the asynchronous drain while retaining ownership of its disposable state.</summary>
+        private void Start() => _ = CompleteAsync();
+
+        /// <summary>Observes all shutdown tasks before releasing the cancellation source.</summary>
+        /// <returns>A task that completes when the stopped server generation is fully drained.</returns>
+        private async Task CompleteAsync()
+        {
+            try
+            {
+                if (_shutdownTasks.Length > 0)
+                {
+                    await Task.WhenAll(_shutdownTasks).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex) when (
+                ex is IOException or ObjectDisposedException or SocketException or OperationCanceledException)
+            {
+                return;
+            }
+            finally
+            {
+                _cancellation?.Dispose();
+            }
+        }
     }
 
     /// <summary>Owns one connected client until its processing task completes.</summary>

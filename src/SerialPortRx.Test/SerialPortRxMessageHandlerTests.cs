@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.Serial.Tests;
+namespace IoT.Driver.Serial.Tests;
 
 /// <summary>Tests for command/response message handling.</summary>
 public sealed class SerialPortRxMessageHandlerTests
@@ -20,7 +20,7 @@ public sealed class SerialPortRxMessageHandlerTests
 
         await Assert.That(() => handler.SendCommandAsync("G0")).Throws<InvalidOperationException>();
         await Assert.That(() => handler.RequestAsync("G0")).Throws<InvalidOperationException>();
-        await Assert.That(() => handler.RequestAsync("G0", _ => { })).Throws<InvalidOperationException>();
+        await Assert.That(() => handler.RequestAsync("G0", static _ => { })).Throws<InvalidOperationException>();
     }
 
     /// <summary>Verifies null polling actions are ignored.</summary>
@@ -43,8 +43,8 @@ public sealed class SerialPortRxMessageHandlerTests
     {
         using var port = new SerialPortRx();
         using var handler = new SerialPortRxMessageHandler(port);
-        var completion = new TaskCompletionSource<bool>();
-        Enqueue(handler, new PendingRequest("MOVE X", _ => { }, completion));
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Enqueue(handler, new("MOVE X", static _ => { }, completion));
 
         InvokeLine(handler, "MOVE X");
 
@@ -59,9 +59,9 @@ public sealed class SerialPortRxMessageHandlerTests
     {
         using var port = new SerialPortRx();
         using var handler = new SerialPortRxMessageHandler(port);
-        var completion = new TaskCompletionSource<bool>();
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var applied = string.Empty;
-        Enqueue(handler, new PendingRequest("READ", value => applied = value, completion));
+        Enqueue(handler, new("READ", value => applied = value, completion));
 
         InvokeLine(handler, "42");
 
@@ -77,9 +77,9 @@ public sealed class SerialPortRxMessageHandlerTests
     {
         using var port = new SerialPortRx();
         using var handler = new SerialPortRxMessageHandler(port) { ResponsePrefix = "1" };
-        var completion = new TaskCompletionSource<bool>();
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var applied = string.Empty;
-        Enqueue(handler, new PendingRequest(StatusCommand, value => applied = value, completion));
+        Enqueue(handler, new(StatusCommand, value => applied = value, completion));
 
         InvokeLine(handler, "1 OK");
 
@@ -94,8 +94,8 @@ public sealed class SerialPortRxMessageHandlerTests
     {
         using var port = new SerialPortRx();
         using var handler = new SerialPortRxMessageHandler(port);
-        var completion = new TaskCompletionSource<bool>();
-        Enqueue(handler, new PendingRequest("READ", _ => { }, completion));
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Enqueue(handler, new("READ", static _ => { }, completion));
 
         InvokeLine(handler, "ERR bad", "ERR");
 
@@ -241,22 +241,22 @@ public sealed class SerialPortRxMessageHandlerTests
         InvokeLine(handler, "unsolicited");
         InvokeLine(handler, "ERR no pending", "ERR");
 
-        var emptyCommandCompletion = new TaskCompletionSource<bool>();
-        Enqueue(handler, new PendingRequest(string.Empty, _ => { }, emptyCommandCompletion));
+        var emptyCommandCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Enqueue(handler, new(string.Empty, static _ => { }, emptyCommandCompletion));
         InvokeLine(handler, "first");
         await emptyCommandCompletion.Task;
 
-        var prefixMismatchCompletion = new TaskCompletionSource<bool>();
-        Enqueue(handler, new PendingRequest(StatusCommand, _ => { }, prefixMismatchCompletion));
+        var prefixMismatchCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Enqueue(handler, new(StatusCommand, static _ => { }, prefixMismatchCompletion));
         InvokeLine(handler, "second");
         await prefixMismatchCompletion.Task;
 
-        var applyFailureCompletion = new TaskCompletionSource<bool>();
+        var applyFailureCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         Enqueue(
             handler,
-            new PendingRequest(
+            new(
                 "READ",
-                _ => throw new IOException("apply failed"),
+                static _ => throw new IOException("apply failed"),
                 applyFailureCompletion));
         InvokeLine(handler, "third", string.Empty);
 

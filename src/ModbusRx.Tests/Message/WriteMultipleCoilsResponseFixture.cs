@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
+namespace IoT.Driver.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the WriteMultipleCoilsResponseFixture behavior.</summary>
 public class WriteMultipleCoilsResponseFixture
@@ -24,7 +24,7 @@ public class WriteMultipleCoilsResponseFixture
     /// <summary>Creates the write multiple coils response too much data.</summary>
     [TUnit.Core.Test]
     public void CreateWriteMultipleCoilsResponseTooMuchData() =>
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        Assert.Throws<ArgumentOutOfRangeException>(static () =>
             _ = new WriteMultipleCoilsResponse(
                 1,
                 Num.Value2,

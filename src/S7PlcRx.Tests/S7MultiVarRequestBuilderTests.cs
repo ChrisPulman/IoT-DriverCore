@@ -5,9 +5,9 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Enums;
 
-namespace IoT.DriverCore.S7PlcRx.Tests;
+namespace IoT.Driver.S7PlcRx.Tests;
 
 /// <summary>Tests for internal S7MultiVar request building.</summary>
 [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
@@ -33,10 +33,11 @@ public class S7MultiVarRequestBuilderTests
     }
 
     /// <summary>Ensures a read-var request is built with a valid TPKT header and correct item count.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
-    public void BuildReadVarRequest_WithSingleItem_ShouldBuildPacket()
+    public async Task BuildReadVarRequest_WithSingleItem_ShouldBuildPacket()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         var s7MultiVar = GetS7MultiVarType();
         var readItemType = GetNestedType(s7MultiVar, "ReadItem");
 
@@ -51,24 +52,25 @@ public class S7MultiVarRequestBuilderTests
         var bytes = (byte[])(method.Invoke(null, [items])
             ?? throw new InvalidOperationException("BuildReadVarRequest returned null."));
 
-        Assert.That(bytes, Is.Not.Null);
-        Assert.That(bytes.Length, Is.GreaterThanOrEqualTo(MinimumReadRequestLength));
+        await Assert.That(bytes, Is.Not.Null);
+        await Assert.That(bytes.Length, Is.GreaterThanOrEqualTo(MinimumReadRequestLength));
 
         // TPKT
-        Assert.That(bytes[0], Is.EqualTo(0x03));
-        Assert.That(bytes[1], Is.EqualTo(0x00));
-        Assert.That(bytes[2], Is.EqualTo(0x00));
+        await Assert.That(bytes[0], Is.EqualTo(0x03));
+        await Assert.That(bytes[1], Is.EqualTo(0x00));
+        await Assert.That(bytes[2], Is.EqualTo(0x00));
 
         // function = Read Var (0x04) and item count
-        Assert.That(bytes[17], Is.EqualTo(0x04));
-        Assert.That(bytes[18], Is.EqualTo(0x01));
+        await Assert.That(bytes[17], Is.EqualTo(0x04));
+        await Assert.That(bytes[18], Is.EqualTo(0x01));
     }
 
     /// <summary>Ensures a write-var request includes a non-zero data section and correct item count.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
-    public void BuildWriteVarRequest_WithSingleItem_ShouldBuildPacket()
+    public async Task BuildWriteVarRequest_WithSingleItem_ShouldBuildPacket()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         var s7MultiVar = GetS7MultiVarType();
         var writeItemType = GetNestedType(s7MultiVar, "WriteItem");
 
@@ -90,28 +92,29 @@ public class S7MultiVarRequestBuilderTests
         var bytes = (byte[])(method.Invoke(null, [items])
             ?? throw new InvalidOperationException("BuildWriteVarRequest returned null."));
 
-        Assert.That(bytes, Is.Not.Null);
-        Assert.That(bytes.Length, Is.GreaterThanOrEqualTo(MinimumWriteRequestLength));
+        await Assert.That(bytes, Is.Not.Null);
+        await Assert.That(bytes.Length, Is.GreaterThanOrEqualTo(MinimumWriteRequestLength));
 
         // TPKT
-        Assert.That(bytes[0], Is.EqualTo(0x03));
-        Assert.That(bytes[1], Is.EqualTo(0x00));
-        Assert.That(bytes[2], Is.EqualTo(0x00));
+        await Assert.That(bytes[0], Is.EqualTo(0x03));
+        await Assert.That(bytes[1], Is.EqualTo(0x00));
+        await Assert.That(bytes[2], Is.EqualTo(0x00));
 
         // function = Write Var (0x05) and item count
-        Assert.That(bytes[17], Is.EqualTo(0x05));
-        Assert.That(bytes[18], Is.EqualTo(0x01));
+        await Assert.That(bytes[17], Is.EqualTo(0x05));
+        await Assert.That(bytes[18], Is.EqualTo(0x01));
 
         // data length should be non-zero for write
         var dataLen = (bytes[15] << 8) | bytes[16];
-        Assert.That(dataLen, Is.GreaterThan(0));
+        await Assert.That(dataLen, Is.GreaterThan(0));
     }
 
     /// <summary>Ensures item count constraint is enforced for read requests.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Test]
-    public void BuildReadVarRequest_WhenMoreThan255Items_ShouldThrow()
+    public async Task BuildReadVarRequest_WhenMoreThan255Items_ShouldThrow()
     {
-        Assert.That(DebuggerDisplay, Is.Not.Null);
+        await Assert.That(DebuggerDisplay, Is.Not.Null);
         var s7MultiVar = GetS7MultiVarType();
         var readItemType = GetNestedType(s7MultiVar, "ReadItem");
 
@@ -132,9 +135,9 @@ public class S7MultiVarRequestBuilderTests
         var method = s7MultiVar.GetMethod("BuildReadVarRequest", BindingFlags.Static | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("BuildReadVarRequest was not found.");
 
-        var ex = Assert.Throws<TargetInvocationException>(() => method.Invoke(null, [items]))
+        var ex = await Assert.Throws<TargetInvocationException>(() => method.Invoke(null, [items]))
             ?? throw new InvalidOperationException("Expected an invocation exception.");
-        Assert.That(ex.InnerException, Is.TypeOf<ArgumentOutOfRangeException>());
+        await Assert.That(ex.InnerException, Is.TypeOf<ArgumentOutOfRangeException>());
     }
 
     /// <summary>Gets the internal <c>S7MultiVar</c> type.</summary>
@@ -142,7 +145,7 @@ public class S7MultiVarRequestBuilderTests
     private static Type GetS7MultiVarType()
     {
         var asm = typeof(RxS7).Assembly;
-        return asm.GetType("IoT.DriverCore.S7PlcRx.Core.S7MultiVar", throwOnError: false)
+        return asm.GetType("IoT.Driver.S7PlcRx.Core.S7MultiVar", throwOnError: false)
             ?? throw new InvalidOperationException("S7MultiVar was not found.");
     }
 

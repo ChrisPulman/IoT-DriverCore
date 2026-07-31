@@ -4,7 +4,7 @@
 
 using System.Collections.ObjectModel;
 
-namespace IoT.DriverCore.Core;
+namespace IoT.Driver.Core;
 
 /// <summary>Provides a thread-safe sparse byte image, typed codec views, ordered journaling, and change subscriptions.</summary>
 public sealed class SimulatorMemoryImage : IObservable<SimulatorMemoryChange>
@@ -132,7 +132,12 @@ public sealed class SimulatorMemoryImage : IObservable<SimulatorMemoryChange>
             throw new ArgumentException("The byte count must equal the transport-address length.", nameof(bytes));
         }
 
-        var current = bytes.ToArray();
+        var current = new byte[bytes.Count];
+        for (var index = 0; index < current.Length; index++)
+        {
+            current[index] = bytes[index];
+        }
+
         SimulatorMemoryChange change;
         IObserver<SimulatorMemoryChange>[] observers;
         lock (_gate)
@@ -152,7 +157,13 @@ public sealed class SimulatorMemoryImage : IObservable<SimulatorMemoryChange>
                 _journal.RemoveAt(0);
             }
 
-            observers = _observers.Values.ToArray();
+            observers = new IObserver<SimulatorMemoryChange>[_observers.Count];
+            var observerIndex = 0;
+            foreach (var observer in _observers.Values)
+            {
+                observers[observerIndex] = observer;
+                observerIndex++;
+            }
         }
 
         foreach (var observer in observers)
@@ -198,8 +209,16 @@ public sealed class SimulatorMemoryImage : IObservable<SimulatorMemoryChange>
 
         lock (_gate)
         {
-            return new ReadOnlyCollection<SimulatorMemoryChange>(
-                _journal.Where(change => change.Sequence > afterSequence).ToArray());
+            var changes = new List<SimulatorMemoryChange>();
+            foreach (var change in _journal)
+            {
+                if (change.Sequence > afterSequence)
+                {
+                    changes.Add(change);
+                }
+            }
+
+            return new ReadOnlyCollection<SimulatorMemoryChange>(changes);
         }
     }
 

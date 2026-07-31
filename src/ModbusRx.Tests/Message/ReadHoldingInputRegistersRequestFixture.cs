@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
-using IoT.DriverCore.ModbusRx.Message;
+using IoT.Driver.ModbusRx.Message;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
+namespace IoT.Driver.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the ReadHoldingInputRegistersRequestFixture behavior.</summary>
 public class ReadHoldingInputRegistersRequestFixture
@@ -37,7 +37,7 @@ public class ReadHoldingInputRegistersRequestFixture
     /// <summary>Creates the read holding input registers request too much data.</summary>
     [TUnit.Core.Test]
     public void CreateReadHoldingInputRegistersRequestTooMuchData() =>
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        Assert.Throws<ArgumentOutOfRangeException>(static () =>
             _ = new ReadHoldingInputRegistersRequest(
                 Modbus.ReadHoldingRegisters,
                 1,

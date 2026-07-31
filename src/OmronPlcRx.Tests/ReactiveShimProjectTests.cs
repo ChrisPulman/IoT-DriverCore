@@ -6,11 +6,11 @@ using System.IO.Ports;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Async;
 using TUnit.Core;
-using ReactiveBcd16 = global::IoT.DriverCore.OmronPlcRx.Reactive.Core.Types.Bcd16;
-using ReactiveOmronSerialOptions = global::IoT.DriverCore.OmronPlcRx.Reactive.OmronSerialOptions;
-using ReactiveOmronSerialProtocol = global::IoT.DriverCore.OmronPlcRx.Reactive.OmronSerialProtocol;
+using ReactiveBcd16 = global::IoT.Driver.OmronPlcRx.Reactive.Core.Types.Bcd16;
+using ReactiveOmronSerialOptions = global::IoT.Driver.OmronPlcRx.Reactive.OmronSerialOptions;
+using ReactiveOmronSerialProtocol = global::IoT.Driver.OmronPlcRx.Reactive.OmronSerialProtocol;
 
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Tests;
+namespace IoT.Driver.OmronPlcRx.Reactive.Tests;
 
 /// <summary>Tests the shared-source reactive shim project.</summary>
 public sealed class ReactiveShimProjectTests
@@ -60,7 +60,7 @@ public sealed class ReactiveShimProjectTests
         await state.WriteTankLevelAsync(UpdatedTankLevel, CancellationToken.None);
 
         await Assert.That(state.TankLevel).IsEqualTo(UpdatedTankLevel);
-        await Assert.That(state.BcdTemp).IsEqualTo(new ReactiveBcd16(BcdTemperature));
+        await Assert.That(state.BcdTemp).IsEqualTo(new(BcdTemperature));
         await Assert.That(asyncValue).IsEqualTo(InitialTankLevel);
         await Assert.That(observedLevels.Contains(InitialTankLevel)).IsTrue();
         await Assert.That(HasRegistration(plc.Registrations, TankLevelTagName, "D100", typeof(short))).IsTrue();
@@ -113,7 +113,9 @@ public sealed class ReactiveShimProjectTests
         foreach (var registration in registrations)
         {
             if (
-                registration.TagName == tagName
+                System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                    System.Text.Encoding.UTF8.GetBytes(registration.TagName),
+                    System.Text.Encoding.UTF8.GetBytes(tagName))
                 && registration.Address == address
                 && registration.TagType == tagType
             )
@@ -137,7 +139,11 @@ public sealed class ReactiveShimProjectTests
     {
         foreach (var write in writes)
         {
-            if (write.TagName == tagName && Equals(write.Value, value))
+            if (
+                System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                    System.Text.Encoding.UTF8.GetBytes(write.TagName),
+                    System.Text.Encoding.UTF8.GetBytes(tagName))
+                && Equals(write.Value, value))
             {
                 return true;
             }

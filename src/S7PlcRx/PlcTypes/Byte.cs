@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace IoT.DriverCore.S7PlcRx.PlcTypes;
+namespace IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>Provides utility methods for converting and manipulating byte values and byte arrays.</summary>
@@ -28,7 +28,7 @@ public static class Byte
     /// 1.</exception>
     public static void ToSpan(byte value, Span<byte> destination)
     {
-        if (destination.Length < 1)
+        if (destination.IsEmpty)
         {
             throw new ArgumentException("Destination span must be at least 1 byte", nameof(destination));
         }
@@ -67,7 +67,7 @@ public static class Byte
     /// byte.</exception>
     public static byte FromSpan(ReadOnlySpan<byte> bytes)
     {
-        if (bytes.Length < 1)
+        if (bytes.IsEmpty)
         {
             throw new ArgumentException("Bytes span must contain at least 1 byte.");
         }

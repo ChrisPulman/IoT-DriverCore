@@ -3,20 +3,22 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Data;
+using IoT.Driver.ModbusRx.Reactive.Data;
 #else
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 #endif
 #if REACTIVE_SHIM
-using IoT.DriverCore.ModbusRx.Reactive.Device;
+using IoT.Driver.ModbusRx.Reactive.Device;
+using IoT.Driver.ModbusRx.Reactive.Utility;
 #else
-using IoT.DriverCore.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.ModbusRx.Utility;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.ModbusRx.Reactive;
+namespace IoT.Driver.ModbusRx.Reactive;
 #else
-namespace IoT.DriverCore.ModbusRx;
+namespace IoT.Driver.ModbusRx;
 #endif
 
 /// <summary>Extension methods for Modbus reactive creation helpers.</summary>
@@ -241,11 +243,7 @@ public static class CreateExtensions
     /// <param name="swapWords">Whether to swap words.</param>
     public static void FromDouble(double input, ushort[] output, int start, bool swapWords)
     {
-        if (output is null)
-        {
-            throw new ArgumentNullException(nameof(output));
-        }
-
+        output = ModbusGuard.NotNull(output, nameof(output));
         FromDouble(input, (Span<ushort>)output, start, swapWords);
     }
 
@@ -264,11 +262,7 @@ public static class CreateExtensions
     /// <param name="swapWords">Whether to swap words.</param>
     public static void FromFloat(float input, ushort[] output, int start, bool swapWords)
     {
-        if (output is null)
-        {
-            throw new ArgumentNullException(nameof(output));
-        }
-
+        output = ModbusGuard.NotNull(output, nameof(output));
         FromFloat(input, (Span<ushort>)output, start, swapWords);
     }
 

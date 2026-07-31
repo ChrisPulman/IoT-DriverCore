@@ -5,9 +5,9 @@
 using System.Collections;
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>PLC tag bit helper extensions.</summary>
@@ -25,10 +25,7 @@ public static class TagMixins
 #if NET8_0_OR_GREATER
         ArgumentExceptionHelper.ThrowIfNull(tag, nameof(tag));
 #else
-        if (tag is null)
-        {
-            throw new ArgumentNullException(nameof(tag));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(tag, nameof(tag));
 #endif
 
         if (minRaw >= maxRaw || minScale > maxScale)
@@ -52,10 +49,7 @@ public static class TagMixins
 #if NET8_0_OR_GREATER
         ArgumentExceptionHelper.ThrowIfNull(tag, nameof(tag));
 #else
-        if (tag is null)
-        {
-            throw new ArgumentNullException(nameof(tag));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(tag, nameof(tag));
 #endif
 
         if (minRaw >= maxRaw || minScale > maxScale)
@@ -76,10 +70,7 @@ public static class TagMixins
 #if NET8_0_OR_GREATER
         ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
 #else
-        if (source is null)
-        {
-            throw new ArgumentNullException(nameof(source));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
 #endif
 
         var bits = new BitArray(BitConverter.GetBytes(source.Value));
@@ -113,10 +104,7 @@ public static class TagMixins
 #if NET8_0_OR_GREATER
         ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
 #else
-        if (source is null)
-        {
-            throw new ArgumentNullException(nameof(source));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
 #endif
 
         _ = source.Read();

@@ -3,16 +3,16 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Globalization;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Binding;
+using IoT.Driver.S7PlcRx.Reactive.Binding;
 
-namespace IoT.DriverCore.S7PlcRx.Reactive.LogicalTags;
+namespace IoT.Driver.S7PlcRx.Reactive.LogicalTags;
 
 #else
-using IoT.DriverCore.S7PlcRx.Binding;
+using IoT.Driver.S7PlcRx.Binding;
 
-namespace IoT.DriverCore.S7PlcRx.LogicalTags;
+namespace IoT.Driver.S7PlcRx.LogicalTags;
 
 #endif
 
@@ -25,10 +25,7 @@ public static class S7LogicalTagExtensions
     public static LogicalTagCatalog CreateLogicalTagCatalog(
         IEnumerable<S7TagDefinition> definitions)
     {
-        if (definitions is null)
-        {
-            throw new ArgumentNullException(nameof(definitions));
-        }
+        Guard.NotNull(definitions, nameof(definitions));
 
         var catalog = new LogicalTagCatalog();
         foreach (var definition in definitions)
@@ -43,7 +40,7 @@ public static class S7LogicalTagExtensions
                 S7TagDirection.WriteOnly => LogicalTagAccessMode.Write,
                 _ => LogicalTagAccessMode.ReadWrite,
             };
-            catalog.Upsert(new LogicalTag(
+            catalog.Upsert(new(
                 definition.Name,
                 definition.Address,
                 definition.ValueType.FullName ?? definition.ValueType.Name,
@@ -85,10 +82,7 @@ public static class S7LogicalTagExtensions
         CancellationToken cancellationToken)
     {
         _ = type;
-        if (client is null)
-        {
-            throw new ArgumentNullException(nameof(client));
-        }
+        Guard.NotNull(client, nameof(client));
 
         var result = await client.ReadAsync(tagName, cancellationToken).ConfigureAwait(false);
         if (!result.Succeeded)
@@ -142,18 +136,11 @@ public static class S7LogicalTagExtensions
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
-        if (client is null)
-        {
-            throw new ArgumentNullException(nameof(client));
-        }
-
-        if (timeProvider is null)
-        {
-            throw new ArgumentNullException(nameof(timeProvider));
-        }
+        Guard.NotNull(client, nameof(client));
+        Guard.NotNull(timeProvider, nameof(timeProvider));
 
         var result = await client.WriteAsync(
-            new LogicalTagValue(tagName, value, timeProvider.GetUtcNow()),
+            new(tagName, value, timeProvider.GetUtcNow()),
             cancellationToken).ConfigureAwait(false);
         return result.Succeeded
             ? TagOperationResult<T>.Success(value)

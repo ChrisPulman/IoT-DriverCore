@@ -4,11 +4,11 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 
 #endif
 
@@ -40,19 +40,19 @@ internal sealed class MitsubishiReactiveWritePipelineCompletionTests
             scheduler,
             "Failed",
             MitsubishiReactiveWriteMode.Queued,
-            _ => Task.FromResult(CreateFailure()),
+            static _ => Task.FromResult(CreateFailure()),
             null);
         using var faulted = new MitsubishiReactiveWritePipeline<int>(
             scheduler,
             "Faulted",
             MitsubishiReactiveWriteMode.Queued,
-            _ => throw new InvalidOperationException("writer fault"),
+            static _ => throw new InvalidOperationException("writer fault"),
             null);
         using var coalesced = new MitsubishiReactiveWritePipeline<int>(
             scheduler,
             "Coalesced",
             MitsubishiReactiveWriteMode.Coalescing,
-            _ => Task.FromResult(new Responce()),
+            static _ => Task.FromResult(new Responce()),
             null);
         var results = new List<MitsubishiReactiveWriteResult>();
         using var first = failed.Results.Subscribe(results.Add);
@@ -81,18 +81,18 @@ internal sealed class MitsubishiReactiveWritePipelineCompletionTests
     {
         var scheduler = new TestScheduler();
         _ = Assert.Throws<ArgumentNullException>(
-            () => _ = new MitsubishiReactiveWritePipeline<int>(
+            static () => _ = new MitsubishiReactiveWritePipeline<int>(
                 null!,
                 "Target",
                 MitsubishiReactiveWriteMode.Queued,
-                _ => Task.FromResult(new Responce()),
+                static _ => Task.FromResult(new Responce()),
                 null));
         _ = Assert.Throws<ArgumentNullException>(
             () => _ = new MitsubishiReactiveWritePipeline<int>(
                 scheduler,
                 null!,
                 MitsubishiReactiveWriteMode.Queued,
-                _ => Task.FromResult(new Responce()),
+                static _ => Task.FromResult(new Responce()),
                 null));
         _ = Assert.Throws<ArgumentNullException>(
             () => _ = new MitsubishiReactiveWritePipeline<int>(
@@ -107,9 +107,9 @@ internal sealed class MitsubishiReactiveWritePipelineCompletionTests
             scheduler,
             "InvalidMode",
             (MitsubishiReactiveWriteMode)int.MaxValue,
-            _ => Task.FromResult(new Responce()),
+            static _ => Task.FromResult(new Responce()),
             null);
-        using var subscription = pipeline.Results.Subscribe(_ => { }, () => completed = true);
+        using var subscription = pipeline.Results.Subscribe(static _ => { }, () => completed = true);
         _ = Assert.Throws<ArgumentOutOfRangeException>(() => pipeline.Post(FirstPayload));
         pipeline.Dispose();
         pipeline.Dispose();

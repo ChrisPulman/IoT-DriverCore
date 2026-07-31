@@ -5,23 +5,23 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 using ReactiveUI.Primitives.Disposables;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Enums;
-using IoT.DriverCore.OmronPlcRx.Reactive.Results;
-using IoT.DriverCore.OmronPlcRx.Reactive.Tags;
+using IoT.Driver.OmronPlcRx.Reactive.Enums;
+using IoT.Driver.OmronPlcRx.Reactive.Results;
+using IoT.Driver.OmronPlcRx.Reactive.Tags;
 #else
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Results;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Results;
+using IoT.Driver.OmronPlcRx.Tags;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive;
+namespace IoT.Driver.OmronPlcRx.Reactive;
 
 #else
-namespace IoT.DriverCore.OmronPlcRx;
+namespace IoT.Driver.OmronPlcRx;
 
 #endif
 

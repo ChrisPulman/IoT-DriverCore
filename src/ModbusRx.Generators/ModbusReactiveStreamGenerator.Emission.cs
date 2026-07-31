@@ -7,7 +7,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
-namespace IoT.DriverCore.ModbusRx.Generators;
+namespace IoT.Driver.ModbusRx.Generators;
 
 /// <summary>Generates Modbus-backed reactive properties and observable streams.</summary>
 public sealed partial class ModbusReactiveStreamGenerator
@@ -25,7 +25,7 @@ public sealed partial class ModbusReactiveStreamGenerator
         var namespaceName = classSymbol.ContainingNamespace.IsGlobalNamespace
             ? null
             : classSymbol.ContainingNamespace.ToDisplayString();
-        _ = builder.AppendLine("using IoT.DriverCore.Core;");
+        _ = builder.AppendLine("using IoT.Driver.Core;");
         _ = builder.AppendLine();
         if (namespaceName is not null)
         {
@@ -210,19 +210,19 @@ public sealed partial class ModbusReactiveStreamGenerator
         var literal = SymbolDisplay.FormatLiteral(tagName, true);
         var client = $"this.{point.Point.DeviceOptions.TagClientMember}";
         _ = builder
-            .Append("    public global::System.Threading.Tasks.Task<global::IoT.DriverCore.Core.TagOperationResult<")
+            .Append("    public global::System.Threading.Tasks.Task<global::IoT.Driver.Core.TagOperationResult<")
             .Append(typeName)
             .Append(">> Read")
             .Append(propertyName)
             .Append("Async(global::System.Threading.CancellationToken cancellationToken = default) => ")
             .Append(client)
-            .Append(".ReadAsync(new global::IoT.DriverCore.Core.LogicalTagKey<")
+            .Append(".ReadAsync(new global::IoT.Driver.Core.LogicalTagKey<")
             .Append(typeName)
             .Append(">(")
             .Append(literal)
             .AppendLine("), cancellationToken);");
         _ = builder
-            .Append("    public global::System.Threading.Tasks.Task<global::IoT.DriverCore.Core.TagOperationResult<")
+            .Append("    public global::System.Threading.Tasks.Task<global::IoT.Driver.Core.TagOperationResult<")
             .Append(typeName)
             .Append(">> Write")
             .Append(propertyName)
@@ -230,7 +230,7 @@ public sealed partial class ModbusReactiveStreamGenerator
             .Append(typeName)
             .Append(" value, global::System.Threading.CancellationToken cancellationToken = default) => ")
             .Append(client)
-            .Append(".WriteAsync(new global::IoT.DriverCore.Core.LogicalTagKey<")
+            .Append(".WriteAsync(new global::IoT.Driver.Core.LogicalTagKey<")
             .Append(typeName)
             .Append(">(")
             .Append(literal)

@@ -4,15 +4,15 @@
 
 using System.Collections.Concurrent;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Advanced;
+using IoT.Driver.S7PlcRx.Reactive.Advanced;
 #else
-using IoT.DriverCore.S7PlcRx.Advanced;
+using IoT.Driver.S7PlcRx.Advanced;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Performance;
+namespace IoT.Driver.S7PlcRx.Reactive.Performance;
 #else
-namespace IoT.DriverCore.S7PlcRx.Performance;
+namespace IoT.Driver.S7PlcRx.Performance;
 #endif
 
 /// <summary>Provides high-performance batch operations for a group of PLC tags.</summary>
@@ -53,10 +53,7 @@ public class HighPerformanceTagGroup<T> : IDisposable
     /// name="tagNames"/> is null or empty.</exception>
     public HighPerformanceTagGroup(IRxS7 plc, string groupName, string[] tagNames)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc));
-        }
+        Guard.NotNull(plc, nameof(plc));
 
 #if NET8_0_OR_GREATER
         Guard.NotNullOrWhiteSpace(groupName, nameof(groupName));
@@ -114,10 +111,10 @@ public class HighPerformanceTagGroup<T> : IDisposable
 
         return _plc.ObserveAll
             .Where(t => t is { Value: T } && ContainsTagName(t.Name))
-            .Select(t => (t!.Name, t.Value))
+            .Select(static t => (t!.Name, t.Value))
             .Scan(
                 CreateCurrentValuesSnapshot(),
-                (acc, change) =>
+                static (acc, change) =>
                 {
                     acc[change.Name!] = (T?)change.Value;
                     return new Dictionary<string, T?>(acc);
@@ -180,6 +177,26 @@ public class HighPerformanceTagGroup<T> : IDisposable
         _disposed = true;
     }
 
+    /// <summary>Compares tag names without returning when a differing character is found.</summary>
+    /// <param name="left">The first tag name.</param>
+    /// <param name="right">The second tag name.</param>
+    /// <returns><see langword="true"/> when the tag names are ordinally equal; otherwise, <see langword="false"/>.</returns>
+    private static bool AreTagNamesEqual(string left, string right)
+    {
+        if (left.Length != right.Length)
+        {
+            return false;
+        }
+
+        var difference = 0;
+        for (var index = 0; index < left.Length; index++)
+        {
+            difference |= left[index] ^ right[index];
+        }
+
+        return difference == 0;
+    }
+
     /// <summary>Creates a current-value snapshot dictionary.</summary>
     /// <returns>The current-value snapshot.</returns>
     private Dictionary<string, T?> CreateCurrentValuesSnapshot()
@@ -222,7 +239,7 @@ public class HighPerformanceTagGroup<T> : IDisposable
 
         foreach (var currentTagName in _tagNames)
         {
-            if (string.Equals(currentTagName, tagName, StringComparison.Ordinal))
+            if (AreTagNamesEqual(currentTagName, tagName))
             {
                 return true;
             }

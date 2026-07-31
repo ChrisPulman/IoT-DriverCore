@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.Serial.Tests;
+namespace IoT.Driver.Serial.Tests;
 
 /// <summary>Deterministic operation-count acceptance tests for the serial and network receive hot paths.</summary>
 [NotInParallel]
@@ -24,7 +24,11 @@ public sealed class TransportPerformanceAcceptanceTests
         using var subscription = pair.Second.DataReceivedBatches.Subscribe(batches.Add);
         await pair.First.OpenAsync();
         await pair.Second.OpenAsync();
-        var payload = Enumerable.Range(0, SerialPayloadLength).Select(value => (byte)value).ToArray();
+        var payload = new byte[SerialPayloadLength];
+        for (var index = 0; index < payload.Length; index++)
+        {
+            payload[index] = (byte)index;
+        }
 
         pair.First.Write(payload, 0, payload.Length);
 
@@ -69,8 +73,14 @@ public sealed class TransportPerformanceAcceptanceTests
         var received = batches.ToArray();
 
         await Assert.That(received.Length).IsEqualTo(DatagramCount);
-        await Assert.That(received.Select(batch => batch.Length)).IsEquivalentTo(Enumerable.Repeat(Two, DatagramCount));
-        await Assert.That(received.Select(batch => batch[1])).IsEquivalentTo(Enumerable.Repeat(ByteLetterA, DatagramCount));
-        await Assert.That(received.Distinct().Count()).IsEqualTo(DatagramCount);
+        var uniqueBatches = new HashSet<byte[]>();
+        foreach (var batch in received)
+        {
+            await Assert.That(batch.Length).IsEqualTo(Two);
+            await Assert.That(batch[1]).IsEqualTo(ByteLetterA);
+            _ = uniqueBatches.Add(batch);
+        }
+
+        await Assert.That(uniqueBatches.Count).IsEqualTo(DatagramCount);
     }
 }

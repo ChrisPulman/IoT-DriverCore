@@ -7,11 +7,11 @@ using System.Numerics;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Text;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.PlcTypes;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.PlcTypes;
 using SystemTimeSpan = System.TimeSpan;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Tests.PlcTypes;
 
 /// <summary>Exercises deterministic PlcType conversion, bounds, and structured-value paths.</summary>
 public sealed class S7PlcTypeDeterministicCoverageTests
@@ -191,90 +191,94 @@ public sealed class S7PlcTypeDeterministicCoverageTests
     private const string WideTextFieldName = "WideText";
 
     /// <summary>Verifies signed and unsigned word-like types preserve values, offsets, and bounds.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void NumericPlcTypes_RoundtripValuesOffsetsAndBounds()
+    public async Task NumericPlcTypes_RoundtripValuesOffsetsAndBounds()
     {
         short[] intValues = [short.MinValue, NegativeShort, short.MaxValue];
         var intBytes = S7PlcRx.PlcTypes.Int.ToByteArray(intValues);
-        Assert.That(S7PlcRx.PlcTypes.Int.ToArray(intBytes), Is.EqualTo(intValues));
-        Assert.That(S7PlcRx.PlcTypes.Int.FromByteArray([0, 0xFF, 0xFE], 1), Is.EqualTo(OffsetShort));
-        Assert.That(S7PlcRx.PlcTypes.Int.CWord(SignTransition), Is.EqualTo(short.MinValue));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Int.FromSpan(stackalloc byte[1]));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Int.ToSpan(1, stackalloc byte[1]));
+        await Assert.That(S7PlcRx.PlcTypes.Int.ToArray(intBytes), Is.EqualTo(intValues));
+        await Assert.That(S7PlcRx.PlcTypes.Int.FromByteArray([0, 0xFF, 0xFE], 1), Is.EqualTo(OffsetShort));
+        await Assert.That(S7PlcRx.PlcTypes.Int.CWord(SignTransition), Is.EqualTo(short.MinValue));
+        _ = await Assert.Throws<ArgumentException>(static () => S7PlcRx.PlcTypes.Int.FromSpan(stackalloc byte[1]));
+        _ = await Assert.Throws<ArgumentException>(static () => S7PlcRx.PlcTypes.Int.ToSpan(1, stackalloc byte[1]));
 
         ushort[] counterValues = [0, CounterValue, ushort.MaxValue];
         var counterBytes = S7PlcRx.PlcTypes.Counter.ToByteArray(counterValues);
-        Assert.That(S7PlcRx.PlcTypes.Counter.ToArray(counterBytes), Is.EqualTo(counterValues));
-        Assert.That(S7PlcRx.PlcTypes.Counter.FromByteArray([0, 0x12, 0x34], 1), Is.EqualTo((ushort)0x1234));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Counter.ToSpan(1, stackalloc byte[1]));
+        await Assert.That(S7PlcRx.PlcTypes.Counter.ToArray(counterBytes), Is.EqualTo(counterValues));
+        await Assert.That(S7PlcRx.PlcTypes.Counter.FromByteArray([0, 0x12, 0x34], 1), Is.EqualTo((ushort)0x1234));
+        _ = await Assert.Throws<ArgumentException>(static () => S7PlcRx.PlcTypes.Counter.ToSpan(1, stackalloc byte[1]));
 
         uint[] dwordValues = [0, DwordValue, uint.MaxValue];
         var dwordBytes = S7PlcRx.PlcTypes.DWord.ToByteArray(dwordValues);
-        Assert.That(S7PlcRx.PlcTypes.DWord.ToArray(dwordBytes), Is.EqualTo(dwordValues));
-        Assert.That(S7PlcRx.PlcTypes.DWord.FromByteArray([0, 0x12, 0x34, 0x56, 0x78], 1), Is.EqualTo(DwordValue));
-        Assert.That(S7PlcRx.PlcTypes.DWord.FromBytes(0x78, 0x56, 0x34, 0x12), Is.EqualTo(DwordValue));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.DWord.FromSpan(stackalloc byte[3]));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.DWord.ToSpan(1, stackalloc byte[3]));
+        await Assert.That(S7PlcRx.PlcTypes.DWord.ToArray(dwordBytes), Is.EqualTo(dwordValues));
+        await Assert.That(S7PlcRx.PlcTypes.DWord.FromByteArray([0, 0x12, 0x34, 0x56, 0x78], 1), Is.EqualTo(DwordValue));
+        await Assert.That(S7PlcRx.PlcTypes.DWord.FromBytes(0x78, 0x56, 0x34, 0x12), Is.EqualTo(DwordValue));
+        _ = await Assert.Throws<ArgumentException>(static () => S7PlcRx.PlcTypes.DWord.FromSpan(stackalloc byte[3]));
+        _ = await Assert.Throws<ArgumentException>(static () => S7PlcRx.PlcTypes.DWord.ToSpan(1, stackalloc byte[3]));
     }
 
     /// <summary>Verifies integer array span writers.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void NumericPlcTypes_WriteIntegerArraySpans()
+    public async Task NumericPlcTypes_WriteIntegerArraySpans()
     {
         ushort[] counterValues = [0, CounterValue];
         var counterBytes = new byte[counterValues.Length * sizeof(ushort)];
         S7PlcRx.PlcTypes.Counter.ToSpan(counterValues, counterBytes);
-        Assert.That(S7PlcRx.PlcTypes.Counter.ToArray(counterBytes), Is.EqualTo(counterValues));
-        _ = Assert.Throws<ArgumentNullException>(
-            () => S7PlcRx.PlcTypes.Counter.ToByteArray((ushort[])null!));
+        await Assert.That(S7PlcRx.PlcTypes.Counter.ToArray(counterBytes), Is.EqualTo(counterValues));
+        _ = await Assert.Throws<ArgumentNullException>(
+            static () => S7PlcRx.PlcTypes.Counter.ToByteArray((ushort[])null!));
 
         short[] intValues = [NegativeShort, OffsetShort];
         var intBytes = new byte[intValues.Length * sizeof(short)];
         S7PlcRx.PlcTypes.Int.ToSpan(intValues, intBytes);
-        Assert.That(S7PlcRx.PlcTypes.Int.ToArray(intBytes), Is.EqualTo(intValues));
-        Assert.That(S7PlcRx.PlcTypes.Int.FromBytes(0xFE, 0xFF), Is.EqualTo(OffsetShort));
+        await Assert.That(S7PlcRx.PlcTypes.Int.ToArray(intBytes), Is.EqualTo(intValues));
+        await Assert.That(S7PlcRx.PlcTypes.Int.FromBytes(0xFE, 0xFF), Is.EqualTo(OffsetShort));
 
         ushort[] wordValues = [0, CounterValue];
         var wordBytes = new byte[wordValues.Length * sizeof(ushort)];
         S7PlcRx.PlcTypes.Word.ToSpan(wordValues, wordBytes);
-        Assert.That(S7PlcRx.PlcTypes.Word.ToArray(wordBytes), Is.EqualTo(wordValues));
+        await Assert.That(S7PlcRx.PlcTypes.Word.ToArray(wordBytes), Is.EqualTo(wordValues));
 
         int[] dintValues = [-StructuredInteger, StructuredInteger];
         var dintBytes = new byte[dintValues.Length * sizeof(int)];
         S7PlcRx.PlcTypes.DInt.ToSpan(dintValues, dintBytes);
-        Assert.That(S7PlcRx.PlcTypes.DInt.ToArray(dintBytes), Is.EqualTo(dintValues));
+        await Assert.That(S7PlcRx.PlcTypes.DInt.ToArray(dintBytes), Is.EqualTo(dintValues));
 
         uint[] dwordValues = [0, DwordValue];
         var dwordBytes = new byte[dwordValues.Length * sizeof(uint)];
         S7PlcRx.PlcTypes.DWord.ToSpan(dwordValues, dwordBytes);
-        Assert.That(S7PlcRx.PlcTypes.DWord.ToArray(dwordBytes), Is.EqualTo(dwordValues));
+        await Assert.That(S7PlcRx.PlcTypes.DWord.ToArray(dwordBytes), Is.EqualTo(dwordValues));
     }
 
     /// <summary>Verifies floating-point and timer array span writers.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void NumericPlcTypes_WriteFloatingPointAndTimerArraySpans()
+    public async Task NumericPlcTypes_WriteFloatingPointAndTimerArraySpans()
     {
         float[] realValues = [FirstMeasurement, SecondMeasurement];
         var realBytes = new byte[realValues.Length * sizeof(float)];
         S7PlcRx.PlcTypes.Real.ToSpan(realValues, realBytes);
-        Assert.That(S7PlcRx.PlcTypes.Real.ToArray(realBytes), Is.EqualTo(realValues));
+        await Assert.That(S7PlcRx.PlcTypes.Real.ToArray(realBytes), Is.EqualTo(realValues));
 
         double[] lrealValues = [NegativeDouble, Two];
         var lrealBytes = new byte[lrealValues.Length * sizeof(double)];
         S7PlcRx.PlcTypes.LReal.ToSpan(lrealValues, lrealBytes);
-        Assert.That(S7PlcRx.PlcTypes.LReal.ToArray(lrealBytes), Is.EqualTo(lrealValues));
+        await Assert.That(S7PlcRx.PlcTypes.LReal.ToArray(lrealBytes), Is.EqualTo(lrealValues));
 
         ushort[] timerValues = [0x0012, 0x1123];
         var timerBytes = new byte[timerValues.Length * sizeof(ushort)];
         S7PlcRx.PlcTypes.Timer.ToSpan(timerValues, timerBytes);
-        Assert.That(
+        await Assert.That(
             S7PlcRx.PlcTypes.Timer.ToArray(timerBytes),
             Is.EqualTo((double[])[HundredthsTimer, TenthsTimer]));
     }
 
     /// <summary>Verifies normal and pooled time-span array writer paths.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void NumericPlcTypes_WriteTimeSpanArraySpans()
+    public async Task NumericPlcTypes_WriteTimeSpanArraySpans()
     {
         SystemTimeSpan[] timeSpanValues =
         [
@@ -284,68 +288,71 @@ public sealed class S7PlcTypeDeterministicCoverageTests
         var timeSpanBytes = new byte[
             timeSpanValues.Length * S7PlcRx.PlcTypes.TimeSpan.TypeLengthInBytes];
         S7PlcRx.PlcTypes.TimeSpan.ToSpan(timeSpanValues, timeSpanBytes);
-        Assert.That(
+        await Assert.That(
             S7PlcRx.PlcTypes.TimeSpan.ToArray(timeSpanBytes),
             Is.EqualTo(timeSpanValues));
         var pooledTimeSpans = new SystemTimeSpan[PooledTimeSpanCount];
-        Assert.That(
+        await Assert.That(
             S7PlcRx.PlcTypes.TimeSpan.ToByteArray(pooledTimeSpans).Length,
             Is.EqualTo(PooledTimeSpanCount * S7PlcRx.PlcTypes.TimeSpan.TypeLengthInBytes));
     }
 
     /// <summary>Verifies residual scalar, bit, string, and guard convenience overloads.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void PlcTypes_ExerciseResidualConvenienceOverloads()
+    public async Task PlcTypes_ExerciseResidualConvenienceOverloads()
     {
-        Span<byte> singleByte = stackalloc byte[1];
+        var singleByte = new byte[1];
         S7PlcRx.PlcTypes.Byte.ToSpan(StructuredByte, singleByte);
-        Assert.That(singleByte[0], Is.EqualTo(StructuredByte));
+        await Assert.That(singleByte[0], Is.EqualTo(StructuredByte));
 
         byte[] bitBytes = [BitPattern];
-        Assert.That(S7PlcRx.PlcTypes.Bit.ToBitArray(bitBytes).Length, Is.EqualTo(BitsPerByte));
-        Assert.That(
+        await Assert.That(S7PlcRx.PlcTypes.Bit.ToBitArray(bitBytes).Length, Is.EqualTo(BitsPerByte));
+        await Assert.That(
             S7PlcRx.PlcTypes.Bit.ToBitArray(new ReadOnlySpan<byte>(bitBytes)).Length,
             Is.EqualTo(BitsPerByte));
-        Assert.That(
+        await Assert.That(
             S7PlcRx.PlcTypes.Bit.ToBitArray(bitBytes, LimitedBitCount).Length,
             Is.EqualTo(LimitedBitCount));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(
+        _ = await Assert.Throws<ArgumentOutOfRangeException>(
             () => S7PlcRx.PlcTypes.Bit.SetBit(bitBytes, bitBytes.Length, 0, true));
 
-        Span<byte> stringBytes = stackalloc byte[StringReservedLength];
-        Assert.That(S7PlcRx.PlcTypes.String.ToSpan(null, stringBytes), Is.EqualTo(0));
-        Assert.That(
+        var stringBytes = new byte[StringReservedLength];
+        await Assert.That(S7PlcRx.PlcTypes.String.ToSpan(null, stringBytes), Is.EqualTo(0));
+        await Assert.That(
             S7PlcRx.PlcTypes.String.ToSpan("S7", stringBytes),
             Is.EqualTo(StringHeaderLength));
-        _ = Assert.Throws<ArgumentException>(
-            () => _ = new S7StringAttribute(S7StringType.None, StringReservedLength));
+        _ = await Assert.Throws<ArgumentException>(
+            static () => _ = new S7StringAttribute(S7StringType.None, StringReservedLength));
     }
 
     /// <summary>Verifies floating point and timer time-base paths without relying on a PLC.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void FloatingPointAndTimerTypes_ConvertValuesAndRejectShortBuffers()
+    public async Task FloatingPointAndTimerTypes_ConvertValuesAndRejectShortBuffers()
     {
         double[] lrealValues = [NegativeDouble, 0D, Math.PI];
         var lrealBytes = S7PlcRx.PlcTypes.LReal.ToByteArray(lrealValues);
-        Assert.That(S7PlcRx.PlcTypes.LReal.ToArray(lrealBytes), Is.EqualTo(lrealValues));
-        Assert.That(S7PlcRx.PlcTypes.LReal.FromByteArray([0, 0x40, 0, 0, 0, 0, 0, 0, 0], 1), Is.EqualTo(Two));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.LReal.FromSpan(stackalloc byte[7]));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.LReal.ToSpan(1D, stackalloc byte[7]));
+        await Assert.That(S7PlcRx.PlcTypes.LReal.ToArray(lrealBytes), Is.EqualTo(lrealValues));
+        await Assert.That(S7PlcRx.PlcTypes.LReal.FromByteArray([0, 0x40, 0, 0, 0, 0, 0, 0, 0], 1), Is.EqualTo(Two));
+        _ = await Assert.Throws<ArgumentException>(static () => S7PlcRx.PlcTypes.LReal.FromSpan(stackalloc byte[7]));
+        _ = await Assert.Throws<ArgumentException>(static () => S7PlcRx.PlcTypes.LReal.ToSpan(1D, stackalloc byte[7]));
 
-        Assert.That(S7PlcRx.PlcTypes.Timer.FromByteArray([0x00, 0x12]), Is.EqualTo(HundredthsTimer));
-        Assert.That(S7PlcRx.PlcTypes.Timer.FromByteArray([0x11, 0x23]), Is.EqualTo(TenthsTimer));
-        Assert.That(S7PlcRx.PlcTypes.Timer.FromByteArray([0x22, 0x34]), Is.EqualTo(SecondsTimer));
-        Assert.That(S7PlcRx.PlcTypes.Timer.FromByteArray([0x33, 0x45]), Is.EqualTo(TensTimer));
+        await Assert.That(S7PlcRx.PlcTypes.Timer.FromByteArray([0x00, 0x12]), Is.EqualTo(HundredthsTimer));
+        await Assert.That(S7PlcRx.PlcTypes.Timer.FromByteArray([0x11, 0x23]), Is.EqualTo(TenthsTimer));
+        await Assert.That(S7PlcRx.PlcTypes.Timer.FromByteArray([0x22, 0x34]), Is.EqualTo(SecondsTimer));
+        await Assert.That(S7PlcRx.PlcTypes.Timer.FromByteArray([0x33, 0x45]), Is.EqualTo(TensTimer));
         ushort[] timerValues = [0x0012, 0x1123];
         double[] timerExpected = [HundredthsTimer, TenthsTimer];
-        Assert.That(S7PlcRx.PlcTypes.Timer.ToArray(S7PlcRx.PlcTypes.Timer.ToByteArray(timerValues)), Is.EqualTo(timerExpected));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Timer.FromByteArray(stackalloc byte[1], 0));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Timer.ToSpan(1, stackalloc byte[1]));
+        await Assert.That(S7PlcRx.PlcTypes.Timer.ToArray(S7PlcRx.PlcTypes.Timer.ToByteArray(timerValues)), Is.EqualTo(timerExpected));
+        _ = await Assert.Throws<ArgumentException>(static () => S7PlcRx.PlcTypes.Timer.FromByteArray(stackalloc byte[1], 0));
+        _ = await Assert.Throws<ArgumentException>(static () => S7PlcRx.PlcTypes.Timer.ToSpan(1, stackalloc byte[1]));
     }
 
     /// <summary>Verifies both date encodings at bounds and invalid wire-value boundaries.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void DateTypes_RoundtripBoundsArraysAndInvalidWireComponents()
+    public async Task DateTypes_RoundtripBoundsArraysAndInvalidWireComponents()
     {
         var date = new DateTimeOffset(
             FixtureYear,
@@ -357,9 +364,9 @@ public sealed class S7PlcTypeDeterministicCoverageTests
             FixtureMillisecond,
             System.TimeSpan.Zero);
         DateTimeOffset[] dateValues = [date, S7PlcRx.PlcTypes.DateTime.SpecMaximumDateTime];
-        Assert.That(S7PlcRx.PlcTypes.DateTime.ToArray(S7PlcRx.PlcTypes.DateTime.ToByteArray(dateValues)), Is.EqualTo(dateValues));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => S7PlcRx.PlcTypes.DateTime.ToByteArray((DateTimeOffset[])null!));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => S7PlcRx.PlcTypes.DateTime.FromByteArray([0x89, 0x1A, 1, 0, 0, 0, 0, 0]));
+        await Assert.That(S7PlcRx.PlcTypes.DateTime.ToArray(S7PlcRx.PlcTypes.DateTime.ToByteArray(dateValues)), Is.EqualTo(dateValues));
+        _ = await Assert.Throws<ArgumentOutOfRangeException>(static () => S7PlcRx.PlcTypes.DateTime.ToByteArray((DateTimeOffset[])null!));
+        _ = await Assert.Throws<ArgumentOutOfRangeException>(static () => S7PlcRx.PlcTypes.DateTime.FromByteArray([0x89, 0x1A, 1, 0, 0, 0, 0, 0]));
 
         var longDate = new DateTimeOffset(
             LongFixtureYear,
@@ -371,29 +378,30 @@ public sealed class S7PlcTypeDeterministicCoverageTests
             LongFixtureMillisecond,
             System.TimeSpan.Zero).AddTicks(LongFixtureTicks);
         DateTimeOffset[] longDateValues = [longDate, S7PlcRx.PlcTypes.DateTimeLong.SpecMinimumDateTime];
-        Assert.That(S7PlcRx.PlcTypes.DateTimeLong.ToArray(S7PlcRx.PlcTypes.DateTimeLong.ToByteArray(longDateValues)), Is.EqualTo(longDateValues));
+        await Assert.That(S7PlcRx.PlcTypes.DateTimeLong.ToArray(S7PlcRx.PlcTypes.DateTimeLong.ToByteArray(longDateValues)), Is.EqualTo(longDateValues));
         var singleLongDateBytes = S7PlcRx.PlcTypes.DateTimeLong.ToByteArray(longDate);
-        Assert.That(S7PlcRx.PlcTypes.DateTimeLong.FromByteArray(singleLongDateBytes), Is.EqualTo(longDate));
-        Assert.That(S7PlcRx.PlcTypes.DateTimeLong.FromSpan(singleLongDateBytes), Is.EqualTo(longDate));
+        await Assert.That(S7PlcRx.PlcTypes.DateTimeLong.FromByteArray(singleLongDateBytes), Is.EqualTo(longDate));
+        await Assert.That(S7PlcRx.PlcTypes.DateTimeLong.FromSpan(singleLongDateBytes), Is.EqualTo(longDate));
         var pooledLongDateValues = new DateTimeOffset[DateTimeLongPoolCount];
         TestArray.Fill(pooledLongDateValues, longDate);
-        Assert.That(
+        await Assert.That(
             S7PlcRx.PlcTypes.DateTimeLong.ToArray(S7PlcRx.PlcTypes.DateTimeLong.ToByteArray(pooledLongDateValues)),
             Is.EqualTo(pooledLongDateValues));
-        _ = Assert.Throws<ArgumentNullException>(() => S7PlcRx.PlcTypes.DateTimeLong.ToByteArray((DateTimeOffset[])null!));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => S7PlcRx.PlcTypes.DateTimeLong.FromSpan(stackalloc byte[11]));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => S7PlcRx.PlcTypes.DateTimeLong.ToArray([0]));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.DateTimeLong.ToSpan(longDate, stackalloc byte[11]));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.DateTimeLong.ToSpan(longDateValues, stackalloc byte[23]));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => S7PlcRx.PlcTypes.DateTimeLong.ToByteArray(S7PlcRx.PlcTypes.DateTimeLong.SpecMinimumDateTime.AddTicks(-1)));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => S7PlcRx.PlcTypes.DateTimeLong.ToByteArray(S7PlcRx.PlcTypes.DateTimeLong.SpecMaximumDateTime.AddTicks(1)));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => S7PlcRx.PlcTypes.DateTimeLong.FromByteArray([0x07, 0xB1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0]));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => S7PlcRx.PlcTypes.DateTimeLong.FromByteArray([0x07, 0xE8, InvalidMonth, 1, 1, 0, 0, 0, 0, 0, 0, 0]));
+        _ = await Assert.Throws<ArgumentNullException>(static () => S7PlcRx.PlcTypes.DateTimeLong.ToByteArray((DateTimeOffset[])null!));
+        _ = await Assert.Throws<ArgumentOutOfRangeException>(static () => S7PlcRx.PlcTypes.DateTimeLong.FromSpan(stackalloc byte[11]));
+        _ = await Assert.Throws<ArgumentOutOfRangeException>(static () => S7PlcRx.PlcTypes.DateTimeLong.ToArray([0]));
+        _ = await Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.DateTimeLong.ToSpan(longDate, stackalloc byte[11]));
+        _ = await Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.DateTimeLong.ToSpan(longDateValues, stackalloc byte[23]));
+        _ = await Assert.Throws<ArgumentOutOfRangeException>(static () => S7PlcRx.PlcTypes.DateTimeLong.ToByteArray(S7PlcRx.PlcTypes.DateTimeLong.SpecMinimumDateTime.AddTicks(-1)));
+        _ = await Assert.Throws<ArgumentOutOfRangeException>(static () => S7PlcRx.PlcTypes.DateTimeLong.ToByteArray(S7PlcRx.PlcTypes.DateTimeLong.SpecMaximumDateTime.AddTicks(1)));
+        _ = await Assert.Throws<ArgumentOutOfRangeException>(static () => S7PlcRx.PlcTypes.DateTimeLong.FromByteArray([0x07, 0xB1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0]));
+        _ = await Assert.Throws<ArgumentOutOfRangeException>(static () => S7PlcRx.PlcTypes.DateTimeLong.FromByteArray([0x07, 0xE8, InvalidMonth, 1, 1, 0, 0, 0, 0, 0, 0, 0]));
     }
 
     /// <summary>Verifies date span overloads, pooled arrays, and invalid encoded components.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void DateTypes_ConvertSpanArraysAndRejectInvalidEncodedValues()
+    public async Task DateTypes_ConvertSpanArraysAndRejectInvalidEncodedValues()
     {
         var date = new DateTimeOffset(
             FixtureYear,
@@ -408,17 +416,17 @@ public sealed class S7PlcTypeDeterministicCoverageTests
         var dateLength = S7PlcRx.PlcTypes.DateTime.ToByteArray(date).Length;
         var dateDestination = new byte[dateLength * dates.Length];
         S7PlcRx.PlcTypes.DateTime.ToSpan(dates, dateDestination);
-        Assert.That(S7PlcRx.PlcTypes.DateTime.ToArray(dateDestination), Is.EqualTo(dates));
+        await Assert.That(S7PlcRx.PlcTypes.DateTime.ToArray(dateDestination), Is.EqualTo(dates));
         var pooledDates = new DateTimeOffset[DateTimePoolCount];
         TestArray.Fill(pooledDates, date);
-        Assert.That(
+        await Assert.That(
             S7PlcRx.PlcTypes.DateTime.ToArray(S7PlcRx.PlcTypes.DateTime.ToByteArray(pooledDates)),
             Is.EqualTo(pooledDates));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => S7PlcRx.PlcTypes.DateTime.FromSpan(new byte[dateLength - 1]));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => S7PlcRx.PlcTypes.DateTime.ToArray(new byte[dateLength - 1]));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.DateTime.ToSpan(dates, new byte[dateDestination.Length - 1]));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => S7PlcRx.PlcTypes.DateTime.FromByteArray([0xFA, 1, 1, 0, 0, 0, 0, 0]));
-        _ = Assert.Throws<ArgumentOutOfRangeException>(() => S7PlcRx.PlcTypes.DateTime.FromByteArray([0x24, 0, 1, 0, 0, 0, 0, 0]));
+        _ = await Assert.Throws<ArgumentOutOfRangeException>(() => S7PlcRx.PlcTypes.DateTime.FromSpan(new byte[dateLength - 1]));
+        _ = await Assert.Throws<ArgumentOutOfRangeException>(() => S7PlcRx.PlcTypes.DateTime.ToArray(new byte[dateLength - 1]));
+        _ = await Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.DateTime.ToSpan(dates, new byte[dateDestination.Length - 1]));
+        _ = await Assert.Throws<ArgumentOutOfRangeException>(static () => S7PlcRx.PlcTypes.DateTime.FromByteArray([0xFA, 1, 1, 0, 0, 0, 0, 0]));
+        _ = await Assert.Throws<ArgumentOutOfRangeException>(static () => S7PlcRx.PlcTypes.DateTime.FromByteArray([0x24, 0, 1, 0, 0, 0, 0, 0]));
 
         var longDate = new DateTimeOffset(
             LongFixtureYear,
@@ -433,33 +441,35 @@ public sealed class S7PlcTypeDeterministicCoverageTests
         var longDateLength = S7PlcRx.PlcTypes.DateTimeLong.ToByteArray(longDate).Length;
         var longDateDestination = new byte[longDateLength * longDates.Length];
         S7PlcRx.PlcTypes.DateTimeLong.ToSpan(longDates, longDateDestination);
-        Assert.That(S7PlcRx.PlcTypes.DateTimeLong.ToArray(longDateDestination), Is.EqualTo(longDates));
+        await Assert.That(S7PlcRx.PlcTypes.DateTimeLong.ToArray(longDateDestination), Is.EqualTo(longDates));
     }
 
     /// <summary>Verifies Class and Struct validate metadata and null or mismatched inputs.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void StructuredTypes_RoundtripClassAndValidateInputs()
+    public async Task StructuredTypes_RoundtripClassAndValidateInputs()
     {
         var source = new StructuredClass { Enabled = true, Count = ClassCount, Name = "S7" };
         var size = S7PlcRx.PlcTypes.Class.GetClassSize(source);
         var bytes = new byte[(int)size];
-        Assert.That(S7PlcRx.PlcTypes.Class.ToBytes(source, bytes), Is.EqualTo(size));
+        await Assert.That(S7PlcRx.PlcTypes.Class.ToBytes(source, bytes), Is.EqualTo(size));
 
         var destination = new StructuredClass();
-        Assert.That(S7PlcRx.PlcTypes.Class.FromBytes(destination, bytes), Is.EqualTo(size));
-        Assert.That(destination.Enabled, Is.True);
-        Assert.That(destination.Count, Is.EqualTo(ClassCount));
-        Assert.That(destination.Name, Is.EqualTo(source.Name));
-        _ = Assert.Throws<ArgumentNullException>(() => S7PlcRx.PlcTypes.Class.GetClassSize(null!));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Class.GetClassSize(new MissingStringMetadataClass()));
+        await Assert.That(S7PlcRx.PlcTypes.Class.FromBytes(destination, bytes), Is.EqualTo(size));
+        await Assert.That(destination.Enabled, Is.True);
+        await Assert.That(destination.Count, Is.EqualTo(ClassCount));
+        await Assert.That(destination.Name, Is.EqualTo(source.Name));
+        _ = await Assert.Throws<ArgumentNullException>(static () => S7PlcRx.PlcTypes.Class.GetClassSize(null!));
+        _ = await Assert.Throws<ArgumentException>(static () => S7PlcRx.PlcTypes.Class.GetClassSize(new MissingStringMetadataClass()));
 
-        Assert.That(S7PlcRx.PlcTypes.Struct.ToBytes(null!).Length, Is.EqualTo(0));
-        _ = Assert.Throws<ArgumentNullException>(() => S7PlcRx.PlcTypes.Struct.GetStructSize(null!));
+        await Assert.That(S7PlcRx.PlcTypes.Struct.ToBytes(null!).Length, Is.EqualTo(0));
+        _ = await Assert.Throws<ArgumentNullException>(static () => S7PlcRx.PlcTypes.Struct.GetStructSize(null!));
     }
 
     /// <summary>Verifies non-recursive class nesting, arrays, attributes, offsets, and struct fields.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void StructuredTypes_RoundtripNestedClassesArraysOffsetsAndVectorStruct()
+    public async Task StructuredTypes_RoundtripNestedClassesArraysOffsetsAndVectorStruct()
     {
         var source = new OuterStructuredClass
         {
@@ -468,35 +478,36 @@ public sealed class S7PlcTypeDeterministicCoverageTests
             Labels = ["A", "BC"],
             Details = new InnerStructuredClass { Active = true, WideLabel = "Ω" },
         };
-        var offset = 2D;
+        const double offset = 2D;
         var size = S7PlcRx.PlcTypes.Class.GetClassSize(source, offset);
         var bytes = new byte[(int)size];
-        Assert.That(S7PlcRx.PlcTypes.Class.ToBytes(source, bytes, offset), Is.EqualTo(size));
+        await Assert.That(S7PlcRx.PlcTypes.Class.ToBytes(source, bytes, offset), Is.EqualTo(size));
 
         var destination = new OuterStructuredClass();
-        Assert.That(S7PlcRx.PlcTypes.Class.FromBytes(destination, bytes, offset), Is.EqualTo(size));
-        Assert.That(destination.Status, Is.EqualTo(source.Status));
-        Assert.That(destination.Measurements, Is.EqualTo(source.Measurements));
-        Assert.That(destination.Labels, Is.EqualTo(source.Labels));
-        Assert.That(destination.Details.Active, Is.EqualTo(source.Details.Active));
-        Assert.That(destination.Details.WideLabel, Is.EqualTo(source.Details.WideLabel));
+        await Assert.That(S7PlcRx.PlcTypes.Class.FromBytes(destination, bytes, offset), Is.EqualTo(size));
+        await Assert.That(destination.Status, Is.EqualTo(source.Status));
+        await Assert.That(destination.Measurements, Is.EqualTo(source.Measurements));
+        await Assert.That(destination.Labels, Is.EqualTo(source.Labels));
+        await Assert.That(destination.Details.Active, Is.EqualTo(source.Details.Active));
+        await Assert.That(destination.Details.WideLabel, Is.EqualTo(source.Details.WideLabel));
 
-        _ = Assert.Throws<InvalidOperationException>(() => S7PlcRx.PlcTypes.Class.GetClassSize(new EmptyArrayClass()));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Class.GetClassSize(new NullArrayClass()));
-        _ = Assert.Throws<ArgumentNullException>(() => S7PlcRx.PlcTypes.Class.ToBytes(source, null!));
-        Assert.That(S7PlcRx.PlcTypes.Class.FromBytes(destination, null!, offset), Is.EqualTo(offset));
+        _ = await Assert.Throws<InvalidOperationException>(static () => S7PlcRx.PlcTypes.Class.GetClassSize(new EmptyArrayClass()));
+        _ = await Assert.Throws<ArgumentException>(static () => S7PlcRx.PlcTypes.Class.GetClassSize(new NullArrayClass()));
+        _ = await Assert.Throws<ArgumentNullException>(() => S7PlcRx.PlcTypes.Class.ToBytes(source, null!));
+        await Assert.That(S7PlcRx.PlcTypes.Class.FromBytes(destination, null!, offset), Is.EqualTo(offset));
 
         var vector = new Vector3(1F, VectorY, VectorZ);
         var vectorBytes = S7PlcRx.PlcTypes.Struct.ToBytes(vector);
-        Assert.That(S7PlcRx.PlcTypes.Struct.GetStructSize(typeof(Vector3)), Is.EqualTo(vectorBytes.Length));
-        Assert.That((Vector3)S7PlcRx.PlcTypes.Struct.FromBytes(typeof(Vector3), vectorBytes)!, Is.EqualTo(vector));
-        Assert.That(S7PlcRx.PlcTypes.Struct.FromBytes(typeof(Vector3), null!), Is.NullValue);
-        Assert.That(S7PlcRx.PlcTypes.Struct.FromBytes(typeof(Vector3), new byte[vectorBytes.Length - 1]), Is.NullValue);
+        await Assert.That(S7PlcRx.PlcTypes.Struct.GetStructSize(typeof(Vector3)), Is.EqualTo(vectorBytes.Length));
+        await Assert.That((Vector3)S7PlcRx.PlcTypes.Struct.FromBytes(typeof(Vector3), vectorBytes)!, Is.EqualTo(vector));
+        await Assert.That(S7PlcRx.PlcTypes.Struct.FromBytes(typeof(Vector3), null!), Is.NullValue);
+        await Assert.That(S7PlcRx.PlcTypes.Struct.FromBytes(typeof(Vector3), new byte[vectorBytes.Length - 1]), Is.NullValue);
     }
 
     /// <summary>Verifies the supported scalar Class and Struct field representations.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void StructuredTypes_RoundtripAllSupportedScalarFields()
+    public async Task StructuredTypes_RoundtripAllSupportedScalarFields()
     {
         var source = new ScalarStructuredClass
         {
@@ -511,40 +522,41 @@ public sealed class S7PlcTypeDeterministicCoverageTests
         };
         var size = S7PlcRx.PlcTypes.Class.GetClassSize(source);
         var bytes = new byte[(int)size];
-        Assert.That(S7PlcRx.PlcTypes.Class.ToBytes(source, bytes), Is.EqualTo(size));
+        await Assert.That(S7PlcRx.PlcTypes.Class.ToBytes(source, bytes), Is.EqualTo(size));
         var destination = new ScalarStructuredClass();
-        Assert.That(S7PlcRx.PlcTypes.Class.FromBytes(destination, bytes), Is.EqualTo(size));
-        Assert.That(destination.Enabled, Is.False);
-        Assert.That(destination.Marker, Is.EqualTo(source.Marker));
-        Assert.That(destination.Count, Is.EqualTo(source.Count));
-        Assert.That(destination.UnsignedCount, Is.EqualTo(source.UnsignedCount));
-        Assert.That(destination.SignedStatus, Is.EqualTo(source.SignedStatus));
-        Assert.That(destination.Status, Is.EqualTo(source.Status));
-        Assert.That(destination.Measurement, Is.EqualTo(source.Measurement));
-        Assert.That(destination.Total, Is.EqualTo(source.Total));
-        Assert.That(S7PlcRx.PlcTypes.Class.GetClassSize(new BooleanOnlyClass()), Is.EqualTo(BooleanOnlyClassSize));
-        _ = Assert.Throws<ArgumentNullException>(() => S7PlcRx.PlcTypes.Class.FromBytes(null!, bytes));
-        _ = Assert.Throws<ArgumentNullException>(() => S7PlcRx.PlcTypes.Class.ToBytes(null!, bytes));
+        await Assert.That(S7PlcRx.PlcTypes.Class.FromBytes(destination, bytes), Is.EqualTo(size));
+        await Assert.That(destination.Enabled, Is.False);
+        await Assert.That(destination.Marker, Is.EqualTo(source.Marker));
+        await Assert.That(destination.Count, Is.EqualTo(source.Count));
+        await Assert.That(destination.UnsignedCount, Is.EqualTo(source.UnsignedCount));
+        await Assert.That(destination.SignedStatus, Is.EqualTo(source.SignedStatus));
+        await Assert.That(destination.Status, Is.EqualTo(source.Status));
+        await Assert.That(destination.Measurement, Is.EqualTo(source.Measurement));
+        await Assert.That(destination.Total, Is.EqualTo(source.Total));
+        await Assert.That(S7PlcRx.PlcTypes.Class.GetClassSize(new BooleanOnlyClass()), Is.EqualTo(BooleanOnlyClassSize));
+        _ = await Assert.Throws<ArgumentNullException>(() => S7PlcRx.PlcTypes.Class.FromBytes(null!, bytes));
+        _ = await Assert.Throws<ArgumentNullException>(() => S7PlcRx.PlcTypes.Class.ToBytes(null!, bytes));
 
         var trueTuple = (true, StructuredByte, ClassCount, CounterValue, StructuredInteger, DwordValue, FirstMeasurement);
         var falseTuple = (false, StructuredByte, ClassCount, CounterValue, StructuredInteger, DwordValue, FirstMeasurement);
-        Assert.That(S7PlcRx.PlcTypes.Struct.GetStructSize(trueTuple.GetType()), Is.EqualTo(S7PlcRx.PlcTypes.Struct.ToBytes(trueTuple).Length));
-        Assert.That(
+        await Assert.That(S7PlcRx.PlcTypes.Struct.GetStructSize(trueTuple.GetType()), Is.EqualTo(S7PlcRx.PlcTypes.Struct.ToBytes(trueTuple).Length));
+        await Assert.That(
             ((bool, byte, short, ushort, int, uint, float))S7PlcRx.PlcTypes.Struct.FromBytes(trueTuple.GetType(), S7PlcRx.PlcTypes.Struct.ToBytes(trueTuple))!,
             Is.EqualTo(trueTuple));
-        Assert.That(
+        await Assert.That(
             ((bool, byte, short, ushort, int, uint, float))S7PlcRx.PlcTypes.Struct.FromBytes(falseTuple.GetType(), S7PlcRx.PlcTypes.Struct.ToBytes(falseTuple))!,
             Is.EqualTo(falseTuple));
         var timedTuple = (NegativeDouble, SystemTimeSpan.FromSeconds(SecondsTimer));
-        Assert.That(
+        await Assert.That(
             ((double, SystemTimeSpan))S7PlcRx.PlcTypes.Struct.FromBytes(timedTuple.GetType(), S7PlcRx.PlcTypes.Struct.ToBytes(timedTuple))!,
             Is.EqualTo(timedTuple));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Struct.GetStructSize(typeof(ValueTuple<string>)));
+        _ = await Assert.Throws<ArgumentException>(static () => S7PlcRx.PlcTypes.Struct.GetStructSize(typeof(ValueTuple<string>)));
     }
 
     /// <summary>Verifies Class scalar fields and invalid property layouts without the pending Int32 path.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void StructuredTypes_RoundtripSafeScalarClassAndValidatePropertyLayouts()
+    public async Task StructuredTypes_RoundtripSafeScalarClassAndValidatePropertyLayouts()
     {
         var source = new SafeScalarStructuredClass
         {
@@ -560,35 +572,36 @@ public sealed class S7PlcTypeDeterministicCoverageTests
         };
         var size = S7PlcRx.PlcTypes.Class.GetClassSize(source);
         var bytes = new byte[(int)size];
-        Assert.That(S7PlcRx.PlcTypes.Class.ToBytes(source, bytes), Is.EqualTo(size));
+        await Assert.That(S7PlcRx.PlcTypes.Class.ToBytes(source, bytes), Is.EqualTo(size));
         var destination = new SafeScalarStructuredClass();
-        Assert.That(S7PlcRx.PlcTypes.Class.FromBytes(destination, bytes), Is.EqualTo(size));
-        Assert.That(destination.Enabled, Is.False);
-        Assert.That(destination.Marker, Is.EqualTo(source.Marker));
-        Assert.That(destination.Count, Is.EqualTo(source.Count));
-        Assert.That(destination.UnsignedCount, Is.EqualTo(source.UnsignedCount));
-        Assert.That(destination.Status, Is.EqualTo(source.Status));
-        Assert.That(destination.Measurement, Is.EqualTo(source.Measurement));
-        Assert.That(destination.Total, Is.EqualTo(source.Total));
-        Assert.That(destination.Text, Is.EqualTo(source.Text));
-        Assert.That(destination.WideText, Is.EqualTo(source.WideText));
+        await Assert.That(S7PlcRx.PlcTypes.Class.FromBytes(destination, bytes), Is.EqualTo(size));
+        await Assert.That(destination.Enabled, Is.False);
+        await Assert.That(destination.Marker, Is.EqualTo(source.Marker));
+        await Assert.That(destination.Count, Is.EqualTo(source.Count));
+        await Assert.That(destination.UnsignedCount, Is.EqualTo(source.UnsignedCount));
+        await Assert.That(destination.Status, Is.EqualTo(source.Status));
+        await Assert.That(destination.Measurement, Is.EqualTo(source.Measurement));
+        await Assert.That(destination.Total, Is.EqualTo(source.Total));
+        await Assert.That(destination.Text, Is.EqualTo(source.Text));
+        await Assert.That(destination.WideText, Is.EqualTo(source.WideText));
 
         var invalidBytes = new byte[InvalidLayoutBufferLength];
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Class.FromBytes(new MissingStringMetadataClass(), invalidBytes));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Class.ToBytes(new MissingStringMetadataClass(), invalidBytes));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Class.ToBytes(new NullStringValueClass(), invalidBytes));
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Class.FromBytes(new NullArrayClass(), invalidBytes));
+        _ = await Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Class.FromBytes(new MissingStringMetadataClass(), invalidBytes));
+        _ = await Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Class.ToBytes(new MissingStringMetadataClass(), invalidBytes));
+        _ = await Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Class.ToBytes(new NullStringValueClass(), invalidBytes));
+        _ = await Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Class.FromBytes(new NullArrayClass(), invalidBytes));
         var nullArrayElementSource = new OuterStructuredClass();
         var nullArrayElementBytes = new byte[(int)S7PlcRx.PlcTypes.Class.GetClassSize(nullArrayElementSource)];
-        _ = Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Class.ToBytes(nullArrayElementSource, nullArrayElementBytes));
-        Assert.That(S7PlcRx.PlcTypes.Class.GetClassSize(new BooleanOnlyClass()), Is.EqualTo(BooleanOnlyClassSize));
-        _ = Assert.Throws<ArgumentNullException>(() => S7PlcRx.PlcTypes.Class.FromBytes(null!, bytes));
-        _ = Assert.Throws<ArgumentNullException>(() => S7PlcRx.PlcTypes.Class.ToBytes(null!, bytes));
+        _ = await Assert.Throws<ArgumentException>(() => S7PlcRx.PlcTypes.Class.ToBytes(nullArrayElementSource, nullArrayElementBytes));
+        await Assert.That(S7PlcRx.PlcTypes.Class.GetClassSize(new BooleanOnlyClass()), Is.EqualTo(BooleanOnlyClassSize));
+        _ = await Assert.Throws<ArgumentNullException>(() => S7PlcRx.PlcTypes.Class.FromBytes(null!, bytes));
+        _ = await Assert.Throws<ArgumentNullException>(() => S7PlcRx.PlcTypes.Class.ToBytes(null!, bytes));
     }
 
     /// <summary>Verifies supported fixed-size arrays and bounded partial-buffer traversal.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void StructuredTypes_RoundtripSafeArraysAndStopAtBufferBoundary()
+    public async Task StructuredTypes_RoundtripSafeArraysAndStopAtBufferBoundary()
     {
         var source = new SafeArrayStructuredClass
         {
@@ -610,46 +623,47 @@ public sealed class S7PlcTypeDeterministicCoverageTests
 
         var size = S7PlcRx.PlcTypes.Class.GetClassSize(source);
         var bytes = new byte[(int)size];
-        Assert.That(S7PlcRx.PlcTypes.Class.ToBytes(source, bytes), Is.EqualTo(size));
+        await Assert.That(S7PlcRx.PlcTypes.Class.ToBytes(source, bytes), Is.EqualTo(size));
 
         var destination = new SafeArrayStructuredClass();
-        Assert.That(S7PlcRx.PlcTypes.Class.FromBytes(destination, bytes), Is.EqualTo(size));
-        Assert.That(destination.Flags, Is.EqualTo(source.Flags));
-        Assert.That(destination.Markers, Is.EqualTo(source.Markers));
-        Assert.That(destination.Counts, Is.EqualTo(source.Counts));
-        Assert.That(destination.UnsignedCounts, Is.EqualTo(source.UnsignedCounts));
-        Assert.That(destination.Statuses, Is.EqualTo(source.Statuses));
-        Assert.That(destination.Measurements, Is.EqualTo(source.Measurements));
-        Assert.That(destination.Totals, Is.EqualTo(source.Totals));
-        Assert.That(destination.Text, Is.EqualTo(source.Text));
-        Assert.That(destination.WideText, Is.EqualTo(source.WideText));
-        Assert.That(destination.Details[0].Active, Is.True);
-        Assert.That(destination.Details[0].WideLabel, Is.EqualTo(source.Details[0].WideLabel));
-        Assert.That(destination.Details[1].Active, Is.False);
-        Assert.That(destination.Details[1].WideLabel, Is.EqualTo(source.Details[1].WideLabel));
+        await Assert.That(S7PlcRx.PlcTypes.Class.FromBytes(destination, bytes), Is.EqualTo(size));
+        await Assert.That(destination.Flags, Is.EqualTo(source.Flags));
+        await Assert.That(destination.Markers, Is.EqualTo(source.Markers));
+        await Assert.That(destination.Counts, Is.EqualTo(source.Counts));
+        await Assert.That(destination.UnsignedCounts, Is.EqualTo(source.UnsignedCounts));
+        await Assert.That(destination.Statuses, Is.EqualTo(source.Statuses));
+        await Assert.That(destination.Measurements, Is.EqualTo(source.Measurements));
+        await Assert.That(destination.Totals, Is.EqualTo(source.Totals));
+        await Assert.That(destination.Text, Is.EqualTo(source.Text));
+        await Assert.That(destination.WideText, Is.EqualTo(source.WideText));
+        await Assert.That(destination.Details[0].Active, Is.True);
+        await Assert.That(destination.Details[0].WideLabel, Is.EqualTo(source.Details[0].WideLabel));
+        await Assert.That(destination.Details[1].Active, Is.False);
+        await Assert.That(destination.Details[1].WideLabel, Is.EqualTo(source.Details[1].WideLabel));
 
         var partialSource = new FixedShortArrayClass { Values = [ClassCount, NegativeShort] };
         var partialBytes = new byte[sizeof(short)];
-        Assert.That(S7PlcRx.PlcTypes.Class.ToBytes(partialSource, partialBytes), Is.EqualTo(sizeof(short)));
+        await Assert.That(S7PlcRx.PlcTypes.Class.ToBytes(partialSource, partialBytes), Is.EqualTo(sizeof(short)));
 
         var partialDestination = new FixedShortArrayClass { Values = [0, OffsetShort] };
-        Assert.That(
+        await Assert.That(
             S7PlcRx.PlcTypes.Class.FromBytes(partialDestination, partialBytes),
             Is.EqualTo(sizeof(short)));
-        Assert.That(partialDestination.Values[0], Is.EqualTo(ClassCount));
-        Assert.That(partialDestination.Values[1], Is.EqualTo(OffsetShort));
+        await Assert.That(partialDestination.Values[0], Is.EqualTo(ClassCount));
+        await Assert.That(partialDestination.Values[1], Is.EqualTo(OffsetShort));
     }
 
     /// <summary>Verifies both populated and zero-sized nested Struct traversal.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void StructuredTypes_DeserializeNestedAndZeroSizedStructFields()
+    public async Task StructuredTypes_DeserializeNestedAndZeroSizedStructFields()
     {
         var nestedVector = new ValueTuple<Vector3>(Vector3.Zero);
         var nestedVectorBytes = S7PlcRx.PlcTypes.Struct.ToBytes(nestedVector);
-        Assert.That(
+        await Assert.That(
             S7PlcRx.PlcTypes.Struct.GetStructSize(nestedVector.GetType()),
             Is.EqualTo(nestedVectorBytes.Length));
-        Assert.That(
+        await Assert.That(
             (ValueTuple<Vector3>)S7PlcRx.PlcTypes.Struct.FromBytes(
                 nestedVector.GetType(),
                 nestedVectorBytes)!,
@@ -657,8 +671,8 @@ public sealed class S7PlcTypeDeterministicCoverageTests
 
         var zeroSized = new ValueTuple<ValueTuple>(default);
         var zeroSizedBytes = S7PlcRx.PlcTypes.Struct.ToBytes(zeroSized);
-        Assert.That(zeroSizedBytes.Length, Is.EqualTo(0));
-        Assert.That(
+        await Assert.That(zeroSizedBytes.Length, Is.EqualTo(0));
+        await Assert.That(
             (ValueTuple<ValueTuple>)S7PlcRx.PlcTypes.Struct.FromBytes(
                 zeroSized.GetType(),
                 zeroSizedBytes)!,
@@ -666,22 +680,23 @@ public sealed class S7PlcTypeDeterministicCoverageTests
     }
 
     /// <summary>Verifies narrow and wide S7 string success and malformed-data boundaries.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
     [NotInParallel]
-    public void StringTypes_ConvertBoundariesAndWrapDecoderFailures()
+    public async Task StringTypes_ConvertBoundariesAndWrapDecoderFailures()
     {
         var previousEncoding = S7PlcRx.PlcTypes.S7String.StringEncoding;
         try
         {
-            _ = Assert.Throws<ArgumentNullException>(() => S7PlcRx.PlcTypes.S7String.StringEncoding = null!);
+            _ = await Assert.Throws<ArgumentNullException>(static () => S7PlcRx.PlcTypes.S7String.StringEncoding = null!);
             S7PlcRx.PlcTypes.S7String.StringEncoding = new UTF8Encoding(false, true);
-            _ = Assert.Throws<PlcException>(() =>
+            _ = await Assert.Throws<PlcException>(static () =>
                 S7PlcRx.PlcTypes.S7String.FromByteArray([1, 1, InvalidUtf8Byte]));
             var destination = new byte[S7PlcRx.PlcTypes.S7String.GetByteLength(StringReservedLength)];
-            Assert.That(
+            await Assert.That(
                 S7PlcRx.PlcTypes.S7String.TryToSpan("RX", StringReservedLength, destination, out var bytesWritten),
                 Is.True);
-            Assert.That(bytesWritten, Is.EqualTo(StringReservedLength + StringHeaderLength));
+            await Assert.That(bytesWritten, Is.EqualTo(StringReservedLength + StringHeaderLength));
         }
         finally
         {
@@ -689,38 +704,39 @@ public sealed class S7PlcTypeDeterministicCoverageTests
         }
 
         var fullLength = S7PlcRx.PlcTypes.S7String.GetByteLength(StringReservedLength);
-        _ = Assert.Throws<ArgumentNullException>(() =>
-            S7PlcRx.PlcTypes.S7String.ToSpan(null, StringReservedLength, new byte[fullLength]));
-        _ = Assert.Throws<ArgumentException>(() =>
+        _ = await Assert.Throws<ArgumentNullException>(() =>
+            S7PlcRx.PlcTypes.S7String.ToSpan(null!, StringReservedLength, new byte[fullLength]));
+        _ = await Assert.Throws<ArgumentException>(() =>
             S7PlcRx.PlcTypes.S7String.ToSpan("RX", StringReservedLength, new byte[fullLength - 1]));
-        Assert.That(fullLength, Is.EqualTo(StringReservedLength + StringHeaderLength));
-        _ = Assert.Throws<PlcException>(() =>
+        await Assert.That(fullLength, Is.EqualTo(StringReservedLength + StringHeaderLength));
+        _ = await Assert.Throws<PlcException>(static () =>
             S7PlcRx.PlcTypes.S7WString.FromByteArray([0, 1, 0, 1]));
     }
 
     /// <summary>Verifies pooled ByteArray accessors, growth, copying, clearing, and disposal.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void ByteArray_GrowsCopiesClearsAndDisposesIdempotently()
+    public async Task ByteArray_GrowsCopiesClearsAndDisposesIdempotently()
     {
         var buffer = new ByteArray(InitialByteArrayCapacity);
         try
         {
             buffer.Add(ReadOnlySpan<byte>.Empty);
-            Assert.That(buffer.Length, Is.EqualTo(0));
-            Assert.That(buffer.Memory.Length, Is.EqualTo(0));
+            await Assert.That(buffer.Length, Is.EqualTo(0));
+            await Assert.That(buffer.Memory.Length, Is.EqualTo(0));
             buffer.Add(StructuredByte);
             var payload = new byte[ByteArrayGrowthLength];
             TestArray.Fill(payload, StructuredByte);
             buffer.Add(payload);
-            Assert.That(buffer.Length, Is.EqualTo(ByteArrayGrowthLength + InitialByteArrayCapacity));
-            Assert.That(buffer.Memory.Length, Is.EqualTo(buffer.Length));
-            Assert.That(buffer.Array[0], Is.EqualTo(StructuredByte));
-            Assert.That(buffer.TryCopyTo(new byte[buffer.Length - 1]), Is.False);
+            await Assert.That(buffer.Length, Is.EqualTo(ByteArrayGrowthLength + InitialByteArrayCapacity));
+            await Assert.That(buffer.Memory.Length, Is.EqualTo(buffer.Length));
+            await Assert.That(buffer.ToArray()[0], Is.EqualTo(StructuredByte));
+            await Assert.That(buffer.TryCopyTo(new byte[buffer.Length - 1]), Is.False);
             var destination = new byte[buffer.Length];
-            Assert.That(buffer.TryCopyTo(destination), Is.True);
-            Assert.That(destination, Is.EqualTo(buffer.Array));
+            await Assert.That(buffer.TryCopyTo(destination), Is.True);
+            await Assert.That(destination, Is.EqualTo(buffer.ToArray()));
             buffer.Clear();
-            Assert.That(buffer.Length, Is.EqualTo(0));
+            await Assert.That(buffer.Length, Is.EqualTo(0));
         }
         finally
         {
@@ -730,10 +746,11 @@ public sealed class S7PlcTypeDeterministicCoverageTests
     }
 
     /// <summary>Verifies reachable Struct field branches with a non-recursive emitted value type.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
     [Test]
-    public void StructuredTypes_RoundtripSafeEmittedStructFields()
+    public async Task StructuredTypes_RoundtripSafeEmittedStructFields()
     {
-        _ = Assert.Throws<ArgumentException>(() =>
+        _ = await Assert.Throws<ArgumentException>(static () =>
             S7PlcRx.PlcTypes.Struct.GetStructSize(typeof(ValueTuple<string>)));
 
         var fixtureType = CreateSafeStructFixtureType();
@@ -751,21 +768,21 @@ public sealed class S7PlcTypeDeterministicCoverageTests
         SetFieldValue(fixtureType, source, WideTextFieldName, "Ω");
 
         var bytes = S7PlcRx.PlcTypes.Struct.ToBytes(source);
-        Assert.That(S7PlcRx.PlcTypes.Struct.GetStructSize(fixtureType), Is.EqualTo(bytes.Length));
+        await Assert.That(S7PlcRx.PlcTypes.Struct.GetStructSize(fixtureType), Is.EqualTo(bytes.Length));
         var destination = S7PlcRx.PlcTypes.Struct.FromBytes(fixtureType, bytes) ??
             throw new InvalidOperationException("Failed to deserialize the emitted Struct fixture.");
-        Assert.That(GetFieldValue<bool>(fixtureType, destination, TrueFlagFieldName), Is.True);
-        Assert.That(GetFieldValue<bool>(fixtureType, destination, FalseFlagFieldName), Is.False);
-        Assert.That(GetFieldValue<byte>(fixtureType, destination, MarkerFieldName), Is.EqualTo(StructuredByte));
-        Assert.That(GetFieldValue<short>(fixtureType, destination, CountFieldName), Is.EqualTo(ClassCount));
-        Assert.That(GetFieldValue<ushort>(fixtureType, destination, UnsignedCountFieldName), Is.EqualTo(CounterValue));
-        Assert.That(GetFieldValue<uint>(fixtureType, destination, StatusFieldName), Is.EqualTo(0U));
-        Assert.That(GetFieldValue<double>(fixtureType, destination, TotalFieldName), Is.EqualTo(NegativeDouble));
-        Assert.That(
+        await Assert.That(GetFieldValue<bool>(fixtureType, destination, TrueFlagFieldName), Is.True);
+        await Assert.That(GetFieldValue<bool>(fixtureType, destination, FalseFlagFieldName), Is.False);
+        await Assert.That(GetFieldValue<byte>(fixtureType, destination, MarkerFieldName), Is.EqualTo(StructuredByte));
+        await Assert.That(GetFieldValue<short>(fixtureType, destination, CountFieldName), Is.EqualTo(ClassCount));
+        await Assert.That(GetFieldValue<ushort>(fixtureType, destination, UnsignedCountFieldName), Is.EqualTo(CounterValue));
+        await Assert.That(GetFieldValue<uint>(fixtureType, destination, StatusFieldName), Is.EqualTo(0U));
+        await Assert.That(GetFieldValue<double>(fixtureType, destination, TotalFieldName), Is.EqualTo(NegativeDouble));
+        await Assert.That(
             GetFieldValue<SystemTimeSpan>(fixtureType, destination, DurationFieldName),
             Is.EqualTo(SystemTimeSpan.FromSeconds(SecondsTimer)));
-        Assert.That(GetFieldValue<string>(fixtureType, destination, TextFieldName), Is.EqualTo("S7"));
-        Assert.That(GetFieldValue<string>(fixtureType, destination, WideTextFieldName), Is.EqualTo("Ω"));
+        await Assert.That(GetFieldValue<string>(fixtureType, destination, TextFieldName), Is.EqualTo("S7"));
+        await Assert.That(GetFieldValue<string>(fixtureType, destination, WideTextFieldName), Is.EqualTo("Ω"));
     }
 
     /// <summary>Creates an analyzer-safe runtime value type containing supported Struct fields.</summary>
@@ -773,7 +790,7 @@ public sealed class S7PlcTypeDeterministicCoverageTests
     private static Type CreateSafeStructFixtureType()
     {
         var assembly = AssemblyBuilder.DefineDynamicAssembly(
-            new AssemblyName("S7PlcTypeDeterministicCoverageFixtures"),
+            new("S7PlcTypeDeterministicCoverageFixtures"),
             AssemblyBuilderAccess.Run);
         var module = assembly.DefineDynamicModule("Fixtures");
         var typeBuilder = module.DefineType(
@@ -807,7 +824,7 @@ public sealed class S7PlcTypeDeterministicCoverageTests
         var constructor = typeof(S7StringAttribute).GetConstructor([typeof(S7StringType), typeof(int)]) ??
             throw new InvalidOperationException("Failed to locate the S7StringAttribute constructor.");
         field.SetCustomAttribute(
-            new CustomAttributeBuilder(constructor, [stringType, StringReservedLength]));
+            new(constructor, [stringType, StringReservedLength]));
     }
 
     /// <summary>Sets a public field on an emitted Struct fixture.</summary>

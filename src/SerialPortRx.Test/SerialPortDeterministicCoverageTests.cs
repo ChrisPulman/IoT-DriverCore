@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.Serial.Tests;
+namespace IoT.Driver.Serial.Tests;
 
 /// <summary>Targeted deterministic coverage for serial connection and wrapper edge paths.</summary>
 [NotInParallel]
@@ -115,7 +115,7 @@ public sealed class SerialPortDeterministicCoverageTests
     [Test]
     public async Task OpenAsync_InjectedFailures_ReportAndFaultAsync()
     {
-        using var factoryFailure = new SerialPortRx(_ => throw new IOException("factory failed"));
+        using var factoryFailure = new SerialPortRx(static _ => throw new IOException("factory failed"));
         var factoryErrors = new List<Exception>();
         using var factorySubscription = factoryFailure.ErrorReceived.Subscribe(factoryErrors.Add);
         await Assert.That(factoryFailure.OpenAsync).Throws<IOException>();
@@ -184,10 +184,10 @@ public sealed class SerialPortDeterministicCoverageTests
         await Assert.That(() => SerialPortReceiveProcessor.ReadAndPublish(
             1,
             buffer,
-            (_, _, _) => Two,
-            _ => { },
-            _ => { },
-            _ => { })).Throws<InvalidOperationException>();
+            static (_, _, _) => Two,
+            static _ => { },
+            static _ => { },
+            static _ => { })).Throws<InvalidOperationException>();
     }
 
     /// <summary>Verifies write failures from an opened connection are reported by each write subscription.</summary>
@@ -391,21 +391,28 @@ public sealed class SerialPortDeterministicCoverageTests
     {
         using var pair = new InMemoryPortRxPair();
         var gate = new ManualResetEventSlim(false);
-        var tasks = Enumerable.Range(0, Eight).Select(_ => Task.Run(() =>
+        var tasks = new Task<(IObservable<char> DataReceived, IObservable<Exception> ErrorReceived, IObservableAsync<char> DataReceivedAsync)>[Eight];
+        for (var index = 0; index < tasks.Length; index++)
         {
-            gate.Wait();
-            return (
-                pair.First.DataReceived,
-                pair.First.ErrorReceived,
-                pair.First.DataReceivedAsync);
-        })).ToArray();
+            tasks[index] = Task.Run(() =>
+            {
+                gate.Wait();
+                return (
+                    pair.First.DataReceived,
+                    pair.First.ErrorReceived,
+                    pair.First.DataReceivedAsync);
+            });
+        }
 
         gate.Set();
         var values = await Task.WhenAll(tasks);
 
-        await Assert.That(values.All(value => ReferenceEquals(value.DataReceived, values[0].DataReceived))).IsTrue();
-        await Assert.That(values.All(value => ReferenceEquals(value.ErrorReceived, values[0].ErrorReceived))).IsTrue();
-        await Assert.That(values.All(value => ReferenceEquals(value.DataReceivedAsync, values[0].DataReceivedAsync))).IsTrue();
+        for (var index = 0; index < values.Length; index++)
+        {
+            await Assert.That(ReferenceEquals(values[index].DataReceived, values[0].DataReceived)).IsTrue();
+            await Assert.That(ReferenceEquals(values[index].ErrorReceived, values[0].ErrorReceived)).IsTrue();
+            await Assert.That(ReferenceEquals(values[index].DataReceivedAsync, values[0].DataReceivedAsync)).IsTrue();
+        }
     }
 
     /// <summary>Verifies asynchronous reads complete for both queued and empty deterministic input buffers.</summary>

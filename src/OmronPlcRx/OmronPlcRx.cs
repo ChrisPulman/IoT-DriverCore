@@ -7,26 +7,26 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Signals;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Core;
-using IoT.DriverCore.OmronPlcRx.Reactive.Enums;
-using IoT.DriverCore.OmronPlcRx.Reactive.Results;
-using IoT.DriverCore.OmronPlcRx.Reactive.Tags;
+using IoT.Driver.OmronPlcRx.Reactive.Core;
+using IoT.Driver.OmronPlcRx.Reactive.Enums;
+using IoT.Driver.OmronPlcRx.Reactive.Results;
+using IoT.Driver.OmronPlcRx.Reactive.Tags;
 #else
-using IoT.DriverCore.OmronPlcRx.Core;
-using IoT.DriverCore.OmronPlcRx.Enums;
-using IoT.DriverCore.OmronPlcRx.Results;
-using IoT.DriverCore.OmronPlcRx.Tags;
+using IoT.Driver.OmronPlcRx.Core;
+using IoT.Driver.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Results;
+using IoT.Driver.OmronPlcRx.Tags;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive;
+namespace IoT.Driver.OmronPlcRx.Reactive;
 
 #else
-namespace IoT.DriverCore.OmronPlcRx;
+namespace IoT.Driver.OmronPlcRx;
 
 #endif
 
@@ -95,10 +95,14 @@ public sealed partial class OmronPlcRx : IOmronPlcRx
             int retries,
             TimeSpan? pollInterval)
     {
+#if NET6_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(serialOptions);
+#else
         if (serialOptions is null)
         {
             throw new ArgumentNullException(nameof(serialOptions));
         }
+#endif
 
         _plc = new(
             new OmronConnectionOptions(
@@ -199,14 +203,26 @@ public sealed partial class OmronPlcRx : IOmronPlcRx
     /// <param name="tag">The typed PLC tag.</param>
     public void AddUpdateTagItem<T>(PlcTag<T> tag)
     {
+#if NET6_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(tag);
+#else
         if (tag is null)
         {
             throw new ArgumentNullException(nameof(tag));
         }
+#endif
 
         var entry = new TagEntry<T>(tag);
-        _ = _entries.AddOrUpdate(tag.TagName, entry, (_, __) => entry);
-        _ = _subjects.GetOrAdd(tag.TagName, _ => new(default));
+#if NET9_0_OR_GREATER
+        _ = _entries.AddOrUpdate(
+            tag.TagName,
+            static (_, state) => state,
+            static (_, _, state) => state,
+            entry);
+#else
+        _entries[tag.TagName] = entry;
+#endif
+        _ = _subjects.GetOrAdd(tag.TagName, static _ => new(default));
     }
 
     /// <inheritdoc />
@@ -221,13 +237,17 @@ public sealed partial class OmronPlcRx : IOmronPlcRx
     /// <param name="tag">The typed PLC tag.</param>
     public IObservable<T?> Observe<T>(LogicalTagKey<T> tag)
     {
+#if NET6_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(tag);
+#else
         if (tag is null)
         {
             throw new ArgumentNullException(nameof(tag));
         }
+#endif
 
-        var subject = _subjects.GetOrAdd(tag.Name, _ => new(default));
-        return subject.Select(v => v is null ? default : (T?)ConvertTo<T>(v));
+        var subject = _subjects.GetOrAdd(tag.Name, static _ => new(default));
+        return subject.Select(static v => v is null ? default : (T?)ConvertTo<T>(v));
     }
 
     /// <inheritdoc />
@@ -235,10 +255,14 @@ public sealed partial class OmronPlcRx : IOmronPlcRx
     /// <param name="tag">The typed PLC tag.</param>
     public T? GetValue<T>(LogicalTagKey<T> tag)
     {
+#if NET6_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(tag);
+#else
         if (tag is null)
         {
             throw new ArgumentNullException(nameof(tag));
         }
+#endif
 
         return !_entries.TryGetValue(tag.Name, out var entry)
             || entry is not TagEntry<T> typed
@@ -252,10 +276,14 @@ public sealed partial class OmronPlcRx : IOmronPlcRx
         LogicalTagKey<T> tag,
         CancellationToken cancellationToken)
     {
+#if NET6_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(tag);
+#else
         if (tag is null)
         {
             throw new ArgumentNullException(nameof(tag));
         }
+#endif
 
         if (!_entries.TryGetValue(tag.Name, out var entry) || entry is not TagEntry<T> typed)
         {
@@ -273,10 +301,14 @@ public sealed partial class OmronPlcRx : IOmronPlcRx
     /// <param name="value">The value to write.</param>
     public void SetValue<T>(LogicalTagKey<T> tag, T? value)
     {
+#if NET6_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(tag);
+#else
         if (tag is null)
         {
             throw new ArgumentNullException(nameof(tag));
         }
+#endif
 
         if (!_entries.TryGetValue(tag.Name, out var entry) || entry is not TagEntry<T> typed)
         {
@@ -291,7 +323,7 @@ public sealed partial class OmronPlcRx : IOmronPlcRx
             }
             catch (Exception ex)
             {
-                _errors.OnNext(new OmronPLCException($"Failed to write tag '{tag.Name}'", ex));
+                _errors.OnNext(new($"Failed to write tag '{tag.Name}'", ex));
             }
         });
     }
@@ -302,10 +334,14 @@ public sealed partial class OmronPlcRx : IOmronPlcRx
         T? value,
         CancellationToken cancellationToken)
     {
+#if NET6_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(tag);
+#else
         if (tag is null)
         {
             throw new ArgumentNullException(nameof(tag));
         }
+#endif
 
         if (!_entries.TryGetValue(tag.Name, out var entry) || entry is not TagEntry<T> typed)
         {
@@ -346,8 +382,9 @@ public sealed partial class OmronPlcRx : IOmronPlcRx
             ex.Handle(static inner => inner is OperationCanceledException);
         }
 
-        foreach (var bs in _subjects.Values)
+        foreach (var subject in _subjects)
         {
+            var bs = subject.Value;
             bs.OnCompleted();
             bs.Dispose();
         }
@@ -392,7 +429,7 @@ public sealed partial class OmronPlcRx : IOmronPlcRx
         }
         catch (Exception ex)
         {
-            _errors.OnNext(new OmronPLCException("PLC initialization failed", ex));
+            _errors.OnNext(new("PLC initialization failed", ex));
         }
     }
 
@@ -414,7 +451,7 @@ public sealed partial class OmronPlcRx : IOmronPlcRx
         }
         catch (Exception loopEx)
         {
-            _errors.OnNext(new OmronPLCException("Polling loop failure", loopEx));
+            _errors.OnNext(new("Polling loop failure", loopEx));
         }
     }
 
@@ -431,11 +468,11 @@ public sealed partial class OmronPlcRx : IOmronPlcRx
         }
         catch (OmronPLCException ex)
         {
-            _errors.OnNext(new OmronPLCException(ex.Message, ex));
+            _errors.OnNext(new(ex.Message, ex));
         }
         catch (Exception ex)
         {
-            _errors.OnNext(new OmronPLCException($"Unexpected error reading tag '{name}'", ex));
+            _errors.OnNext(new($"Unexpected error reading tag '{name}'", ex));
         }
     }
 

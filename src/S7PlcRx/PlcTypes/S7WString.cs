@@ -4,15 +4,15 @@
 
 using System.Text;
 #if REACTIVE_SHIM
-using IoT.DriverCore.S7PlcRx.Reactive.Enums;
+using IoT.Driver.S7PlcRx.Reactive.Enums;
 #else
-using IoT.DriverCore.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.PlcTypes;
+namespace IoT.Driver.S7PlcRx.Reactive.PlcTypes;
 #else
-namespace IoT.DriverCore.S7PlcRx.PlcTypes;
+namespace IoT.Driver.S7PlcRx.PlcTypes;
 #endif
 
 /// <summary>Provides static methods for converting between S7 WString byte arrays and .NET strings.</summary>
@@ -80,7 +80,7 @@ public static class S7WString
     /// <remarks>The returned byte array begins with a 4-byte header: the first two bytes represent the
     /// reserved length, and the next two bytes represent the actual string length, both in big-endian order. The string
     /// is encoded using big-endian Unicode (UTF-16BE).</remarks>
-    /// <param name="value">The string to convert to a byte array. Cannot be null.</param>
+    /// <param name="value">The string to convert to a byte array.</param>
     /// <param name="reservedLength">The number of characters to reserve in the output buffer. Must be less
     /// than or equal to 16,382 and greater than
     /// or equal to the length of <paramref name="value"/>.</param>
@@ -91,12 +91,9 @@ public static class S7WString
     /// <exception cref="ArgumentException">Thrown if <paramref name="reservedLength"/> is greater than
     /// 16,382, or if the length of <paramref name="value"/>
     /// exceeds <paramref name="reservedLength"/>.</exception>
-    public static byte[] ToByteArray(string? value, int reservedLength)
+    public static byte[] ToByteArray(string value, int reservedLength)
     {
-        if (value is null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
+        Guard.NotNull(value, nameof(value));
 
         if (reservedLength > MaximumReservedLength)
         {

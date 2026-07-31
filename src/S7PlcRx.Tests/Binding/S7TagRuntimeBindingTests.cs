@@ -2,11 +2,11 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Binding;
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.PlcTypes;
+using IoT.Driver.S7PlcRx.Binding;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.PlcTypes;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Binding;
+namespace IoT.Driver.S7PlcRx.Tests.Binding;
 
 /// <summary>Tests runtime grouped byte-array PLC binding operations.</summary>
 [NotInParallel]
@@ -78,7 +78,7 @@ public sealed class S7TagRuntimeBindingTests
                 1),
         };
 
-        using var binding = S7TagRuntimeBinding.Bind(plc, definitions, (_, _) => { });
+        using var binding = S7TagRuntimeBinding.Bind(plc, definitions, static (_, _) => { });
         binding.Write(TemperatureTagName, WrittenTemperatureValue);
         binding.Write(PressureTagName, WrittenPressureValue);
 
@@ -119,7 +119,7 @@ public sealed class S7TagRuntimeBindingTests
 
         using var binding = S7TagRuntimeBinding.Bind(plc, definitions, (name, value) => applied[name] = value);
 
-        await WaitUntilAsync(() => plc.Reads.Contains(CoalescedRangeTagName, StringComparer.Ordinal) &&
+        await WaitUntilAsync(() => ContainsRead(plc.Reads, CoalescedRangeTagName) &&
             applied.ContainsKey(TemperatureTagName) &&
             applied.ContainsKey(PressureTagName));
 
@@ -136,6 +136,7 @@ public sealed class S7TagRuntimeBindingTests
     {
         var tp = timeProvider ?? TimeProvider.System;
         var timeoutAt = tp.GetUtcNow().UtcDateTime.AddSeconds(WaitTimeoutSeconds);
+#if NETFRAMEWORK
         while (tp.GetUtcNow().UtcDateTime < timeoutAt)
         {
             if (condition())
@@ -145,6 +146,37 @@ public sealed class S7TagRuntimeBindingTests
 
             await Task.Delay(WaitRetryDelayMilliseconds);
         }
+#else
+        using var timer = new PeriodicTimer(System.TimeSpan.FromMilliseconds(WaitRetryDelayMilliseconds));
+        while (tp.GetUtcNow().UtcDateTime < timeoutAt)
+        {
+            if (condition())
+            {
+                return;
+            }
+
+            await timer.WaitForNextTickAsync();
+        }
+#endif
+    }
+
+    /// <summary>Determines whether a recorded read has the specified tag name.</summary>
+    /// <param name="reads">The recorded reads.</param>
+    /// <param name="tagName">The tag name to locate.</param>
+    /// <returns><see langword="true"/> when the tag name was recorded; otherwise, <see langword="false"/>.</returns>
+    private static bool ContainsRead(IEnumerable<string> reads, string tagName)
+    {
+        foreach (var read in reads)
+        {
+            if (System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                    System.Text.Encoding.UTF8.GetBytes(read),
+                    System.Text.Encoding.UTF8.GetBytes(tagName)))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Records the PLC operations performed by a runtime binding.</summary>
@@ -193,7 +225,7 @@ public sealed class S7TagRuntimeBindingTests
         public IObservable<string> Status => Observable.Empty<string>();
 
         /// <summary>Gets the fake PLC tag collection.</summary>
-        public global::IoT.DriverCore.S7PlcRx.Tags TagList { get; } = [];
+        public global::IoT.Driver.S7PlcRx.Tags TagList { get; } = [];
 
         /// <summary>Gets or sets a value indicating whether watchdog writes are shown.</summary>
         public bool ShowWatchDogWriting { get; set; }
@@ -239,8 +271,9 @@ public sealed class S7TagRuntimeBindingTests
             }
 
             Reads.Add(tag.Name);
-            object bytes = ReadBuffer.ToArray();
-            return Task.FromResult((T?)bytes);
+            var bytes = new byte[ReadBuffer.Length];
+            ReadBuffer.CopyTo(bytes, 0);
+            return Task.FromResult((T?)(object)bytes);
         }
 
         /// <summary>Records byte-array writes performed by the runtime binding.</summary>

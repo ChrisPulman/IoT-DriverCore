@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.Serial.Reactive;
+namespace IoT.Driver.Serial.Reactive;
 #else
-namespace IoT.DriverCore.Serial;
+namespace IoT.Driver.Serial;
 #endif
 
 /// <summary>Coordinates command requests and responses over a reactive serial port.</summary>
@@ -34,7 +34,7 @@ public sealed class SerialPortRxMessageHandler : IDisposable
     private readonly CompositeDisposable _disposables = [];
 
     /// <summary>Synchronizes request queue and polling state changes.</summary>
-#if NET9_0_OR_GREATER
+#if NET9_0_OR_GREATER || NETFRAMEWORK
     private readonly Lock _sync = new();
 #else
     private readonly object _sync = new();
@@ -85,17 +85,32 @@ public sealed class SerialPortRxMessageHandler : IDisposable
         }
 
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _pending.Enqueue(new PendingRequest(cmd, _ => { }, tcs));
+        PendingRequest request = new(cmd, static _ => { }, tcs);
+        _pending.Enqueue(request);
         await SendCommandAsync(cmd).ConfigureAwait(false);
 
         var timeoutMs = Math.Max(
             MinimumReadTimeoutMilliseconds,
             _port.ReadTimeout > 0 ? _port.ReadTimeout : DefaultReadTimeoutMilliseconds);
         using var cts = new CancellationTokenSource(timeoutMs);
-        using (cts.Token.Register(() => tcs.TrySetCanceled(cts.Token)))
-        {
-            await tcs.Task.ConfigureAwait(false);
-        }
+#if NETFRAMEWORK
+        using var registration = cts.Token.Register(
+            static state =>
+            {
+                var (completion, token) = ((TaskCompletionSource<bool>, CancellationToken))state!;
+                _ = completion.TrySetCanceled(token);
+            },
+            (tcs, cts.Token));
+#else
+        await using var registration = cts.Token.Register(
+            static state =>
+            {
+                var (completion, token) = ((TaskCompletionSource<bool>, CancellationToken))state!;
+                _ = completion.TrySetCanceled(token);
+            },
+            (tcs, cts.Token));
+#endif
+        await tcs.Task.ConfigureAwait(false);
     }
 
     /// <summary>Requests the asynchronous.</summary>
@@ -113,7 +128,8 @@ public sealed class SerialPortRxMessageHandler : IDisposable
         }
 
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _pending.Enqueue(new PendingRequest(cmd, apply, tcs));
+        PendingRequest request = new(cmd, apply, tcs);
+        _pending.Enqueue(request);
         await SendCommandAsync(cmd).ConfigureAwait(false);
 
         // Respect read timeout if set, else default to 3000ms
@@ -121,10 +137,24 @@ public sealed class SerialPortRxMessageHandler : IDisposable
             MinimumReadTimeoutMilliseconds,
             _port.ReadTimeout > 0 ? _port.ReadTimeout : DefaultReadTimeoutMilliseconds);
         using var cts = new CancellationTokenSource(timeoutMs);
-        using (cts.Token.Register(() => tcs.TrySetCanceled(cts.Token)))
-        {
-            await tcs.Task.ConfigureAwait(false);
-        }
+#if NETFRAMEWORK
+        using var registration = cts.Token.Register(
+            static state =>
+            {
+                var (completion, token) = ((TaskCompletionSource<bool>, CancellationToken))state!;
+                _ = completion.TrySetCanceled(token);
+            },
+            (tcs, cts.Token));
+#else
+        await using var registration = cts.Token.Register(
+            static state =>
+            {
+                var (completion, token) = ((TaskCompletionSource<bool>, CancellationToken))state!;
+                _ = completion.TrySetCanceled(token);
+            },
+            (tcs, cts.Token));
+#endif
+        await tcs.Task.ConfigureAwait(false);
     }
 
     /// <summary>Exectute With the polling stopped.</summary>

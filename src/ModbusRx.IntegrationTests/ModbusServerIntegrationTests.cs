@@ -6,13 +6,13 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Data;
-using IoT.DriverCore.ModbusRx.Device;
-using IoT.DriverCore.Serial;
-using ReactiveModbusServer = IoT.DriverCore.ModbusRx.Reactive.Device.ModbusServer;
-using ReactiveModbusServerEnhancedExtensions = IoT.DriverCore.ModbusRx.Reactive.EnhancedModbusServerExtensions;
+using IoT.Driver.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Device;
+using IoT.Driver.Serial;
+using ReactiveModbusServer = IoT.Driver.ModbusRx.Reactive.Device.ModbusServer;
+using ReactiveModbusServerEnhancedExtensions = IoT.Driver.ModbusRx.Reactive.EnhancedModbusServerExtensions;
 
-namespace IoT.DriverCore.ModbusRx.IntegrationTests;
+namespace IoT.Driver.ModbusRx.IntegrationTests;
 
 /// <summary>Integration tests for the new ModbusServer functionality.</summary>
 public sealed class ModbusServerIntegrationTests : NetworkTestBase
@@ -297,7 +297,7 @@ public sealed class ModbusServerIntegrationTests : NetworkTestBase
 
             case TestPattern.CountingDown:
                 {
-                    Assert.True(data.HoldingRegisters[FirstRegisterIndex] > 0);
+                    Assert.True(data.HoldingRegisters[FirstRegisterIndex] != 0);
                     break;
                 }
 
@@ -463,7 +463,7 @@ public sealed class ModbusServerIntegrationTests : NetworkTestBase
 
         for (var i = 0; i < length; i++)
         {
-            if (values[i] > 0)
+            if (values[i] != 0)
             {
                 return true;
             }

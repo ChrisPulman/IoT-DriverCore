@@ -7,9 +7,9 @@ using System.Reflection;
 using TwinCAT.Ads;
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.TwinCATRx.Core.Reactive;
+namespace IoT.Driver.TwinCATRx.Core.Reactive;
 #else
-namespace IoT.DriverCore.TwinCATRx.Core;
+namespace IoT.Driver.TwinCATRx.Core;
 #endif
 
 /// <summary>Observable TwinCAT extensions.</summary>
@@ -24,7 +24,7 @@ public static class TwinCatRxExtensions
     public static IObservable<AdsStateChangedEventArgs> AdsStateChangedObserver(AdsClient client) =>
         Observable.FromEventPattern<EventHandler<AdsStateChangedEventArgs>, AdsStateChangedEventArgs>(
             handler => client.AdsStateChanged += handler,
-            handler => client.AdsStateChanged -= handler).Select(pattern => pattern.EventArgs);
+            handler => client.AdsStateChanged -= handler).Select(static pattern => pattern.EventArgs);
 
     /// <summary>Polls ADS state from the client.</summary>
     /// <param name="client">The ADS client.</param>
@@ -232,25 +232,10 @@ public static class TwinCatRxExtensions
     /// <returns>The loaded assembly.</returns>
     [RequiresDynamicCode("Loads an assembly at runtime via Assembly.Load which requires dynamic code.")]
     [RequiresUnreferencedCode("Uses reflection-based assembly loading which may be trimmed.")]
-    public static Assembly? AssemblyLoad(string dllFullName)
-    {
-        Assembly? assembly = null;
-        if (File.Exists(dllFullName))
-        {
-            using var fs = File.Open(dllFullName, FileMode.Open, FileAccess.Read);
-            using var ms = new MemoryStream();
-            var buffer = new byte[1024];
-            int read;
-            while ((read = fs.Read(buffer, 0, buffer.Length)) > 0)
-            {
-                ms.Write(buffer, 0, read);
-            }
-
-            assembly = Assembly.Load(ms.ToArray());
-        }
-
-        return assembly;
-    }
+    public static Assembly? AssemblyLoad(string dllFullName) =>
+        File.Exists(dllFullName)
+            ? Assembly.Load(AssemblyName.GetAssemblyName(Path.GetFullPath(dllFullName)))
+            : null;
 
     /// <summary>Gets a type from an assembly file.</summary>
     /// <param name="dllFullName">The full DLL path.</param>

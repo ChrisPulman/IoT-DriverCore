@@ -4,15 +4,15 @@
 
 using System;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Requests;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Requests;
 #else
-using IoT.DriverCore.OmronPlcRx.Core.Requests;
+using IoT.Driver.OmronPlcRx.Core.Requests;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Responses;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core.Responses;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core.Responses;
+namespace IoT.Driver.OmronPlcRx.Core.Responses;
 #endif
 
 /// <summary>Represents the w ri te me mo ry ar ea bi tr es po ns e type.</summary>

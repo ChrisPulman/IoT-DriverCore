@@ -5,7 +5,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests.Message;
+namespace IoT.Driver.ModbusRx.UnitTests.Message;
 
 /// <summary>Tests the MessageUtility behavior.</summary>
 public static class MessageUtility
@@ -24,10 +24,14 @@ public static class MessageUtility
         int size)
         where TCollection : ICollection<TValue>
     {
+#if NET8_0_OR_GREATER
+        ArgumentOutOfRangeException.ThrowIfNegative(size);
+#else
         if (size < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(size), "Collection size cannot be less than 0.");
         }
+#endif
 
         for (var i = 0; i < size; i++)
         {

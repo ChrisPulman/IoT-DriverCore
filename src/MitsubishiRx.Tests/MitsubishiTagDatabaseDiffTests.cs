@@ -4,10 +4,10 @@
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive.Tests;
+namespace IoT.Driver.MitsubishiRx.Reactive.Tests;
 #else
 
-namespace IoT.DriverCore.MitsubishiRx.Tests;
+namespace IoT.Driver.MitsubishiRx.Tests;
 #endif
 
 /// <summary>Provides the MitsubishiTagDatabaseDiffTests type.</summary>
@@ -194,7 +194,7 @@ internal sealed class MitsubishiTagDatabaseDiffTests
             TransportKind: MitsubishiTransportKind.Tcp,
             Route: MitsubishiRoute.Default);
 
-        return new MitsubishiRx(options, null, scheduler);
+        return new(options, null, scheduler);
     }
 
     /// <summary>Executes the CreateCurrentDatabase operation.</summary>
@@ -207,8 +207,8 @@ internal sealed class MitsubishiTagDatabaseDiffTests
             new MitsubishiTagDefinition(LegacyTextTagName, "D200", DataType: "String", Length: 2, Encoding: "Ascii"),
         ]);
 
-        database.AddGroup(new MitsubishiTagGroupDefinition(OverviewGroupName, [MotorSpeedTagName, LegacyTextTagName]));
-        database.AddGroup(new MitsubishiTagGroupDefinition("Legacy", [LegacyTextTagName]));
+        database.AddGroup(new(OverviewGroupName, [MotorSpeedTagName, LegacyTextTagName]));
+        database.AddGroup(new("Legacy", [LegacyTextTagName]));
         return database;
     }
 
@@ -228,8 +228,8 @@ internal sealed class MitsubishiTagDatabaseDiffTests
         ]);
 
         database.AddGroup(
-            new MitsubishiTagGroupDefinition(OverviewGroupName, [ MotorSpeedTagName, OperatorMessageTagName]));
-        database.AddGroup(new MitsubishiTagGroupDefinition("Diagnostics", [OperatorMessageTagName]));
+            new(OverviewGroupName, [ MotorSpeedTagName, OperatorMessageTagName]));
+        database.AddGroup(new("Diagnostics", [OperatorMessageTagName]));
         return database;
     }
 

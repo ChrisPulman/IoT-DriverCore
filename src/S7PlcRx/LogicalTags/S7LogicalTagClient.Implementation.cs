@@ -4,12 +4,12 @@
 
 using System.Globalization;
 using System.Reflection;
-using IoT.DriverCore.Core;
+using IoT.Driver.Core;
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.LogicalTags;
+namespace IoT.Driver.S7PlcRx.Reactive.LogicalTags;
 
 #else
-namespace IoT.DriverCore.S7PlcRx.LogicalTags;
+namespace IoT.Driver.S7PlcRx.LogicalTags;
 
 #endif
 
@@ -102,6 +102,49 @@ public sealed partial class S7LogicalTagClient
         return Convert.ChangeType(value, targetType, CultureInfo.InvariantCulture);
     }
 
+    /// <summary>Finds the generic S7 read operation.</summary>
+    /// <returns>The matching method.</returns>
+    private static MethodInfo GetReadAsyncMethod() => GetSingleGenericMethod(
+        nameof(IRxS7.ReadAsync),
+        static candidate => candidate.GetParameters().Length == 2);
+
+    /// <summary>Finds the generic S7 value-write operation.</summary>
+    /// <returns>The matching method.</returns>
+    private static MethodInfo GetValueMethod() => GetSingleGenericMethod(
+        nameof(IRxS7.Value),
+        static candidate => candidate.ReturnType == typeof(void));
+
+    /// <summary>Finds one generic S7 operation matching the supplied predicate.</summary>
+    /// <param name="methodName">The operation name.</param>
+    /// <param name="matches">Tests whether a candidate is the requested operation.</param>
+    /// <returns>The single matching method.</returns>
+    private static MethodInfo GetSingleGenericMethod(
+        string methodName,
+        Func<MethodInfo, bool> matches)
+    {
+        MethodInfo? method = null;
+        foreach (var candidate in typeof(IRxS7).GetMethods())
+        {
+            if (
+                candidate.Name != methodName
+                || !candidate.IsGenericMethodDefinition
+                || !matches(candidate))
+            {
+                continue;
+            }
+
+            if (method is not null)
+            {
+                throw new InvalidOperationException("Sequence contains more than one matching element");
+            }
+
+            method = candidate;
+        }
+
+        return method
+            ?? throw new InvalidOperationException("Sequence contains no matching element");
+    }
+
     /// <summary>Creates the pending items for a multi-tag read.</summary>
     /// <param name="names">The requested names.</param>
     /// <param name="results">The result buffer.</param>
@@ -145,13 +188,18 @@ public sealed partial class S7LogicalTagClient
     /// <returns>The populated result buffer.</returns>
     private TagOperationResult<LogicalTagValue>[] ReadMultiple(
         IS7LogicalBatchOperations batchOperations,
-        IReadOnlyList<(int Index, LogicalTag Definition, Tag RuntimeTag)> pending,
+        List<(int Index, LogicalTag Definition, Tag RuntimeTag)> pending,
         TagOperationResult<LogicalTagValue>[] results)
     {
         try
         {
-            var values = batchOperations.ReadMultiple(
-                pending.Select(static item => item.RuntimeTag).ToArray());
+            var runtimeTags = new Tag[pending.Count];
+            for (var index = 0; index < pending.Count; index++)
+            {
+                runtimeTags[index] = pending[index].RuntimeTag;
+            }
+
+            var values = batchOperations.ReadMultiple(runtimeTags);
             foreach (var item in pending)
             {
                 var value =
@@ -254,15 +302,20 @@ public sealed partial class S7LogicalTagClient
     /// <returns>The populated result buffer.</returns>
     private TagOperationResult<LogicalTagValue>[] WriteMultiple(
         IS7LogicalBatchOperations batchOperations,
-        IReadOnlyList<(
+        List<(
             int Index,
             LogicalTagValue Requested,
             object? Converted,
             Tag RuntimeTag)> pending,
         TagOperationResult<LogicalTagValue>[] results)
     {
-        var succeeded = batchOperations.WriteMultiple(
-            pending.Select(static item => item.RuntimeTag).ToArray());
+        var runtimeTags = new Tag[pending.Count];
+        for (var index = 0; index < pending.Count; index++)
+        {
+            runtimeTags[index] = pending[index].RuntimeTag;
+        }
+
+        var succeeded = batchOperations.WriteMultiple(runtimeTags);
         foreach (var item in pending)
         {
             results[item.Index] = succeeded
@@ -292,7 +345,7 @@ public sealed partial class S7LogicalTagClient
         foreach (var item in pending)
         {
             results[item.Index] = await WriteAsync(
-                    new LogicalTagValue(
+                    new(
                         item.Requested.TagName,
                         item.Converted,
                         _timeProvider.GetUtcNow()),
@@ -390,12 +443,7 @@ public sealed partial class S7LogicalTagClient
                 : runtimeTag.Value;
         }
 
-        var method = typeof(IRxS7)
-            .GetMethods()
-            .Single(static method =>
-                method.Name == nameof(IRxS7.ReadAsync)
-                && method.IsGenericMethodDefinition
-                && method.GetParameters().Length == 2);
+        var method = GetReadAsyncMethod();
         var valueType = ResolveType(tag);
         var keyType = typeof(LogicalTagKey<>).MakeGenericType(valueType);
         var key = Activator.CreateInstance(keyType, tag.Name)
@@ -405,7 +453,7 @@ public sealed partial class S7LogicalTagClient
             ?? throw new InvalidOperationException("The S7 value operation did not return a task.");
         await task.ConfigureAwait(false);
         return task.GetType()
-            .GetProperty(nameof(Task<>.Result), BindingFlags.Public | BindingFlags.Instance)
+            .GetProperty(nameof(TaskResultName.Result), BindingFlags.Public | BindingFlags.Instance)
             ?.GetValue(task);
     }
 
@@ -414,12 +462,7 @@ public sealed partial class S7LogicalTagClient
     /// <param name="value">The value to write.</param>
     private void InvokeWrite(LogicalTag tag, object? value)
     {
-        var method = typeof(IRxS7)
-            .GetMethods()
-            .Single(static method =>
-                method.Name == nameof(IRxS7.Value)
-                && method.IsGenericMethodDefinition
-                && method.ReturnType == typeof(void));
+        var method = GetValueMethod();
         _ = method.MakeGenericMethod(ResolveType(tag)).Invoke(_plc, [tag.Name, value]);
     }
 
@@ -442,5 +485,12 @@ public sealed partial class S7LogicalTagClient
         }
 
         throw new ObjectDisposedException(nameof(S7LogicalTagClient));
+    }
+
+    /// <summary>Supplies the reflected result-property name.</summary>
+    private sealed class TaskResultName
+    {
+        /// <summary>Gets a task result.</summary>
+        public object? Result { get; }
     }
 }

@@ -3,12 +3,12 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Collections.Immutable;
-using IoT.DriverCore.OmronPlcRx.SourceGenerators;
+using IoT.Driver.OmronPlcRx.SourceGenerators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using TUnit.Core;
 
-namespace IoT.DriverCore.OmronPlcRx.Tests;
+namespace IoT.Driver.OmronPlcRx.Tests;
 
 /// <summary>Exercises the Omron incremental source generator through Roslyn's public driver.</summary>
 public sealed class OmronGeneratorCoverageTests
@@ -21,7 +21,7 @@ public sealed class OmronGeneratorCoverageTests
 
     /// <summary>Gets attribute and protocol stubs used by core generator compilations.</summary>
     private const string CoreStubs = """
-        namespace IoT.DriverCore.OmronPlcRx
+        namespace IoT.Driver.OmronPlcRx
         {
             [System.AttributeUsage(
                 System.AttributeTargets.Field | System.AttributeTargets.Property,
@@ -44,7 +44,7 @@ public sealed class OmronGeneratorCoverageTests
             public interface IOmronPlcRx { }
         }
 
-        namespace IoT.DriverCore.OmronPlcRx.Core.Types
+        namespace IoT.Driver.OmronPlcRx.Core.Types
         {
             public readonly struct Bcd16 { }
             public readonly struct BcdU16 { }
@@ -55,7 +55,7 @@ public sealed class OmronGeneratorCoverageTests
 
     /// <summary>Gets attribute and protocol stubs used by reactive generator compilations.</summary>
     private const string ReactiveStubs = """
-        namespace IoT.DriverCore.OmronPlcRx.Reactive
+        namespace IoT.Driver.OmronPlcRx.Reactive
         {
             [System.AttributeUsage(
                 System.AttributeTargets.Field | System.AttributeTargets.Property,
@@ -77,7 +77,7 @@ public sealed class OmronGeneratorCoverageTests
             public interface IOmronPlcRx { }
         }
 
-        namespace IoT.DriverCore.OmronPlcRx.Reactive.Core.Types
+        namespace IoT.Driver.OmronPlcRx.Reactive.Core.Types
         {
             public readonly struct Bcd16 { }
             public readonly struct BcdU16 { }
@@ -91,8 +91,8 @@ public sealed class OmronGeneratorCoverageTests
 
         namespace Coverage.Core
         {
-            using IoT.DriverCore.OmronPlcRx;
-            using IoT.DriverCore.OmronPlcRx.Core.Types;
+            using IoT.Driver.OmronPlcRx;
+            using IoT.Driver.OmronPlcRx.Core.Types;
 
             [PlcTagBinding]
             public partial class Machine
@@ -168,9 +168,9 @@ public sealed class OmronGeneratorCoverageTests
     /// <summary>Gets reactive and unrelated attributed declarations.</summary>
     private const string ReactiveValidSource = """
 
-        namespace IoT.DriverCore.OmronPlcRx.Reactive.Subsystem
+        namespace IoT.Driver.OmronPlcRx.Reactive.Subsystem
         {
-            using IoT.DriverCore.OmronPlcRx.Reactive;
+            using IoT.Driver.OmronPlcRx.Reactive;
 
             public sealed class OtherAttribute : System.Attribute { }
 
@@ -195,7 +195,7 @@ public sealed class OmronGeneratorCoverageTests
         """
         namespace Cases
         {
-            using IoT.DriverCore.OmronPlcRx;
+            using IoT.Driver.OmronPlcRx;
             public class NotPartial
             {
                 [PlcTag("D0")]
@@ -206,7 +206,7 @@ public sealed class OmronGeneratorCoverageTests
         """
         namespace Cases
         {
-            using IoT.DriverCore.OmronPlcRx;
+            using IoT.Driver.OmronPlcRx;
             public partial class EmptyAddress
             {
                 [PlcTag]
@@ -217,7 +217,7 @@ public sealed class OmronGeneratorCoverageTests
         """
         namespace Cases
         {
-            using IoT.DriverCore.OmronPlcRx;
+            using IoT.Driver.OmronPlcRx;
             public partial class Unsupported
             {
                 [PlcTag("D0")]
@@ -228,7 +228,7 @@ public sealed class OmronGeneratorCoverageTests
         """
         namespace Cases
         {
-            using IoT.DriverCore.OmronPlcRx;
+            using IoT.Driver.OmronPlcRx;
             public partial class Collision
             {
                 [PlcTag("D0")]
@@ -240,7 +240,7 @@ public sealed class OmronGeneratorCoverageTests
         """
         namespace Cases
         {
-            using IoT.DriverCore.OmronPlcRx;
+            using IoT.Driver.OmronPlcRx;
             public partial class MissingBinding
             {
                 [PlcTag("D0")]
@@ -251,7 +251,7 @@ public sealed class OmronGeneratorCoverageTests
         """
         namespace Cases
         {
-            using IoT.DriverCore.OmronPlcRx;
+            using IoT.Driver.OmronPlcRx;
             [PlcTagBinding]
             public partial class InvalidProperties
             {
@@ -299,14 +299,17 @@ public sealed class OmronGeneratorCoverageTests
     [Test]
     public async Task Generator_ReportsEveryValidationDiagnosticAsync()
     {
-        var diagnosticIds = new List<string>();
+        var diagnosticIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var source in InvalidSources)
         {
             var result = RunGenerator(string.Concat(CoreStubs, source));
-            diagnosticIds.AddRange(result.Diagnostics.Select(static diagnostic => diagnostic.Id));
+            foreach (var diagnostic in result.Diagnostics)
+            {
+                _ = diagnosticIds.Add(diagnostic.Id);
+            }
         }
 
-        await Assert.That(diagnosticIds.Distinct().Count()).IsEqualTo(DiagnosticRuleCount);
+        await Assert.That(diagnosticIds.Count).IsEqualTo(DiagnosticRuleCount);
         await Assert.That(diagnosticIds).Contains("OPRX001");
         await Assert.That(diagnosticIds).Contains("OPRX002");
         await Assert.That(diagnosticIds).Contains("OPRX003");
@@ -361,7 +364,7 @@ public sealed class OmronGeneratorCoverageTests
             "OmronGeneratorCoverage",
             [syntaxTree],
             references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            new(OutputKind.DynamicallyLinkedLibrary));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             [new PlcTagSourceGenerator().AsSourceGenerator()],
             parseOptions: parseOptions);
@@ -379,10 +382,16 @@ public sealed class OmronGeneratorCoverageTests
             typeof(Enumerable).Assembly.Location,
             typeof(Attribute).Assembly.Location,
         };
-        return locations
-            .Where(static location => !string.IsNullOrWhiteSpace(location))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(static location => (MetadataReference)MetadataReference.CreateFromFile(location))
-            .ToImmutableArray();
+        var references = ImmutableArray.CreateBuilder<MetadataReference>();
+        var uniqueLocations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var location in locations)
+        {
+            if (!string.IsNullOrWhiteSpace(location) && uniqueLocations.Add(location))
+            {
+                references.Add(MetadataReference.CreateFromFile(location));
+            }
+        }
+
+        return references.ToImmutable();
     }
 }

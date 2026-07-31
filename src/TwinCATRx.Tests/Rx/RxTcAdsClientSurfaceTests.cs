@@ -2,9 +2,9 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.TwinCATRx;
+using IoT.Driver.TwinCATRx;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Surface-level tests for RxTcAdsClient lifecycle.</summary>
 public class RxTcAdsClientSurfaceTests

@@ -4,9 +4,9 @@
 
 using System;
 using System.IO;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx.Core;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Core;
+namespace IoT.Driver.TwinCATRx.Tests.Core;
 
 /// <summary>Tests for DirectoryInfoGetFilesWhere extension methods.</summary>
 public class DirectoryInfoGetFilesWhereTests
@@ -27,7 +27,7 @@ public class DirectoryInfoGetFilesWhereTests
             await WriteEmptyFileAsync(Path.Combine(dir.FullName, "b.cs"));
             await WriteEmptyFileAsync(Path.Combine(dir.FullName, "c.asp"));
 
-            var files = DirectoryInfoExtensions.GetFilesWhere(dir, f => f.Extension == ".txt" || f.Extension == ".cs");
+            var files = DirectoryInfoExtensions.GetFilesWhere(dir, static f => f.Extension == ".txt" || f.Extension == ".cs");
             await TUnitAssert.That(files.Length).IsEqualTo(ExpectedFilteredFileCount);
         }
         finally
@@ -49,7 +49,7 @@ public class DirectoryInfoGetFilesWhereTests
             await WriteEmptyFileAsync(Path.Combine(dir.FullName, "b.cs"));
             await WriteEmptyFileAsync(Path.Combine(dir.FullName, "c.asp"));
 
-            var files = DirectoryInfoExtensions.GetFilesWhere(dir, "*.cs", f => true);
+            var files = DirectoryInfoExtensions.GetFilesWhere(dir, "*.cs", static f => true);
             await TUnitAssert.That(files.Length).IsEqualTo(1);
         }
         finally

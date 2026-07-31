@@ -6,10 +6,10 @@
 using System.Diagnostics.CodeAnalysis;
 #endif
 using System.Reactive.Subjects;
-using IoT.DriverCore.Core;
-using LeanBridge = IoT.DriverCore.TwinCATRx.ObservableBridgeExtensions;
+using IoT.Driver.Core;
+using LeanBridge = IoT.Driver.TwinCATRx.ObservableBridgeExtensions;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Tests the CP.IoT logical-tag adapter over the event-driven TwinCAT client.</summary>
 public sealed class TwinCatLogicalTagClientTests
@@ -61,10 +61,10 @@ public sealed class TwinCatLogicalTagClientTests
         using var data = new Subject<(string Variable, object? Data, string? Id)>();
         using var native = new RxFakeClient(data);
         using var client = new TwinCatLogicalTagClient(native);
-        client.RegisterTag(new LogicalTag(SpeedName, DirectAddress, "DINT"));
+        client.RegisterTag(new(SpeedName, DirectAddress, "DINT"));
 
         var readTask = client.ReadAsync(SpeedName);
-        var readCall = native.ReadCalls.Single();
+        var readCall = native.ReadCalls[0];
         await TUnitAssert.That(readCall.Id).StartsWith("TwinCatLogicalTagClient:read:");
         data.OnNext((DirectAddress, ReadValue, "unrelated"));
         await TUnitAssert.That(readTask.IsCompleted).IsFalse();
@@ -72,7 +72,7 @@ public sealed class TwinCatLogicalTagClientTests
         var read = await readTask;
 
         var write = await client.WriteAsync(CreateValue(SpeedName, WriteValue));
-        var writeCall = native.WriteCalls.Single();
+        var writeCall = native.WriteCalls[0];
         await TUnitAssert.That(read.Succeeded).IsTrue();
         await TUnitAssert.That(read.Value!.Value).IsEqualTo(ReadValue);
         await TUnitAssert.That(write.Succeeded).IsTrue();
@@ -89,7 +89,7 @@ public sealed class TwinCatLogicalTagClientTests
             var moveNext = asyncEnumerator.MoveNextAsync().AsTask();
             data.OnNext((DirectAddress, ObservedValue, null));
             await TUnitAssert.That(await moveNext).IsTrue();
-            await TUnitAssert.That(observed.Single().Value).IsEqualTo(ObservedValue);
+            await TUnitAssert.That(observed[0].Value).IsEqualTo(ObservedValue);
             await TUnitAssert.That(asyncEnumerator.Current.Value).IsEqualTo(ObservedValue);
         }
         finally
@@ -113,7 +113,7 @@ public sealed class TwinCatLogicalTagClientTests
         client.RegisterTag(CreateStructuredTag(EnabledName, EnabledName));
 
         var readTask = client.ReadManyAsync([CountName, EnabledName]);
-        var readCall = native.ReadCalls.Single();
+        var readCall = native.ReadCalls[0];
         data.OnNext((StructureRoot, new TestStructure { Count = InitialCount, Enabled = true }, readCall.Id));
         var reads = await readTask;
 
@@ -126,14 +126,17 @@ public sealed class TwinCatLogicalTagClientTests
         var structureRead = native.ReadCalls[1];
         data.OnNext((StructureRoot, new TestStructure { Count = InitialCount, Enabled = true }, structureRead.Id));
         var writes = await writeTask;
-        var rootWrite = native.WriteCalls.Single();
+        var rootWrite = native.WriteCalls[0];
         var structure = (TestStructure)rootWrite.Value;
 
         await TUnitAssert.That(native.ReadCalls.Count).IsEqualTo(StructuredTagCount);
         await TUnitAssert.That(rootWrite.Variable).IsEqualTo(StructureRoot);
         await TUnitAssert.That(structure.Count).IsEqualTo(UpdatedCount);
         await TUnitAssert.That(structure.Enabled).IsFalse();
-        await TUnitAssert.That(writes.All(static result => result.Succeeded)).IsTrue();
+        foreach (var writeResult in writes)
+        {
+            await TUnitAssert.That(writeResult.Succeeded).IsTrue();
+        }
     }
 
     /// <summary>Verifies CSV and SQLite definitions update the live catalog dynamically.</summary>
@@ -166,7 +169,7 @@ public sealed class TwinCatLogicalTagClientTests
             await TUnitAssert.That(await client.EditTagAsync(edited)).IsTrue();
             await TUnitAssert.That(persisted!.Address).IsEqualTo(DirectAddress);
 
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
             await using var writer = new StringWriter(System.Globalization.CultureInfo.InvariantCulture);
 #else
             using var writer = new StringWriter(System.Globalization.CultureInfo.InvariantCulture);
@@ -176,12 +179,12 @@ public sealed class TwinCatLogicalTagClientTests
 
             using var loaded = new TwinCatLogicalTagClient(native, store: store);
             var loadedTags = await loaded.LoadTagsAsync();
-            await TUnitAssert.That(loadedTags.Single().Description).IsEqualTo("Line speed");
+            await TUnitAssert.That(loadedTags[0].Description).IsEqualTo("Line speed");
             await TUnitAssert.That(loaded.Catalog.TryGet(SpeedName, out _)).IsTrue();
 
             using var reader = new StringReader(writer.ToString());
             var imported = await loaded.ImportCsvAsync(reader);
-            await TUnitAssert.That(imported.Single().Name).IsEqualTo(SpeedName);
+            await TUnitAssert.That(imported[0].Name).IsEqualTo(SpeedName);
             await TUnitAssert.That(await loaded.DeleteTagAsync(SpeedName)).IsTrue();
             await TUnitAssert.That(loaded.Catalog.TryGet(SpeedName, out _)).IsFalse();
         }

@@ -7,7 +7,7 @@
 using System.Reactive.Concurrency;
 using ReactiveUI.Primitives.Extensions;
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 /// <summary>
 /// Provides disambiguation shim extension members that resolve CS0121 ambiguity arising when
@@ -75,7 +75,7 @@ internal static class ReactiveShimExtensions
         /// <typeparam name="TOut">The type of the projected result elements.</typeparam>
         /// <param name="selector">The asynchronous projection function applied to each element.</param>
         /// <returns>An observable sequence of the latest projected elements.</returns>
-        internal IObservable<TOut> SelectLatestAsync<TOut>(Func<T, Task<TOut>> selector)
+        internal IObservable<TOut> SelectLatest<TOut>(Func<T, Task<TOut>> selector)
             where TOut : notnull =>
             ReactiveUI.Primitives.Extensions.Reactive.ReactiveExtensions.SelectLatestAsync(source, selector);
     }

@@ -2,12 +2,12 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using IoT.DriverCore.S7PlcRx.Enums;
-using IoT.DriverCore.S7PlcRx.PlcTypes;
-using PlcClass = IoT.DriverCore.S7PlcRx.PlcTypes.Class;
+using IoT.Driver.S7PlcRx.Enums;
+using IoT.Driver.S7PlcRx.PlcTypes;
+using PlcClass = IoT.Driver.S7PlcRx.PlcTypes.Class;
 using TUnitAssert = TUnit.Assertions.Assert;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Core;
+namespace IoT.Driver.S7PlcRx.Tests.Core;
 
 /// <summary>Exercises deterministic value and write validation paths without a PLC listener.</summary>
 [NotInParallel]
@@ -156,9 +156,14 @@ public sealed class RxS7ValueWriteResidualCoverageTests
     public async Task ReadAsyncWithCancellationUsesTheCancellationAwarePausePathAsync()
     {
         using var plc = CreateDisconnectedPlc();
-        plc.AddUpdateTagItemInternal(new Tag(ValueTagName, ByteAddress, typeof(object)));
+        var tag = new Tag(ValueTagName, ByteAddress, typeof(object));
+        plc.AddUpdateTagItemInternal(tag);
         using var cancellation = new CancellationTokenSource();
+#if NET6_0_OR_GREATER
+        await cancellation.CancelAsync();
+#else
         cancellation.Cancel();
+#endif
 
         await TUnitAssert.That(() => plc.ReadAsync(new LogicalTagKey<byte>(ValueTagName), cancellation.Token))
             .Throws<OperationCanceledException>();
@@ -220,7 +225,7 @@ public sealed class RxS7ValueWriteResidualCoverageTests
         var payload = new byte[201];
         payload[0] = 1;
         payload[^1] = byte.MaxValue;
-        plc.AddUpdateTagItemInternal(new Tag(PayloadTagName, ByteAddress, typeof(byte[])));
+        plc.AddUpdateTagItemInternal(new(PayloadTagName, ByteAddress, typeof(byte[])));
 
         plc.Value(PayloadTagName, payload);
 
@@ -260,7 +265,7 @@ public sealed class RxS7ValueWriteResidualCoverageTests
         var cleared = RxS7ValueHelpers.ApplyBitWriteValue(set, 0, TestedBitOffset);
         await TUnitAssert.That(set).IsEqualTo(SetBitValue);
         await TUnitAssert.That(cleared).IsEqualTo(InitialBitValue);
-        await TUnitAssert.That(() => RxS7ValueHelpers.EnsureBitOffsetIsValid(InvalidBitOffset, new Tag()))
+        await TUnitAssert.That(static () => RxS7ValueHelpers.EnsureBitOffsetIsValid(InvalidBitOffset, CreateInvalidOffsetTag()))
             .Throws<ArgumentException>();
     }
 
@@ -312,6 +317,10 @@ public sealed class RxS7ValueWriteResidualCoverageTests
         plc.Value(unknownTypeTag.Name, InputValue);
         await TUnitAssert.That(unknownTypeTag.NewValue).IsEqualTo(InputValue);
     }
+
+    /// <summary>Creates a tag for invalid bit-offset validation.</summary>
+    /// <returns>A fresh tag instance.</returns>
+    private static Tag CreateInvalidOffsetTag() => new();
 
     /// <summary>Creates a PLC instance whose endpoint has no listening S7 server.</summary>
     /// <returns>The configured PLC instance.</returns>

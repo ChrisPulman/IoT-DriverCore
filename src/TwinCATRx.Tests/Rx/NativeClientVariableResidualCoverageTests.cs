@@ -9,11 +9,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Versioning;
 #endif
 using System.Reflection;
-using IoT.DriverCore.TwinCATRx.Core;
+using IoT.Driver.TwinCATRx.Core;
 using TwinCAT.Ads;
-using RxNotification = IoT.DriverCore.TwinCATRx.Core.Notification;
+using RxNotification = IoT.Driver.TwinCATRx.Core.Notification;
 
-namespace IoT.DriverCore.TwinCATRx.Tests.Rx;
+namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Exercises residual deterministic native-value and variable-registration client branches.</summary>
 public sealed class NativeClientVariableResidualCoverageTests
@@ -184,7 +184,7 @@ public sealed class NativeClientVariableResidualCoverageTests
         await TUnitAssert.That(client.ReadWriteHandleInfo).Count().IsEqualTo(1);
         await TUnitAssert.That(client.WriteHandleInfo).IsEmpty();
         await TUnitAssert.That(errors).Count().IsEqualTo(1);
-        await TUnitAssert.That(errors.Single().Message.Contains("String length")).IsTrue();
+        await TUnitAssert.That(errors[0].Message.Contains("String length")).IsTrue();
     }
 
     /// <summary>Verifies constructor, disposal, connection, and disconnect guards without starting an ADS operation.</summary>
@@ -196,9 +196,8 @@ public sealed class NativeClientVariableResidualCoverageTests
 #endif
     public async Task Client_Lifecycle_Guards_Are_DeterministicAsync()
     {
-        using var platform = new MinimalPlatform(new RecordingAdsClientRuntime());
-        await TUnitAssert.That(() => _ = new RxTcAdsClient(null!, platform)).Throws<ArgumentNullException>();
-        await TUnitAssert.That(() => _ = new RxTcAdsClient(TimeProvider.System, null!)).Throws<ArgumentNullException>();
+        await TUnitAssert.That(CreateClientWithNullTimeProvider).Throws<ArgumentNullException>();
+        await TUnitAssert.That(static () => _ = new RxTcAdsClient(TimeProvider.System, null!)).Throws<ArgumentNullException>();
 
         using var guardedClient = new RxTcAdsClient();
         var errors = new List<Exception>();
@@ -227,7 +226,7 @@ public sealed class NativeClientVariableResidualCoverageTests
         GetField<IDictionary<string, Type>>(disposableClient, TypeInfoField)[ScalarVariable] = typeof(int);
         disposableClient.Dispose();
 
-        await TUnitAssert.That(errors.Single()).IsTypeOf<ObjectDisposedException>();
+        await TUnitAssert.That(errors[0]).IsTypeOf<ObjectDisposedException>();
         await TUnitAssert.That(disconnectClient.IsPaused).IsFalse();
         await TUnitAssert.That(pauseStates).Contains(false);
         await TUnitAssert.That(disposableClient.ReadWriteHandleInfo).IsEmpty();
@@ -299,7 +298,7 @@ public sealed class NativeClientVariableResidualCoverageTests
         await TUnitAssert.That(serviceStatuses).Contains(ServiceStatus.Faulted);
         await TUnitAssert.That(writes).Contains("Success");
         await TUnitAssert.That(writes).Contains("Success,correlated");
-        await TUnitAssert.That(errors.Single().Message).IsEqualTo("write failure");
+        await TUnitAssert.That(errors[0].Message).IsEqualTo("write failure");
         await TUnitAssert.That(platform.IntervalSubscriptionCount).IsEqualTo(1);
     }
 
@@ -311,7 +310,7 @@ public sealed class NativeClientVariableResidualCoverageTests
 #endif
     public async Task Service_Runtime_Rejects_Null_Wrapped_ServiceAsync()
     {
-        await TUnitAssert.That(() => _ = new ServiceControllerRuntime(null!))
+        await TUnitAssert.That(static () => _ = new ServiceControllerRuntime(null!))
             .Throws<ArgumentNullException>();
     }
 
@@ -328,6 +327,13 @@ public sealed class NativeClientVariableResidualCoverageTests
         object?[] arguments = [variable, arrayLength, null, null, -1];
         var result = InvokeInstance(client, "TryGetReadTarget", arguments);
         return ((bool)result!, (int)arguments[4]!);
+    }
+
+    /// <summary>Creates a client with a null time provider to exercise the constructor guard.</summary>
+    private static void CreateClientWithNullTimeProvider()
+    {
+        using var platform = new MinimalPlatform(new RecordingAdsClientRuntime());
+        _ = new RxTcAdsClient(null!, platform);
     }
 
     /// <summary>Gets a private client field as the requested contract.</summary>

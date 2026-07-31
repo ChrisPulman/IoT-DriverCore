@@ -47,19 +47,19 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="IoT.DriverCore.Core" />
+    <Using Include="IoT.Driver.Core" />
     <Using Include="ReactiveUI.Primitives" />
     <Using Include="ReactiveUI.Primitives.Async" />
     <Using Include="ReactiveUI.Primitives.Extensions" />
     <Using Include="ReactiveUI.Primitives.Signals" />
     <Using Include="ReactiveUI.Primitives.Signals.Signal" Alias="Observable" />
-    <Using Include="IoT.DriverCore.S7PlcRx.Tests.Testing" />
-    <Using Include="IoT.DriverCore.S7PlcRx.Tests.Testing.Assert" Alias="Assert" />
-    <Using Include="IoT.DriverCore.S7PlcRx.Tests.Testing.Contains" Alias="Contains" />
-    <Using Include="IoT.DriverCore.S7PlcRx.Tests.Testing.Does" Alias="Does" />
-    <Using Include="IoT.DriverCore.S7PlcRx.Tests.Testing.Has" Alias="Has" />
-    <Using Include="IoT.DriverCore.S7PlcRx.Tests.Testing.Is" Alias="Is" />
-    <Using Include="IoT.DriverCore.S7PlcRx.Tests.Testing.Throws" Alias="Throws" />
+    <Using Include="IoT.Driver.S7PlcRx.Tests.Testing" />
+    <Using Include="IoT.Driver.S7PlcRx.Tests.Testing.Assert" Alias="Assert" />
+    <Using Include="IoT.Driver.S7PlcRx.Tests.Testing.Contains" Alias="Contains" />
+    <Using Include="IoT.Driver.S7PlcRx.Tests.Testing.Does" Alias="Does" />
+    <Using Include="IoT.Driver.S7PlcRx.Tests.Testing.Has" Alias="Has" />
+    <Using Include="IoT.Driver.S7PlcRx.Tests.Testing.Is" Alias="Is" />
+    <Using Include="IoT.Driver.S7PlcRx.Tests.Testing.Throws" Alias="Throws" />
     <Using Include="TUnit.Core" />
     <Using Include="TUnit.Assertions.Extensions" />
   </ItemGroup>

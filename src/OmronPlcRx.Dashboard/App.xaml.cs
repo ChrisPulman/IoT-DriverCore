@@ -5,7 +5,7 @@
 using System.Windows;
 using ReactiveUI.Builder;
 
-namespace IoT.DriverCore.OmronPlcRx.Dashboard;
+namespace IoT.Driver.OmronPlcRx.Dashboard;
 
 /// <summary>Dashboard application entry point.</summary>
 public partial class App : Application

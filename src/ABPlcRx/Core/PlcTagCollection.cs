@@ -10,16 +10,16 @@ using SignalFactory = ReactiveUI.Primitives.Signals.Signal;
 #endif
 
 #if REACTIVELIST_REACTIVE
-namespace IoT.DriverCore.ABPlcRx.Reactive;
+namespace IoT.Driver.ABPlcRx.Reactive;
 #else
-namespace IoT.DriverCore.ABPlcRx;
+namespace IoT.Driver.ABPlcRx;
 #endif
 
 /// <summary>Plc Tag Collection.</summary>
 internal sealed class PlcTagCollection : IDisposable
 {
     /// <summary>Synchronizes scan reads.</summary>
-    private readonly object _lockScan = new();
+    private readonly Lock _lockScan = new();
 
     /// <summary>Publishes grouped read results.</summary>
     private readonly Signal<IEnumerable<PlcTagResult>> _readResultSubject = new();
@@ -139,7 +139,13 @@ internal sealed class PlcTagCollection : IDisposable
         }
 
         var obj = TagHelper.CreateObject(default(TCustomType), length);
-        return CreateTagType<TCustomType>(key, name, DataLength.GetSizeObject(obj[0]), length);
+        var tag = new PlcTag<TCustomType>(Plc, key, name, DataLength.GetSizeObject(obj[0]), length);
+        lock (_lockScan)
+        {
+            _tags.Add(tag);
+        }
+
+        return tag;
     }
 
     /// <summary>Create Tag custom Type Class.</summary>
@@ -150,11 +156,20 @@ internal sealed class PlcTagCollection : IDisposable
     /// <returns>
     /// A Value.
     /// </returns>
-    internal IPlcTag<TCustomType> CreateTagType<TCustomType>(string variable, string tagName) =>
-        CreateTagType<TCustomType>(
+    internal IPlcTag<TCustomType> CreateTagType<TCustomType>(string variable, string tagName)
+    {
+        var tag = new PlcTag<TCustomType>(
+            Plc,
             variable,
             tagName,
             DataLength.GetSizeObject(TagHelper.CreateObject(default(TCustomType), 1)));
+        lock (_lockScan)
+        {
+            _tags.Add(tag);
+        }
+
+        return tag;
+    }
 
     /// <summary>Create Tag using free definition.</summary>
     /// <typeparam name="TCustomType">The type of the custom type.</typeparam>
@@ -184,7 +199,17 @@ internal sealed class PlcTagCollection : IDisposable
 
     /// <summary>Performs read of Group of Tags.</summary>
     /// <returns>A Value.</returns>
-    internal IEnumerable<PlcTagResult> Read() => [.. SnapshotTags().Select(a => a.Read())];
+    internal IEnumerable<PlcTagResult> Read()
+    {
+        var tags = SnapshotTags();
+        var results = new PlcTagResult[tags.Length];
+        for (var index = 0; index < tags.Length; index++)
+        {
+            results[index] = tags[index].Read();
+        }
+
+        return results;
+    }
 
     /// <summary>Remove tag.</summary>
     /// <param name="tag">The tag.</param>
@@ -212,7 +237,17 @@ internal sealed class PlcTagCollection : IDisposable
 
     /// <summary>Performs write of Group of Tags.</summary>
     /// <returns>A Value.</returns>
-    internal IEnumerable<PlcTagResult> Write() => SnapshotTags().Select(a => a.Write());
+    internal IEnumerable<PlcTagResult> Write()
+    {
+        var tags = SnapshotTags();
+        var results = new PlcTagResult[tags.Length];
+        for (var index = 0; index < tags.Length; index++)
+        {
+            results[index] = tags[index].Write();
+        }
+
+        return results;
+    }
 
     /// <summary>Releases unmanaged and - optionally - managed resources.</summary>
     /// <param name="disposing">
@@ -251,9 +286,12 @@ internal sealed class PlcTagCollection : IDisposable
     private void CheckDisposeTag(IPlcTag tag)
     {
         // if not in Plc dispose
-        if (Plc.Tags.Contains(tag))
+        foreach (var existingTag in Plc.Tags)
         {
-            return;
+            if (existingTag.Equals(tag))
+            {
+                return;
+            }
         }
 
         tag.Dispose();

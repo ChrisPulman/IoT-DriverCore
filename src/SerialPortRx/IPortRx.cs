@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.Serial.Reactive;
+namespace IoT.Driver.Serial.Reactive;
 #else
-namespace IoT.DriverCore.Serial;
+namespace IoT.Driver.Serial;
 #endif
 
 /// <summary>Represents a reactive receive port.</summary>
@@ -35,13 +35,13 @@ public interface IPortRx : IDisposable
     /// <param name="offset">The offset in the buffer array to begin writing.</param>
     /// <param name="count">The number of bytes to read.</param>
     /// <returns>The number of bytes read.</returns>
-    Task<int> ReadAsync(byte[]? buffer, int offset, int count);
+    Task<int> ReadAsync(byte[] buffer, int offset, int count);
 
     /// <summary>Writes a buffer segment to the port.</summary>
     /// <param name="buffer">The byte array that contains the data to write to the port.</param>
     /// <param name="offset">The offset in the buffer array to begin writing.</param>
     /// <param name="count">The number of bytes to write.</param>
-    void Write(byte[]? buffer, int offset, int count);
+    void Write(byte[] buffer, int offset, int count);
 
     /// <summary>Opens this instance.</summary>
     /// <returns>A Task.</returns>

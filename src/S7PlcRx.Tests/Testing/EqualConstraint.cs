@@ -2,7 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-namespace IoT.DriverCore.S7PlcRx.Tests.Testing;
+namespace IoT.Driver.S7PlcRx.Tests.Testing;
 
 /// <summary>Represents an equality constraint with optional time tolerance.</summary>
 /// <param name="expected">Describes parameter expected for helper member 53.</param>
@@ -17,7 +17,7 @@ public sealed class EqualConstraint(object? expected) : IConstraint
 
     /// <summary>Sets the time tolerance for the equality constraint.</summary>
     /// <param name="tolerance">Describes parameter tolerance for helper member 54.</param>
-    /// <returns>The result.</returns>
+    /// <returns>This constraint, configured with the specified tolerance.</returns>
     public EqualConstraint Within(TimeSpan tolerance)
     {
         _tolerance = tolerance;
@@ -25,12 +25,12 @@ public sealed class EqualConstraint(object? expected) : IConstraint
     }
 
     /// <inheritdoc />
-    public void Apply(object? actual, string? message)
+    public Task Apply(object? actual, string? message)
     {
         var isEqual = _tolerance is { } tolerance
             ? AssertionHelpers.AreEqualWithin(actual, _expected, tolerance)
             : AssertionHelpers.AreEqual(actual, _expected);
-        AssertionHelpers.AssertTrue(
+        return AssertionHelpers.AssertTrueAsync(
             isEqual,
             message ?? AssertionHelpers.ExpectedEqualityMessage(actual, _expected));
     }

@@ -4,11 +4,14 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
+#if NET8_0_OR_GREATER
+using System.Runtime.InteropServices;
+#endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.S7PlcRx.Reactive.Performance;
+namespace IoT.Driver.S7PlcRx.Reactive.Performance;
 #else
-namespace IoT.DriverCore.S7PlcRx.Performance;
+namespace IoT.Driver.S7PlcRx.Performance;
 #endif
 
 /// <summary>
@@ -97,10 +100,7 @@ public static class PerformanceExtensions
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception>
     public static IObservable<PerformanceMetrics> MonitorPerformance(IRxS7 plc, TimeSpan? monitoringInterval, TimeProvider timeProvider)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc));
-        }
+        Guard.NotNull(plc, nameof(plc));
 
         var interval = monitoringInterval ?? TimeSpan.FromSeconds(DefaultMonitoringIntervalSeconds);
         var metricsKey = $"{plc.IP}_{plc.PLCType}";
@@ -127,13 +127,13 @@ public static class PerformanceExtensions
                 };
 
                 // Get or create performance counter
-                var counter = PerformanceCounters.GetOrAdd(metricsKey, _ => new PerformanceCounter());
+                var counter = PerformanceCounters.GetOrAdd(metricsKey, static _ => new PerformanceCounter());
                 metrics.OperationsPerSecond = counter.GetOperationsPerSecond();
                 metrics.AverageResponseTime = counter.GetAverageResponseTime();
                 metrics.ErrorRate = counter.GetErrorRate();
 
                 // Get connection metrics
-                var connectionMetrics = ConnectionMetrics.GetOrAdd(metricsKey, _ => new SimpleConnectionMetrics());
+                var connectionMetrics = ConnectionMetrics.GetOrAdd(metricsKey, static _ => new SimpleConnectionMetrics());
                 metrics.ConnectionUptime = connectionMetrics.GetUptime();
                 metrics.ReconnectionCount = connectionMetrics.ReconnectionCount;
 
@@ -172,19 +172,11 @@ public static class PerformanceExtensions
             T? typeMarker,
             Optimization.ReadOptimizationConfig? optimizationConfig)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc));
-        }
-
-        if (tagNames is null)
-        {
-            throw new ArgumentNullException(nameof(tagNames));
-        }
+        Guard.NotNull(plc, nameof(plc));
+        Guard.NotNull(tagNames, nameof(tagNames));
 
         var config = optimizationConfig ?? new Optimization.ReadOptimizationConfig();
-        var tagList = new List<string>();
-        tagList.AddRange(tagNames);
+        var tagList = new List<string>(tagNames);
 
         var results = new Dictionary<string, T?>();
 
@@ -194,7 +186,11 @@ public static class PerformanceExtensions
         }
 
         var counter = GetPerformanceCounter(plc);
+#if NET8_0_OR_GREATER
+        var operationStartTimestamp = Stopwatch.GetTimestamp();
+#else
         var stopwatch = Stopwatch.StartNew();
+#endif
 
         try
         {
@@ -211,7 +207,11 @@ public static class PerformanceExtensions
                 await DelayBetweenGroupsAsync(config.InterGroupDelayMs, groupIndex, groupedTags.Count);
             }
 
+#if NET8_0_OR_GREATER
+            counter.RecordOperation(Stopwatch.GetElapsedTime(operationStartTimestamp));
+#else
             counter.RecordOperation(stopwatch.Elapsed);
+#endif
             return results;
         }
         catch (Exception)
@@ -280,15 +280,8 @@ public static class PerformanceExtensions
             Optimization.WriteOptimizationConfig? optimizationConfig,
             TimeProvider timeProvider)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc));
-        }
-
-        if (values is null)
-        {
-            throw new ArgumentNullException(nameof(values));
-        }
+        Guard.NotNull(plc, nameof(plc));
+        Guard.NotNull(values, nameof(values));
 
         var config = optimizationConfig ?? new Optimization.WriteOptimizationConfig();
         var result = new Optimization.WriteOptimizationResult { StartTime = timeProvider.GetUtcNow().UtcDateTime };
@@ -346,10 +339,7 @@ public static class PerformanceExtensions
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception>
     public static async Task<BenchmarkResult> RunBenchmarkAsync(IRxS7 plc, BenchmarkConfig? benchmarkConfig, TimeProvider timeProvider)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc));
-        }
+        Guard.NotNull(plc, nameof(plc));
 
         var config = benchmarkConfig ?? new BenchmarkConfig();
         var result = new BenchmarkResult
@@ -410,14 +400,11 @@ public static class PerformanceExtensions
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception>
     public static PerformanceStatistics GetPerformanceStatistics(IRxS7 plc, TimeProvider timeProvider)
     {
-        if (plc is null)
-        {
-            throw new ArgumentNullException(nameof(plc));
-        }
+        Guard.NotNull(plc, nameof(plc));
 
         var metricsKey = $"{plc.IP}_{plc.PLCType}";
-        var counter = PerformanceCounters.GetOrAdd(metricsKey, _ => new PerformanceCounter());
-        var connectionMetrics = ConnectionMetrics.GetOrAdd(metricsKey, _ => new SimpleConnectionMetrics());
+        var counter = PerformanceCounters.GetOrAdd(metricsKey, static _ => new PerformanceCounter());
+        var connectionMetrics = ConnectionMetrics.GetOrAdd(metricsKey, static _ => new SimpleConnectionMetrics());
 
         return new PerformanceStatistics
         {
@@ -444,7 +431,7 @@ public static class PerformanceExtensions
     private static PerformanceCounter GetPerformanceCounter(IRxS7 plc)
     {
         var metricsKey = $"{plc.IP}_{plc.PLCType}";
-        return PerformanceCounters.GetOrAdd(metricsKey, _ => new PerformanceCounter());
+        return PerformanceCounters.GetOrAdd(metricsKey, static _ => new PerformanceCounter());
     }
 
     /// <summary>Reads a tag and records read failures in the performance counter.</summary>
@@ -526,7 +513,11 @@ public static class PerformanceExtensions
     {
         try
         {
+#if NET8_0_OR_GREATER
+            var operationStartTimestamp = Stopwatch.GetTimestamp();
+#else
             var stopwatch = Stopwatch.StartNew();
+#endif
             plc.Value(kvp.Key, kvp.Value);
 
             if (config.VerifyWrites)
@@ -539,8 +530,13 @@ public static class PerformanceExtensions
                 }
             }
 
-            result.SuccessfulWrites[kvp.Key] = stopwatch.Elapsed;
-            counter.RecordOperation(stopwatch.Elapsed);
+#if NET8_0_OR_GREATER
+            var elapsed = Stopwatch.GetElapsedTime(operationStartTimestamp);
+#else
+            var elapsed = stopwatch.Elapsed;
+#endif
+            result.SuccessfulWrites[kvp.Key] = elapsed;
+            counter.RecordOperation(elapsed);
         }
         catch (Exception ex)
         {
@@ -603,6 +599,15 @@ public static class PerformanceExtensions
         foreach (var tagName in tagNames)
         {
             var dataBlock = ExtractDataBlockFromTag(tagName, plc);
+#if NET8_0_OR_GREATER
+            ref var value = ref CollectionsMarshal.GetValueRefOrAddDefault(grouped, dataBlock, out var exists);
+            if (!exists)
+            {
+                value = [];
+            }
+
+            value!.Add(tagName);
+#else
             if (!grouped.TryGetValue(dataBlock, out var value))
             {
                 value = [];
@@ -610,6 +615,7 @@ public static class PerformanceExtensions
             }
 
             value.Add(tagName);
+#endif
         }
 
         return grouped;
@@ -634,6 +640,15 @@ public static class PerformanceExtensions
         foreach (var kvp in values)
         {
             var dataBlock = ExtractDataBlockFromTag(kvp.Key, plc);
+#if NET8_0_OR_GREATER
+            ref var value = ref CollectionsMarshal.GetValueRefOrAddDefault(grouped, dataBlock, out var exists);
+            if (!exists)
+            {
+                value = [];
+            }
+
+            value![kvp.Key] = kvp.Value;
+#else
             if (!grouped.TryGetValue(dataBlock, out var value))
             {
                 value = [];
@@ -641,6 +656,7 @@ public static class PerformanceExtensions
             }
 
             value[kvp.Key] = kvp.Value;
+#endif
         }
 
         return grouped;
@@ -704,10 +720,18 @@ public static class PerformanceExtensions
         {
             try
             {
+#if NET8_0_OR_GREATER
+                var operationStartTimestamp = Stopwatch.GetTimestamp();
+#else
                 var stopwatch = Stopwatch.StartNew();
+#endif
                 await plc.GetCpuInfo();
+#if NET8_0_OR_GREATER
+                latencies.Add(Stopwatch.GetElapsedTime(operationStartTimestamp).TotalMilliseconds);
+#else
                 stopwatch.Stop();
                 latencies.Add(stopwatch.Elapsed.TotalMilliseconds);
+#endif
 
                 if (i < config.LatencyTestCount - 1)
                 {
@@ -765,17 +789,31 @@ public static class PerformanceExtensions
     private static async Task BenchmarkThroughputAsync(IRxS7 plc, BenchmarkResult result, BenchmarkConfig config)
     {
         var operations = 0;
+#if NET8_0_OR_GREATER
+        var operationStartTimestamp = Stopwatch.GetTimestamp();
+#else
         var stopwatch = Stopwatch.StartNew();
+#endif
 
         try
         {
-            while (stopwatch.Elapsed < config.ThroughputTestDuration)
+            while (
+#if NET8_0_OR_GREATER
+                Stopwatch.GetElapsedTime(operationStartTimestamp)
+#else
+                stopwatch.Elapsed
+#endif
+                < config.ThroughputTestDuration)
             {
                 await plc.GetCpuInfo();
                 operations++;
             }
 
+#if NET8_0_OR_GREATER
+            result.OperationsPerSecond = operations / Stopwatch.GetElapsedTime(operationStartTimestamp).TotalSeconds;
+#else
             result.OperationsPerSecond = operations / stopwatch.Elapsed.TotalSeconds;
+#endif
         }
         catch (Exception ex)
         {

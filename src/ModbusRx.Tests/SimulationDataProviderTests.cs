@@ -5,9 +5,9 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using IoT.DriverCore.ModbusRx.Data;
+using IoT.Driver.ModbusRx.Data;
 
-namespace IoT.DriverCore.ModbusRx.UnitTests;
+namespace IoT.Driver.ModbusRx.UnitTests;
 
 /// <summary>Unit tests for SimulationDataProvider.</summary>
 public class SimulationDataProviderTests
@@ -336,7 +336,7 @@ public class SimulationDataProviderTests
     {
         foreach (var value in values)
         {
-            if (value > 0)
+            if (value != 0)
             {
                 return true;
             }

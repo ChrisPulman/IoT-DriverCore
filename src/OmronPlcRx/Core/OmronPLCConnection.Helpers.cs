@@ -6,21 +6,21 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 #if REACTIVE_SHIM
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Channels;
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Requests;
-using IoT.DriverCore.OmronPlcRx.Reactive.Core.Responses;
-using IoT.DriverCore.OmronPlcRx.Reactive.Enums;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Channels;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Requests;
+using IoT.Driver.OmronPlcRx.Reactive.Core.Responses;
+using IoT.Driver.OmronPlcRx.Reactive.Enums;
 #else
-using IoT.DriverCore.OmronPlcRx.Core.Channels;
-using IoT.DriverCore.OmronPlcRx.Core.Requests;
-using IoT.DriverCore.OmronPlcRx.Core.Responses;
-using IoT.DriverCore.OmronPlcRx.Enums;
+using IoT.Driver.OmronPlcRx.Core.Channels;
+using IoT.Driver.OmronPlcRx.Core.Requests;
+using IoT.Driver.OmronPlcRx.Core.Responses;
+using IoT.Driver.OmronPlcRx.Enums;
 #endif
 
 #if REACTIVE_SHIM
-namespace IoT.DriverCore.OmronPlcRx.Reactive.Core;
+namespace IoT.Driver.OmronPlcRx.Reactive.Core;
 #else
-namespace IoT.DriverCore.OmronPlcRx.Core;
+namespace IoT.Driver.OmronPlcRx.Core;
 #endif
 
 /// <summary>Contains Omron PLC connection validation and lifecycle helpers.</summary>
@@ -31,10 +31,7 @@ internal sealed partial class OmronPLCConnection
     /// <returns>The configured channel.</returns>
     private static BaseChannel CreateChannel(OmronConnectionOptions options)
     {
-        if (options is null)
-        {
-            throw new ArgumentNullException(nameof(options));
-        }
+        OmronArgumentGuards.ThrowIfNull(options, nameof(options));
 
         var remoteHost = OmronPLCConnectionMetadata.ValidateRemoteHost(options.RemoteHost);
         OmronPLCConnectionMetadata.ValidatePort(options.ConnectionMethod, options.Port);
@@ -72,18 +69,10 @@ internal sealed partial class OmronPLCConnection
         byte startBitIndex,
         MemoryBitDataType dataType)
     {
-        if (values is null)
-        {
-            throw new ArgumentNullException(nameof(values));
-        }
+        OmronArgumentGuards.ThrowIfNull(values, nameof(values));
 
         ThrowIfNotInitialized();
-        if (startBitIndex > ProtocolConstants.Fifteen)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(startBitIndex),
-                "The Start Bit Index cannot be greater than 15");
-        }
+        OmronArgumentGuards.ThrowIfGreaterThan(startBitIndex, ProtocolConstants.Fifteen, nameof(startBitIndex));
 
         if (values.Length == 0)
         {

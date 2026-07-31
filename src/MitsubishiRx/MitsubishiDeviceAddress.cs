@@ -7,11 +7,11 @@ using System.Text.RegularExpressions;
 
 #if REACTIVE_SHIM
 
-namespace IoT.DriverCore.MitsubishiRx.Reactive;
+namespace IoT.Driver.MitsubishiRx.Reactive;
 
 #else
 
-namespace IoT.DriverCore.MitsubishiRx;
+namespace IoT.Driver.MitsubishiRx;
 
 #endif
 
@@ -79,7 +79,7 @@ public sealed partial record MitsubishiDeviceAddress(
         }
 
         var number = Convert.ToInt32(numberText, metadata.GetRadix(addressNotation));
-        return new MitsubishiDeviceAddress(symbol, number, addressNotation, trimmed);
+        return new(symbol, number, addressNotation, trimmed);
     }
 
     /// <summary>Executes the DeviceRegex operation.</summary>

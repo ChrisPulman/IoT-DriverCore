@@ -3,109 +3,23 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using IoT.DriverCore.Core;
-using IoT.DriverCore.S7PlcRx.SourceGeneration;
-using IoT.DriverCore.S7PlcRx.SourceGenerators;
+using IoT.Driver.Core;
+using IoT.Driver.S7PlcRx.SourceGeneration;
+using IoT.Driver.S7PlcRx.SourceGenerators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using ReflectionAssembly = System.Reflection.Assembly;
 
-namespace IoT.DriverCore.S7PlcRx.Tests.SourceGenerators;
+namespace IoT.Driver.S7PlcRx.Tests.SourceGenerators;
 
 /// <summary>Closes raw source-generator decision coverage with diagnostic consumer declarations.</summary>
 public sealed class S7TagBindingSourceGeneratorRawBranchClosureTests
 {
-    /// <summary>Verifies original and reactive attributes select their matching generated runtime roots.</summary>
-    /// <returns>A task that represents the asynchronous test operation.</returns>
-    [Test]
-    public async Task Generate_SelectsOriginalAndReactiveAttributeRootsAsync()
-    {
-        const string originalSource = """
-            using IoT.DriverCore.S7PlcRx.SourceGeneration;
-
-            namespace BranchClosure;
-
-            [S7PlcBinding]
-            public partial class OriginalTags
-            {
-                [S7Tag("DB1.DBW0", Direction = S7TagDirection.ReadOnly)]
-                public partial short Value { get; set; }
-            }
-            """;
-        const string reactiveSource = """
+    /// <summary>Provides malformed and non-binding declarations for diagnostic path verification.</summary>
+    private const string MalformedTagDeclarationsSource = """
             using System;
 
-            namespace IoT.DriverCore.S7PlcRx.Reactive.SourceGeneration
-            {
-                [AttributeUsage(AttributeTargets.Class)]
-                public sealed class S7PlcBindingAttribute : Attribute { }
-
-                [AttributeUsage(AttributeTargets.Property)]
-                public sealed class S7TagAttribute : Attribute
-                {
-                    public S7TagAttribute(string address) { }
-                    public int PollIntervalMs { get; set; }
-                    public S7TagDirection Direction { get; set; }
-                    public int ArrayLength { get; set; }
-                }
-
-                public enum S7TagDirection { ReadWrite, ReadOnly, WriteOnly }
-            }
-
-            namespace IoT.DriverCore.S7PlcRx.Reactive.BranchClosure
-            {
-                using IoT.DriverCore.S7PlcRx.Reactive.SourceGeneration;
-
-                [S7PlcBinding]
-                public partial class ReactiveTags
-                {
-                    [S7Tag("DB1.DBW0", Direction = S7TagDirection.WriteOnly)]
-                    public partial short Value { get; set; }
-                }
-            }
-            """;
-
-        var originalGenerated = GetGeneratedSource(originalSource);
-        var reactiveGenerated = GetGeneratedSource(reactiveSource);
-
-        await TUnit.Assertions.Assert.That(originalGenerated)
-            .Contains("global::IoT.DriverCore.S7PlcRx.LogicalTags.S7LogicalTagExtensions");
-        await TUnit.Assertions.Assert.That(reactiveGenerated)
-            .Contains("global::IoT.DriverCore.S7PlcRx.Reactive.LogicalTags.S7LogicalTagExtensions");
-        await TUnit.Assertions.Assert.That(reactiveGenerated).Contains("S7TagDirection.WriteOnly");
-    }
-
-    /// <summary>Verifies an internal binding in the global namespace preserves its accessibility.</summary>
-    /// <returns>A task that represents the asynchronous test operation.</returns>
-    [Test]
-    public async Task Generate_SupportsInternalBindingInGlobalNamespaceAsync()
-    {
-        const string source = """
-            using IoT.DriverCore.S7PlcRx.SourceGeneration;
-
-            [S7PlcBinding]
-            internal partial class GlobalTags
-            {
-                [S7Tag("DB1.DBW0")]
-                public partial short Value { get; set; }
-            }
-            """;
-
-        var generated = GetGeneratedSource(source);
-
-        await TUnit.Assertions.Assert.That(generated).Contains("internal partial class GlobalTags");
-        await TUnit.Assertions.Assert.That(generated).Contains("global::IoT.DriverCore.S7PlcRx.LogicalTags");
-    }
-
-    /// <summary>Verifies malformed and non-binding declarations retain their distinct diagnostic paths.</summary>
-    /// <returns>A task that represents the asynchronous test operation.</returns>
-    [Test]
-    public async Task Generate_DistinguishesUnrelatedUntypedAndMalformedTagDeclarationsAsync()
-    {
-        const string source = """
-            using System;
-
-            namespace IoT.DriverCore.S7PlcRx.SourceGeneration
+            namespace IoT.Driver.S7PlcRx.SourceGeneration
             {
                 [AttributeUsage(AttributeTargets.Property)]
                 public sealed class S7TagAttribute : Attribute
@@ -120,7 +34,7 @@ public sealed class S7TagBindingSourceGeneratorRawBranchClosureTests
 
             namespace BranchClosure;
 
-            using IoT.DriverCore.S7PlcRx.SourceGeneration;
+            using IoT.Driver.S7PlcRx.SourceGeneration;
 
             [Obsolete]
             public class UnrelatedAttribute
@@ -149,9 +63,101 @@ public sealed class S7TagBindingSourceGeneratorRawBranchClosureTests
             }
             """;
 
-        var result = RunGeneratorWithoutCompilationValidation(source);
-        var generated = string.Join(Environment.NewLine, result.GeneratedTrees.Select(static tree => tree.GetText().ToString()));
-        var diagnosticIds = result.Diagnostics.Select(static diagnostic => diagnostic.Id).ToArray();
+    /// <summary>Verifies original and reactive attributes select their matching generated runtime roots.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
+    [Test]
+    public async Task Generate_SelectsOriginalAndReactiveAttributeRootsAsync()
+    {
+        const string originalSource = """
+            using IoT.Driver.S7PlcRx.SourceGeneration;
+
+            namespace BranchClosure;
+
+            [S7PlcBinding]
+            public partial class OriginalTags
+            {
+                [S7Tag("DB1.DBW0", Direction = S7TagDirection.ReadOnly)]
+                public partial short Value { get; set; }
+            }
+            """;
+        const string reactiveSource = """
+            using System;
+
+            namespace IoT.Driver.S7PlcRx.Reactive.SourceGeneration
+            {
+                [AttributeUsage(AttributeTargets.Class)]
+                public sealed class S7PlcBindingAttribute : Attribute { }
+
+                [AttributeUsage(AttributeTargets.Property)]
+                public sealed class S7TagAttribute : Attribute
+                {
+                    public S7TagAttribute(string address) { }
+                    public int PollIntervalMs { get; set; }
+                    public S7TagDirection Direction { get; set; }
+                    public int ArrayLength { get; set; }
+                }
+
+                public enum S7TagDirection { ReadWrite, ReadOnly, WriteOnly }
+            }
+
+            namespace IoT.Driver.S7PlcRx.Reactive.BranchClosure
+            {
+                using IoT.Driver.S7PlcRx.Reactive.SourceGeneration;
+
+                [S7PlcBinding]
+                public partial class ReactiveTags
+                {
+                    [S7Tag("DB1.DBW0", Direction = S7TagDirection.WriteOnly)]
+                    public partial short Value { get; set; }
+                }
+            }
+            """;
+
+        var originalGenerated = await GetGeneratedSourceAsync(originalSource);
+        var reactiveGenerated = await GetGeneratedSourceAsync(reactiveSource);
+
+        await TUnit.Assertions.Assert.That(originalGenerated)
+            .Contains("global::IoT.Driver.S7PlcRx.LogicalTags.S7LogicalTagExtensions");
+        await TUnit.Assertions.Assert.That(reactiveGenerated)
+            .Contains("global::IoT.Driver.S7PlcRx.Reactive.LogicalTags.S7LogicalTagExtensions");
+        await TUnit.Assertions.Assert.That(reactiveGenerated).Contains("S7TagDirection.WriteOnly");
+    }
+
+    /// <summary>Verifies an internal binding in the global namespace preserves its accessibility.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
+    [Test]
+    public async Task Generate_SupportsInternalBindingInGlobalNamespaceAsync()
+    {
+        const string source = """
+            using IoT.Driver.S7PlcRx.SourceGeneration;
+
+            [S7PlcBinding]
+            internal partial class GlobalTags
+            {
+                [S7Tag("DB1.DBW0")]
+                public partial short Value { get; set; }
+            }
+            """;
+
+        var generated = await GetGeneratedSourceAsync(source);
+
+        await TUnit.Assertions.Assert.That(generated).Contains("internal partial class GlobalTags");
+        await TUnit.Assertions.Assert.That(generated).Contains("global::IoT.Driver.S7PlcRx.LogicalTags");
+    }
+
+    /// <summary>Verifies malformed and non-binding declarations retain their distinct diagnostic paths.</summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
+    [Test]
+    public async Task Generate_DistinguishesUnrelatedUntypedAndMalformedTagDeclarationsAsync()
+    {
+        var result = RunGeneratorWithoutCompilationValidation(MalformedTagDeclarationsSource);
+        var generated = await GetGeneratedSourcesAsync(result.GeneratedTrees);
+        var diagnosticIds = new List<string>(result.Diagnostics.Length);
+        foreach (var diagnostic in result.Diagnostics)
+        {
+            diagnosticIds.Add(diagnostic.Id);
+        }
+
         await TUnit.Assertions.Assert.That(diagnosticIds).Contains("S7GEN002");
         await TUnit.Assertions.Assert.That(diagnosticIds).Contains("S7GEN003");
         await TUnit.Assertions.Assert.That(generated).Contains("nameof(UnknownDirection)");
@@ -184,7 +190,7 @@ public sealed class S7TagBindingSourceGeneratorRawBranchClosureTests
             "RawGeneratorBranchClosureTests",
             [syntaxTree],
             references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            S7TagBindingSourceGeneratorTests.DynamicallyLinkedLibraryCompilationOptions);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             [new S7TagBindingSourceGenerator().AsSourceGenerator()],
             parseOptions: parseOptions);
@@ -192,12 +198,30 @@ public sealed class S7TagBindingSourceGeneratorRawBranchClosureTests
         return driver.GetRunResult();
     }
 
-    /// <summary>Runs the generator and concatenates all emitted source files.</summary>
+    /// <summary>Runs the generator and asynchronously concatenates all emitted source files.</summary>
     /// <param name="source">The consumer source to supply to the generator.</param>
-    /// <returns>The concatenated generated source.</returns>
-    private static string GetGeneratedSource(string source) => string.Join(
-        Environment.NewLine,
-        RunGeneratorWithoutCompilationValidation(source)
-            .GeneratedTrees
-            .Select(static tree => tree.GetText().ToString()));
+    /// <returns>A task that resolves to the concatenated generated source.</returns>
+    private static Task<string> GetGeneratedSourceAsync(string source) =>
+        GetGeneratedSourcesAsync(RunGeneratorWithoutCompilationValidation(source).GeneratedTrees);
+
+    /// <summary>Asynchronously concatenates generated source trees.</summary>
+    /// <param name="generatedTrees">The generated source trees to concatenate.</param>
+    /// <returns>A task that resolves to the concatenated generated source.</returns>
+    private static async Task<string> GetGeneratedSourcesAsync(IEnumerable<SyntaxTree> generatedTrees)
+    {
+        var sourceTextTasks = new List<Task<Microsoft.CodeAnalysis.Text.SourceText>>();
+        foreach (var generatedTree in generatedTrees)
+        {
+            sourceTextTasks.Add(generatedTree.GetTextAsync());
+        }
+
+        var sourceTexts = await Task.WhenAll(sourceTextTasks);
+        var generatedSources = new string[sourceTexts.Length];
+        for (var index = 0; index < sourceTexts.Length; index++)
+        {
+            generatedSources[index] = sourceTexts[index].ToString();
+        }
+
+        return string.Join(Environment.NewLine, generatedSources);
+    }
 }
