@@ -35,6 +35,7 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
 
     <IncludePackageReferencesDuringMarkupCompilation>true</IncludePackageReferencesDuringMarkupCompilation>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'CP.IoT.Core'">
