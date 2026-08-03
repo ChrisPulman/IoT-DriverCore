@@ -149,7 +149,7 @@ public class CoreExtensionsDeterministicCoverageTests
         await TUnitAssert.That(attempts).IsEqualTo(ExpectedAttemptCount);
     }
 
-    /// <summary>Verifies null settings are ignored and existing assemblies load.</summary>
+    /// <summary>Verifies null settings are ignored and generated assemblies load from their supplied path.</summary>
     /// <returns>The test task.</returns>
     [Test]
     public async Task Settings_Null_Guards_And_Assembly_Load_Success_Are_CoveredAsync()
@@ -158,26 +158,26 @@ public class CoreExtensionsDeterministicCoverageTests
         CoreTwinCatRxExtensions.AddNotification(nullSettings, ".Ignored");
         CoreTwinCatRxExtensions.AddWriteVariable(nullSettings, ".Ignored");
 
-        var sourcePath = typeof(Settings).Assembly.Location;
-        var assemblyPath = Path.Combine(Path.GetTempPath(), $"TwinCATRx_Core_{Guid.NewGuid()}.dll");
-        try
-        {
-            await Task.Run(() => File.Copy(sourcePath, assemblyPath));
-            var assembly = CoreTwinCatRxExtensions.AssemblyLoad(assemblyPath);
-            var typeName = typeof(Settings).FullName
-                ?? throw new InvalidOperationException("The settings type has no full name.");
-            var resolvedType = CoreTwinCatRxExtensions.GetType(assemblyPath, typeName);
+        var directory = Path.Combine(AppContext.BaseDirectory, "AssemblyLoadPathTests");
+        _ = Directory.CreateDirectory(directory);
+        var generatedTypeName = $"GeneratedType_{Guid.NewGuid():N}";
+        var assemblyPath = Path.Combine(directory, $"{generatedTypeName}.dll");
+        using var generator = new CodeGenerator();
+        await TUnitAssert.That(generator.CreateDll($"public sealed class {generatedTypeName} {{ }}", assemblyPath)).IsTrue();
+        var assemblyName = AssemblyName.GetAssemblyName(assemblyPath);
 
-            await TUnitAssert.That(assembly).IsNotNull();
-            await TUnitAssert.That(resolvedType).IsNotNull();
-            var checkedResolvedType = resolvedType
-                ?? throw new InvalidOperationException("The settings type was not resolved.");
-            await TUnitAssert.That(checkedResolvedType.Name).IsEqualTo(nameof(Settings));
-        }
-        finally
-        {
-            File.Delete(assemblyPath);
-        }
+#if NET8_0_OR_GREATER
+        await TUnitAssert.That(() => System.Reflection.Assembly.Load(assemblyName)).Throws<FileNotFoundException>();
+#else
+        _ = assemblyName;
+#endif
+
+        var assembly = CoreTwinCatRxExtensions.AssemblyLoad(assemblyPath);
+        var resolvedType = CoreTwinCatRxExtensions.GetType(assemblyPath, generatedTypeName);
+
+        await TUnitAssert.That(assembly).IsNotNull();
+        await TUnitAssert.That(resolvedType).IsNotNull();
+        await TUnitAssert.That(assembly?.Location).IsEqualTo(Path.GetFullPath(assemblyPath));
     }
 
     /// <summary>Verifies internal node disposal recursively clears state and is idempotent.</summary>

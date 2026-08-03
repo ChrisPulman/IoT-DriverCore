@@ -70,8 +70,8 @@ public partial class RxTcAdsClient : IRxTcAdsClient
     /// <summary>Stores replaceable platform dependencies.</summary>
     private readonly IRxTcAdsPlatform _platform;
 
-    /// <summary>Stores the time provider used to obtain the current time.</summary>
-    private readonly TimeProvider _timeProvider;
+    /// <summary>Identifies generated assemblies owned by this client instance.</summary>
+    private readonly string _generatedAssemblyIdentifier;
 
     /// <summary>Stores disposable resources owned by this client.</summary>
     private CompositeDisposable? _cleanup;
@@ -103,7 +103,8 @@ public partial class RxTcAdsClient : IRxTcAdsClient
     /// <param name="platform">The replaceable platform dependencies.</param>
     internal RxTcAdsClient(TimeProvider timeProvider, IRxTcAdsPlatform platform)
     {
-        _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        _ = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        _generatedAssemblyIdentifier = Guid.NewGuid().ToString("N");
         _platform = platform ?? throw new ArgumentNullException(nameof(platform));
     }
 

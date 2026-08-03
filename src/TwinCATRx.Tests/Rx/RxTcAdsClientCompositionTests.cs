@@ -376,9 +376,11 @@ public sealed class RxTcAdsClientCompositionTests
 #endif
     public async Task Composed_Runtime_Removes_Stale_Generated_Data_Type_FileAsync()
     {
+        var variableName = $".Value_Stale_{Guid.NewGuid():N}";
+        var symbolName = variableName[1..];
         var staleFile = Path.Combine(
             AppDomain.CurrentDomain.BaseDirectory,
-            $"PLC_Value_Coverage_{Guid.NewGuid():N}.tmp");
+            $"PLC_{symbolName}{Guid.NewGuid():N}.dll");
 #if NETFRAMEWORK
         using (var writer = File.CreateText(staleFile))
         {
@@ -395,9 +397,9 @@ public sealed class RxTcAdsClientCompositionTests
         {
             var ads = new FakeAdsClient { Port = TwinCat3Port };
             using var platform = new FakePlatform(ads);
-            platform.AddSymbol(ValueSymbolName, "DINT", DataTypeCategory.Primitive);
+            platform.AddSymbol(symbolName, "DINT", DataTypeCategory.Primitive);
             var settings = new Settings { Port = TwinCat3Port };
-            settings.Notifications.Add(new RxNotification(UpdateRate, ValueVariable));
+            settings.Notifications.Add(new RxNotification(UpdateRate, variableName));
             using var client = new RxTcAdsClient(TimeProvider.System, platform);
 
             client.Connect(settings);
