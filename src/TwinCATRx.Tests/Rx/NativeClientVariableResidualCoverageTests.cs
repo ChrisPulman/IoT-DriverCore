@@ -11,6 +11,7 @@ using System.Runtime.Versioning;
 using System.Reflection;
 using IoT.Driver.TwinCATRx.Core;
 using TwinCAT.Ads;
+using ReactiveRxTcAdsClient = IoT.Driver.TwinCATRx.Reactive.RxTcAdsClient;
 using RxNotification = IoT.Driver.TwinCATRx.Core.Notification;
 
 namespace IoT.Driver.TwinCATRx.Tests.Rx;
@@ -47,6 +48,24 @@ public sealed class NativeClientVariableResidualCoverageTests
 
     /// <summary>The private notification-scheduling method name.</summary>
     private const string ScheduleNotificationsMethod = "ScheduleNotifications";
+
+    /// <summary>The private generated-assembly cleanup method name.</summary>
+    private const string TryDeleteGeneratedDataTypeFileMethod = "TryDeleteGeneratedDataTypeFile";
+
+    /// <summary>The private stale generated-assembly cleanup method name.</summary>
+    private const string DeleteGeneratedDataTypeFilesMethod = "DeleteGeneratedDataTypeFiles";
+
+    /// <summary>The private generated-assembly cleanup claim method name.</summary>
+    private const string TryBeginGeneratedDataTypeCleanupMethod = "TryBeginGeneratedDataTypeCleanup";
+
+    /// <summary>The private generated-assembly path method name.</summary>
+    private const string BuildDataTypesFilePathMethod = "BuildDataTypesFilePath";
+
+    /// <summary>The private existing-generated-type lookup method name.</summary>
+    private const string GetExistingGeneratedTypeMethod = "GetExistingGeneratedType";
+
+    /// <summary>The stable identifier used to verify generated assembly paths.</summary>
+    private const string GeneratedAssemblyIdentifier = "123";
 
     /// <summary>The private client type-map field name.</summary>
     private const string TypeInfoField = "_typeInfo";
@@ -111,6 +130,14 @@ public sealed class NativeClientVariableResidualCoverageTests
 
         var dottedPrefix = InvokeStatic("BuildDataTypesFileName", ScalarVariable);
         var plainPrefix = InvokeStatic("BuildDataTypesFileName", "Scalar");
+        var firstGeneratedPath = (string?)InvokeStatic(
+            BuildDataTypesFilePathMethod,
+            dottedPrefix,
+            GeneratedAssemblyIdentifier);
+        var secondGeneratedPath = (string?)InvokeStatic(
+            BuildDataTypesFilePathMethod,
+            dottedPrefix,
+            GeneratedAssemblyIdentifier);
         var matchingLength = InvokeInstance(client, "FindNotificationArrayLength", ArrayVariable);
         var missingLength = InvokeInstance(client, "FindNotificationArrayLength", ".Missing");
         var scalar = InvokeReadTarget(client, ScalarVariable, null);
@@ -126,6 +153,8 @@ public sealed class NativeClientVariableResidualCoverageTests
 
         await TUnitAssert.That(dottedPrefix).IsEqualTo("PLC_Scalar");
         await TUnitAssert.That(plainPrefix).IsEqualTo("PLC_Scalar");
+        await TUnitAssert.That(firstGeneratedPath).IsEqualTo(secondGeneratedPath);
+        await TUnitAssert.That(Path.GetDirectoryName(firstGeneratedPath)).IsEqualTo(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar));
         await TUnitAssert.That(matchingLength).IsEqualTo(ArrayLength);
         await TUnitAssert.That(missingLength).IsEqualTo(-1);
         await TUnitAssert.That(scalar.Resolved).IsTrue();
@@ -136,6 +165,125 @@ public sealed class NativeClientVariableResidualCoverageTests
         await TUnitAssert.That(suppliedStringLength.Length).IsEqualTo(ArrayLength);
         await TUnitAssert.That(blank.Resolved).IsFalse();
         await TUnitAssert.That(missingHandle.Resolved).IsFalse();
+    }
+
+    /// <summary>Verifies generated assembly cleanup tolerates files still loaded by the current process.</summary>
+    /// <returns>The test task.</returns>
+    [Test]
+    public async Task Generated_Assembly_Cleanup_Retries_After_File_Is_ReleasedAsync()
+    {
+        var filePath = Path.Combine(
+            AppContext.BaseDirectory,
+            $"PLC_LockedCleanup_{Guid.NewGuid():N}.dll");
+        await File.WriteAllTextAsync(filePath, "locked").ConfigureAwait(false);
+
+        bool lockedDeleteResult;
+#if NETFRAMEWORK
+        using (File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.None))
+#else
+        await using (File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.None))
+#endif
+        {
+            lockedDeleteResult = (bool)(InvokeStatic(TryDeleteGeneratedDataTypeFileMethod, filePath) ?? true);
+        }
+
+        var releasedDeleteResult = (bool)(InvokeStatic(TryDeleteGeneratedDataTypeFileMethod, filePath) ?? false);
+        var readOnlyPath = Path.Combine(
+            AppContext.BaseDirectory,
+            $"PLC_ReadOnlyCleanup_{Guid.NewGuid():N}.dll");
+        await File.WriteAllTextAsync(readOnlyPath, "read-only").ConfigureAwait(false);
+        File.SetAttributes(readOnlyPath, FileAttributes.ReadOnly);
+        var readOnlyDeleteResult = (bool)(InvokeStatic(TryDeleteGeneratedDataTypeFileMethod, readOnlyPath) ?? true);
+        File.SetAttributes(readOnlyPath, FileAttributes.Normal);
+        File.Delete(readOnlyPath);
+
+        await TUnitAssert.That(lockedDeleteResult).IsFalse();
+        await TUnitAssert.That(releasedDeleteResult).IsTrue();
+        await TUnitAssert.That(readOnlyDeleteResult).IsFalse();
+        await TUnitAssert.That(File.Exists(filePath)).IsFalse();
+    }
+
+    /// <summary>Verifies stale generated assemblies are removed while the current client assembly is retained.</summary>
+    /// <returns>The test task.</returns>
+    [Test]
+    public async Task Generated_Assembly_Cleanup_Retains_Current_Client_AssemblyAsync()
+    {
+        var filePrefix = $"PLC_RetainedCleanup_{Guid.NewGuid():N}";
+        var retainedPath = Path.Combine(AppContext.BaseDirectory, $"{filePrefix}_current.dll");
+        var stalePath = Path.Combine(AppContext.BaseDirectory, $"{filePrefix}{Guid.NewGuid():N}.dll");
+        var relatedPath = Path.Combine(AppContext.BaseDirectory, $"{filePrefix}2{Guid.NewGuid():N}.dll");
+        await File.WriteAllTextAsync(retainedPath, "current").ConfigureAwait(false);
+        await File.WriteAllTextAsync(stalePath, "stale").ConfigureAwait(false);
+        await File.WriteAllTextAsync(relatedPath, "related").ConfigureAwait(false);
+        try
+        {
+            var firstCleanupClaim = (bool)(InvokeStatic(TryBeginGeneratedDataTypeCleanupMethod, filePrefix) ?? false);
+            var secondCleanupClaim = (bool)(InvokeStatic(TryBeginGeneratedDataTypeCleanupMethod, filePrefix) ?? true);
+            _ = InvokeStatic(DeleteGeneratedDataTypeFilesMethod, filePrefix, retainedPath);
+
+            await TUnitAssert.That(firstCleanupClaim).IsTrue();
+            await TUnitAssert.That(secondCleanupClaim).IsFalse();
+            await TUnitAssert.That(File.Exists(retainedPath)).IsTrue();
+            await TUnitAssert.That(File.Exists(stalePath)).IsFalse();
+            await TUnitAssert.That(File.Exists(relatedPath)).IsTrue();
+        }
+        finally
+        {
+            File.Delete(retainedPath);
+            File.Delete(stalePath);
+            File.Delete(relatedPath);
+        }
+    }
+
+    /// <summary>Verifies a previously generated PLC type is reused without regenerating its assembly.</summary>
+    /// <returns>The test task.</returns>
+    [Test]
+#if NET9_0_OR_GREATER
+    [RequiresDynamicCode("Compiles and loads a deterministic generated PLC type assembly.")]
+    [RequiresUnreferencedCode("Loads a deterministic generated PLC type by name.")]
+#endif
+    public async Task Existing_Generated_Assembly_Is_ReusedAsync()
+    {
+        var missingType = InvokeStatic(
+            GetExistingGeneratedTypeMethod,
+            Path.Combine(AppContext.BaseDirectory, "missing-generated-type.dll"),
+            "IoT.Driver.TwinCATRx.MissingGeneratedType");
+        var missingReactiveType = InvokeReactiveStatic(
+            GetExistingGeneratedTypeMethod,
+            Path.Combine(AppContext.BaseDirectory, "missing-generated-reactive-type.dll"),
+            "IoT.Driver.TwinCATRx.MissingGeneratedReactiveType");
+        await TUnitAssert.That(missingType).IsNull();
+        await TUnitAssert.That(missingReactiveType).IsNull();
+
+#if !NETFRAMEWORK
+        var generatedTypeName = $"ReusedGeneratedType_{Guid.NewGuid():N}";
+        var assemblyPath = Path.Combine(
+            AppContext.BaseDirectory,
+            $"PLC_{generatedTypeName}.dll");
+        using var generator = new CodeGenerator();
+        try
+        {
+            var source = $"namespace IoT.Driver.TwinCATRx {{ public sealed class {generatedTypeName} {{ }} }}";
+            await TUnitAssert.That(generator.CreateDll(source, assemblyPath)).IsTrue();
+
+            var existingType = (Type?)InvokeStatic(
+                GetExistingGeneratedTypeMethod,
+                assemblyPath,
+                $"IoT.Driver.TwinCATRx.{generatedTypeName}");
+            var existingReactiveType = (Type?)InvokeReactiveStatic(
+                GetExistingGeneratedTypeMethod,
+                assemblyPath,
+                $"IoT.Driver.TwinCATRx.{generatedTypeName}");
+
+            await TUnitAssert.That(existingType).IsNotNull();
+            await TUnitAssert.That(existingType?.Name).IsEqualTo(generatedTypeName);
+            await TUnitAssert.That(existingReactiveType).IsSameReferenceAs(existingType);
+        }
+        finally
+        {
+            _ = InvokeStatic(TryDeleteGeneratedDataTypeFileMethod, assemblyPath);
+        }
+#endif
     }
 
     /// <summary>Verifies empty registration, primitive conversion, and read-notification guard branches without ADS hardware.</summary>
@@ -167,7 +315,6 @@ public sealed class NativeClientVariableResidualCoverageTests
             "ResolveNotificationType",
             ".Unknown",
             "missing.dll",
-            "residual",
             false);
 
         _ = InvokeInstance(client, ReadNotificationMethod, runtime, new RxNotification(UpdateRate, null));
@@ -198,6 +345,15 @@ public sealed class NativeClientVariableResidualCoverageTests
     {
         await TUnitAssert.That(CreateClientWithNullTimeProvider).Throws<ArgumentNullException>();
         await TUnitAssert.That(static () => _ = new RxTcAdsClient(TimeProvider.System, null!)).Throws<ArgumentNullException>();
+
+        var fixedTimeProvider = new FixedTimeProvider();
+        using var firstIdentifierPlatform = new MinimalPlatform(new RecordingAdsClientRuntime());
+        using var secondIdentifierPlatform = new MinimalPlatform(new RecordingAdsClientRuntime());
+        using var firstIdentifierClient = new RxTcAdsClient(fixedTimeProvider, firstIdentifierPlatform);
+        using var secondIdentifierClient = new RxTcAdsClient(fixedTimeProvider, secondIdentifierPlatform);
+        var firstIdentifier = GetField<string>(firstIdentifierClient, "_generatedAssemblyIdentifier");
+        var secondIdentifier = GetField<string>(secondIdentifierClient, "_generatedAssemblyIdentifier");
+        await TUnitAssert.That(firstIdentifier).IsNotEqualTo(secondIdentifier);
 
         using var guardedClient = new RxTcAdsClient();
         var errors = new List<Exception>();
@@ -371,6 +527,13 @@ public sealed class NativeClientVariableResidualCoverageTests
     private static object? InvokeStatic(string name, params object?[] arguments) =>
         GetMethod(typeof(RxTcAdsClient), name, BindingFlags.Static).Invoke(null, arguments);
 
+    /// <summary>Invokes a private static reactive client method.</summary>
+    /// <param name="name">The method name.</param>
+    /// <param name="arguments">The method arguments.</param>
+    /// <returns>The invocation result.</returns>
+    private static object? InvokeReactiveStatic(string name, params object?[] arguments) =>
+        GetMethod(typeof(ReactiveRxTcAdsClient), name, BindingFlags.Static).Invoke(null, arguments);
+
     /// <summary>Gets one private method with a descriptive failure when its implementation changes.</summary>
     /// <param name="type">The declaring type.</param>
     /// <param name="name">The private method name.</param>
@@ -397,6 +560,14 @@ public sealed class NativeClientVariableResidualCoverageTests
         var property = instance.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public)
             ?? throw new MissingMemberException(instance.GetType().FullName, name);
         property.SetValue(instance, value);
+    }
+
+    /// <summary>Provides one fixed time to prove generated assembly ownership is not time-derived.</summary>
+    private sealed class FixedTimeProvider : TimeProvider
+    {
+        /// <inheritdoc/>
+        public override DateTimeOffset GetUtcNow() =>
+            new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
     }
 
     /// <summary>Records native ADS calls while providing deterministic scalar and array responses.</summary>

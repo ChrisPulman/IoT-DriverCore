@@ -113,7 +113,10 @@ public sealed partial class CoreProtocolCoverageTests
     private static async Task<int> EchoTcpAsync(NetTcpListener listener)
     {
         using var acceptedSocket = await listener.AcceptSocketAsync().ConfigureAwait(false);
-        using var server = new CoreTcpClient(acceptedSocket);
+        using var server = new CoreTcpClient(acceptedSocket)
+        {
+            LingerState = new(false, 0),
+        };
         var receiveBuffer = new byte[3];
         var received = await server.ReceiveAsync(
             receiveBuffer,

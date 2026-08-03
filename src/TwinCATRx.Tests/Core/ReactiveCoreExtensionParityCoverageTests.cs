@@ -2,6 +2,7 @@
 // Chris Pulman and contributors licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Reflection;
 using ReactiveCoreExtensions = IoT.Driver.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
 using ReactiveNode = IoT.Driver.TwinCATRx.Core.Reactive.INodeEmulator;
 using ReactiveSettings = IoT.Driver.TwinCATRx.Core.Reactive.Settings;
@@ -50,7 +51,7 @@ public class ReactiveCoreExtensionParityCoverageTests
             .Throws<ArgumentNullException>();
     }
 
-    /// <summary>Verifies null settings guards and successful dynamic assembly loading.</summary>
+    /// <summary>Verifies null settings guards and path-based dynamic assembly loading.</summary>
     /// <returns>The test task.</returns>
     [Test]
     public async Task Settings_And_Assembly_Helpers_Match_Lean_CoreAsync()
@@ -59,23 +60,26 @@ public class ReactiveCoreExtensionParityCoverageTests
         ReactiveCoreExtensions.AddNotification(nullSettings, ".Ignored");
         ReactiveCoreExtensions.AddWriteVariable(nullSettings, ".Ignored");
 
-        var sourcePath = typeof(ReactiveSettings).Assembly.Location;
-        var assemblyPath = Path.Combine(Path.GetTempPath(), $"TwinCATRx_Core_Reactive_{Guid.NewGuid()}.dll");
-        try
-        {
-            await Task.Run(() => File.Copy(sourcePath, assemblyPath));
-            var assembly = ReactiveCoreExtensions.AssemblyLoad(assemblyPath);
-            var typeName = typeof(ReactiveSettings).FullName
-                ?? throw new InvalidOperationException("The Reactive settings type has no full name.");
-            var resolvedType = ReactiveCoreExtensions.GetType(assemblyPath, typeName);
+        var directory = Path.Combine(AppContext.BaseDirectory, "AssemblyLoadPathTests");
+        _ = Directory.CreateDirectory(directory);
+        var generatedTypeName = $"GeneratedReactiveType_{Guid.NewGuid():N}";
+        var assemblyPath = Path.Combine(directory, $"{generatedTypeName}.dll");
+        using var generator = new IoT.Driver.TwinCATRx.Core.Reactive.CodeGenerator();
+        await TUnitAssert.That(generator.CreateDll($"public sealed class {generatedTypeName} {{ }}", assemblyPath)).IsTrue();
+        var assemblyName = AssemblyName.GetAssemblyName(assemblyPath);
 
-            await TUnitAssert.That(assembly).IsNotNull();
-            await TUnitAssert.That(resolvedType).IsNotNull();
-        }
-        finally
-        {
-            File.Delete(assemblyPath);
-        }
+#if NET8_0_OR_GREATER
+        await TUnitAssert.That(() => System.Reflection.Assembly.Load(assemblyName)).Throws<FileNotFoundException>();
+#else
+        _ = assemblyName;
+#endif
+
+        var assembly = ReactiveCoreExtensions.AssemblyLoad(assemblyPath);
+        var resolvedType = ReactiveCoreExtensions.GetType(assemblyPath, generatedTypeName);
+
+        await TUnitAssert.That(assembly).IsNotNull();
+        await TUnitAssert.That(resolvedType).IsNotNull();
+        await TUnitAssert.That(assembly?.Location).IsEqualTo(Path.GetFullPath(assemblyPath));
     }
 
     /// <summary>Verifies recursive Reactive node disposal.</summary>

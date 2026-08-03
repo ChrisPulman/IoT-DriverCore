@@ -4,6 +4,9 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+#if NET8_0_OR_GREATER
+using System.Runtime.Loader;
+#endif
 using TwinCAT.Ads;
 
 #if REACTIVE_SHIM
@@ -234,7 +237,7 @@ public static class TwinCatRxExtensions
     [RequiresUnreferencedCode("Uses reflection-based assembly loading which may be trimmed.")]
     public static Assembly? AssemblyLoad(string dllFullName) =>
         File.Exists(dllFullName)
-            ? Assembly.Load(AssemblyName.GetAssemblyName(Path.GetFullPath(dllFullName)))
+            ? LoadAssembly(Path.GetFullPath(dllFullName))
             : null;
 
     /// <summary>Gets a type from an assembly file.</summary>
@@ -245,6 +248,28 @@ public static class TwinCatRxExtensions
     [RequiresUnreferencedCode("Uses reflection to access type by name which may be trimmed in AOT.")]
     public static Type? GetType(string dllFullName, string engineType) =>
         AssemblyLoad(dllFullName)?.GetType(engineType);
+
+    /// <summary>Loads the assembly at the normalized file path.</summary>
+    /// <param name="fullPath">The normalized assembly file path.</param>
+    /// <returns>The loaded assembly.</returns>
+    [RequiresDynamicCode("Loads an assembly into the current process which requires dynamic code.")]
+    [RequiresUnreferencedCode("The loaded assembly may depend on members removed by trimming.")]
+    [SuppressMessage(
+        "Security",
+        "SES1402",
+        Justification = "AssemblyLoad accepts a caller-supplied DLL path and must honor that exact path on .NET Framework.")]
+    [SuppressMessage(
+        "Usage",
+        "SST2486",
+        Justification = "Assembly.LoadFrom is the .NET Framework equivalent of exact-path AssemblyLoadContext loading.")]
+    private static Assembly LoadAssembly(string fullPath)
+    {
+#if NET8_0_OR_GREATER
+        return AssemblyLoadContext.Default.LoadFromAssemblyPath(fullPath);
+#else
+        return Assembly.LoadFrom(fullPath);
+#endif
+    }
 
     /// <summary>Returns a value or throws when it is null.</summary>
     /// <typeparam name="T">The value type.</typeparam>

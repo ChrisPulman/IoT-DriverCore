@@ -27,6 +27,10 @@ public partial class RxTcAdsClient
     /// <summary>Synchronizes generated data-type cleanup, creation, and loading across client instances.</summary>
     private static readonly object GeneratedDataTypeFileLock = new();
 
+    /// <summary>Tracks variable prefixes whose stale files were cleaned in this process.</summary>
+    private static readonly HashSet<string> CleanedGeneratedDataTypePrefixes =
+        new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Builds the generated data type file prefix.</summary>
     /// <param name="variable">The PLC variable name.</param>
     /// <returns>The generated data type file prefix.</returns>
@@ -43,16 +47,89 @@ public partial class RxTcAdsClient
 #endif
     }
 
+    /// <summary>Builds the stable generated assembly path for a client instance.</summary>
+    /// <param name="dataTypesBaseName">The generated data type file prefix.</param>
+    /// <param name="generatedAssemblyIdentifier">The stable client assembly identifier.</param>
+    /// <returns>The generated assembly path.</returns>
+    private static string BuildDataTypesFilePath(
+        string dataTypesBaseName,
+        string generatedAssemblyIdentifier) =>
+        Path.Combine(
+            AppDomain.CurrentDomain.BaseDirectory,
+            $"{dataTypesBaseName}{generatedAssemblyIdentifier}.dll");
+
+    /// <summary>Resolves a previously generated PLC type assembly when it is available.</summary>
+    /// <param name="dataTypesFileName">The generated assembly path.</param>
+    /// <param name="generatedTypeName">The fully qualified generated type name.</param>
+    /// <returns>The existing generated type, or <see langword="null"/> when it is unavailable.</returns>
+    [RequiresUnreferencedCode("Loads a dynamically generated PLC type by name.")]
+    [RequiresDynamicCode("Loads a dynamically generated PLC assembly.")]
+    private static Type? GetExistingGeneratedType(string dataTypesFileName, string generatedTypeName) =>
+        File.Exists(dataTypesFileName)
+            ? CoreTwinCatRxExtensions.GetType(dataTypesFileName, generatedTypeName)
+            : null;
+
+    /// <summary>Claims the one stale-file cleanup pass for a generated data type prefix.</summary>
+    /// <param name="dataTypesBaseName">The generated data type file prefix.</param>
+    /// <returns><see langword="true"/> only for the first claim in this process.</returns>
+    private static bool TryBeginGeneratedDataTypeCleanup(string dataTypesBaseName) =>
+        CleanedGeneratedDataTypePrefixes.Add(dataTypesBaseName);
+
     /// <summary>Deletes stale generated data type files.</summary>
     /// <param name="dataTypesBaseName">The generated data type file prefix.</param>
-    private static void DeleteGeneratedDataTypeFiles(string dataTypesBaseName)
+    /// <param name="retainedFilePath">The current client's generated assembly path to retain.</param>
+    private static void DeleteGeneratedDataTypeFiles(string dataTypesBaseName, string retainedFilePath)
     {
         var directory = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
         foreach (var file in DirectoryInfoExtensions.GetFilesWhere(
             directory,
-            file => file.Name.Contains(dataTypesBaseName)))
+            file => IsGeneratedDataTypeFile(file.Name, dataTypesBaseName)
+                && !string.Equals(file.FullName, retainedFilePath, StringComparison.OrdinalIgnoreCase)))
         {
-            File.Delete(file.FullName);
+            _ = TryDeleteGeneratedDataTypeFile(file.FullName);
+        }
+    }
+
+    /// <summary>Determines whether a DLL belongs to one exact generated data type prefix.</summary>
+    /// <param name="fileName">The generated assembly file name.</param>
+    /// <param name="dataTypesBaseName">The generated data type file prefix.</param>
+    /// <returns><see langword="true"/> when the filename has a supported generated identifier.</returns>
+    private static bool IsGeneratedDataTypeFile(string fileName, string dataTypesBaseName)
+    {
+        if (!string.Equals(Path.GetExtension(fileName), ".dll", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var nameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
+        if (!nameWithoutExtension.StartsWith(dataTypesBaseName, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var identifier = nameWithoutExtension.Substring(dataTypesBaseName.Length);
+        return (identifier.Length == 32 && Guid.TryParseExact(identifier, "N", out _))
+            || (identifier.Length == 18
+                && long.TryParse(identifier, NumberStyles.None, CultureInfo.InvariantCulture, out _));
+    }
+
+    /// <summary>Attempts to delete a generated type assembly that may still be loaded by the current process.</summary>
+    /// <param name="filePath">The generated assembly path.</param>
+    /// <returns><see langword="true"/> when the file was deleted; otherwise, <see langword="false"/>.</returns>
+    private static bool TryDeleteGeneratedDataTypeFile(string filePath)
+    {
+        try
+        {
+            File.Delete(filePath);
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 
@@ -224,14 +301,17 @@ public partial class RxTcAdsClient
             return;
         }
 
-        var identifier = _timeProvider.GetUtcNow().UtcTicks.ToString(CultureInfo.InvariantCulture);
         var dataTypesBaseName = BuildDataTypesFileName(notificationVariable);
-        var dataTypesFileName = $"{dataTypesBaseName}{identifier}.dll";
+        var dataTypesFileName = BuildDataTypesFilePath(dataTypesBaseName, _generatedAssemblyIdentifier);
         Type? type;
         lock (GeneratedDataTypeFileLock)
         {
-            DeleteGeneratedDataTypeFiles(dataTypesBaseName);
-            type = ResolveNotificationType(notificationVariable, dataTypesFileName, identifier, isTwinCat3);
+            if (TryBeginGeneratedDataTypeCleanup(dataTypesBaseName))
+            {
+                DeleteGeneratedDataTypeFiles(dataTypesBaseName, dataTypesFileName);
+            }
+
+            type = ResolveNotificationType(notificationVariable, dataTypesFileName, isTwinCat3);
         }
 
         if (type is null)
@@ -248,7 +328,6 @@ public partial class RxTcAdsClient
     /// <summary>Resolves the CLR type used by a notification variable.</summary>
     /// <param name="notificationVariable">The notification variable name.</param>
     /// <param name="dataTypesFileName">The generated data type file name.</param>
-    /// <param name="identifier">The generated code identifier.</param>
     /// <param name="isTwinCat3">Whether TwinCAT 3 packing should be used.</param>
     /// <returns>The resolved CLR type.</returns>
     [RequiresUnreferencedCode("Invokes dynamic code generation and reflection to materialize PLC types.")]
@@ -256,21 +335,24 @@ public partial class RxTcAdsClient
     private Type? ResolveNotificationType(
         string notificationVariable,
         string dataTypesFileName,
-        string identifier,
         bool isTwinCat3)
     {
         var nodeEmulator = _codeGenerator?.SearchSymbols(notificationVariable);
         var symbol = (ISymbol?)nodeEmulator?.Tag;
         var notificationType = symbol?.TypeName;
+        var generatedTypeName = $"IoT.Driver.TwinCATRx.{notificationType}";
+        var existingType = GetExistingGeneratedType(dataTypesFileName, generatedTypeName);
+        if (existingType is not null)
+        {
+            return existingType;
+        }
+
         if (_codeGenerator?.CreateDll(nodeEmulator, dataTypesFileName, isTwinCat3: isTwinCat3) == true)
         {
-            var generatedCode = BuildDataTypesFileName(notificationVariable);
             var generatedSource = _codeGenerator.CreateCSharpCodeString(nodeEmulator, isTwinCat3: isTwinCat3);
-            generatedCode += $"{identifier}.dll${generatedSource}";
+            var generatedCode = $"{Path.GetFileName(dataTypesFileName)}${generatedSource}";
             _code.Add(generatedCode);
-            var generatedType = CoreTwinCatRxExtensions.GetType(
-                dataTypesFileName,
-                $"IoT.Driver.TwinCATRx.{notificationType}");
+            var generatedType = CoreTwinCatRxExtensions.GetType(dataTypesFileName, generatedTypeName);
             if (generatedType is not null)
             {
                 return generatedType;
