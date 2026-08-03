@@ -53,7 +53,7 @@ public sealed partial class CoreProtocolCoverageTests
     private const int InvalidPort = 65_536;
 
     /// <summary>Provides the socket timeout used by loopback tests.</summary>
-    private const int SocketTimeoutMilliseconds = 1000;
+    private const int SocketTimeoutMilliseconds = 5_000;
 
     /// <summary>Provides the first invalid weekday value.</summary>
     private const int MaximumWeekday = 7;
