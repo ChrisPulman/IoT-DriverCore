@@ -25,6 +25,9 @@ public sealed class SerialFactoryCoverageTests
     /// <summary>The number of bytes transferred by adapter tests.</summary>
     private const int PayloadLength = 3;
 
+    /// <summary>The maximum time allowed for an in-memory serial operation.</summary>
+    private static readonly TimeSpan SerialOperationTimeout = TimeSpan.FromSeconds(5);
+
     /// <summary>Creates every serial master overload and validates their null and connection guards.</summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [TUnit.Core.Test]
@@ -103,20 +106,23 @@ public sealed class SerialFactoryCoverageTests
         pair.Second.EnableAutoDataReceive = false;
         await pair.First.OpenAsync();
         await pair.Second.OpenAsync();
-        using var adapter = new SerialPortAdapter(pair.First)
-        {
-            ReadTimeout = StreamTimeout,
-            WriteTimeout = StreamTimeout,
-        };
+        using var adapter = new SerialPortAdapter(pair.First);
         var request = new byte[] { UnitId, PayloadLength, UnitId };
         var peerBuffer = new byte[PayloadLength];
         var responseBuffer = new byte[PayloadLength];
 
         adapter.DiscardInBuffer();
         adapter.Write(request, 0, request.Length);
-        var peerRead = await pair.Second.ReadAsync(peerBuffer, 0, peerBuffer.Length);
+        var peerRead = await pair.Second
+            .ReadAsync(peerBuffer, 0, peerBuffer.Length)
+            .WaitAsync(SerialOperationTimeout);
         pair.Second.Write(request, 0, request.Length);
-        var responseRead = await adapter.ReadAsync(responseBuffer, 0, responseBuffer.Length);
+        var responseRead = await adapter
+            .ReadAsync(responseBuffer, 0, responseBuffer.Length)
+            .WaitAsync(SerialOperationTimeout);
+
+        adapter.ReadTimeout = StreamTimeout;
+        adapter.WriteTimeout = StreamTimeout;
 
         await NativeAssert.That(adapter.ReadTimeout).IsEqualTo(StreamTimeout);
         await NativeAssert.That(adapter.WriteTimeout).IsEqualTo(StreamTimeout);

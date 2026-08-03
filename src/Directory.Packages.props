@@ -10,7 +10,7 @@
     <PackageVersion Include="ReactiveUI.Primitives.Async" Version="7.1.0" />
     <PackageVersion Include="ReactiveUI.Primitives.Async.Reactive" Version="7.1.0" />
     <PackageVersion Include="ReactiveUI.WPF" Version="24.1.0" />
-    <PackageVersion Include="Splat" Version="20.2.0" />
+    <PackageVersion Include="Splat" Version="21.0.0" />
     <PackageVersion Include="ReactiveUI.SourceGenerators" Version="3.2.0" />
 
     <!--Microsoft-->
@@ -32,7 +32,7 @@
 
     <!--PLC Base-->
     <PackageVersion Include="libplctag.NativeImport" Version="2.0.0-alpha.8" />
-    <PackageVersion Include="Beckhoff.TwinCAT.Ads" Version="7.0.292" />
+    <PackageVersion Include="Beckhoff.TwinCAT.Ads" Version="7.0.303" />
     <PackageVersion Include="HashTableRx" Version="4.0.0" />
     <PackageVersion Include="HashTableRx.Reactive" Version="4.0.0" />
 
@@ -46,9 +46,9 @@
 
     <PackageVersion Include="Mono.Cecil" Version="0.11.6" />
     <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
-    <PackageVersion Include="StyleSharp.Analyzers" Version="3.40.1" />
-    <PackageVersion Include="PerformanceSharp.Analyzers" Version="3.40.1" />
-    <PackageVersion Include="SecuritySharp.Analyzers" Version="3.40.1" />
+    <PackageVersion Include="StyleSharp.Analyzers" Version="3.40.2" />
+    <PackageVersion Include="PerformanceSharp.Analyzers" Version="3.40.2" />
+    <PackageVersion Include="SecuritySharp.Analyzers" Version="3.40.2" />
 
     <!--Build and Test-->
     <PackageVersion Include="CP.Nuke.BuildTools" Version="3.0.2" />
