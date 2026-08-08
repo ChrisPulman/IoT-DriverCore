@@ -28,8 +28,14 @@ public class ObservableServiceController : IObservableServiceController
     /// <summary>Publishes service status changes.</summary>
     private readonly Signal<ServiceControllerStatus> _statusChanged = new();
 
+    /// <summary>Serializes service polling with disposal and status publication.</summary>
+    private readonly Lock _stateGate = new();
+
     /// <summary>Stores the wrapped service controller.</summary>
     private IServiceControllerRuntime? _serviceController;
+
+    /// <summary>Tracks whether the wrapped service controller has been disposed.</summary>
+    private bool _serviceControllerIsDisposed;
 
     /// <summary>Initializes a new instance of the <see cref="ObservableServiceController"/> class.</summary>
     /// <param name="service">The service.</param>
@@ -179,14 +185,21 @@ public class ObservableServiceController : IObservableServiceController
     /// </param>
     protected virtual void Dispose(bool disposing)
     {
-        if (_cleanup.IsDisposed || !disposing)
+        if (!disposing)
         {
             return;
         }
 
-        _serviceController?.Dispose();
-        _cleanup.Dispose();
-        _statusChanged.Dispose();
+        lock (_stateGate)
+        {
+            if (_cleanup.IsDisposed)
+            {
+                return;
+            }
+
+            _cleanup.Dispose();
+            _statusChanged.Dispose();
+        }
     }
 
     /// <summary>Creates the object.</summary>
@@ -196,34 +209,49 @@ public class ObservableServiceController : IObservableServiceController
     {
         _serviceController = service;
         _ = _serviceController.DisposeWith(_cleanup);
-        var serviceControllerIsDisposed = false;
-        _serviceController.Disposed += (e, o) => serviceControllerIsDisposed = true;
+        _serviceController.Disposed += ServiceControllerDisposed;
 
         _ = ObservableBridgeExtensions.SubscribeTo(refreshTicks.Retry(int.MaxValue), _ =>
         {
-            try
+            lock (_stateGate)
             {
-                if (!serviceControllerIsDisposed)
+                try
                 {
-                    var currentStatus = _serviceController?.Status;
-                    _serviceController?.Refresh();
-
-                    if (_serviceController is not null &&
-                        currentStatus.HasValue &&
-                        currentStatus.Value != _serviceController.Status)
+                    if (!_serviceControllerIsDisposed && !_cleanup.IsDisposed)
                     {
-                        _statusChanged.OnNext(_serviceController.Status);
+                        var currentStatus = _serviceController?.Status;
+                        _serviceController?.Refresh();
+
+                        if (_serviceController is not null &&
+                            currentStatus.HasValue &&
+                            currentStatus.Value != _serviceController.Status)
+                        {
+                            _statusChanged.OnNext(_serviceController.Status);
+                        }
                     }
                 }
-            }
-            catch (InvalidOperationException ex)
-            {
-                _statusChanged.OnError(ex);
-            }
-            catch (Win32Exception ex)
-            {
-                _statusChanged.OnError(ex);
+                catch (InvalidOperationException ex)
+                {
+                    _statusChanged.OnError(ex);
+                }
+                catch (Win32Exception ex)
+                {
+                    _statusChanged.OnError(ex);
+                }
             }
         }).DisposeWith(_cleanup);
+    }
+
+    /// <summary>Marks the wrapped service controller as disposed.</summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="eventArgs">The event arguments.</param>
+    private void ServiceControllerDisposed(object? sender, EventArgs eventArgs)
+    {
+        _ = sender;
+        _ = eventArgs;
+        lock (_stateGate)
+        {
+            _serviceControllerIsDisposed = true;
+        }
     }
 }
