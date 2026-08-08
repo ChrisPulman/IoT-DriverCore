@@ -61,7 +61,7 @@
     <PackageVersion Include="Microsoft.Reactive.Testing" Version="7.0.0" />
     <PackageVersion Include="MinVer" Version="7.0.0" />
     <PackageVersion Include="TUnit" Version="1.63.0" />
-    <PackageVersion Include="TUnit.Assertions" Version="1.63.0" />
+    <PackageVersion Include="TUnit.Assertions" Version="1.64.0" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.9.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.301" />
   </ItemGroup>
