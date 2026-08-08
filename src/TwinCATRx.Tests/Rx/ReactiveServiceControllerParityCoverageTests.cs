@@ -8,6 +8,7 @@ using System.ServiceProcess;
 using System.Runtime.Versioning;
 #endif
 using ReactiveServiceController = IoT.Driver.TwinCATRx.Reactive.ObservableServiceController;
+using ReactiveServiceControllerRuntime = IoT.Driver.TwinCATRx.Reactive.IServiceControllerRuntime;
 
 namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
@@ -17,6 +18,74 @@ namespace IoT.Driver.TwinCATRx.Tests.Rx;
 #endif
 public class ReactiveServiceControllerParityCoverageTests
 {
+    /// <summary>The bounded time allowed for race-test coordination.</summary>
+    private static readonly TimeSpan RaceTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>The interval used to prove disposal is waiting for an in-flight poll.</summary>
+    private static readonly TimeSpan RaceObservationInterval = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>Verifies the Reactive build serializes status publication with disposal.</summary>
+    /// <returns>The test task.</returns>
+    [Test]
+    public async Task Dispose_During_A_Failing_Status_Read_Is_Serialized_With_Reactive_PollingAsync()
+    {
+        using var statusReadEntered = new ManualResetEventSlim();
+        using var allowStatusRead = new ManualResetEventSlim();
+        using var disposalTaskStarted = new ManualResetEventSlim();
+        var expectedError = new InvalidOperationException("service disposed during reactive status read");
+        var runtime = new BlockingServiceControllerRuntime(
+            statusReadEntered,
+            allowStatusRead,
+            expectedError);
+        var ticks = new ManualObservable<long>();
+        using var controller = new ReactiveServiceController(runtime, ticks);
+        var statuses = new RecordingObserver<ServiceControllerStatus>();
+        using var subscription = controller.StatusObserver.Subscribe(statuses);
+
+        var pollingTask = Task.Run(() => ticks.Emit(0));
+        var statusReadWasObserved = statusReadEntered.Wait(RaceTimeout);
+        Task? disposeTask = null;
+        var disposalTaskWasObserved = false;
+        var disposalWaitedForPolling = false;
+        if (statusReadWasObserved)
+        {
+            disposeTask = Task.Run(() =>
+            {
+                disposalTaskStarted.Set();
+                controller.Dispose();
+            });
+            disposalTaskWasObserved = disposalTaskStarted.Wait(RaceTimeout);
+            if (disposalTaskWasObserved)
+            {
+                var firstCompleted = await Task.WhenAny(disposeTask, Task.Delay(RaceObservationInterval));
+                disposalWaitedForPolling = !ReferenceEquals(firstCompleted, disposeTask);
+            }
+        }
+
+        allowStatusRead.Set();
+        Exception? pollingException = null;
+        try
+        {
+            await pollingTask;
+        }
+        catch (Exception ex)
+        {
+            pollingException = ex;
+        }
+
+        if (disposeTask is not null)
+        {
+            await disposeTask;
+        }
+
+        await TUnitAssert.That(statusReadWasObserved).IsTrue();
+        await TUnitAssert.That(disposalTaskWasObserved).IsTrue();
+        await TUnitAssert.That(disposalWaitedForPolling).IsTrue();
+        await TUnitAssert.That(pollingException).IsNull();
+        await TUnitAssert.That(statuses.Errors).Count().IsEqualTo(1);
+        await TUnitAssert.That(statuses.Errors[0]).IsSameReferenceAs(expectedError);
+    }
+
     /// <summary>Verifies null-state getters and disposed commands never query Windows services.</summary>
     /// <returns>The test task.</returns>
     [Test]
@@ -68,5 +137,114 @@ public class ReactiveServiceControllerParityCoverageTests
         /// <summary>Invokes the protected disposal path.</summary>
         /// <param name="disposing">Whether managed resources should be disposed.</param>
         public void ExposeDispose(bool disposing) => Dispose(disposing);
+    }
+
+    /// <summary>Reactive service runtime that blocks a failing status read.</summary>
+    /// <remarks>Initializes a new instance of the <see cref="BlockingServiceControllerRuntime"/> class.</remarks>
+    /// <param name="statusReadEntered">The signal raised when a status read begins.</param>
+    /// <param name="allowStatusRead">The gate that releases the status read.</param>
+    /// <param name="statusError">The error raised after release.</param>
+    private sealed class BlockingServiceControllerRuntime(
+        ManualResetEventSlim statusReadEntered,
+        ManualResetEventSlim allowStatusRead,
+        Exception statusError) : ReactiveServiceControllerRuntime
+    {
+        /// <inheritdoc/>
+        public event EventHandler? Disposed;
+
+        /// <inheritdoc/>
+        public bool CanStop => false;
+
+        /// <inheritdoc/>
+        public string DisplayName => "TwinCAT System";
+
+        /// <inheritdoc/>
+        public string ServiceName => "TcSysSrv";
+
+        /// <inheritdoc/>
+        public ServiceControllerStatus Status
+        {
+            get
+            {
+                statusReadEntered.Set();
+                allowStatusRead.Wait();
+                throw statusError;
+            }
+        }
+
+        /// <inheritdoc/>
+        public void Dispose() => Disposed?.Invoke(this, EventArgs.Empty);
+
+        /// <inheritdoc/>
+        public void Refresh()
+        {
+        }
+
+        /// <inheritdoc/>
+        public void Start()
+        {
+        }
+
+        /// <inheritdoc/>
+        public void Stop()
+        {
+        }
+
+        /// <inheritdoc/>
+        public void WaitForStatus(ServiceControllerStatus status) => _ = status;
+    }
+
+    /// <summary>Manually triggered observable sequence.</summary>
+    /// <typeparam name="T">The value type.</typeparam>
+    private sealed class ManualObservable<T> : IObservable<T>
+    {
+        /// <summary>Stores observers.</summary>
+        private readonly List<IObserver<T>> _observers = [];
+
+        /// <summary>Emits one value.</summary>
+        /// <param name="value">The value.</param>
+        public void Emit(T value)
+        {
+            foreach (var observer in _observers.ToArray())
+            {
+                observer.OnNext(value);
+            }
+        }
+
+        /// <inheritdoc/>
+        public IDisposable Subscribe(IObserver<T> observer)
+        {
+            _observers.Add(observer);
+            return new Subscription(_observers, observer);
+        }
+
+        /// <summary>Removes one observer.</summary>
+        /// <remarks>Initializes a new instance of the <see cref="Subscription"/> class.</remarks>
+        /// <param name="observers">The observer collection.</param>
+        /// <param name="observer">The observer to remove.</param>
+        private sealed class Subscription(List<IObserver<T>> observers, IObserver<T> observer) : IDisposable
+        {
+            /// <inheritdoc/>
+            public void Dispose() => _ = observers.Remove(observer);
+        }
+    }
+
+    /// <summary>Records observable errors.</summary>
+    /// <typeparam name="T">The value type.</typeparam>
+    private sealed class RecordingObserver<T> : IObserver<T>
+    {
+        /// <summary>Gets observed errors.</summary>
+        public List<Exception> Errors { get; } = [];
+
+        /// <inheritdoc/>
+        public void OnCompleted()
+        {
+        }
+
+        /// <inheritdoc/>
+        public void OnError(Exception error) => Errors.Add(error);
+
+        /// <inheritdoc/>
+        public void OnNext(T value) => _ = value;
     }
 }

@@ -24,6 +24,12 @@ public class LeanServiceControllerCoverageTests
     /// <summary>The TwinCAT system service name.</summary>
     private const string TwinCatServiceName = "TcSysSrv";
 
+    /// <summary>The bounded time allowed for race-test coordination.</summary>
+    private static readonly TimeSpan RaceTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>The interval used to prove disposal is waiting for an in-flight poll.</summary>
+    private static readonly TimeSpan RaceObservationInterval = TimeSpan.FromMilliseconds(250);
+
     /// <summary>Verifies composed service commands and deterministic polling.</summary>
     /// <returns>The test task.</returns>
     [Test]
@@ -103,6 +109,70 @@ public class LeanServiceControllerCoverageTests
         await TUnitAssert.That(unsupported.Completed).IsTrue();
     }
 
+    /// <summary>Verifies disposal cannot invalidate the status signal while polling is publishing an error.</summary>
+    /// <returns>The test task.</returns>
+    [Test]
+    public async Task Dispose_During_A_Failing_Status_Read_Is_Serialized_With_PollingAsync()
+    {
+        using var statusReadEntered = new ManualResetEventSlim();
+        using var allowStatusRead = new ManualResetEventSlim();
+        using var disposalTaskStarted = new ManualResetEventSlim();
+        var expectedError = new InvalidOperationException("service disposed during status read");
+        var runtime = new FakeServiceControllerRuntime
+        {
+            AllowStatusRead = allowStatusRead,
+            StatusError = expectedError,
+            StatusReadEntered = statusReadEntered,
+        };
+        var ticks = new ManualObservable<long>();
+        using var controller = new ObservableServiceController(runtime, ticks);
+        var statuses = new RecordingObserver<ServiceControllerStatus>();
+        using var subscription = controller.StatusObserver.Subscribe(statuses);
+
+        var pollingTask = Task.Run(() => ticks.Emit(0));
+        var statusReadWasObserved = statusReadEntered.Wait(RaceTimeout);
+        Task? disposeTask = null;
+        var disposalTaskWasObserved = false;
+        var disposalWaitedForPolling = false;
+        if (statusReadWasObserved)
+        {
+            disposeTask = Task.Run(() =>
+            {
+                disposalTaskStarted.Set();
+                controller.Dispose();
+            });
+            disposalTaskWasObserved = disposalTaskStarted.Wait(RaceTimeout);
+            if (disposalTaskWasObserved)
+            {
+                var firstCompleted = await Task.WhenAny(disposeTask, Task.Delay(RaceObservationInterval));
+                disposalWaitedForPolling = !ReferenceEquals(firstCompleted, disposeTask);
+            }
+        }
+
+        allowStatusRead.Set();
+        Exception? pollingException = null;
+        try
+        {
+            await pollingTask;
+        }
+        catch (Exception ex)
+        {
+            pollingException = ex;
+        }
+
+        if (disposeTask is not null)
+        {
+            await disposeTask;
+        }
+
+        await TUnitAssert.That(statusReadWasObserved).IsTrue();
+        await TUnitAssert.That(disposalTaskWasObserved).IsTrue();
+        await TUnitAssert.That(disposalWaitedForPolling).IsTrue();
+        await TUnitAssert.That(pollingException).IsNull();
+        await TUnitAssert.That(statuses.Errors).Count().IsEqualTo(1);
+        await TUnitAssert.That(statuses.Errors[0]).IsSameReferenceAs(expectedError);
+    }
+
     /// <summary>Verifies null-state getters and disposed command guards without querying Windows services.</summary>
     /// <returns>The test task.</returns>
     [Test]
@@ -179,6 +249,8 @@ public class LeanServiceControllerCoverageTests
         {
             get
             {
+                StatusReadEntered?.Set();
+                AllowStatusRead?.Wait();
                 if (StatusError is not null)
                 {
                     throw StatusError;
@@ -193,8 +265,14 @@ public class LeanServiceControllerCoverageTests
         /// <summary>Gets or sets the status assigned by refresh.</summary>
         public ServiceControllerStatus? RefreshedStatus { get; set; }
 
+        /// <summary>Gets or sets the gate that releases a blocked status read.</summary>
+        public ManualResetEventSlim? AllowStatusRead { get; set; }
+
         /// <summary>Gets or sets the status query error.</summary>
         public Exception? StatusError { get; set; }
+
+        /// <summary>Gets or sets the signal raised when a status read begins.</summary>
+        public ManualResetEventSlim? StatusReadEntered { get; set; }
 
         /// <summary>Gets the refresh count.</summary>
         public int RefreshCount { get; private set; }

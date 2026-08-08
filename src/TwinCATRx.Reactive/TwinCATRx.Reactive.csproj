@@ -37,6 +37,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>TwinCATRx.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\TwinCATRx.Core.Reactive\TwinCATRx.Core.Reactive.csproj" />
     <ProjectReference Include="..\TwinCATRx.Generators\TwinCATRx.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\CP.IoT.Core\CP.IoT.Core.csproj" />
