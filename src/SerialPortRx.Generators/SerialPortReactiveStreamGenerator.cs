@@ -132,15 +132,10 @@ public sealed partial class SerialPortReactiveStreamGenerator : IIncrementalGene
             ? attribute.ConstructorArguments[2].Value as string
             : null;
 
-        var sourceExpression = "serialPort.Lines";
-        var groupName = "value";
-        var groupNumber = 1;
-        var ignoreCase = false;
-
-        foreach (var argument in attribute.NamedArguments)
-        {
-            ApplyNamedArgument(argument, ref sourceExpression, ref groupName, ref groupNumber, ref ignoreCase);
-        }
+        var sourceExpression = GetSourceExpression(GetNamedInt(attribute, "Source", 0));
+        var groupName = GetNamedString(attribute, "GroupName", "value");
+        var groupNumber = GetNamedInt(attribute, "GroupNumber", 1);
+        var ignoreCase = GetNamedBool(attribute, "IgnoreCase", false);
 
         streamInfo = new(
             new StreamIdentity(
@@ -154,45 +149,58 @@ public sealed partial class SerialPortReactiveStreamGenerator : IIncrementalGene
         return true;
     }
 
-    /// <summary>Applies a supported named attribute argument to the pending stream declaration.</summary>
-    /// <param name="argument">The named argument to apply.</param>
-    /// <param name="sourceExpression">The generated observable expression.</param>
-    /// <param name="groupName">The named regular expression group.</param>
-    /// <param name="groupNumber">The fallback regular expression group number.</param>
-    /// <param name="ignoreCase">Whether matching should ignore case.</param>
-    private static void ApplyNamedArgument(
-        KeyValuePair<string, TypedConstant> argument,
-        ref string sourceExpression,
-        ref string? groupName,
-        ref int groupNumber,
-        ref bool ignoreCase)
+    /// <summary>Gets a named integer argument value.</summary>
+    /// <param name="attribute">The attribute data.</param>
+    /// <param name="name">The named argument name.</param>
+    /// <param name="defaultValue">The value used when the argument is absent.</param>
+    /// <returns>The integer value, or the default value.</returns>
+    private static int GetNamedInt(AttributeData attribute, string name, int defaultValue)
     {
-        switch (argument.Key)
+        foreach (var argument in attribute.NamedArguments)
         {
-            case "Source":
-                {
-                    sourceExpression = GetSourceExpression((argument.Value.Value as int?) ?? 0);
-                    break;
-                }
-
-            case "GroupName":
-                {
-                    groupName = argument.Value.Value as string;
-                    break;
-                }
-
-            case "GroupNumber":
-                {
-                    groupNumber = (argument.Value.Value as int?) ?? 1;
-                    break;
-                }
-
-            case "IgnoreCase":
-                {
-                    ignoreCase = (argument.Value.Value as bool?) ?? false;
-                    break;
-                }
+            if (argument.Key == name)
+            {
+                return (argument.Value.Value as int?) ?? defaultValue;
+            }
         }
+
+        return defaultValue;
+    }
+
+    /// <summary>Gets a named string argument value.</summary>
+    /// <param name="attribute">The attribute data.</param>
+    /// <param name="name">The named argument name.</param>
+    /// <param name="defaultValue">The value used when the argument is absent.</param>
+    /// <returns>The string value, or the default value.</returns>
+    private static string? GetNamedString(AttributeData attribute, string name, string? defaultValue)
+    {
+        foreach (var argument in attribute.NamedArguments)
+        {
+            if (argument.Key == name)
+            {
+                return argument.Value.Value as string;
+            }
+        }
+
+        return defaultValue;
+    }
+
+    /// <summary>Gets a named boolean argument value.</summary>
+    /// <param name="attribute">The attribute data.</param>
+    /// <param name="name">The named argument name.</param>
+    /// <param name="defaultValue">The value used when the argument is absent.</param>
+    /// <returns>The boolean value, or the default value.</returns>
+    private static bool GetNamedBool(AttributeData attribute, string name, bool defaultValue)
+    {
+        foreach (var argument in attribute.NamedArguments)
+        {
+            if (argument.Key == name)
+            {
+                return (argument.Value.Value as bool?) ?? defaultValue;
+            }
+        }
+
+        return defaultValue;
     }
 
     /// <summary>Gets the generated observable expression for a generated attribute source value.</summary>

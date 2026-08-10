@@ -38,6 +38,9 @@ public sealed partial class ModbusReactiveStreamGenerator : IIncrementalGenerato
     /// <summary>The generated attribute value for a serial master.</summary>
     private const int SerialMasterKindValue = 2;
 
+    /// <summary>The default polling interval in milliseconds.</summary>
+    private const double DefaultPollIntervalMs = 1000.0;
+
     /// <summary>Diagnostic reported when a reactive device class is not partial.</summary>
     private static readonly DiagnosticDescriptor ClassMustBePartial = new(
         "MBRXGEN001",
@@ -123,7 +126,7 @@ public sealed partial class ModbusReactiveStreamGenerator : IIncrementalGenerato
             return null;
         }
 
-        var device = DeviceOptions.From(deviceAttribute);
+        var device = CreateDeviceOptions(deviceAttribute);
         device = device.WithApiRoot(ResolveApiRoot(propertySymbol.ContainingType, device.ConnectionMember));
         return new(
             propertySymbol,
@@ -132,7 +135,84 @@ public sealed partial class ModbusReactiveStreamGenerator : IIncrementalGenerato
             pointAttribute.Kind,
             GetPointAddress(pointAttribute.Attribute),
             device,
-            PointOptions.From(pointAttribute.Attribute));
+            CreatePointOptions(pointAttribute.Attribute));
+    }
+
+    /// <summary>Creates device options from a generated device attribute.</summary>
+    /// <param name="attribute">The device attribute data.</param>
+    /// <returns>The device options.</returns>
+    private static DeviceOptions CreateDeviceOptions(AttributeData attribute)
+    {
+        var connectionMember = GetNamedString(attribute, "ConnectionMember") ?? "MasterStream";
+        var tagClientMember = GetNamedString(attribute, "TagClientMember");
+        var slaveAddress = GetNamedStruct(attribute, "SlaveAddress", (byte)1);
+        var defaultInterval = GetNamedStruct(attribute, "DefaultInterval", DefaultPollIntervalMs);
+        var masterKind = MapMasterKind(GetNamedStruct(attribute, "MasterKind", -1));
+        return new(
+            connectionMember,
+            string.IsNullOrWhiteSpace(tagClientMember) ? null : tagClientMember,
+            slaveAddress,
+            defaultInterval,
+            masterKind,
+            "global::IoT.Driver.ModbusRx");
+    }
+
+    /// <summary>Creates point options from a generated point attribute.</summary>
+    /// <param name="attribute">The point attribute data.</param>
+    /// <returns>The point options.</returns>
+    private static PointOptions CreatePointOptions(AttributeData attribute)
+    {
+        var count = GetNamedStruct(attribute, "Count", (ushort)0);
+        var swapWords = GetNamedStruct(attribute, "SwapWords", true);
+        var tagName = GetNamedString(attribute, "TagName");
+        return new(count, swapWords, string.IsNullOrWhiteSpace(tagName) ? null : tagName);
+    }
+
+    /// <summary>Maps a generated master-kind enum value to its generated text.</summary>
+    /// <param name="value">The master-kind enum value.</param>
+    /// <returns>The generated master-kind text.</returns>
+    private static string MapMasterKind(int value) => value switch
+    {
+        SerialMasterKindValue => "Serial",
+        1 => "Ip",
+        _ => "Auto",
+    };
+
+    /// <summary>Gets a named string argument value from an attribute.</summary>
+    /// <param name="attribute">The attribute to inspect.</param>
+    /// <param name="name">The named argument name.</param>
+    /// <returns>The named string value, or <c>null</c> when it is not present.</returns>
+    private static string? GetNamedString(AttributeData attribute, string name)
+    {
+        foreach (var argument in attribute.NamedArguments)
+        {
+            if (argument.Key == name && argument.Value.Value is string value)
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Gets a named value-type argument value from an attribute.</summary>
+    /// <typeparam name="T">The value type to read.</typeparam>
+    /// <param name="attribute">The attribute to inspect.</param>
+    /// <param name="name">The named argument name.</param>
+    /// <param name="defaultValue">The value used when the argument is absent.</param>
+    /// <returns>The named value, or the default value.</returns>
+    private static T GetNamedStruct<T>(AttributeData attribute, string name, T defaultValue)
+        where T : struct
+    {
+        foreach (var argument in attribute.NamedArguments)
+        {
+            if (argument.Key == name && argument.Value.Value is T value)
+            {
+                return value;
+            }
+        }
+
+        return defaultValue;
     }
 
     /// <summary>Finds the first supported point attribute on a property.</summary>
