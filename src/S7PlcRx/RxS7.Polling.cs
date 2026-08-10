@@ -49,10 +49,7 @@ public partial class RxS7
         if (decimalPointIndex == -1)
         {
             throw new ArgumentException(
-                string.Concat(
-                    $"Cannot parse variable {correctVariable}. ",
-                    "Input, Output, Memory Address, Timer, and Counter types ",
-                    "require bit-level addressing (e.g. I0.1)."),
+                $"Cannot parse variable {correctVariable}. Input, Output, Memory Address, Timer, and Counter types require bit-level addressing (e.g. I0.1).",
                 nameof(tag));
         }
 

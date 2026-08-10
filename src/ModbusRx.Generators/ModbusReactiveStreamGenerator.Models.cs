@@ -95,68 +95,6 @@ public sealed partial class ModbusReactiveStreamGenerator
         /// <summary>Gets the generated API root namespace.</summary>
         public string ApiRoot { get; } = apiRoot;
 
-        /// <summary>Creates device options from a generated device attribute.</summary>
-        /// <param name="attribute">The device attribute data.</param>
-        /// <returns>The device options.</returns>
-        public static DeviceOptions From(AttributeData attribute)
-        {
-            var connectionMember = "MasterStream";
-            string? tagClientMember = null;
-            var slaveAddress = (byte)1;
-            var defaultInterval = 1000.0;
-            var masterKind = "Auto";
-
-            foreach (var argument in attribute.NamedArguments)
-            {
-                switch (argument.Key)
-                {
-                    case "ConnectionMember" when argument.Value.Value is string value:
-                        {
-                            connectionMember = value;
-                            break;
-                        }
-
-                    case "SlaveAddress" when argument.Value.Value is byte value:
-                        {
-                            slaveAddress = value;
-                            break;
-                        }
-
-                    case "DefaultInterval" when argument.Value.Value is double value:
-                        {
-                            defaultInterval = value;
-                            break;
-                        }
-
-                    case "MasterKind" when argument.Value.Value is int value:
-                        {
-                            masterKind = value switch
-                            {
-                                SerialMasterKindValue => "Serial",
-                                1 => "Ip",
-                                _ => "Auto",
-                            };
-
-                            break;
-                        }
-
-                    case "TagClientMember" when argument.Value.Value is string value:
-                        {
-                            tagClientMember = string.IsNullOrWhiteSpace(value) ? null : value;
-                            break;
-                        }
-                }
-            }
-
-            return new(
-                connectionMember,
-                tagClientMember,
-                slaveAddress,
-                defaultInterval,
-                masterKind,
-                "global::IoT.Driver.ModbusRx");
-        }
-
         /// <summary>Creates a copy with a resolved API root namespace.</summary>
         /// <param name="apiRoot">The API root namespace.</param>
         /// <returns>The updated device options.</returns>
@@ -178,42 +116,6 @@ public sealed partial class ModbusReactiveStreamGenerator
 
         /// <summary>Gets the optional logical tag name.</summary>
         public string? TagName { get; } = tagName;
-
-        /// <summary>Creates point options from a generated point attribute.</summary>
-        /// <param name="attribute">The point attribute data.</param>
-        /// <returns>The point options.</returns>
-        public static PointOptions From(AttributeData attribute)
-        {
-            var count = (ushort)0;
-            var swapWords = true;
-            string? tagName = null;
-
-            foreach (var argument in attribute.NamedArguments)
-            {
-                switch (argument.Key)
-                {
-                    case "Count" when argument.Value.Value is ushort value:
-                        {
-                            count = value;
-                            break;
-                        }
-
-                    case "SwapWords" when argument.Value.Value is bool value:
-                        {
-                            swapWords = value;
-                            break;
-                        }
-
-                    case "TagName" when argument.Value.Value is string value:
-                        {
-                            tagName = string.IsNullOrWhiteSpace(value) ? null : value;
-                            break;
-                        }
-                }
-            }
-
-            return new(count, swapWords, tagName);
-        }
     }
 
     /// <summary>Contains generated conversion metadata for a Modbus property type.</summary>

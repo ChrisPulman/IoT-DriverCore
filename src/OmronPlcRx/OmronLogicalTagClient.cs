@@ -128,7 +128,7 @@ public sealed partial class OmronLogicalTagClient : IManagedLogicalTagClient, ID
     {
         ThrowIfNull(tag, nameof(tag));
 
-        var dataType = typeof(T).FullName ?? nameof(T);
+        var dataType = typeof(T).FullName ?? typeof(T).Name;
         var logicalTag = new LogicalTag(
             tag.TagName,
             tag.Address,

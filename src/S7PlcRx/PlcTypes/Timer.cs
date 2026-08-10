@@ -101,32 +101,14 @@ public static class Timer
             txt[HundredsDigitStartBit..HundredsDigitEndBit]) * HundredsScale;
         wert += ConversionExtensions.BinStringToInt32(txt[TensDigitStartBit..TensDigitEndBit]) * TensScale;
         wert += ConversionExtensions.BinStringToInt32(txt[UnitsDigitStartBit..UnitsDigitEndBit]);
-        switch (txt[TimeBaseStartBit..TimeBaseEndBit])
+        wert *= txt[TimeBaseStartBit..TimeBaseEndBit] switch
         {
-            case "00":
-                {
-                    wert *= HundredthsScale;
-                    break;
-                }
-
-            case "01":
-                {
-                    wert *= TenthsScale;
-                    break;
-                }
-
-            case "10":
-                {
-                    wert *= 1.0;
-                    break;
-                }
-
-            case "11":
-                {
-                    wert *= TensScale;
-                    break;
-                }
-        }
+            "00" => HundredthsScale,
+            "01" => TenthsScale,
+            "10" => 1.0,
+            "11" => TensScale,
+            _ => 1.0,
+        };
 
         return wert;
     }

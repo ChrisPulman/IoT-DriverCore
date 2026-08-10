@@ -149,48 +149,19 @@ public static class Struct
     /// <param name="numBytes">The current byte count.</param>
     /// <param name="info">The field metadata.</param>
     /// <returns>The updated byte count.</returns>
-    private static double GetIncreasedNumberOfBytes(double numBytes, FieldInfo info)
-    {
-        if (info.FieldType == typeof(System.TimeSpan))
-        {
-            IncrementToEven(ref numBytes);
-            return numBytes + sizeof(int);
-        }
-
-        switch (Type.GetTypeCode(info.FieldType))
-        {
-            case TypeCode.Boolean:
-                return numBytes + BitSizeInBytes;
-            case TypeCode.Byte:
-                return Math.Ceiling(numBytes) + 1;
-            case TypeCode.Int16 or TypeCode.UInt16:
-                {
-                    IncrementToEven(ref numBytes);
-                    return numBytes + sizeof(short);
-                }
-
-            case TypeCode.Int32 or TypeCode.UInt32 or TypeCode.Single:
-                {
-                    IncrementToEven(ref numBytes);
-                    return numBytes + sizeof(int);
-                }
-
-            case TypeCode.Double:
-                {
-                    IncrementToEven(ref numBytes);
-                    return numBytes + sizeof(double);
-                }
-
-            case TypeCode.String:
-                {
-                    IncrementToEven(ref numBytes);
-                    return numBytes + GetRequiredStringAttribute(info).ReservedLengthInBytes;
-                }
-
-            default:
-                return numBytes + GetStructSize(info.FieldType);
-        }
-    }
+    private static double GetIncreasedNumberOfBytes(double numBytes, FieldInfo info) =>
+        info.FieldType == typeof(System.TimeSpan)
+            ? IncrementedToEven(numBytes) + sizeof(int)
+            : Type.GetTypeCode(info.FieldType) switch
+            {
+                TypeCode.Boolean => numBytes + BitSizeInBytes,
+                TypeCode.Byte => Math.Ceiling(numBytes) + 1,
+                TypeCode.Int16 or TypeCode.UInt16 => IncrementedToEven(numBytes) + sizeof(short),
+                TypeCode.Int32 or TypeCode.UInt32 or TypeCode.Single => IncrementedToEven(numBytes) + sizeof(int),
+                TypeCode.Double => IncrementedToEven(numBytes) + sizeof(double),
+                TypeCode.String => IncrementedToEven(numBytes) + GetRequiredStringAttribute(info).ReservedLengthInBytes,
+                _ => numBytes + GetStructSize(info.FieldType),
+            };
 
     /// <summary>Returns the public fields for a struct type.</summary>
     /// <param name="type">The type to inspect.</param>
@@ -225,37 +196,26 @@ public static class Struct
         ref int bitPos,
         ref double numBytes)
     {
-        switch (Type.GetTypeCode(info.FieldType))
+        var typeCode = Type.GetTypeCode(info.FieldType);
+        if (typeCode == TypeCode.Boolean)
         {
-            case TypeCode.Boolean:
-                {
-                    SetBooleanFieldFromBytes(info, structValue, bytes, ref bytePos, ref bitPos, ref numBytes);
-                    return;
-                }
-
-            case TypeCode.Byte:
-                {
-                    SetByteFieldFromBytes(info, structValue, bytes, ref numBytes);
-                    return;
-                }
-
-            case TypeCode.Int16:
-                {
-                    info.SetValue(structValue, ConversionExtensions.ConvertToShort(ReadWord(bytes, ref numBytes)));
-                    return;
-                }
-
-            case TypeCode.UInt16:
-                {
-                    info.SetValue(structValue, ReadWord(bytes, ref numBytes));
-                    return;
-                }
-
-            default:
-                {
-                    SetOtherFieldValueFromBytes(info, structValue, bytes, ref numBytes);
-                    return;
-                }
+            SetBooleanFieldFromBytes(info, structValue, bytes, ref bytePos, ref bitPos, ref numBytes);
+        }
+        else if (typeCode == TypeCode.Byte)
+        {
+            SetByteFieldFromBytes(info, structValue, bytes, ref numBytes);
+        }
+        else if (typeCode == TypeCode.Int16)
+        {
+            info.SetValue(structValue, ConversionExtensions.ConvertToShort(ReadWord(bytes, ref numBytes)));
+        }
+        else if (typeCode == TypeCode.UInt16)
+        {
+            info.SetValue(structValue, ReadWord(bytes, ref numBytes));
+        }
+        else
+        {
+            SetOtherFieldValueFromBytes(info, structValue, bytes, ref numBytes);
         }
     }
 
@@ -276,43 +236,30 @@ public static class Struct
             return;
         }
 
-        switch (Type.GetTypeCode(info.FieldType))
+        var typeCode = Type.GetTypeCode(info.FieldType);
+        if (typeCode == TypeCode.Int32)
         {
-            case TypeCode.Int32:
-                {
-                    SetInt32FieldFromBytes(info, structValue, bytes, ref numBytes);
-                    return;
-                }
-
-            case TypeCode.UInt32:
-                {
-                    SetUInt32FieldFromBytes(info, structValue, bytes, ref numBytes);
-                    return;
-                }
-
-            case TypeCode.Single:
-                {
-                    SetSingleFieldFromBytes(info, structValue, bytes, ref numBytes);
-                    return;
-                }
-
-            case TypeCode.Double:
-                {
-                    SetDoubleFieldFromBytes(info, structValue, bytes, ref numBytes);
-                    return;
-                }
-
-            case TypeCode.String:
-                {
-                    SetStringFieldFromBytes(info, structValue, bytes, ref numBytes);
-                    return;
-                }
-
-            default:
-                {
-                    SetNestedFieldFromBytes(info, structValue, bytes, ref numBytes);
-                    return;
-                }
+            SetInt32FieldFromBytes(info, structValue, bytes, ref numBytes);
+        }
+        else if (typeCode == TypeCode.UInt32)
+        {
+            SetUInt32FieldFromBytes(info, structValue, bytes, ref numBytes);
+        }
+        else if (typeCode == TypeCode.Single)
+        {
+            SetSingleFieldFromBytes(info, structValue, bytes, ref numBytes);
+        }
+        else if (typeCode == TypeCode.Double)
+        {
+            SetDoubleFieldFromBytes(info, structValue, bytes, ref numBytes);
+        }
+        else if (typeCode == TypeCode.String)
+        {
+            SetStringFieldFromBytes(info, structValue, bytes, ref numBytes);
+        }
+        else
+        {
+            SetNestedFieldFromBytes(info, structValue, bytes, ref numBytes);
         }
     }
 
@@ -488,37 +435,30 @@ public static class Struct
             return TimeSpan.ToByteArray(GetValueOrThrow<System.TimeSpan>(info, structValue));
         }
 
-        switch (Type.GetTypeCode(info.FieldType))
+        var typeCode = Type.GetTypeCode(info.FieldType);
+        if (typeCode == TypeCode.Boolean)
         {
-            case TypeCode.Boolean:
-                {
-                    SetBooleanFieldBytes(info, structValue, bytes, ref bytePos, ref numBytes);
-                    return null;
-                }
-
-            case TypeCode.Byte:
-                {
-                    SetByteFieldBytes(info, structValue, bytes, ref bytePos, ref numBytes);
-                    return null;
-                }
-
-            case TypeCode.Int16:
-                return Int.ToByteArray(GetValueOrThrow<short>(info, structValue));
-            case TypeCode.UInt16:
-                return Word.ToByteArray(GetValueOrThrow<ushort>(info, structValue));
-            case TypeCode.Int32:
-                return DInt.ToByteArray(GetValueOrThrow<int>(info, structValue));
-            case TypeCode.UInt32:
-                return DWord.ToByteArray(GetValueOrThrow<uint>(info, structValue));
-            case TypeCode.Single:
-                return Real.ToByteArray(GetValueOrThrow<float>(info, structValue));
-            case TypeCode.Double:
-                return LReal.ToByteArray(GetValueOrThrow<double>(info, structValue));
-            case TypeCode.String:
-                return GetStringFieldBytes(info, structValue);
-            default:
-                return null;
+            SetBooleanFieldBytes(info, structValue, bytes, ref bytePos, ref numBytes);
+            return null;
         }
+
+        if (typeCode == TypeCode.Byte)
+        {
+            SetByteFieldBytes(info, structValue, bytes, ref bytePos, ref numBytes);
+            return null;
+        }
+
+        return typeCode switch
+        {
+            TypeCode.Int16 => Int.ToByteArray(GetValueOrThrow<short>(info, structValue)),
+            TypeCode.UInt16 => Word.ToByteArray(GetValueOrThrow<ushort>(info, structValue)),
+            TypeCode.Int32 => DInt.ToByteArray(GetValueOrThrow<int>(info, structValue)),
+            TypeCode.UInt32 => DWord.ToByteArray(GetValueOrThrow<uint>(info, structValue)),
+            TypeCode.Single => Real.ToByteArray(GetValueOrThrow<float>(info, structValue)),
+            TypeCode.Double => LReal.ToByteArray(GetValueOrThrow<double>(info, structValue)),
+            TypeCode.String => GetStringFieldBytes(info, structValue),
+            _ => null,
+        };
     }
 
     /// <summary>Sets a Boolean field in the destination byte buffer.</summary>
@@ -645,5 +585,14 @@ public static class Struct
         }
 
         numBytes++;
+    }
+
+    /// <summary>Returns the byte count rounded up to an even boundary.</summary>
+    /// <param name="numBytes">The number of bytes.</param>
+    /// <returns>The aligned number of bytes.</returns>
+    private static double IncrementedToEven(double numBytes)
+    {
+        IncrementToEven(ref numBytes);
+        return numBytes;
     }
 }

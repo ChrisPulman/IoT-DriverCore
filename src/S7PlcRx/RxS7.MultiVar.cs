@@ -244,56 +244,19 @@ public partial class RxS7
     /// <returns>true when serialization succeeds; otherwise, false.</returns>
     private static bool TrySerializeScalarTagValue(Tag tag, out byte[] data)
     {
-        data = [];
-        switch (Type.GetTypeCode(tag.Type))
+        var serialized = Type.GetTypeCode(tag.Type) switch
         {
-            case TypeCode.Boolean or TypeCode.Byte:
-                {
-                    data = [Convert.ToByte(tag.NewValue, CultureInfo.InvariantCulture)];
-                    return true;
-                }
-
-            case TypeCode.Int16:
-                {
-                    data = Int.ToByteArray(Convert.ToInt16(tag.NewValue, CultureInfo.InvariantCulture));
-                    return true;
-                }
-
-            case TypeCode.UInt16:
-                {
-                    data = Word.ToByteArray(Convert.ToUInt16(tag.NewValue, CultureInfo.InvariantCulture));
-                    return true;
-                }
-
-            case TypeCode.Int32:
-                {
-                    data = DInt.ToByteArray(Convert.ToInt32(tag.NewValue, CultureInfo.InvariantCulture));
-                    return true;
-                }
-
-            case TypeCode.UInt32:
-                {
-                    data = DWord.ToByteArray(Convert.ToUInt32(tag.NewValue, CultureInfo.InvariantCulture));
-                    return true;
-                }
-
-            case TypeCode.Single:
-                {
-                    data = Real.ToByteArray((float)tag.NewValue!);
-                    return true;
-                }
-
-            case TypeCode.Double:
-                {
-                    data = LReal.ToByteArray((double)tag.NewValue!);
-                    return true;
-                }
-
-            default:
-                {
-                    return false;
-                }
-        }
+            TypeCode.Boolean or TypeCode.Byte => [Convert.ToByte(tag.NewValue, CultureInfo.InvariantCulture)],
+            TypeCode.Int16 => Int.ToByteArray(Convert.ToInt16(tag.NewValue, CultureInfo.InvariantCulture)),
+            TypeCode.UInt16 => Word.ToByteArray(Convert.ToUInt16(tag.NewValue, CultureInfo.InvariantCulture)),
+            TypeCode.Int32 => DInt.ToByteArray(Convert.ToInt32(tag.NewValue, CultureInfo.InvariantCulture)),
+            TypeCode.UInt32 => DWord.ToByteArray(Convert.ToUInt32(tag.NewValue, CultureInfo.InvariantCulture)),
+            TypeCode.Single => Real.ToByteArray((float)tag.NewValue!),
+            TypeCode.Double => LReal.ToByteArray((double)tag.NewValue!),
+            _ => (byte[]?)null,
+        };
+        data = serialized ?? [];
+        return serialized is not null;
     }
 
     /// <summary>Attempts to serialize an array or string tag value.</summary>

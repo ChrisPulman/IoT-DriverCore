@@ -248,32 +248,18 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
 
         foreach (var namedArgument in attribute.NamedArguments)
         {
-            switch (namedArgument.Key)
+            (variable, group, bit, registerTag) = namedArgument.Key switch
             {
-                case "Variable" when namedArgument.Value.Value is string value && !string.IsNullOrWhiteSpace(value):
-                {
-                    variable = value;
-                    break;
-                }
-
-                case "Group" when namedArgument.Value.Value is string value && !string.IsNullOrWhiteSpace(value):
-                {
-                    group = value;
-                    break;
-                }
-
-                case "Bit" when namedArgument.Value.Value is int value:
-                {
-                    bit = value;
-                    break;
-                }
-
-                case "RegisterTag" when namedArgument.Value.Value is bool value:
-                {
-                    registerTag = value;
-                    break;
-                }
-            }
+                "Variable" when namedArgument.Value.Value is string variableValue && !string.IsNullOrWhiteSpace(variableValue)
+                    => (variableValue, group, bit, registerTag),
+                "Group" when namedArgument.Value.Value is string groupValue && !string.IsNullOrWhiteSpace(groupValue)
+                    => (variable, groupValue, bit, registerTag),
+                "Bit" when namedArgument.Value.Value is int bitValue
+                    => (variable, group, bitValue, registerTag),
+                "RegisterTag" when namedArgument.Value.Value is bool registerTagValue
+                    => (variable, group, bit, registerTagValue),
+                _ => (variable, group, bit, registerTag)
+            };
         }
 
         return new(variable, group, bit, registerTag);
