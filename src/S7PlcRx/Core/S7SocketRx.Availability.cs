@@ -313,9 +313,7 @@ internal partial class S7SocketRx
             {
                 _isAvailable = false;
                 LogWarning(
-                    string.Concat(
-                        $"Availability probe failed {_consecutiveAvailabilityFailures} times consecutively. ",
-                        "Marking PLC unavailable."),
+                    $"Availability probe failed {_consecutiveAvailabilityFailures} times consecutively. Marking PLC unavailable.",
                     _timeProvider);
             }
         }
@@ -373,9 +371,7 @@ internal partial class S7SocketRx
         }
 
         LogWarning(
-            string.Concat(
-                $"Connection probe failed {_consecutiveConnectionFailures} times consecutively. ",
-                "Restarting connection."),
+            $"Connection probe failed {_consecutiveConnectionFailures} times consecutively. Restarting connection.",
             _timeProvider);
         RestartConnection();
         return false;

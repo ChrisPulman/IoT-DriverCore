@@ -24,16 +24,30 @@ internal static class Guard
     /// <param name="exclusiveUpperBound">The exclusive upper bound.</param>
     /// <param name="parameterName">The parameter name.</param>
     /// <param name="message">The exception message.</param>
-    internal static void LessThan(int value, int exclusiveUpperBound, string parameterName, string message) =>
-        _ = value < exclusiveUpperBound
-            ? true
-            : throw new ArgumentOutOfRangeException(parameterName, message);
+    internal static void LessThan(int value, int exclusiveUpperBound, string parameterName, string message)
+    {
+        if (value < exclusiveUpperBound)
+        {
+            return;
+        }
+
+        throw new ArgumentOutOfRangeException(parameterName, message);
+    }
 
     /// <summary>Requires text containing at least one non-whitespace character.</summary>
     /// <param name="value">The value to validate.</param>
     /// <param name="parameterName">The parameter name.</param>
-    internal static void NotNullOrWhiteSpace(string? value, string parameterName) =>
-        _ = value is { } text && text.Trim().Length > 0
-            ? true
-            : throw new ArgumentException("A non-empty value is required.", parameterName);
+    internal static void NotNullOrWhiteSpace(string? value, string parameterName)
+    {
+#if NET8_0_OR_GREATER
+        ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
+#else
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        throw new ArgumentException("A non-empty value is required.", parameterName);
+#endif
+    }
 }

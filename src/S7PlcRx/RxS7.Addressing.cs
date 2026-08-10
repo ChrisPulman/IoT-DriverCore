@@ -68,32 +68,20 @@ public partial class RxS7
             return false;
         }
 
-        switch (dbType)
+        var resolvedVarType = dbType switch
         {
-            case "DBB":
-                {
-                    varType = VarType.Byte;
-                    break;
-                }
+            "DBB" => VarType.Byte,
+            "DBW" => tag.Type == typeof(short) || tag.Type == typeof(short[]) ? VarType.Int : VarType.Word,
+            "DBD" => GetDbdMultiVarType(tag.Type),
+            _ => (VarType?)null,
+        };
 
-            case "DBW":
-                {
-                    varType = tag.Type == typeof(short) || tag.Type == typeof(short[]) ? VarType.Int : VarType.Word;
-                    break;
-                }
-
-            case "DBD":
-                {
-                    varType = GetDbdMultiVarType(tag.Type);
-                    break;
-                }
-
-            default:
-                {
-                    return false;
-                }
+        if (resolvedVarType is null)
+        {
+            return false;
         }
 
+        varType = resolvedVarType.Value;
         countBytes = VarTypeToByteLength(varType, tag.ArrayLength.Value);
         return countBytes > 0;
     }
@@ -200,19 +188,13 @@ public partial class RxS7
     {
         var package = new ByteArray(ReadRequestItemSize);
         package.Add(ReadRequestItemPrefix);
-        switch (dataType)
+        if (dataType is DataType.Timer or DataType.Counter)
         {
-            case DataType.Timer or DataType.Counter:
-                {
-                    package.Add((byte)dataType);
-                    break;
-                }
-
-            default:
-                {
-                    package.Add(StandardReadTransportSize);
-                    break;
-                }
+            package.Add((byte)dataType);
+        }
+        else
+        {
+            package.Add(StandardReadTransportSize);
         }
 
         package.Add(Word.ToByteArray((ushort)count));
@@ -220,19 +202,13 @@ public partial class RxS7
         package.Add((byte)dataType);
         var overflow = startByteAdr * BitsPerByte / ushort.MaxValue;
         package.Add((byte)overflow);
-        switch (dataType)
+        if (dataType is DataType.Timer or DataType.Counter)
         {
-            case DataType.Timer or DataType.Counter:
-                {
-                    package.Add(Word.ToByteArray((ushort)startByteAdr));
-                    break;
-                }
-
-            default:
-                {
-                    package.Add(Word.ToByteArray((ushort)(startByteAdr * BitsPerByte)));
-                    break;
-                }
+            package.Add(Word.ToByteArray((ushort)startByteAdr));
+        }
+        else
+        {
+            package.Add(Word.ToByteArray((ushort)(startByteAdr * BitsPerByte)));
         }
 
         return package;

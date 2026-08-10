@@ -247,74 +247,34 @@ public static class Class
     /// <exception cref="ArgumentException">Thrown if the type is 'String' and the property does not have an
     /// S7StringAttribute, or if an instance of the
     /// specified type cannot be created.</exception>
-    private static double GetIncreasedNumberOfBytes(double numBytes, Type type, PropertyInfo? propertyInfo)
-    {
-        switch (Type.GetTypeCode(type))
+    private static double GetIncreasedNumberOfBytes(double numBytes, Type type, PropertyInfo? propertyInfo) =>
+        Type.GetTypeCode(type) switch
         {
-            case TypeCode.Boolean:
-                {
-                    numBytes += BitSizeInBytes;
-                    break;
-                }
+            TypeCode.Boolean => numBytes + BitSizeInBytes,
+            TypeCode.Byte => Math.Ceiling(numBytes) + 1,
+            TypeCode.Int16 or TypeCode.UInt16 => IncrementedToEven(numBytes) + sizeof(short),
+            TypeCode.Int32 or TypeCode.UInt32 => IncrementedToEven(numBytes) + sizeof(int),
+            TypeCode.Single => IncrementedToEven(numBytes) + sizeof(float),
+            TypeCode.Double => IncrementedToEven(numBytes) + sizeof(double),
+            TypeCode.String => GetStringIncreasedNumberOfBytes(numBytes, propertyInfo),
+            _ => GetClassSize(
+                Activator.CreateInstance(type) ??
+                    throw new ArgumentException($"Failed to create instance of type {type}.", nameof(type)),
+                numBytes,
+                true),
+        };
 
-            case TypeCode.Byte:
-                {
-                    numBytes = Math.Ceiling(numBytes);
-                    numBytes++;
-                    break;
-                }
-
-            case TypeCode.Int16 or TypeCode.UInt16:
-                {
-                    IncrementToEven(ref numBytes);
-                    numBytes += sizeof(short);
-                    break;
-                }
-
-            case TypeCode.Int32 or TypeCode.UInt32:
-                {
-                    IncrementToEven(ref numBytes);
-                    numBytes += sizeof(int);
-                    break;
-                }
-
-            case TypeCode.Single:
-                {
-                    IncrementToEven(ref numBytes);
-                    numBytes += sizeof(float);
-                    break;
-                }
-
-            case TypeCode.Double:
-                {
-                    IncrementToEven(ref numBytes);
-                    numBytes += sizeof(double);
-                    break;
-                }
-
-            case TypeCode.String:
-                {
-                    var attribute = propertyInfo is null ? null : GetS7StringAttribute(propertyInfo);
-                    if (attribute == default(S7StringAttribute))
-                    {
-                        throw new ArgumentException(MissingS7StringAttributeMessage);
-                    }
-
-                    IncrementToEven(ref numBytes);
-                    numBytes += attribute.ReservedLengthInBytes;
-                    break;
-                }
-
-            default:
-                {
-                    var propertyClass = Activator.CreateInstance(type) ??
-                        throw new ArgumentException($"Failed to create instance of type {type}.", nameof(type));
-                    numBytes = GetClassSize(propertyClass, numBytes, true);
-                    break;
-                }
-        }
-
-        return numBytes;
+    /// <summary>Increases the byte count for a string property using its <see cref="S7StringAttribute"/>.</summary>
+    /// <param name="numBytes">The initial number of bytes.</param>
+    /// <param name="propertyInfo">Optional property metadata used to retrieve the string attribute.</param>
+    /// <returns>The increased number of bytes.</returns>
+    /// <exception cref="ArgumentException">Thrown when the property does not have an S7StringAttribute.</exception>
+    private static double GetStringIncreasedNumberOfBytes(double numBytes, PropertyInfo? propertyInfo)
+    {
+        var attribute = (propertyInfo is null ? null : GetS7StringAttribute(propertyInfo))
+            ?? throw new ArgumentException(MissingS7StringAttributeMessage);
+        IncrementToEven(ref numBytes);
+        return numBytes + attribute.ReservedLengthInBytes;
     }
 
     /// <summary>Reads a property value from bytes using its property type.</summary>
@@ -682,6 +642,15 @@ public static class Class
         }
 
         numBytes++;
+    }
+
+    /// <summary>Returns the byte count rounded up to an even boundary.</summary>
+    /// <param name="numBytes">The number of bytes.</param>
+    /// <returns>The aligned number of bytes.</returns>
+    private static double IncrementedToEven(double numBytes)
+    {
+        IncrementToEven(ref numBytes);
+        return numBytes;
     }
 
     /// <summary>Gets the S7 string attribute for a member.</summary>
