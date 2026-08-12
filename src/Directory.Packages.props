@@ -63,6 +63,6 @@
     <PackageVersion Include="TUnit" Version="1.63.0" />
     <PackageVersion Include="TUnit.Assertions" Version="1.64.0" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.9.0" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.301" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.400" />
   </ItemGroup>
 </Project>
