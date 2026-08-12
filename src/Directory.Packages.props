@@ -32,7 +32,7 @@
 
     <!--PLC Base-->
     <PackageVersion Include="libplctag.NativeImport" Version="2.0.0-alpha.8" />
-    <PackageVersion Include="Beckhoff.TwinCAT.Ads" Version="7.0.303" />
+    <PackageVersion Include="Beckhoff.TwinCAT.Ads" Version="7.0.317" />
     <PackageVersion Include="HashTableRx" Version="4.0.0" />
     <PackageVersion Include="HashTableRx.Reactive" Version="4.0.0" />
 
