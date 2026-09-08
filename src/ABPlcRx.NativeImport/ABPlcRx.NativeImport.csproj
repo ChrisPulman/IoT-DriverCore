@@ -29,7 +29,7 @@
   </ItemGroup>
 
   <!-- PackageVersion is assigned by NuGet's pack targets, after project evaluation. -->
-  <Target Name="ConfigureNativeImportNuspec" BeforeTargets="GenerateNuspec">
+  <Target Name="ConfigureNativeImportNuspec" BeforeTargets="_GetOutputItemsFromPack;GenerateNuspec">
     <PropertyGroup>
       <NuspecProperties>$(NuspecProperties);version=$(PackageVersion)</NuspecProperties>
     </PropertyGroup>
