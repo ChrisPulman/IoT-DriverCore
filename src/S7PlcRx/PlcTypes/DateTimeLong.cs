@@ -90,9 +90,7 @@ public static class DateTimeLong
             throw new ArgumentOutOfRangeException(
                 nameof(bytes),
                 bytes.Length,
-                string.Concat(
-                    "Parsing a DateTimeLong requires exactly 12 bytes of input data, input data is ",
-                    $"{bytes.Length} bytes long."));
+                $"Parsing a DateTimeLong requires exactly 12 bytes of input data, input data is {bytes.Length} bytes long.");
         }
 
         return new(FromSpanImpl(bytes), SystemTimeSpan.Zero);
@@ -113,9 +111,7 @@ public static class DateTimeLong
             throw new ArgumentOutOfRangeException(
                 nameof(bytes),
                 bytes.Length,
-                string.Concat(
-                    "Parsing an array of DateTimeLong requires a multiple of 12 bytes of input data, input data is ",
-                    $"'{bytes.Length}' long."));
+                $"Parsing an array of DateTimeLong requires a multiple of 12 bytes of input data, input data is '{bytes.Length}' long.");
         }
 
         var cnt = bytes.Length / TypeLengthInBytes;
@@ -189,9 +185,7 @@ public static class DateTimeLong
             throw new ArgumentOutOfRangeException(
                 nameof(dateTime),
                 dateTime,
-                string.Concat(
-                    $"Date time '{dateTime}' is before the minimum '{SpecMinimumDateTime}' supported ",
-                    "in S7 DateTimeLong representation."));
+                $"Date time '{dateTime}' is before the minimum '{SpecMinimumDateTime}' supported in S7 DateTimeLong representation.");
         }
 
         if (dateTime > SpecMaximumDateTime)
@@ -199,9 +193,7 @@ public static class DateTimeLong
             throw new ArgumentOutOfRangeException(
                 nameof(dateTime),
                 dateTime,
-                string.Concat(
-                    $"Date time '{dateTime}' is after the maximum '{SpecMaximumDateTime}' supported ",
-                    "in S7 DateTimeLong representation."));
+                $"Date time '{dateTime}' is after the maximum '{SpecMaximumDateTime}' supported in S7 DateTimeLong representation.");
         }
 
         var plcDateTime = dateTime.DateTime;
@@ -259,9 +251,7 @@ public static class DateTimeLong
             throw new ArgumentOutOfRangeException(
                 nameof(bytes),
                 bytes.Length,
-                string.Concat(
-                    "Parsing a DateTimeLong requires exactly 12 bytes of input data, input data is ",
-                    $"{bytes.Length} bytes long."));
+                $"Parsing a DateTimeLong requires exactly 12 bytes of input data, input data is {bytes.Length} bytes long.");
         }
 
         var year = AssertRangeInclusive(

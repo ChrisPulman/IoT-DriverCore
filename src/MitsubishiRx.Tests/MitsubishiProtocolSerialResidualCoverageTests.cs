@@ -106,7 +106,6 @@ internal sealed class MitsubishiProtocolSerialResidualCoverageTests
                     MitsubishiFrameType.OneE,
                     CommunicationDataCode.Binary,
                     0xFFFF,
-                    0,
                     0))
             .IsNull();
         await Assert.That(
@@ -114,7 +113,6 @@ internal sealed class MitsubishiProtocolSerialResidualCoverageTests
                     MitsubishiFrameType.OneE,
                     CommunicationDataCode.Ascii,
                     MitsubishiCommandCodes.DeviceRead,
-                    0,
                     -1))
             .IsNull();
         await Assert.That(
@@ -122,7 +120,6 @@ internal sealed class MitsubishiProtocolSerialResidualCoverageTests
                     (MitsubishiFrameType)int.MaxValue,
                     CommunicationDataCode.Binary,
                     MitsubishiCommandCodes.DeviceRead,
-                    0,
                     1))
             .IsNull();
     }

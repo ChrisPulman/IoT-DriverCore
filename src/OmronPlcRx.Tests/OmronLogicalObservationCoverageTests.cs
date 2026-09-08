@@ -148,7 +148,7 @@ public sealed class OmronLogicalObservationCoverageTests
             return;
         }
 
-        throw new InvalidOperationException($"Expected {nameof(TException)}.");
+        throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
     }
 
     /// <summary>Records logical observation lifecycle events.</summary>

@@ -376,20 +376,9 @@ internal static class S7MultiVar
         using var package = new ByteArray(VariableSpecificationLength);
         package.Add([VariableSpecificationMarker, VariableSpecificationPayloadLength, S7AnySyntaxId]);
 
-        switch (dataType)
-        {
-            case DataType.Timer or DataType.Counter:
-                {
-                    package.Add((byte)dataType);
-                    break;
-                }
-
-            default:
-                {
-                    package.Add(S7AnyTransportSizeByte);
-                    break;
-                }
-        }
+        package.Add(dataType is DataType.Timer or DataType.Counter
+            ? (byte)dataType
+            : S7AnyTransportSizeByte);
 
         package.Add(Word.ToByteArray((ushort)count));
         package.Add(Word.ToByteArray((ushort)db));
@@ -398,20 +387,9 @@ internal static class S7MultiVar
         var overflow = startByteAdr * BitsPerByte / ushort.MaxValue;
         package.Add((byte)overflow);
 
-        switch (dataType)
-        {
-            case DataType.Timer or DataType.Counter:
-                {
-                    package.Add(Word.ToByteArray((ushort)startByteAdr));
-                    break;
-                }
-
-            default:
-                {
-                    package.Add(Word.ToByteArray((ushort)(startByteAdr * BitsPerByte)));
-                    break;
-                }
-        }
+        package.Add(Word.ToByteArray((ushort)(dataType is DataType.Timer or DataType.Counter
+            ? startByteAdr
+            : startByteAdr * BitsPerByte)));
 
         return package.ToArray();
     }

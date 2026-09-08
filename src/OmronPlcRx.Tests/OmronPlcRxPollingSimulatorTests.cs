@@ -233,6 +233,6 @@ public sealed class OmronPlcRxPollingSimulatorTests
             return;
         }
 
-        throw new InvalidOperationException($"Expected {nameof(TException)}.");
+        throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
     }
 }

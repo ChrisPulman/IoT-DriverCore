@@ -177,10 +177,10 @@ internal sealed class SocketMitsubishiTransport : IMitsubishiTransport
         CancellationToken cancellationToken)
     {
         var buffer = new byte[count];
-        var read = 0;
-        while (read < count)
+        int received;
+        for (var read = 0; read < count; read += received)
         {
-            var received = await socket
+            received = await socket
                 .ReceiveAsync(
                     buffer.AsMemory(read, count - read),
                     SocketFlags.None,
@@ -191,8 +191,6 @@ internal sealed class SocketMitsubishiTransport : IMitsubishiTransport
                 throw new IOException(
                     "The PLC connection dropped while waiting for response data.");
             }
-
-            read += received;
         }
 
         return buffer;

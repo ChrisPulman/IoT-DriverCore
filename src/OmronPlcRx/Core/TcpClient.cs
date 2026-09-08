@@ -102,7 +102,7 @@ internal sealed class TcpClient : IDisposable
     /// <summary>Gets or sets the no delay value.</summary>
     internal bool NoDelay
     {
-        get => _disposed ? false : _socket.NoDelay;
+        get => !_disposed && _socket.NoDelay;
 
         set
         {

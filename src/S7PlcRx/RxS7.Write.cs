@@ -138,10 +138,7 @@ public partial class RxS7
         catch (Exception exc)
         {
             _lastErrorCode.OnNext(ErrorCode.WrongVarFormat);
-            _lastError.OnNext(
-                string.Concat(
-                    $"The variable'{tag}' could not be parsed. Please check the syntax and try again.\n",
-                    $"Exception: {exc.Message}"));
+            _lastError.OnNext($"The variable'{tag}' could not be parsed. Please check the syntax and try again.\nException: {exc.Message}");
             return false;
         }
     }
@@ -166,9 +163,7 @@ public partial class RxS7
             "DBB" or "DBW" or "DBD" or "DBS" => WriteCore(tag, DataType.DataBlock, dbNumber, dbIndex),
             "DBX" => WriteDataBlockBitAddress(tag, strings, dbNumber, dbIndex),
             _ => throw new ArgumentException(
-                string.Concat(
-                    $"Addressing Error: Unable to parse address {dbType}. ",
-                    "Supported formats include DBB (BYTE), DBW (WORD), DBD (DWORD), DBX (BITWISE), DBS (STRING)."),
+                $"Addressing Error: Unable to parse address {dbType}. Supported formats include DBB (BYTE), DBW (WORD), DBD (DWORD), DBX (BITWISE), DBS (STRING).",
                 nameof(tag)),
         };
     }
@@ -217,10 +212,7 @@ public partial class RxS7
         if (decimalPointIndex == -1)
         {
             throw new ArgumentException(
-                string.Concat(
-                    $"Cannot parse variable {addressLocation}. ",
-                    "Input, Output, Memory Address, Timer, and Counter types ",
-                    "require bit-level addressing (e.g. I0.1)."),
+                $"Cannot parse variable {addressLocation}. Input, Output, Memory Address, Timer, and Counter types require bit-level addressing (e.g. I0.1).",
                 nameof(tag));
         }
 

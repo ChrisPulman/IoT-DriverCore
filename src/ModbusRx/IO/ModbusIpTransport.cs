@@ -183,9 +183,8 @@ internal sealed class ModbusIpTransport : ModbusTransport
 
     internal override bool OnShouldRetryResponse(IModbusMessage request, IModbusMessage response)
     {
-        return request.TransactionId > response.TransactionId &&
-               request.TransactionId - response.TransactionId < RetryOnOldResponseThreshold
-            ? true
-            : base.OnShouldRetryResponse(request, response);
+        return (request.TransactionId > response.TransactionId &&
+            request.TransactionId - response.TransactionId < RetryOnOldResponseThreshold) ||
+            base.OnShouldRetryResponse(request, response);
     }
 }

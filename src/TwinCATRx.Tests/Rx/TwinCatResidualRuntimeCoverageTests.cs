@@ -190,11 +190,9 @@ public sealed class TwinCatResidualRuntimeCoverageTests
             await client.InitializeStoreAsync(CancellationToken.None);
             await client.UpsertTagAsync(CreateTag(), CancellationToken.None);
 
-            var duplicateCsv = string.Concat(
-                "Name;Address;DataType;GroupName;Description;Metadata;AccessMode;ScanIntervalMilliseconds\r\n",
-                TagName,
-                ";.Coverage.Replaced;DINT;;;;ReadWrite;\r\n");
-            using var reader = new StringReader(duplicateCsv);
+            const string DuplicateCsv =
+                $"Name;Address;DataType;GroupName;Description;Metadata;AccessMode;ScanIntervalMilliseconds\r\n{TagName};.Coverage.Replaced;DINT;;;;ReadWrite;\r\n";
+            using var reader = new StringReader(DuplicateCsv);
             _ = await client.ImportCsvAsync(reader, ';', replaceExisting: false, CancellationToken.None);
             await TUnitAssert.That(client.Catalog.TryGet(TagName, out var retained)).IsTrue();
             await TUnitAssert.That(retained!.Address).IsEqualTo(Address);

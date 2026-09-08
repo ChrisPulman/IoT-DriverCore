@@ -67,7 +67,6 @@ internal static partial class MitsubishiProtocolEncoding
     /// <param name="frameType">The frameType parameter.</param>
     /// <param name="dataCode">The dataCode parameter.</param>
     /// <param name="command">The command parameter.</param>
-    /// <param name="subcommand">The subcommand parameter.</param>
     /// <param name="requestBodyLength">The requestBodyLength parameter.</param>
     /// <param name="explicitLength">The explicitLength parameter.</param>
     /// <returns>The GetFixedResponseLength operation result.</returns>
@@ -75,7 +74,6 @@ internal static partial class MitsubishiProtocolEncoding
         MitsubishiFrameType frameType,
         CommunicationDataCode dataCode,
         ushort command,
-        ushort subcommand,
         int requestBodyLength,
         int? explicitLength = null)
     {

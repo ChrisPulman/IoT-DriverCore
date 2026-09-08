@@ -34,18 +34,21 @@ internal static class ModbusTagCodec
     {
         var elementType = GetElementType(type);
         var pointsPerValue = GetPointsPerValue(area, elementType);
-        if (!type.IsArray && count != pointsPerValue)
+        _ = (type.IsArray || count == pointsPerValue) switch
         {
-            throw new ArgumentException(
+            true => count,
+            false => throw new ArgumentException(
                 $"CLR type '{type}' requires exactly {pointsPerValue} Modbus point(s).",
-                nameof(count));
-        }
+                nameof(count)),
+        };
 
-        _ = count % pointsPerValue == 0
-            ? true
-            : throw new ArgumentException(
+        _ = (count % pointsPerValue == 0) switch
+        {
+            true => count,
+            false => throw new ArgumentException(
                 "The point count must contain a whole number of CLR values.",
-                nameof(count));
+                nameof(count)),
+        };
     }
 
     /// <summary>Decodes one tag value from a raw data-area response.</summary>
@@ -114,19 +117,24 @@ internal static class ModbusTagCodec
     /// <param name="value">The candidate CLR value.</param>
     private static void ValidateValue(ModbusLogicalTag tag, object? value)
     {
-        _ = value is not null && tag.ClrDataType.IsInstanceOfType(value)
-            ? true
-            : throw new ArgumentException(
+        _ = (value is not null && tag.ClrDataType.IsInstanceOfType(value)) switch
+        {
+            true => value,
+            false => throw new ArgumentException(
                 $"Tag '{tag.Name}' requires a value of CLR type '{tag.ClrDataType}'.",
-                nameof(value));
+                nameof(value)),
+        };
+
         var elementType = GetElementType(tag.ClrDataType);
         var pointsPerValue = GetPointsPerValue(tag.DataArea, elementType);
         var valueCount = tag.ClrDataType.IsArray ? ((Array)value).Length : 1;
-        _ = valueCount * pointsPerValue == tag.Count
-            ? true
-            : throw new ArgumentException(
+        _ = (valueCount * pointsPerValue == tag.Count) switch
+        {
+            true => valueCount,
+            false => throw new ArgumentException(
                 $"Tag '{tag.Name}' requires exactly {tag.Count / pointsPerValue} value(s).",
-                nameof(value));
+                nameof(value)),
+        };
     }
 
     /// <summary>Copies Boolean values without relying on a LINQ enumeration.</summary>
@@ -294,44 +302,37 @@ internal static class ModbusTagCodec
     /// <param name="order">The configured order.</param>
     private static void Transform(byte[] bytes, ModbusByteOrder order)
     {
-        switch (order)
+        Action<byte[]>? transform = order switch
         {
-            case ModbusByteOrder.BigEndian:
-                {
-                    return;
-                }
+            ModbusByteOrder.BigEndian => null,
+            ModbusByteOrder.LittleEndian => Array.Reverse,
+            ModbusByteOrder.BigEndianWordSwap => SwapBigEndianWords,
+            ModbusByteOrder.LittleEndianWordSwap => SwapLittleEndianWords,
+            _ => throw new ArgumentOutOfRangeException(nameof(order)),
+        };
+        transform?.Invoke(bytes);
+    }
 
-            case ModbusByteOrder.LittleEndian:
-                {
-                    Array.Reverse(bytes);
-                    return;
-                }
+    /// <summary>Swaps register words while preserving byte order within each word.</summary>
+    /// <param name="bytes">The bytes to transform.</param>
+    private static void SwapBigEndianWords(byte[] bytes)
+    {
+        for (var index = 0; index + Final32BitByteOffset < bytes.Length; index += BytesPer32BitValue)
+        {
+            (bytes[index], bytes[index + BytesPerRegister]) =
+                (bytes[index + BytesPerRegister], bytes[index]);
+            (bytes[index + 1], bytes[index + Final32BitByteOffset]) =
+                (bytes[index + Final32BitByteOffset], bytes[index + 1]);
+        }
+    }
 
-            case ModbusByteOrder.BigEndianWordSwap:
-                {
-                    for (var index = 0; index + Final32BitByteOffset < bytes.Length; index += BytesPer32BitValue)
-                    {
-                        (bytes[index], bytes[index + BytesPerRegister]) =
-                            (bytes[index + BytesPerRegister], bytes[index]);
-                        (bytes[index + 1], bytes[index + Final32BitByteOffset]) =
-                            (bytes[index + Final32BitByteOffset], bytes[index + 1]);
-                    }
-
-                    return;
-                }
-
-            case ModbusByteOrder.LittleEndianWordSwap:
-                {
-                    for (var index = 0; index + 1 < bytes.Length; index += BytesPerRegister)
-                    {
-                        (bytes[index], bytes[index + 1]) = (bytes[index + 1], bytes[index]);
-                    }
-
-                    return;
-                }
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(order));
+    /// <summary>Swaps bytes inside each register word.</summary>
+    /// <param name="bytes">The bytes to transform.</param>
+    private static void SwapLittleEndianWords(byte[] bytes)
+    {
+        for (var index = 0; index + 1 < bytes.Length; index += BytesPerRegister)
+        {
+            (bytes[index], bytes[index + 1]) = (bytes[index + 1], bytes[index]);
         }
     }
 }

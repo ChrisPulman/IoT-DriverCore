@@ -328,10 +328,7 @@ internal static partial class MitsubishiTagClientEmitter
         AppendMemberDocumentation(builder, $"Reads the {tagName} tag.");
         AppendLine(
             builder,
-            string.Concat(
-                $"    public Task<Responce<{readType}>> ReadAsync(",
-                "CancellationToken cancellationToken = default) => ",
-                $"_owner.{readMethod}(\"{escapedTagName}\", cancellationToken);"));
+            $"    public Task<Responce<{readType}>> ReadAsync(CancellationToken cancellationToken = default) => _owner.{readMethod}(\"{escapedTagName}\", cancellationToken);");
         AppendMemberDocumentation(builder, $"Writes the {tagName} tag.");
         AppendLine(
             builder,

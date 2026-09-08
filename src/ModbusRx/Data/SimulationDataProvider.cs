@@ -156,45 +156,14 @@ public sealed class SimulationDataProvider : IDisposable
     /// <returns>An array of boolean values.</returns>
     public bool[] GenerateBooleanPattern(int length, BooleanPattern pattern)
     {
-        var result = new bool[length];
-
-        switch (pattern)
+        return pattern switch
         {
-            case BooleanPattern.AllTrue:
-                {
-                    for (var i = 0; i < length; i++)
-                    {
-                        result[i] = true;
-                    }
-
-                    break;
-                }
-
-            case BooleanPattern.AllFalse:
-                break;
-
-            case BooleanPattern.Alternating:
-                {
-                    for (var i = 0; i < length; i++)
-                    {
-                        result[i] = i % Two == 0;
-                    }
-
-                    break;
-                }
-
-            case BooleanPattern.Random:
-                {
-                    for (var i = 0; i < length; i++)
-                    {
-                        result[i] = GetRandomBoolean();
-                    }
-
-                    break;
-                }
-        }
-
-        return result;
+            BooleanPattern.AllTrue => GenerateBooleanConstant(length, true),
+            BooleanPattern.AllFalse => GenerateBooleanConstant(length, false),
+            BooleanPattern.Alternating => GenerateAlternatingBooleanPattern(length),
+            BooleanPattern.Random => GenerateRandomBooleanPattern(length),
+            _ => GenerateBooleanConstant(length, false),
+        };
     }
 
     /// <summary>Loads predefined test patterns into a data store.</summary>
@@ -208,50 +177,18 @@ public sealed class SimulationDataProvider : IDisposable
         dataStore.Lock.EnterWriteLock();
         try
         {
-            switch (pattern)
+            var loadPattern = pattern switch
             {
-                case TestPattern.CountingUp:
-                    {
-                        LoadCountingPattern(dataStore, dataLength, true);
-                        break;
-                    }
-
-                case TestPattern.CountingDown:
-                    {
-                        LoadCountingPattern(dataStore, dataLength, false);
-                        break;
-                    }
-
-                case TestPattern.SineWave:
-                    {
-                        LoadSineWavePattern(dataStore, dataLength);
-                        break;
-                    }
-
-                case TestPattern.SquareWave:
-                    {
-                        LoadSquareWavePattern(dataStore, dataLength);
-                        break;
-                    }
-
-                case TestPattern.Random:
-                    {
-                        LoadRandomPattern(dataStore, dataLength);
-                        break;
-                    }
-
-                case TestPattern.AllZeros:
-                    {
-                        LoadConstantPattern(dataStore, dataLength, 0, false);
-                        break;
-                    }
-
-                case TestPattern.AllOnes:
-                    {
-                        LoadConstantPattern(dataStore, dataLength, UShortMaximum, true);
-                        break;
-                    }
-            }
+                TestPattern.CountingUp => new Action(() => LoadCountingPattern(dataStore, dataLength, true)),
+                TestPattern.CountingDown => () => LoadCountingPattern(dataStore, dataLength, false),
+                TestPattern.SineWave => () => LoadSineWavePattern(dataStore, dataLength),
+                TestPattern.SquareWave => () => LoadSquareWavePattern(dataStore, dataLength),
+                TestPattern.Random => () => LoadRandomPattern(dataStore, dataLength),
+                TestPattern.AllZeros => () => LoadConstantPattern(dataStore, dataLength, 0, false),
+                TestPattern.AllOnes => () => LoadConstantPattern(dataStore, dataLength, UShortMaximum, true),
+                _ => null,
+            };
+            loadPattern?.Invoke();
         }
         finally
         {
@@ -266,6 +203,40 @@ public sealed class SimulationDataProvider : IDisposable
         _disposables.Dispose();
         _isRunning.Dispose();
         _randomNumberGenerator.Dispose();
+    }
+
+    /// <summary>Generates a Boolean array filled with one value.</summary>
+    /// <param name="length">The number of values.</param>
+    /// <param name="value">The value to assign.</param>
+    /// <returns>The generated values.</returns>
+    private static bool[] GenerateBooleanConstant(int length, bool value)
+    {
+        var result = new bool[length];
+        if (!value)
+        {
+            return result;
+        }
+
+        for (var i = 0; i < length; i++)
+        {
+            result[i] = true;
+        }
+
+        return result;
+    }
+
+    /// <summary>Generates alternating Boolean values.</summary>
+    /// <param name="length">The number of values.</param>
+    /// <returns>The generated values.</returns>
+    private static bool[] GenerateAlternatingBooleanPattern(int length)
+    {
+        var result = new bool[length];
+        for (var i = 0; i < length; i++)
+        {
+            result[i] = i % Two == 0;
+        }
+
+        return result;
     }
 
     /// <summary>Executes the Update Counting Data operation.</summary>
@@ -395,38 +366,16 @@ public sealed class SimulationDataProvider : IDisposable
         dataStore.Lock.EnterWriteLock();
         try
         {
-            switch (simulationType)
+            var update = simulationType switch
             {
-                case SimulationType.Random:
-                    {
-                        UpdateRandomData(dataStore, updateSize);
-                        break;
-                    }
-
-                case SimulationType.CountingUp:
-                    {
-                        UpdateCountingData(dataStore, updateSize, true);
-                        break;
-                    }
-
-                case SimulationType.CountingDown:
-                    {
-                        UpdateCountingData(dataStore, updateSize, false);
-                        break;
-                    }
-
-                case SimulationType.SineWave:
-                    {
-                        UpdateSineWaveData(dataStore, updateSize, _timeProvider);
-                        break;
-                    }
-
-                case SimulationType.SquareWave:
-                    {
-                        UpdateSquareWaveData(dataStore, updateSize, _timeProvider);
-                        break;
-                    }
-            }
+                SimulationType.Random => new Action(() => UpdateRandomData(dataStore, updateSize)),
+                SimulationType.CountingUp => () => UpdateCountingData(dataStore, updateSize, true),
+                SimulationType.CountingDown => () => UpdateCountingData(dataStore, updateSize, false),
+                SimulationType.SineWave => () => UpdateSineWaveData(dataStore, updateSize, _timeProvider),
+                SimulationType.SquareWave => () => UpdateSquareWaveData(dataStore, updateSize, _timeProvider),
+                _ => null,
+            };
+            update?.Invoke();
         }
         finally
         {
@@ -463,6 +412,20 @@ public sealed class SimulationDataProvider : IDisposable
             dataStore.CoilDiscretes[i] = boolData[i - 1];
             dataStore.InputDiscretes[i] = !boolData[i - 1];
         }
+    }
+
+    /// <summary>Generates random Boolean values.</summary>
+    /// <param name="length">The number of values.</param>
+    /// <returns>The generated values.</returns>
+    private bool[] GenerateRandomBooleanPattern(int length)
+    {
+        var result = new bool[length];
+        for (var i = 0; i < length; i++)
+        {
+            result[i] = GetRandomBoolean();
+        }
+
+        return result;
     }
 
     /// <summary>Executes the Get Random Boolean operation.</summary>

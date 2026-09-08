@@ -152,6 +152,6 @@ public sealed class OmronSmallResidualBranchCoverageTests
             return;
         }
 
-        throw new InvalidOperationException($"Expected {nameof(TException)}.");
+        throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
     }
 }

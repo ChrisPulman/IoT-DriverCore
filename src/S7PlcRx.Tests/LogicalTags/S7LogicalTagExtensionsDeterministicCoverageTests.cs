@@ -42,7 +42,7 @@ public sealed class S7LogicalTagExtensionsDeterministicCoverageTests
     private const int NullProviderWriteValue = 20;
 
     /// <summary>Defines the SQLite connection string for the transient persistence test.</summary>
-    private static readonly string InMemoryConnectionString = string.Concat("Data Source=", ":memory:");
+    private const string InMemoryConnectionString = "Data Source=:memory:";
 
     /// <summary>Verifies generated binding definitions become correctly configured common logical tags.</summary>
     /// <returns>A task that represents the asynchronous test operation.</returns>

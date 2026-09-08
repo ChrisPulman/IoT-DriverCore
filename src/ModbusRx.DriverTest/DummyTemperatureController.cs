@@ -80,19 +80,13 @@ public class DummyTemperatureController
     /// <param name="value">The value.</param>
     public void WriteRegister(ushort address, ushort value)
     {
-        switch (address)
+        if (address == SetpointAddress)
         {
-            case SetpointAddress:
-                {
-                    Setpoint = value / TemperatureScale;
-                    break;
-                }
-
-            case GainAddress:
-                {
-                    K = value / GainScale;
-                    break;
-                }
+            Setpoint = value / TemperatureScale;
+        }
+        else if (address == GainAddress)
+        {
+            K = value / GainScale;
         }
     }
 }

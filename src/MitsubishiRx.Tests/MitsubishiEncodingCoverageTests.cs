@@ -428,7 +428,6 @@ internal sealed class MitsubishiEncodingCoverageTests
                     MitsubishiFrameType.OneE,
                     CommunicationDataCode.Binary,
                     MitsubishiCommands.DeviceRead,
-                    0,
                     BinaryBodyLength))
             .IsNotNull();
         await Assert.That(
@@ -436,14 +435,12 @@ internal sealed class MitsubishiEncodingCoverageTests
                     MitsubishiFrameType.OneE,
                     CommunicationDataCode.Ascii,
                     MitsubishiCommands.LoopbackTest,
-                    0,
                     PairCount))
             .IsEqualTo(BinaryBodyLength);
         await Assert.That(
                 MitsubishiProtocolEncoding.GetFixedResponseLength(
                     MitsubishiFrameType.ThreeE,
                     CommunicationDataCode.Binary,
-                    0,
                     0,
                     0,
                     ExplicitResponseLength))

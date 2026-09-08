@@ -119,7 +119,7 @@ internal static class Assert
         obj is T typed
             ? typed
             : throw new InvalidOperationException(
-                $"Assert.{nameof(IsType)}<{nameof(T)}>() Failure: object is {obj?.GetType().Name ?? "null"}");
+                $"Assert.{nameof(IsType)}<{typeof(T).Name}>() Failure: object is {obj?.GetType().Name ?? "null"}");
 
     /// <summary>Asserts that <paramref name="collection"/> contains exactly one element and returns it.</summary>
     /// <typeparam name="T">The element type.</typeparam>
@@ -207,12 +207,12 @@ internal static class Assert
         catch (Exception ex)
         {
             throw new InvalidOperationException(
-                $"Assert.{nameof(Throws)}<{nameof(T)}>() Failure: caught {ex.GetType().Name} instead",
+                $"Assert.{nameof(Throws)}<{typeof(T).Name}>() Failure: caught {ex.GetType().Name} instead",
                 ex);
         }
 
         throw new InvalidOperationException(
-            $"Assert.{nameof(Throws)}<{nameof(T)}>() Failure: no exception was thrown");
+            $"Assert.{nameof(Throws)}<{typeof(T).Name}>() Failure: no exception was thrown");
     }
 
     /// <summary>Asserts that <paramref name="action"/> throws an exception of the runtime <paramref name="exceptionType"/> and returns it.</summary>
@@ -261,12 +261,12 @@ internal static class Assert
         catch (Exception ex)
         {
             throw new InvalidOperationException(
-                $"Assert.{nameof(ThrowsAsync)}<{nameof(T)}>() Failure: caught {ex.GetType().Name} instead",
+                $"Assert.{nameof(ThrowsAsync)}<{typeof(T).Name}>() Failure: caught {ex.GetType().Name} instead",
                 ex);
         }
 
         throw new InvalidOperationException(
-            $"Assert.{nameof(ThrowsAsync)}<{nameof(T)}>() Failure: no exception was thrown");
+            $"Assert.{nameof(ThrowsAsync)}<{typeof(T).Name}>() Failure: no exception was thrown");
     }
 
     /// <summary>Verifies that two sequences differ; throws if they contain the same elements in the same order.</summary>

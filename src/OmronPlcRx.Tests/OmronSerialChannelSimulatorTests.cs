@@ -470,7 +470,7 @@ public sealed class OmronSerialChannelSimulatorTests
         }
 
         throw new InvalidOperationException(
-            string.Create(CultureInfo.InvariantCulture, $"Expected {nameof(TException)}."));
+            string.Create(CultureInfo.InvariantCulture, $"Expected {typeof(TException).Name}."));
     }
 
     /// <summary>Captures any synchronous exception from a closed native serial port operation.</summary>

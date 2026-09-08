@@ -364,7 +364,7 @@ public sealed class OmronPlcRxDeterministicTests
             return;
         }
 
-        throw new InvalidOperationException($"Expected {nameof(TException)}.");
+        throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
     }
 
     /// <summary>Captures and verifies a synchronous exception.</summary>
@@ -384,6 +384,6 @@ public sealed class OmronPlcRxDeterministicTests
             return;
         }
 
-        throw new InvalidOperationException($"Expected {nameof(TException)}.");
+        throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
     }
 }

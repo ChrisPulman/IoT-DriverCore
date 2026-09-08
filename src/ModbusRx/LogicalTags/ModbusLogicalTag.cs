@@ -271,7 +271,7 @@ public sealed class ModbusLogicalTag
         var value = GetMetadata(metadata, key);
         return Enum.TryParse<T>(value, true, out var parsed) && Enum.IsDefined(typeof(T), parsed)
             ? parsed
-            : throw new FormatException($"Metadata '{key}' is not a valid {nameof(T)} value.");
+            : throw new FormatException($"Metadata '{key}' is not a valid {typeof(T).Name} value.");
     }
 
     /// <summary>Gets a required metadata value.</summary>
@@ -331,9 +331,11 @@ public sealed class ModbusLogicalTag
     /// <param name="name">The logical name.</param>
     private static void ValidateName(string name)
     {
-        _ = !string.IsNullOrWhiteSpace(name)
-            ? true
-            : throw new ArgumentException("A non-empty value is required.", nameof(name));
+        _ = string.IsNullOrWhiteSpace(name) switch
+        {
+            true => throw new ArgumentException("A non-empty value is required.", nameof(name)),
+            false => name,
+        };
     }
 
     /// <summary>Validates the selected data-area range.</summary>
@@ -350,11 +352,13 @@ public sealed class ModbusLogicalTag
         var maximumCount = dataArea is ModbusDataArea.Coil or ModbusDataArea.DiscreteInput
             ? MaximumBitCount
             : MaximumRegisterCount;
-        _ = count != 0 && count <= maximumCount && (uint)address + count <= ushort.MaxValue + 1U
-            ? true
-            : throw new ArgumentOutOfRangeException(
+        _ = (count != 0 && count <= maximumCount && (uint)address + count <= ushort.MaxValue + 1U) switch
+        {
+            true => count,
+            false => throw new ArgumentOutOfRangeException(
                 nameof(count),
-                "The requested range exceeds the Modbus data-area limits.");
+                "The requested range exceeds the Modbus data-area limits."),
+        };
     }
 
     /// <summary>Validates access, ordering, and scan options.</summary>
@@ -379,9 +383,11 @@ public sealed class ModbusLogicalTag
             throw new ArgumentException("Modbus input areas are read-only.", nameof(accessMode));
         }
 
-        _ = scanInterval is null || scanInterval > TimeSpan.Zero
-            ? true
-            : throw new ArgumentOutOfRangeException(nameof(scanInterval));
+        _ = (scanInterval is null || scanInterval > TimeSpan.Zero) switch
+        {
+            true => scanInterval,
+            false => throw new ArgumentOutOfRangeException(nameof(scanInterval)),
+        };
     }
 
     /// <summary>Validates a caller metadata key.</summary>
@@ -389,8 +395,10 @@ public sealed class ModbusLogicalTag
     /// <param name="metadata">The metadata dictionary used for the parameter name.</param>
     private static void ValidateMetadataKey(string key, IReadOnlyDictionary<string, string>? metadata)
     {
-        _ = !string.IsNullOrWhiteSpace(key)
-            ? true
-            : throw new ArgumentException("Metadata keys cannot be empty.", nameof(metadata));
+        _ = string.IsNullOrWhiteSpace(key) switch
+        {
+            true => throw new ArgumentException("Metadata keys cannot be empty.", nameof(metadata)),
+            false => metadata,
+        };
     }
 }

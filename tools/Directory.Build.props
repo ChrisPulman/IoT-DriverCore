@@ -1,0 +1,3 @@
+<Project>
+  <!-- Keep standalone tools independent of MSBuild configuration outside this repository. -->
+</Project>

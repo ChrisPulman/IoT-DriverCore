@@ -180,9 +180,7 @@ internal static partial class MitsubishiSerialProtocolEncoding
         ReadOnlySpan<byte> buffer)
     {
         ArgumentNullException.ThrowIfNull(options);
-        return buffer.IsEmpty
-            ? false
-            : options.FrameType switch
+        return !buffer.IsEmpty && options.FrameType switch
             {
                 MitsubishiFrameType.OneC or MitsubishiFrameType.ThreeC =>
                     options.ResolvedSerial.MessageFormat switch

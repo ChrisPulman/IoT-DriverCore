@@ -379,15 +379,15 @@ public sealed class S7PlcRxConnectionRegressionTests
             int count,
             CancellationToken cancellationToken)
         {
-            var total = 0;
-            while (total < count)
+            int read;
+            for (var total = 0; total < count; total += read)
             {
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
-                var read = await stream.ReadAsync(
+                read = await stream.ReadAsync(
                     buffer.AsMemory(offset + total, count - total),
                     cancellationToken).ConfigureAwait(false);
 #else
-                var read = await stream.ReadAsync(
+                read = await stream.ReadAsync(
                     buffer,
                     offset + total,
                     count - total,
@@ -397,8 +397,6 @@ public sealed class S7PlcRxConnectionRegressionTests
                 {
                     return false;
                 }
-
-                total += read;
             }
 
             return true;

@@ -797,16 +797,14 @@ public sealed class OmronTransportLoopbackTests
     /// <returns>A task that represents the operation.</returns>
     private static async Task ReadExactlyAsync(NetworkStream stream, byte[] buffer)
     {
-        var offset = 0;
-        while (offset < buffer.Length)
+        int read;
+        for (var offset = 0; offset < buffer.Length; offset += read)
         {
-            var read = await stream.ReadAsync(buffer.AsMemory(offset), CancellationToken.None);
+            read = await stream.ReadAsync(buffer.AsMemory(offset), CancellationToken.None);
             if (read == 0)
             {
                 throw new EndOfStreamException();
             }
-
-            offset += read;
         }
     }
 
@@ -981,7 +979,7 @@ public sealed class OmronTransportLoopbackTests
             return;
         }
 
-        throw new InvalidOperationException($"Expected {nameof(TException)}.");
+        throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
     }
 
     /// <summary>Captures an expected synchronous exception.</summary>
@@ -1000,7 +998,7 @@ public sealed class OmronTransportLoopbackTests
             return ex;
         }
 
-        throw new InvalidOperationException($"Expected {nameof(TException)}.");
+        throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
     }
 
     /// <summary>Stores observed TCP command values.</summary>

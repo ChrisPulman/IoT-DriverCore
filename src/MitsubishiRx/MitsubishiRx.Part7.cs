@@ -238,7 +238,7 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
                 scheduler: _scheduler)
             .Catch<Responce<byte[]>, Exception>(static ex =>
                 Observable.Return(new Responce<byte[]>().Fail(ex.Message, exception: ex)));
-        return observable.FirstAsync().ToTask(cancellationToken);
+        return observable.FirstAsync(cancellationToken).ToTask(cancellationToken);
     }
 
     /// <summary>Executes the ExecuteOnceAsync operation.</summary>

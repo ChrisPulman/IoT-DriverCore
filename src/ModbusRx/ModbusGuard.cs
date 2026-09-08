@@ -23,6 +23,14 @@ internal static class ModbusGuard
     /// <param name="isDisposed">Whether the instance has been disposed.</param>
     /// <param name="objectName">The disposed object name.</param>
     /// <returns><c>true</c> when the instance is available.</returns>
-    internal static bool IsNotDisposed(bool isDisposed, string objectName) =>
-        isDisposed ? throw new ObjectDisposedException(objectName) : true;
+    internal static bool IsNotDisposed(bool isDisposed, string objectName)
+    {
+        _ = isDisposed switch
+        {
+            false => true,
+            true => throw new ObjectDisposedException(objectName),
+        };
+
+        return true;
+    }
 }

@@ -267,12 +267,16 @@ public sealed class ModbusServerIntegrationTests : NetworkTestBase
 
     /// <summary>Tests different simulation patterns.</summary>
     /// <param name="pattern">The test pattern to verify.</param>
+    /// <returns>A task representing the pattern assertions.</returns>
     [TUnit.Core.Test]
     [TUnit.Core.Arguments(TestPattern.CountingUp)]
+    [TUnit.Core.Arguments(TestPattern.CountingDown)]
     [TUnit.Core.Arguments(TestPattern.SineWave)]
     [TUnit.Core.Arguments(TestPattern.SquareWave)]
     [TUnit.Core.Arguments(TestPattern.Random)]
-    public void ModbusServer_SimulationPatterns_ShouldLoadCorrectly(TestPattern pattern)
+    [TUnit.Core.Arguments(TestPattern.AllOnes)]
+    [TUnit.Core.Arguments(TestPattern.AllZeros)]
+    public async Task ModbusServer_SimulationPatterns_ShouldLoadCorrectlyAsync(TestPattern pattern)
     {
         // Arrange
         var server = new ModbusServer();
@@ -285,37 +289,27 @@ public sealed class ModbusServerIntegrationTests : NetworkTestBase
         var data = server.GetCurrentData();
 
         // Assert
-        switch (pattern)
+        if (pattern == TestPattern.CountingUp)
         {
-            case TestPattern.CountingUp:
-                {
-                    Assert.Equal(0, data.HoldingRegisters[FirstRegisterIndex]);
-                    Assert.Equal(1, data.HoldingRegisters[SecondRegisterIndex]);
-                    Assert.Equal(ThirdCountingUpValue, data.HoldingRegisters[ThirdRegisterIndex]);
-                    break;
-                }
-
-            case TestPattern.CountingDown:
-                {
-                    Assert.True(data.HoldingRegisters[FirstRegisterIndex] != 0);
-                    break;
-                }
-
-            case TestPattern.SineWave or TestPattern.SquareWave or TestPattern.Random or TestPattern.AllOnes:
-                {
-                    // For these patterns, just verify data was loaded
-                    Assert.True(ContainsPositiveValue(data.HoldingRegisters, SimulationPatternSampleCount));
-                    break;
-                }
-
-            case TestPattern.AllZeros:
-                {
-                    Assert.Equal(0, data.HoldingRegisters[FirstRegisterIndex]);
-                    break;
-                }
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(pattern), pattern, null);
+            await TUnit.Assertions.Assert.That(data.HoldingRegisters[FirstRegisterIndex]).IsEqualTo((ushort)0);
+            await TUnit.Assertions.Assert.That(data.HoldingRegisters[SecondRegisterIndex]).IsEqualTo((ushort)1);
+            await TUnit.Assertions.Assert.That(data.HoldingRegisters[ThirdRegisterIndex]).IsEqualTo(ThirdCountingUpValue);
+        }
+        else if (pattern == TestPattern.CountingDown)
+        {
+            await TUnit.Assertions.Assert.That(data.HoldingRegisters[FirstRegisterIndex]).IsNotEqualTo((ushort)0);
+        }
+        else if (pattern is TestPattern.SineWave or TestPattern.SquareWave or TestPattern.Random or TestPattern.AllOnes)
+        {
+            await TUnit.Assertions.Assert.That(ContainsPositiveValue(data.HoldingRegisters, SimulationPatternSampleCount)).IsTrue();
+        }
+        else if (pattern == TestPattern.AllZeros)
+        {
+            await TUnit.Assertions.Assert.That(data.HoldingRegisters[FirstRegisterIndex]).IsEqualTo((ushort)0);
+        }
+        else
+        {
+            throw new ArgumentOutOfRangeException(nameof(pattern), pattern, null);
         }
     }
 

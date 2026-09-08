@@ -5,10 +5,8 @@
 using System;
 #if REACTIVE_SHIM
 using IoT.Driver.OmronPlcRx.Reactive.Core.Converters;
-using IoT.Driver.OmronPlcRx.Reactive.Core.Requests;
 #else
 using IoT.Driver.OmronPlcRx.Core.Converters;
-using IoT.Driver.OmronPlcRx.Core.Requests;
 #endif
 
 #if REACTIVE_SHIM
@@ -27,10 +25,9 @@ internal static class ReadClockResponse
     internal const int DayOfWeekLength = 1;
 
     /// <summary>Initializes a new instance of the <see cref="ExtractClock"/> class.</summary>
-    /// <param name="request">The r eq ue st value.</param>
     /// <param name="response">The r es po ns e value.</param>
     /// <returns>The result produced by the operation.</returns>
-    internal static ClockResult ExtractClock(ReadClockRequest request, FINSResponse response)
+    internal static ClockResult ExtractClock(FINSResponse response)
     {
         const int expected = DateLength + DayOfWeekLength;
         var data = response.Data;

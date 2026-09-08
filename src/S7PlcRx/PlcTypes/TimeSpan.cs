@@ -60,9 +60,7 @@ public static class TimeSpan
             throw new ArgumentOutOfRangeException(
                 nameof(bytes),
                 bytes.Length,
-                string.Concat(
-                    "Parsing a TimeSpan requires exactly 4 bytes of input data, input data is ",
-                    $"'{bytes.Length}' long."));
+                $"Parsing a TimeSpan requires exactly 4 bytes of input data, input data is '{bytes.Length}' long.");
         }
 
         var milliseconds = DInt.FromSpan(bytes);
@@ -101,9 +99,7 @@ public static class TimeSpan
             throw new ArgumentOutOfRangeException(
                 nameof(bytes),
                 bytes.Length,
-                string.Concat(
-                    $"Parsing an array of TimeSpan requires a multiple of {TypeLengthInBytes} bytes ",
-                    $"of input data, input data is '{bytes.Length}' long."));
+                $"Parsing an array of TimeSpan requires a multiple of {TypeLengthInBytes} bytes of input data, input data is '{bytes.Length}' long.");
         }
 
         var result = new System.TimeSpan[bytes.Length / TypeLengthInBytes];
@@ -187,9 +183,7 @@ public static class TimeSpan
             throw new ArgumentOutOfRangeException(
                 nameof(timeSpan),
                 timeSpan,
-                string.Concat(
-                    $"Time span '{timeSpan}' is before the minimum '{SpecMinimumTimeSpan}' ",
-                    "supported in S7 time representation."));
+                $"Time span '{timeSpan}' is before the minimum '{SpecMinimumTimeSpan}' supported in S7 time representation.");
         }
 
         if (timeSpan > SpecMaximumTimeSpan)
@@ -197,9 +191,7 @@ public static class TimeSpan
             throw new ArgumentOutOfRangeException(
                 nameof(timeSpan),
                 timeSpan,
-                string.Concat(
-                    $"Time span '{timeSpan}' is after the maximum '{SpecMaximumTimeSpan}' ",
-                    "supported in S7 time representation."));
+                $"Time span '{timeSpan}' is after the maximum '{SpecMaximumTimeSpan}' supported in S7 time representation.");
         }
 
         var milliseconds = (int)timeSpan.TotalMilliseconds;
