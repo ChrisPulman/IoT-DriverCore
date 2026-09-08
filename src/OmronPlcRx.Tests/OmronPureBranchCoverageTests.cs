@@ -80,9 +80,9 @@ public sealed class OmronPureBranchCoverageTests
             .IsNotNull();
         await Assert.That(CaptureFinsException(() => ReadMemoryAreaWordResponse.ExtractValues(wordRequest, CreateNullDataResponse(wordRequest))))
             .IsNotNull();
-        await Assert.That(CaptureFinsException(() => ReadClockResponse.ExtractClock(clockRequest, CreateNullDataResponse(clockRequest))))
+        await Assert.That(CaptureFinsException(() => ReadClockResponse.ExtractClock(CreateNullDataResponse(clockRequest))))
             .IsNotNull();
-        await Assert.That(CaptureFinsException(() => ReadCycleTimeResponse.ExtractCycleTime(cycleTimeRequest, CreateNullDataResponse(cycleTimeRequest))))
+        await Assert.That(CaptureFinsException(() => ReadCycleTimeResponse.ExtractCycleTime(CreateNullDataResponse(cycleTimeRequest))))
             .IsNotNull();
         await Assert.That(CaptureFinsException(() => ReadCPUUnitDataResponse.ExtractData(CreateNullDataResponse(clockRequest))))
             .IsNotNull();

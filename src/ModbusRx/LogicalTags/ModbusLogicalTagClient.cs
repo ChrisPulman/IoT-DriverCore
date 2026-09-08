@@ -71,9 +71,11 @@ public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, I
         _ownsCatalog = catalog is null;
         _defaultScanInterval = defaultScanInterval ?? TimeSpan.FromSeconds(1);
         _timeProvider = timeProvider ?? TimeProvider.System;
-        _ = _defaultScanInterval > TimeSpan.Zero
-            ? true
-            : throw new ArgumentOutOfRangeException(nameof(defaultScanInterval));
+        _ = (_defaultScanInterval > TimeSpan.Zero) switch
+        {
+            true => _defaultScanInterval,
+            false => throw new ArgumentOutOfRangeException(nameof(defaultScanInterval)),
+        };
     }
 
     /// <summary>Gets the unchanged raw Modbus master.</summary>
@@ -907,9 +909,11 @@ public sealed partial class ModbusLogicalTagClient : IManagedLogicalTagClient, I
     /// <summary>Throws when this client has been disposed.</summary>
     private void ThrowIfDisposed()
     {
-        _ = Volatile.Read(ref _disposed) == 0
-            ? true
-            : throw new ObjectDisposedException(nameof(ModbusLogicalTagClient));
+        _ = Volatile.Read(ref _disposed) switch
+        {
+            0 => 0,
+            _ => throw new ObjectDisposedException(nameof(ModbusLogicalTagClient)),
+        };
     }
 
     /// <summary>Associates a resolved tag with its requested result index.</summary>

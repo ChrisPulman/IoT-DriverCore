@@ -108,44 +108,14 @@ public sealed partial class ModbusReactiveStreamGenerator
 
             foreach (var argument in attribute.NamedArguments)
             {
-                switch (argument.Key)
-                {
-                    case "ConnectionMember" when argument.Value.Value is string value:
-                        {
-                            connectionMember = value;
-                            break;
-                        }
-
-                    case "SlaveAddress" when argument.Value.Value is byte value:
-                        {
-                            slaveAddress = value;
-                            break;
-                        }
-
-                    case "DefaultInterval" when argument.Value.Value is double value:
-                        {
-                            defaultInterval = value;
-                            break;
-                        }
-
-                    case "MasterKind" when argument.Value.Value is int value:
-                        {
-                            masterKind = value switch
-                            {
-                                SerialMasterKindValue => "Serial",
-                                1 => "Ip",
-                                _ => "Auto",
-                            };
-
-                            break;
-                        }
-
-                    case "TagClientMember" when argument.Value.Value is string value:
-                        {
-                            tagClientMember = string.IsNullOrWhiteSpace(value) ? null : value;
-                            break;
-                        }
-                }
+                ApplyDeviceOption(
+                    argument.Key,
+                    argument.Value,
+                    ref connectionMember,
+                    ref tagClientMember,
+                    ref slaveAddress,
+                    ref defaultInterval,
+                    ref masterKind);
             }
 
             return new(
@@ -162,6 +132,82 @@ public sealed partial class ModbusReactiveStreamGenerator
         /// <returns>The updated device options.</returns>
         public DeviceOptions WithApiRoot(string apiRoot) =>
             new(ConnectionMember, TagClientMember, SlaveAddress, DefaultInterval, MasterKind, apiRoot);
+
+        /// <summary>Applies one generated device attribute argument to device options.</summary>
+        /// <param name="key">The named argument key.</param>
+        /// <param name="constant">The named argument value.</param>
+        /// <param name="connectionMember">The generated connection member name.</param>
+        /// <param name="tagClientMember">The optional generated tag client member name.</param>
+        /// <param name="slaveAddress">The Modbus slave address.</param>
+        /// <param name="defaultInterval">The default polling interval in milliseconds.</param>
+        /// <param name="masterKind">The generated master kind name.</param>
+        private static void ApplyDeviceOption(
+            string key,
+            TypedConstant constant,
+            ref string connectionMember,
+            ref string? tagClientMember,
+            ref byte slaveAddress,
+            ref double defaultInterval,
+            ref string masterKind)
+        {
+            if (TryGetStringValue(key, constant, "ConnectionMember", out var connectionMemberValue))
+            {
+                connectionMember = connectionMemberValue;
+            }
+            else if (string.Equals(key, "SlaveAddress", StringComparison.Ordinal) &&
+                constant.Value is byte slaveAddressValue)
+            {
+                slaveAddress = slaveAddressValue;
+            }
+            else if (string.Equals(key, "DefaultInterval", StringComparison.Ordinal) &&
+                constant.Value is double defaultIntervalValue)
+            {
+                defaultInterval = defaultIntervalValue;
+            }
+            else if (string.Equals(key, "MasterKind", StringComparison.Ordinal) &&
+                constant.Value is int masterKindValue)
+            {
+                masterKind = ResolveMasterKind(masterKindValue);
+            }
+            else if (TryGetStringValue(key, constant, "TagClientMember", out var tagClientMemberValue))
+            {
+                tagClientMember = string.IsNullOrWhiteSpace(tagClientMemberValue) ? null : tagClientMemberValue;
+            }
+        }
+
+        /// <summary>Resolves a generated numeric master kind value to its emitted name.</summary>
+        /// <param name="value">The numeric master kind value.</param>
+        /// <returns>The generated master kind name.</returns>
+        private static string ResolveMasterKind(int value) =>
+            value switch
+            {
+                SerialMasterKindValue => "Serial",
+                1 => "Ip",
+                _ => "Auto",
+            };
+
+        /// <summary>Attempts to read a string value for a matching named argument key.</summary>
+        /// <param name="key">The named argument key.</param>
+        /// <param name="constant">The named argument value.</param>
+        /// <param name="expectedKey">The expected argument key.</param>
+        /// <param name="value">The resolved string value.</param>
+        /// <returns><see langword="true"/> when the key matches and the value is a string.</returns>
+        private static bool TryGetStringValue(
+            string key,
+            TypedConstant constant,
+            string expectedKey,
+            out string value)
+        {
+            if (string.Equals(key, expectedKey, StringComparison.Ordinal) &&
+                constant.Value is string stringValue)
+            {
+                value = stringValue;
+                return true;
+            }
+
+            value = string.Empty;
+            return false;
+        }
     }
 
     /// <summary>Contains generator options read from a point attribute.</summary>
@@ -190,25 +236,20 @@ public sealed partial class ModbusReactiveStreamGenerator
 
             foreach (var argument in attribute.NamedArguments)
             {
-                switch (argument.Key)
+                if (string.Equals(argument.Key, "Count", StringComparison.Ordinal) &&
+                    argument.Value.Value is ushort countValue)
                 {
-                    case "Count" when argument.Value.Value is ushort value:
-                        {
-                            count = value;
-                            break;
-                        }
-
-                    case "SwapWords" when argument.Value.Value is bool value:
-                        {
-                            swapWords = value;
-                            break;
-                        }
-
-                    case "TagName" when argument.Value.Value is string value:
-                        {
-                            tagName = string.IsNullOrWhiteSpace(value) ? null : value;
-                            break;
-                        }
+                    count = countValue;
+                }
+                else if (string.Equals(argument.Key, "SwapWords", StringComparison.Ordinal) &&
+                    argument.Value.Value is bool swapWordsValue)
+                {
+                    swapWords = swapWordsValue;
+                }
+                else if (string.Equals(argument.Key, "TagName", StringComparison.Ordinal) &&
+                    argument.Value.Value is string tagNameValue)
+                {
+                    tagName = string.IsNullOrWhiteSpace(tagNameValue) ? null : tagNameValue;
                 }
             }
 

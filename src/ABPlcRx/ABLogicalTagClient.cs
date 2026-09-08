@@ -445,50 +445,17 @@ public sealed partial class ABLogicalTagClient : IManagedLogicalTagClient, IDisp
         IABPlcRx controller,
         LogicalTag tag,
         string groupName,
-        string dataType)
-    {
-        switch (dataType)
+        string dataType) =>
+        dataType switch
         {
-            case "bool":
-                {
-                    controller.AddUpdateTagItem<bool>(tag.Name, tag.Address, groupName, default);
-                    return true;
-                }
-
-            case "byte":
-                {
-                    controller.AddUpdateTagItem<byte>(tag.Name, tag.Address, groupName, default);
-                    return true;
-                }
-
-            case "sbyte":
-                {
-                    controller.AddUpdateTagItem<sbyte>(tag.Name, tag.Address, groupName, default);
-                    return true;
-                }
-
-            case "short":
-                {
-                    controller.AddUpdateTagItem<short>(tag.Name, tag.Address, groupName, default);
-                    return true;
-                }
-
-            case "ushort":
-                {
-                    controller.AddUpdateTagItem<ushort>(tag.Name, tag.Address, groupName, default);
-                    return true;
-                }
-
-            case "int":
-                {
-                    controller.AddUpdateTagItem<int>(tag.Name, tag.Address, groupName, default);
-                    return true;
-                }
-
-            default:
-                return false;
-        }
-    }
+            "bool" => RegisterTag<bool>(controller, tag, groupName),
+            "byte" => RegisterTag<byte>(controller, tag, groupName),
+            "sbyte" => RegisterTag<sbyte>(controller, tag, groupName),
+            "short" => RegisterTag<short>(controller, tag, groupName),
+            "ushort" => RegisterTag<ushort>(controller, tag, groupName),
+            "int" => RegisterTag<int>(controller, tag, groupName),
+            _ => false,
+        };
 
     /// <summary>Registers a tag whose type is in the extended type set.</summary>
     /// <param name="controller">The composed controller.</param>
@@ -501,48 +468,29 @@ public sealed partial class ABLogicalTagClient : IManagedLogicalTagClient, IDisp
         string groupName,
         string dataType)
     {
-        switch (dataType)
+        _ = dataType switch
         {
-            case "uint":
-                {
-                    controller.AddUpdateTagItem<uint>(tag.Name, tag.Address, groupName, default);
-                    break;
-                }
+            "uint" => RegisterTag<uint>(controller, tag, groupName),
+            "long" => RegisterTag<long>(controller, tag, groupName),
+            "ulong" => RegisterTag<ulong>(controller, tag, groupName),
+            "float" => RegisterTag<float>(controller, tag, groupName),
+            "double" => RegisterTag<double>(controller, tag, groupName),
+            "string" => RegisterTag<string>(controller, tag, groupName),
+            _ => throw new NotSupportedException(
+                $"Allen-Bradley logical data type '{tag.DataType}' is not supported."),
+        };
+    }
 
-            case "long":
-                {
-                    controller.AddUpdateTagItem<long>(tag.Name, tag.Address, groupName, default);
-                    break;
-                }
-
-            case "ulong":
-                {
-                    controller.AddUpdateTagItem<ulong>(tag.Name, tag.Address, groupName, default);
-                    break;
-                }
-
-            case "float":
-                {
-                    controller.AddUpdateTagItem<float>(tag.Name, tag.Address, groupName, default);
-                    break;
-                }
-
-            case "double":
-                {
-                    controller.AddUpdateTagItem<double>(tag.Name, tag.Address, groupName, default);
-                    break;
-                }
-
-            case "string":
-                {
-                    controller.AddUpdateTagItem<string>(tag.Name, tag.Address, groupName, default);
-                    break;
-                }
-
-            default:
-                throw new NotSupportedException(
-                    $"Allen-Bradley logical data type '{tag.DataType}' is not supported.");
-        }
+    /// <summary>Registers a logical tag for a concrete CLR type.</summary>
+    /// <typeparam name="TValue">The CLR tag value type.</typeparam>
+    /// <param name="controller">The composed controller.</param>
+    /// <param name="tag">The logical tag.</param>
+    /// <param name="groupName">The effective group name.</param>
+    /// <returns>True after registration.</returns>
+    private static bool RegisterTag<TValue>(IABPlcRx controller, LogicalTag tag, string groupName)
+    {
+        controller.AddUpdateTagItem<TValue>(tag.Name, tag.Address, groupName, default);
+        return true;
     }
 
     /// <summary>Converts a PLC read result to a logical tag result.</summary>
@@ -760,5 +708,9 @@ public sealed partial class ABLogicalTagClient : IManagedLogicalTagClient, IDisp
 
     /// <summary>Throws when this adapter has been disposed.</summary>
     private void ThrowIfDisposed() =>
-        _ = !_disposed ? true : throw new ObjectDisposedException(nameof(ABLogicalTagClient));
+        _ = _disposed switch
+        {
+            true => throw new ObjectDisposedException(nameof(ABLogicalTagClient)),
+            false => false,
+        };
 }

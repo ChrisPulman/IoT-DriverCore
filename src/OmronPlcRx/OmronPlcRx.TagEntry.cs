@@ -97,7 +97,7 @@ public sealed partial class OmronPlcRx
             var wordCount = PlcTagValueCodec.GetReadWordCount(typeof(T));
             if (wordCount == 0)
             {
-                throw new NotSupportedException($"Tag type '{nameof(T)}' not supported.");
+                throw new NotSupportedException($"Tag type '{typeof(T).Name}' not supported.");
             }
 
             var words = await plc

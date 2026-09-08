@@ -389,7 +389,7 @@ public sealed class OmronConnectionResidualCoverageTests
             return;
         }
 
-        throw new InvalidOperationException($"Expected {nameof(TException)}.");
+        throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
     }
 
     /// <summary>Captures and verifies a synchronous connection-construction exception.</summary>
@@ -409,6 +409,6 @@ public sealed class OmronConnectionResidualCoverageTests
             return;
         }
 
-        throw new InvalidOperationException($"Expected {nameof(TException)}.");
+        throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
     }
 }

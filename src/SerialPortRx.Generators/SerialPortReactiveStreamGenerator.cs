@@ -167,31 +167,21 @@ public sealed partial class SerialPortReactiveStreamGenerator : IIncrementalGene
         ref int groupNumber,
         ref bool ignoreCase)
     {
-        switch (argument.Key)
+        if (string.Equals(argument.Key, "Source", StringComparison.Ordinal))
         {
-            case "Source":
-                {
-                    sourceExpression = GetSourceExpression((argument.Value.Value as int?) ?? 0);
-                    break;
-                }
-
-            case "GroupName":
-                {
-                    groupName = argument.Value.Value as string;
-                    break;
-                }
-
-            case "GroupNumber":
-                {
-                    groupNumber = (argument.Value.Value as int?) ?? 1;
-                    break;
-                }
-
-            case "IgnoreCase":
-                {
-                    ignoreCase = (argument.Value.Value as bool?) ?? false;
-                    break;
-                }
+            sourceExpression = GetSourceExpression((argument.Value.Value as int?) ?? 0);
+        }
+        else if (string.Equals(argument.Key, "GroupName", StringComparison.Ordinal))
+        {
+            groupName = argument.Value.Value as string;
+        }
+        else if (string.Equals(argument.Key, "GroupNumber", StringComparison.Ordinal))
+        {
+            groupNumber = (argument.Value.Value as int?) ?? 1;
+        }
+        else if (string.Equals(argument.Key, "IgnoreCase", StringComparison.Ordinal))
+        {
+            ignoreCase = (argument.Value.Value as bool?) ?? false;
         }
     }
 

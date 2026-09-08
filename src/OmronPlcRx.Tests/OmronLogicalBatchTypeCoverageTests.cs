@@ -575,7 +575,7 @@ public sealed class OmronLogicalBatchTypeCoverageTests
             return;
         }
 
-        throw new InvalidOperationException($"Expected {nameof(TException)}.");
+        throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
     }
 
     /// <summary>Registers addresses laid out as one bit range and one contiguous word range.</summary>

@@ -87,49 +87,39 @@ public sealed class MitsubishiReactiveWritePipeline<TPayload> : IDisposable
     public void Post(TPayload payload)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        switch (Mode)
+        if (Mode == MitsubishiReactiveWriteMode.Queued)
         {
-            case MitsubishiReactiveWriteMode.Queued:
+            lock (_gate)
             {
-                lock (_gate)
-                {
-                    _queuedWrites.Enqueue(payload);
-                    _scheduledDrain ??= ScheduleImmediate(DrainQueuedAsync);
-                }
-
-                break;
+                _queuedWrites.Enqueue(payload);
+                _scheduledDrain ??= ScheduleImmediate(DrainQueuedAsync);
             }
-
-            case MitsubishiReactiveWriteMode.LatestWins:
+        }
+        else if (Mode == MitsubishiReactiveWriteMode.LatestWins)
+        {
+            lock (_gate)
             {
-                lock (_gate)
-                {
-                    _pendingLatest = payload;
-                    _hasPendingLatest = true;
-                    _scheduledDrain ??= ScheduleImmediate(DrainLatestWinsAsync);
-                }
-
-                break;
+                _pendingLatest = payload;
+                _hasPendingLatest = true;
+                _scheduledDrain ??= ScheduleImmediate(DrainLatestWinsAsync);
             }
-
-            case MitsubishiReactiveWriteMode.Coalescing:
+        }
+        else if (Mode == MitsubishiReactiveWriteMode.Coalescing)
+        {
+            lock (_gate)
             {
-                lock (_gate)
-                {
-                    _pendingLatest = payload;
-                    _hasPendingLatest = true;
-                    _coalescingTimer?.Dispose();
-                    _coalescingTimer = Observable
-                        .Timer(_coalescingWindow, _scheduler)
-                        .SelectAsyncSequential(_ => FlushCoalescedAsync())
-                        .Subscribe(static _ => { });
-                }
-
-                break;
+                _pendingLatest = payload;
+                _hasPendingLatest = true;
+                _coalescingTimer?.Dispose();
+                _coalescingTimer = Observable
+                    .Timer(_coalescingWindow, _scheduler)
+                    .SelectAsyncSequential(_ => FlushCoalescedAsync())
+                    .Subscribe(static _ => { });
             }
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(Mode));
+        }
+        else
+        {
+            throw new ArgumentOutOfRangeException(nameof(Mode));
         }
     }
 

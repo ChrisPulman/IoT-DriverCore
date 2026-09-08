@@ -741,18 +741,16 @@ public sealed class ManagedS7ServerTests
     /// <returns>A task representing the asynchronous read.</returns>
     private static async Task ReadExactlyAsync(NetworkStream stream, byte[] buffer, int offset, int count)
     {
-        var total = 0;
-        while (total < count)
+        int read;
+        for (var total = 0; total < count; total += read)
         {
-            var read = await AsyncCompatibility.WaitAsync(
+            read = await AsyncCompatibility.WaitAsync(
                 NetworkCompatibility.ReadAsync(stream, buffer, offset + total, count - total),
                 TimeSpan.FromSeconds(OperationTimeoutSeconds));
             if (read == 0)
             {
                 throw new EndOfStreamException("The simulator closed the connection.");
             }
-
-            total += read;
         }
     }
 }

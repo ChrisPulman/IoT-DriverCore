@@ -281,7 +281,7 @@ public sealed partial class CoreProtocolCoverageTests
             return ex;
         }
 
-        throw new InvalidOperationException($"Expected exception of type {nameof(TException)}.");
+        throw new InvalidOperationException($"Expected exception of type {typeof(TException).Name}.");
     }
 
     /// <summary>Captures an expected exception from an asynchronous action.</summary>
@@ -300,7 +300,7 @@ public sealed partial class CoreProtocolCoverageTests
             return ex;
         }
 
-        throw new InvalidOperationException($"Expected exception of type {nameof(TException)}.");
+        throw new InvalidOperationException($"Expected exception of type {typeof(TException).Name}.");
     }
 
     /// <summary>Asserts that an asynchronous action throws the expected exception type.</summary>

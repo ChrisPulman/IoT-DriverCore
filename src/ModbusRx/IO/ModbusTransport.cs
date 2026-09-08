@@ -244,12 +244,9 @@ public abstract class ModbusTransport : IDisposable
     internal bool ShouldRetryResponse(IModbusMessage request, IModbusMessage response)
     {
         // These checks are enforced in ValidateRequest, we don't want to retry for these
-        if (request.FunctionCode != response.FunctionCode)
-        {
-            return false;
-        }
-
-        return request.SlaveAddress != response.SlaveAddress ? false : OnShouldRetryResponse(request, response);
+        return request.FunctionCode == response.FunctionCode &&
+            request.SlaveAddress == response.SlaveAddress &&
+            OnShouldRetryResponse(request, response);
     }
 
     /// <summary>Provide hook to check whether receiving a response should be retried.</summary>

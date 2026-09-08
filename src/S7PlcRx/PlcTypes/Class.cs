@@ -248,73 +248,53 @@ public static class Class
     /// S7StringAttribute, or if an instance of the
     /// specified type cannot be created.</exception>
     private static double GetIncreasedNumberOfBytes(double numBytes, Type type, PropertyInfo? propertyInfo)
-    {
-        switch (Type.GetTypeCode(type))
+        => Type.GetTypeCode(type) switch
         {
-            case TypeCode.Boolean:
-                {
-                    numBytes += BitSizeInBytes;
-                    break;
-                }
+            TypeCode.Boolean => numBytes + BitSizeInBytes,
+            TypeCode.Byte => Math.Ceiling(numBytes) + 1,
+            TypeCode.Int16 or TypeCode.UInt16 => IncrementedSize(numBytes, sizeof(short)),
+            TypeCode.Int32 or TypeCode.UInt32 => IncrementedSize(numBytes, sizeof(int)),
+            TypeCode.Single => IncrementedSize(numBytes, sizeof(float)),
+            TypeCode.Double => IncrementedSize(numBytes, sizeof(double)),
+            TypeCode.String => GetS7StringSize(numBytes, propertyInfo),
+            _ => GetNestedClassSize(numBytes, type),
+        };
 
-            case TypeCode.Byte:
-                {
-                    numBytes = Math.Ceiling(numBytes);
-                    numBytes++;
-                    break;
-                }
+    /// <summary>Returns the size after aligning to an even byte boundary and adding the increment.</summary>
+    /// <param name="numBytes">The current byte count.</param>
+    /// <param name="increment">The aligned size increment.</param>
+    /// <returns>The aligned size plus the increment.</returns>
+    private static double IncrementedSize(double numBytes, int increment)
+    {
+        IncrementToEven(ref numBytes);
+        return numBytes + increment;
+    }
 
-            case TypeCode.Int16 or TypeCode.UInt16:
-                {
-                    IncrementToEven(ref numBytes);
-                    numBytes += sizeof(short);
-                    break;
-                }
-
-            case TypeCode.Int32 or TypeCode.UInt32:
-                {
-                    IncrementToEven(ref numBytes);
-                    numBytes += sizeof(int);
-                    break;
-                }
-
-            case TypeCode.Single:
-                {
-                    IncrementToEven(ref numBytes);
-                    numBytes += sizeof(float);
-                    break;
-                }
-
-            case TypeCode.Double:
-                {
-                    IncrementToEven(ref numBytes);
-                    numBytes += sizeof(double);
-                    break;
-                }
-
-            case TypeCode.String:
-                {
-                    var attribute = propertyInfo is null ? null : GetS7StringAttribute(propertyInfo);
-                    if (attribute == default(S7StringAttribute))
-                    {
-                        throw new ArgumentException(MissingS7StringAttributeMessage);
-                    }
-
-                    IncrementToEven(ref numBytes);
-                    numBytes += attribute.ReservedLengthInBytes;
-                    break;
-                }
-
-            default:
-                {
-                    var propertyClass = Activator.CreateInstance(type) ??
-                        throw new ArgumentException($"Failed to create instance of type {type}.", nameof(type));
-                    numBytes = GetClassSize(propertyClass, numBytes, true);
-                    break;
-                }
+    /// <summary>Returns the aligned storage size for an S7 string property.</summary>
+    /// <param name="numBytes">The current byte count.</param>
+    /// <param name="propertyInfo">The property metadata.</param>
+    /// <returns>The aligned byte count including the string reservation.</returns>
+    private static double GetS7StringSize(double numBytes, PropertyInfo? propertyInfo)
+    {
+        var attribute = propertyInfo is null ? null : GetS7StringAttribute(propertyInfo);
+        if (attribute == default(S7StringAttribute))
+        {
+            throw new ArgumentException(MissingS7StringAttributeMessage);
         }
 
-        return numBytes;
+        IncrementToEven(ref numBytes);
+        return numBytes + attribute.ReservedLengthInBytes;
+    }
+
+    /// <summary>Returns the storage size for a nested class property.</summary>
+    /// <param name="numBytes">The current byte count.</param>
+    /// <param name="type">The nested class type.</param>
+    /// <returns>The byte count including the nested class.</returns>
+    private static double GetNestedClassSize(double numBytes, Type type)
+    {
+        var propertyClass = Activator.CreateInstance(type) ??
+            throw new ArgumentException($"Failed to create instance of type {type}.", nameof(type));
+        return GetClassSize(propertyClass, numBytes, true);
     }
 
     /// <summary>Reads a property value from bytes using its property type.</summary>

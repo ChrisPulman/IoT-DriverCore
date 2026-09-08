@@ -567,7 +567,7 @@ public class MockServer : IDisposable
         }
 
         var evtReady = default(int);
-        return NativeMethods.Srv_PickEvent(_server, ref @event, ref evtReady) != 0 ? false : evtReady != 0;
+        return NativeMethods.Srv_PickEvent(_server, ref @event, ref evtReady) == 0 && evtReady != 0;
     }
 
     /// <summary>Clears the pending server events.</summary>

@@ -123,9 +123,7 @@ public static class DateTime
             throw new ArgumentOutOfRangeException(
                 nameof(bytes),
                 bytes.Length,
-                string.Concat(
-                    "Parsing an array of DateTime requires a multiple of 8 bytes of input data, input data is ",
-                    $"'{bytes.Length}' long."));
+                $"Parsing an array of DateTime requires a multiple of 8 bytes of input data, input data is '{bytes.Length}' long.");
         }
 
         var cnt = bytes.Length / TypeLengthInBytes;
@@ -206,9 +204,7 @@ public static class DateTime
             throw new ArgumentOutOfRangeException(
                 nameof(dateTime),
                 dateTime,
-                string.Concat(
-                    $"Date time '{dateTime}' is before the minimum '{SpecMinimumDateTime}' ",
-                    "supported in S7 date time representation."));
+                $"Date time '{dateTime}' is before the minimum '{SpecMinimumDateTime}' supported in S7 date time representation.");
         }
 
         if (dateTime > SpecMaximumDateTime)
@@ -216,9 +212,7 @@ public static class DateTime
             throw new ArgumentOutOfRangeException(
                 nameof(dateTime),
                 dateTime,
-                string.Concat(
-                    $"Date time '{dateTime}' is after the maximum '{SpecMaximumDateTime}' ",
-                    "supported in S7 date time representation."));
+                $"Date time '{dateTime}' is after the maximum '{SpecMaximumDateTime}' supported in S7 date time representation.");
         }
 
         static byte EncodeBcd(int value) =>
@@ -270,9 +264,7 @@ public static class DateTime
             throw new ArgumentOutOfRangeException(
                 nameof(bytes),
                 bytes.Length,
-                string.Concat(
-                    "Parsing a DateTime requires exactly 8 bytes of input data, input data is ",
-                    $"{bytes.Length} bytes long."));
+                $"Parsing a DateTime requires exactly 8 bytes of input data, input data is {bytes.Length} bytes long.");
         }
 
         var year = ByteToYear(bytes[0]);

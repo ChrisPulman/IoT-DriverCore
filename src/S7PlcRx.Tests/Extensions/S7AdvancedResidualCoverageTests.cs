@@ -471,9 +471,11 @@ public sealed class S7AdvancedResidualCoverageTests
             ConnectedState = () =>
             {
                 connectionChecks++;
-                return connectionChecks == 1
-                    ? throw new InvalidOperationException("health probe failed")
-                    : false;
+                return connectionChecks switch
+                {
+                    1 => throw new InvalidOperationException("health probe failed"),
+                    _ => false,
+                };
             },
         };
         using var connectedBackup = new DeterministicPlc();

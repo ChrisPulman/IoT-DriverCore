@@ -128,7 +128,6 @@ public sealed partial class MitsubishiRx : IDisposable, IAsyncDisposable
                 Options.FrameType,
                 Options.DataCode,
                 request.Command,
-                request.Subcommand,
                 request.ResolvedBody.Count);
     }
 

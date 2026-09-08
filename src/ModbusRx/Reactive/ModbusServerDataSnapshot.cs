@@ -80,15 +80,10 @@ public sealed class ModbusServerDataSnapshot : IEquatable<ModbusServerDataSnapsh
     /// <returns>True if the specified snapshot is equal to the current snapshot; otherwise, false.</returns>
     public bool Equals(ModbusServerDataSnapshot? other)
     {
-        if (other is null)
-        {
-            return false;
-        }
-
-        return ReferenceEquals(this, other) ? true : ArraysEqual(HoldingRegisters, other.HoldingRegisters) &&
+        return other is not null && (ReferenceEquals(this, other) || (ArraysEqual(HoldingRegisters, other.HoldingRegisters) &&
                ArraysEqual(InputRegisters, other.InputRegisters) &&
                ArraysEqual(Coils, other.Coils) &&
-               ArraysEqual(Inputs, other.Inputs);
+               ArraysEqual(Inputs, other.Inputs)));
     }
 
     /// <summary>Determines whether the specified object is equal to the current snapshot.</summary>

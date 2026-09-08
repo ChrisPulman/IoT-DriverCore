@@ -5,10 +5,8 @@
 using System;
 #if REACTIVE_SHIM
 using IoT.Driver.OmronPlcRx.Reactive.Core.Converters;
-using IoT.Driver.OmronPlcRx.Reactive.Core.Requests;
 #else
 using IoT.Driver.OmronPlcRx.Core.Converters;
-using IoT.Driver.OmronPlcRx.Core.Requests;
 #endif
 
 #if REACTIVE_SHIM
@@ -24,10 +22,9 @@ internal static class ReadCycleTimeResponse
     internal const int CycleTimeItemLength = 4;
 
     /// <summary>Initializes a new instance of the <see cref="ExtractCycleTime"/> class.</summary>
-    /// <param name="request">The r eq ue st value.</param>
     /// <param name="response">The r es po ns e value.</param>
     /// <returns>The result produced by the operation.</returns>
-    internal static CycleTimeResult ExtractCycleTime(ReadCycleTimeRequest request, FINSResponse response)
+    internal static CycleTimeResult ExtractCycleTime(FINSResponse response)
     {
         const int expected = CycleTimeItemLength * ProtocolConstants.Three;
         var data = response.Data;

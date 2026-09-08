@@ -536,7 +536,7 @@ internal sealed partial class OmronPLCConnection : IDisposable
 
         var requestResult = await Channel.ProcessRequestAsync(request, Timeout, Retries, cancellationToken);
 
-        var result = ReadClockResponse.ExtractClock(request, requestResult.Response);
+        var result = ReadClockResponse.ExtractClock(requestResult.Response);
 
         return new ReadClockResult
         {
@@ -624,7 +624,7 @@ internal sealed partial class OmronPLCConnection : IDisposable
 
         var requestResult = await Channel.ProcessRequestAsync(request, Timeout, Retries, cancellationToken);
 
-        var result = ReadCycleTimeResponse.ExtractCycleTime(request, requestResult.Response);
+        var result = ReadCycleTimeResponse.ExtractCycleTime(requestResult.Response);
 
         return new ReadCycleTimeResult
         {

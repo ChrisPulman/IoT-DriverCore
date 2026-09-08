@@ -142,65 +142,20 @@ public sealed class MainWindowViewModel : ReactiveObject, IDisposable
         Type valueType,
         object observable)
     {
-        switch (Type.GetTypeCode(valueType))
+        var subscription = Type.GetTypeCode(valueType) switch
         {
-            case TypeCode.Boolean:
-            {
-                owner.SubscribeCore<bool>(tag, observable);
-                break;
-            }
-
-            case TypeCode.Byte:
-            {
-                owner.SubscribeCore<byte>(tag, observable);
-                break;
-            }
-
-            case TypeCode.Int16:
-            {
-                owner.SubscribeCore<short>(tag, observable);
-                break;
-            }
-
-            case TypeCode.UInt16:
-            {
-                owner.SubscribeCore<ushort>(tag, observable);
-                break;
-            }
-
-            case TypeCode.Int32:
-            {
-                owner.SubscribeCore<int>(tag, observable);
-                break;
-            }
-
-            case TypeCode.UInt32:
-            {
-                owner.SubscribeCore<uint>(tag, observable);
-                break;
-            }
-
-            case TypeCode.Single:
-            {
-                owner.SubscribeCore<float>(tag, observable);
-                break;
-            }
-
-            case TypeCode.Double:
-            {
-                owner.SubscribeCore<double>(tag, observable);
-                break;
-            }
-
-            case TypeCode.String:
-            {
-                owner.SubscribeCore<string>(tag, observable);
-                break;
-            }
-
-            default:
-                return;
-        }
+            TypeCode.Boolean => owner.SubscribeCore<bool>(tag, observable),
+            TypeCode.Byte => owner.SubscribeCore<byte>(tag, observable),
+            TypeCode.Int16 => owner.SubscribeCore<short>(tag, observable),
+            TypeCode.UInt16 => owner.SubscribeCore<ushort>(tag, observable),
+            TypeCode.Int32 => owner.SubscribeCore<int>(tag, observable),
+            TypeCode.UInt32 => owner.SubscribeCore<uint>(tag, observable),
+            TypeCode.Single => owner.SubscribeCore<float>(tag, observable),
+            TypeCode.Double => owner.SubscribeCore<double>(tag, observable),
+            TypeCode.String => owner.SubscribeCore<string>(tag, observable),
+            _ => null,
+        };
+        _ = subscription?.DisposeWith(owner._disposables);
     }
 
     /// <summary>Connects to the configured PLC.</summary>
@@ -360,18 +315,18 @@ public sealed class MainWindowViewModel : ReactiveObject, IDisposable
     /// <typeparam name="T">The observed value type.</typeparam>
     /// <param name="tag">The tag definition to update.</param>
     /// <param name="observable">The reflected observable instance.</param>
-    private void SubscribeCore<T>(TagDefinition tag, object observable)
+    /// <returns>The subscription, or null when the observable type does not match.</returns>
+    private IDisposable? SubscribeCore<T>(TagDefinition tag, object observable)
     {
         if (observable is not IObservable<T?> source)
         {
-            return;
+            return null;
         }
 
-        _ = source
+        return source
             .SubscribeSafe(
                 value => tag.Value = value is null ? null : (object)value,
-                error => Status = error.Message)
-            .DisposeWith(_disposables);
+                error => Status = error.Message);
     }
 
     /// <summary>Writes a tag value to the PLC wrapper.</summary>

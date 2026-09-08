@@ -1,27 +1,30 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <ReactiveUIPrimitivesVersion>7.4.0</ReactiveUIPrimitivesVersion>
+    <CoreBCLVersion>10.0.11</CoreBCLVersion>
+    <RoslynAnalysersVersion>3.46.2</RoslynAnalysersVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <!--ReactiveUI-->
-    <PackageVersion Include="ReactiveUI.Primitives" Version="7.4.0" />
-    <PackageVersion Include="ReactiveUI.Primitives.Reactive" Version="7.4.0" />
-    <PackageVersion Include="ReactiveUI.Primitives.Async" Version="7.4.0" />
-    <PackageVersion Include="ReactiveUI.Primitives.Async.Reactive" Version="7.2.0" />
+    <PackageVersion Include="ReactiveUI.Primitives" Version="$(ReactiveUIPrimitivesVersion)" />
+    <PackageVersion Include="ReactiveUI.Primitives.Reactive" Version="$(ReactiveUIPrimitivesVersion)" />
+    <PackageVersion Include="ReactiveUI.Primitives.Async" Version="$(ReactiveUIPrimitivesVersion)" />
+    <PackageVersion Include="ReactiveUI.Primitives.Async.Reactive" Version="$(ReactiveUIPrimitivesVersion)" />
     <PackageVersion Include="ReactiveUI.WPF" Version="24.2.0" />
     <PackageVersion Include="Splat" Version="21.0.0" />
     <PackageVersion Include="ReactiveUI.SourceGenerators" Version="3.2.0" />
 
     <!--Microsoft-->
-    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Bcl.TimeProvider" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.11" />
-    <PackageVersion Include="System.Text.Json" Version="10.0.11" />
-    <PackageVersion Include="System.IO.Ports" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
-    <PackageVersion Include="System.CodeDom" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="$(CoreBCLVersion)" />
+    <PackageVersion Include="Microsoft.Bcl.TimeProvider" Version="$(CoreBCLVersion)" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="$(CoreBCLVersion)" />
+    <PackageVersion Include="System.Text.Json" Version="$(CoreBCLVersion)" />
+    <PackageVersion Include="System.IO.Ports" Version="$(CoreBCLVersion)" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="$(CoreBCLVersion)" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="$(CoreBCLVersion)" />
+    <PackageVersion Include="System.CodeDom" Version="$(CoreBCLVersion)" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.6.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.6.0" />
 
@@ -33,8 +36,8 @@
     <!--PLC Base-->
     <PackageVersion Include="libplctag.NativeImport" Version="2.0.0-alpha.8" />
     <PackageVersion Include="Beckhoff.TwinCAT.Ads" Version="7.0.317" />
-    <PackageVersion Include="HashTableRx" Version="4.0.0" />
-    <PackageVersion Include="HashTableRx.Reactive" Version="4.0.0" />
+    <PackageVersion Include="HashTableRx" Version="4.0.1" />
+    <PackageVersion Include="HashTableRx.Reactive" Version="4.0.1" />
 
     <PackageVersion Include="YamlDotNet" Version="18.1.0" />
 
@@ -46,22 +49,22 @@
 
     <PackageVersion Include="Mono.Cecil" Version="0.11.6" />
     <PackageVersion Include="Roslynator.Analyzers" Version="5.0.0" />
-    <PackageVersion Include="StyleSharp.Analyzers" Version="3.40.2" />
-    <PackageVersion Include="PerformanceSharp.Analyzers" Version="3.43.0" />
-    <PackageVersion Include="SecuritySharp.Analyzers" Version="3.46.2" />
+    <PackageVersion Include="StyleSharp.Analyzers" Version="$(RoslynAnalysersVersion)" />
+    <PackageVersion Include="PerformanceSharp.Analyzers" Version="$(RoslynAnalysersVersion)" />
+    <PackageVersion Include="SecuritySharp.Analyzers" Version="$(RoslynAnalysersVersion)" />
 
     <!--Build and Test-->
     <PackageVersion Include="CP.Nuke.BuildTools" Version="3.0.2" />
     <PackageVersion Include="Nuke.Common" Version="10.1.0" />
-    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.11" />
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="$(CoreBCLVersion)" />
     <PackageVersion Include="NuGet.Packaging" Version="7.9.0" />
 
     <PackageVersion Include="Moq" Version="4.20.72" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageVersion Include="Microsoft.Reactive.Testing" Version="7.0.0" />
     <PackageVersion Include="MinVer" Version="8.0.0" />
-    <PackageVersion Include="TUnit" Version="1.63.0" />
-    <PackageVersion Include="TUnit.Assertions" Version="1.66.10" />
+    <PackageVersion Include="TUnit" Version="1.66.27" />
+    <PackageVersion Include="TUnit.Assertions" Version="1.66.27" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.400" />
   </ItemGroup>

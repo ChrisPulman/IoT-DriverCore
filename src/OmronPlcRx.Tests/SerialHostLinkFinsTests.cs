@@ -376,6 +376,6 @@ public sealed class SerialHostLinkFinsTests
             return ex;
         }
 
-        throw new InvalidOperationException($"Expected exception of type {nameof(TException)}.");
+        throw new InvalidOperationException($"Expected exception of type {typeof(TException).Name}.");
     }
 }

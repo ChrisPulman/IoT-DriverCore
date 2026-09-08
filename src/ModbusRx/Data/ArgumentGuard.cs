@@ -33,10 +33,10 @@ internal static class ArgumentGuard
     /// <param name="message">The exception message.</param>
     internal static void ThrowIfZero(int value, string parameterName, string message)
     {
-#if NET8_0_OR_GREATER
-        ArgumentOutOfRangeException.ThrowIfZero(value, parameterName);
-#else
-        _ = value != 0 ? 0 : throw new ArgumentOutOfRangeException(parameterName, message);
-#endif
+        _ = value switch
+        {
+            0 => throw new ArgumentOutOfRangeException(parameterName, message),
+            _ => value,
+        };
     }
 }

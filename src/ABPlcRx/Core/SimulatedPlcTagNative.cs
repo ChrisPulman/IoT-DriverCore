@@ -772,7 +772,11 @@ internal sealed class SimulatedPlcTagNative : IPlcTagNative, IDisposable
 
     /// <summary>Throws when the native simulator is disposed.</summary>
     private void ThrowIfDisposed() =>
-        _ = !_disposed ? true : throw new ObjectDisposedException(nameof(SimulatedPlcTagNative));
+        _ = _disposed switch
+        {
+            true => throw new ObjectDisposedException(nameof(SimulatedPlcTagNative)),
+            false => false,
+        };
 
     /// <summary>State retained for one native-style handle.</summary>
     /// <param name="tagName">The physical tag name.</param>

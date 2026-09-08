@@ -18,17 +18,7 @@ internal sealed class ArrayEqualityComparer<T> : IEqualityComparer<T[]>
     /// <returns>True if the arrays are equal; otherwise, false.</returns>
     public bool Equals(T[]? x, T[]? y)
     {
-        if (ReferenceEquals(x, y))
-        {
-            return true;
-        }
-
-        if (x is null || y is null)
-        {
-            return false;
-        }
-
-        return x.Length != y.Length ? false : x.SequenceEqual(y);
+        return ReferenceEquals(x, y) || (x is not null && y is not null && x.Length == y.Length && x.SequenceEqual(y));
     }
 
     /// <summary>Returns a hash code for the specified array.</summary>

@@ -38,58 +38,41 @@ internal sealed class GlobalVariableSeedBuilder
     /// <param name="value">The seed value.</param>
     internal void Write(string path, object value)
     {
-        switch (value)
+        if (value is bool boolValue)
         {
-            case bool boolValue:
-                {
-                    WriteBoolean(path, boolValue);
-                    break;
-                }
-
-            case byte byteValue:
-                {
-                    WriteByte(path, byteValue);
-                    break;
-                }
-
-            case sbyte sbyteValue:
-                {
-                    WriteByte(path, unchecked((byte)sbyteValue));
-                    break;
-                }
-
-            case short shortValue:
-                {
-                    WriteInt16(path, shortValue);
-                    break;
-                }
-
-            case ushort ushortValue:
-                {
-                    WriteUInt16(path, ushortValue);
-                    break;
-                }
-
-            case int intValue:
-                {
-                    WriteInt32(path, intValue);
-                    break;
-                }
-
-            case uint uintValue:
-                {
-                    WriteUInt32(path, uintValue);
-                    break;
-                }
-
-            case float floatValue:
-                {
-                    WriteSingle(path, floatValue);
-                    break;
-                }
-
-            default:
-                throw new NotSupportedException($"Seed data type {value.GetType().Name} is not supported for {path}.");
+            WriteBoolean(path, boolValue);
+        }
+        else if (value is byte byteValue)
+        {
+            WriteByte(path, byteValue);
+        }
+        else if (value is sbyte sbyteValue)
+        {
+            WriteByte(path, unchecked((byte)sbyteValue));
+        }
+        else if (value is short shortValue)
+        {
+            WriteInt16(path, shortValue);
+        }
+        else if (value is ushort ushortValue)
+        {
+            WriteUInt16(path, ushortValue);
+        }
+        else if (value is int intValue)
+        {
+            WriteInt32(path, intValue);
+        }
+        else if (value is uint uintValue)
+        {
+            WriteUInt32(path, uintValue);
+        }
+        else if (value is float floatValue)
+        {
+            WriteSingle(path, floatValue);
+        }
+        else
+        {
+            throw new NotSupportedException($"Seed data type {value.GetType().Name} is not supported for {path}.");
         }
     }
 

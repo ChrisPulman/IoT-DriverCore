@@ -601,15 +601,15 @@ public sealed class ManagedS7Server : IDisposable
         CancellationToken cancellationToken,
         int offset = 0)
     {
-        var total = 0;
-        while (total < count)
+        int read;
+        for (var total = 0; total < count; total += read)
         {
 #if NET8_0_OR_GREATER
-            var read = await stream.ReadAsync(
+            read = await stream.ReadAsync(
                 buffer.AsMemory(offset + total, count - total),
                 cancellationToken).ConfigureAwait(false);
 #else
-            var read = await stream.ReadAsync(
+            read = await stream.ReadAsync(
                 buffer,
                 offset + total,
                 count - total,
@@ -619,8 +619,6 @@ public sealed class ManagedS7Server : IDisposable
             {
                 return false;
             }
-
-            total += read;
         }
 
         return true;

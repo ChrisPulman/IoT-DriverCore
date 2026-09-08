@@ -248,35 +248,65 @@ public sealed partial class PlcModelGenerator : IIncrementalGenerator
 
         foreach (var namedArgument in attribute.NamedArguments)
         {
-            switch (namedArgument.Key)
-            {
-                case "Variable" when namedArgument.Value.Value is string value && !string.IsNullOrWhiteSpace(value):
-                {
-                    variable = value;
-                    break;
-                }
-
-                case "Group" when namedArgument.Value.Value is string value && !string.IsNullOrWhiteSpace(value):
-                {
-                    group = value;
-                    break;
-                }
-
-                case "Bit" when namedArgument.Value.Value is int value:
-                {
-                    bit = value;
-                    break;
-                }
-
-                case "RegisterTag" when namedArgument.Value.Value is bool value:
-                {
-                    registerTag = value;
-                    break;
-                }
-            }
+            ApplySetting(namedArgument, ref variable, ref group, ref bit, ref registerTag);
         }
 
         return new(variable, group, bit, registerTag);
+    }
+
+    /// <summary>Applies one optional named attribute argument to tag settings.</summary>
+    /// <param name="namedArgument">The named attribute argument.</param>
+    /// <param name="variable">The resolved PLC variable name.</param>
+    /// <param name="group">The resolved tag group name.</param>
+    /// <param name="bit">The resolved bit index.</param>
+    /// <param name="registerTag">Whether the tag is registered in the catalog.</param>
+    private static void ApplySetting(
+        KeyValuePair<string, TypedConstant> namedArgument,
+        ref string variable,
+        ref string group,
+        ref int bit,
+        ref bool registerTag)
+    {
+        if (TryApplyStringSetting(namedArgument, "Variable", out var variableValue))
+        {
+            variable = variableValue;
+        }
+        else if (TryApplyStringSetting(namedArgument, "Group", out var groupValue))
+        {
+            group = groupValue;
+        }
+        else if (string.Equals(namedArgument.Key, "Bit", StringComparison.Ordinal) &&
+            namedArgument.Value.Value is int bitValue)
+        {
+            bit = bitValue;
+        }
+        else if (string.Equals(namedArgument.Key, "RegisterTag", StringComparison.Ordinal) &&
+            namedArgument.Value.Value is bool registerTagValue)
+        {
+            registerTag = registerTagValue;
+        }
+    }
+
+    /// <summary>Attempts to read a non-empty string setting from a named attribute argument.</summary>
+    /// <param name="namedArgument">The named attribute argument.</param>
+    /// <param name="key">The expected argument key.</param>
+    /// <param name="value">The resolved string setting.</param>
+    /// <returns><see langword="true"/> when the argument matches and contains a non-empty string.</returns>
+    private static bool TryApplyStringSetting(
+        KeyValuePair<string, TypedConstant> namedArgument,
+        string key,
+        out string value)
+    {
+        if (string.Equals(namedArgument.Key, key, StringComparison.Ordinal) &&
+            namedArgument.Value.Value is string stringValue &&
+            !string.IsNullOrWhiteSpace(stringValue))
+        {
+            value = stringValue;
+            return true;
+        }
+
+        value = string.Empty;
+        return false;
     }
 
     /// <summary>Generates the partial model source for collected tags.</summary>

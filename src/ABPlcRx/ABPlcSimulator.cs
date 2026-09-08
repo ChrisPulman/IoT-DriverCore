@@ -418,5 +418,9 @@ public sealed class ABPlcSimulator : IABPlcRx
 
     /// <summary>Throws when this simulator has been disposed.</summary>
     private void ThrowIfDisposed() =>
-        _ = !_disposed ? true : throw new ObjectDisposedException(nameof(ABPlcSimulator));
+        _ = _disposed switch
+        {
+            true => throw new ObjectDisposedException(nameof(ABPlcSimulator)),
+            false => false,
+        };
 }

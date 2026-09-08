@@ -1,0 +1,4 @@
+<Project>
+  <!-- Use the repository's central package versions for standalone tools. -->
+  <Import Project="..\src\Directory.Packages.props" />
+</Project>

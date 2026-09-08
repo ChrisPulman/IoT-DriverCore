@@ -164,30 +164,22 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
 
         foreach (var argument in attribute.NamedArguments)
         {
-            switch (argument.Key)
+            if (string.Equals(argument.Key, "PollIntervalMs", StringComparison.Ordinal))
             {
-                case "PollIntervalMs":
+                pollIntervalMs = Convert.ToInt32(argument.Value.Value, CultureInfo.InvariantCulture);
+            }
+            else if (string.Equals(argument.Key, "Direction", StringComparison.Ordinal))
+            {
+                direction = argument.Value.Value?.ToString() switch
                 {
-                    pollIntervalMs = Convert.ToInt32(argument.Value.Value, CultureInfo.InvariantCulture);
-                    break;
-                }
-
-                case "Direction":
-                {
-                    direction = argument.Value.Value?.ToString() switch
-                    {
-                        "1" => "ReadOnly",
-                        "2" => "WriteOnly",
-                        _ => "ReadWrite",
-                    };
-                    break;
-                }
-
-                case "ArrayLength":
-                {
-                    arrayLength = Convert.ToInt32(argument.Value.Value, CultureInfo.InvariantCulture);
-                    break;
-                }
+                    "1" => "ReadOnly",
+                    "2" => "WriteOnly",
+                    _ => "ReadWrite",
+                };
+            }
+            else if (string.Equals(argument.Key, "ArrayLength", StringComparison.Ordinal))
+            {
+                arrayLength = Convert.ToInt32(argument.Value.Value, CultureInfo.InvariantCulture);
             }
         }
 
@@ -382,10 +374,7 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
         AppendLine(builder, "    /// <returns>The typed operation result.</returns>");
         AppendLine(
             builder,
-            string.Concat(
-                $"    public global::System.Threading.Tasks.Task<{resultType}> ",
-                $"Read{property.Name}Async(",
-                "global::System.Threading.CancellationToken cancellationToken = default)"));
+            $"    public global::System.Threading.Tasks.Task<{resultType}> Read{property.Name}Async(global::System.Threading.CancellationToken cancellationToken = default)");
         AppendLine(builder, MemberBlockOpen);
         AppendLine(
             builder,
@@ -469,9 +458,7 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
         AppendLine(builder, "    public static global::IoT.Driver.Core.LogicalTagCatalog CreateLogicalTagCatalog() =>");
         AppendLine(
             builder,
-            string.Concat(
-                $"        global::{libraryRoot}.LogicalTags.S7LogicalTagExtensions",
-                ".CreateLogicalTagCatalog(S7TagDefinitions);"));
+            $"        global::{libraryRoot}.LogicalTags.S7LogicalTagExtensions.CreateLogicalTagCatalog(S7TagDefinitions);");
         AppendLine(builder);
     }
 
@@ -493,19 +480,13 @@ public sealed partial class S7TagBindingSourceGenerator : IIncrementalGenerator
         AppendLine(builder, "        __s7BindingSession?.Dispose();");
         AppendLine(
             builder,
-            string.Concat(
-                $"        __s7Binding = global::{libraryRoot}.Binding.S7TagRuntimeBinding",
-                ".Bind(plc, S7TagDefinitions, __s7ApplyRead);"));
+            $"        __s7Binding = global::{libraryRoot}.Binding.S7TagRuntimeBinding.Bind(plc, S7TagDefinitions, __s7ApplyRead);");
         AppendLine(
             builder,
-                string.Concat(
-                    $"        __s7LogicalClient = new global::{libraryRoot}.LogicalTags.S7LogicalTagClient(",
-                    "plc, CreateLogicalTagCatalog(), store: null);"));
+            $"        __s7LogicalClient = new global::{libraryRoot}.LogicalTags.S7LogicalTagClient(plc, CreateLogicalTagCatalog(), store: null);");
         AppendLine(
             builder,
-            string.Concat(
-                $"        __s7BindingSession = new global::{libraryRoot}.Binding.S7TagBindingSession(",
-                "__s7Binding, __s7LogicalClient);"));
+            $"        __s7BindingSession = new global::{libraryRoot}.Binding.S7TagBindingSession(__s7Binding, __s7LogicalClient);");
         AppendLine(builder, "        return __s7BindingSession;");
         AppendLine(builder, MemberBlockClose);
         AppendLine(builder);

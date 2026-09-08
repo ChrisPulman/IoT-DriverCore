@@ -120,7 +120,12 @@ internal static class ObservableAsyncEnumerable
 
         /// <summary>Completes a terminal wait or rethrows the source error.</summary>
         /// <returns>False when the source completed successfully.</returns>
-        private bool CompleteWait() => _error is null ? false : throw _error;
+        private bool CompleteWait() =>
+            _error switch
+            {
+                null => false,
+                _ => throw _error,
+            };
 
         /// <summary>Records a terminal notification.</summary>
         /// <param name="error">The optional source error.</param>

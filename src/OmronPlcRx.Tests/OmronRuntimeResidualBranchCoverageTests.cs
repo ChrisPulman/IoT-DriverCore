@@ -447,7 +447,7 @@ public sealed class OmronRuntimeResidualBranchCoverageTests
             return;
         }
 
-        throw new InvalidOperationException($"Expected {nameof(TException)}.");
+        throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
     }
 
     /// <summary>Captures and verifies an exception wrapped by reflection.</summary>
@@ -468,7 +468,7 @@ public sealed class OmronRuntimeResidualBranchCoverageTests
             return;
         }
 
-        throw new InvalidOperationException($"Expected {nameof(TException)}.");
+        throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
     }
 
     /// <summary>Provides a portable deterministic FINS channel for every declared test target.</summary>

@@ -67,7 +67,7 @@ public sealed class OmronParserResidualCoverageTests
         _ = request.BuildMessage(1);
         var response = CreateResponse(request, [0x99, 0x12, 0x31, 0x23, 0x59, 0x58, 0x07]);
 
-        var clock = ReadClockResponse.ExtractClock(request, response);
+        var clock = ReadClockResponse.ExtractClock(response);
 
         await Assert.That(clock.ClockDateTime).IsEqualTo(
             new(1999, 12, 31, 23, 59, 58, DateTimeKind.Utc));
@@ -204,6 +204,6 @@ public sealed class OmronParserResidualCoverageTests
             return exception;
         }
 
-        throw new InvalidOperationException($"Expected {nameof(TException)}.");
+        throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
     }
 }

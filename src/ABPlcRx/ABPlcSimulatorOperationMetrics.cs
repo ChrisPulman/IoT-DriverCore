@@ -30,37 +30,10 @@ public sealed class ABPlcSimulatorOperationMetrics
                 failedOperations++;
             }
 
-            switch (operation.Operation)
-            {
-                case ABPlcSimulatorOperation.Create:
-                {
-                    createOperations++;
-                    break;
-                }
-
-                case ABPlcSimulatorOperation.Destroy:
-                {
-                    destroyOperations++;
-                    break;
-                }
-
-                case ABPlcSimulatorOperation.Read:
-                {
-                    readOperations++;
-                    break;
-                }
-
-                case ABPlcSimulatorOperation.Write:
-                {
-                    writeOperations++;
-                    break;
-                }
-
-                default:
-                {
-                    break;
-                }
-            }
+            createOperations += operation.Operation == ABPlcSimulatorOperation.Create ? 1 : 0;
+            destroyOperations += operation.Operation == ABPlcSimulatorOperation.Destroy ? 1 : 0;
+            readOperations += operation.Operation == ABPlcSimulatorOperation.Read ? 1 : 0;
+            writeOperations += operation.Operation == ABPlcSimulatorOperation.Write ? 1 : 0;
         }
 
         TotalOperations = totalOperations;

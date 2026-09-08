@@ -266,14 +266,14 @@ public sealed partial class CoreProtocolCoverageTests
         var clockResponse = CreateResponse(
             readClock,
             [0x26, 0x06, 0x30, 0x14, 0x25, 0x59, 0x02]);
-        var clock = ReadClockResponse.ExtractClock(readClock, clockResponse);
+        var clock = ReadClockResponse.ExtractClock(clockResponse);
 
         var cycleTime = ReadCycleTimeRequest.CreateNew(plc);
         _ = cycleTime.BuildMessage(0x54);
         var cycleResponse = CreateResponse(
             cycleTime,
             [0x00, 0x00, 0x01, 0x23, 0x00, 0x00, 0x04, 0x56, 0x00, 0x00, 0x00, 0x00]);
-        var cycle = ReadCycleTimeResponse.ExtractCycleTime(cycleTime, cycleResponse);
+        var cycle = ReadCycleTimeResponse.ExtractCycleTime(cycleResponse);
 
         var cpuData = ReadCPUUnitDataRequest.CreateNew(plc);
         _ = cpuData.BuildMessage(0x55);
@@ -378,11 +378,11 @@ public sealed partial class CoreProtocolCoverageTests
         var shortBitException = CaptureException<FINSException>(
             () => ReadMemoryAreaBitResponse.ExtractValues(readBits, shortBitResponse));
         _ = CaptureException<FINSException>(
-            () => ReadClockResponse.ExtractClock(readClock, shortClockResponse));
+            () => ReadClockResponse.ExtractClock(shortClockResponse));
         _ = CaptureException<FINSException>(
-            () => ReadClockResponse.ExtractClock(readClock, invalidClockResponse));
+            () => ReadClockResponse.ExtractClock(invalidClockResponse));
         _ = CaptureException<FINSException>(
-            () => ReadCycleTimeResponse.ExtractCycleTime(cycleTime, shortCycleResponse));
+            () => ReadCycleTimeResponse.ExtractCycleTime(shortCycleResponse));
         _ = CaptureException<FINSException>(
             () => ReadCPUUnitDataResponse.ExtractData(shortCpuResponse));
         await Assert.That(shortWordException is not null && shortBitException is not null).IsTrue();
