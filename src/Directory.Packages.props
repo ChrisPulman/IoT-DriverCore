@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <ReactiveUIPrimitivesVersion>7.4.0</ReactiveUIPrimitivesVersion>
+    <ReactiveUIPrimitivesVersion>8.2.0</ReactiveUIPrimitivesVersion>
     <CoreBCLVersion>10.0.12</CoreBCLVersion>
     <RoslynAnalysersVersion>3.46.2</RoslynAnalysersVersion>
   </PropertyGroup>
