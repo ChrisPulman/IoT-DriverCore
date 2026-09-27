@@ -414,7 +414,7 @@ public sealed partial class ABLogicalTagClient : IManagedLogicalTagClient, IDisp
             nameCounts[item.TagName] = count + 1;
         }
 
-        duplicateNames = new(StringComparer.Ordinal);
+        duplicateNames = [with(StringComparer.Ordinal)];
         foreach (var nameCount in nameCounts)
         {
             if (nameCount.Value > 1)

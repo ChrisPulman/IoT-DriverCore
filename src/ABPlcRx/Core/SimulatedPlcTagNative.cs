@@ -21,7 +21,7 @@ internal sealed class SimulatedPlcTagNative : IPlcTagNative, IDisposable
     private readonly Lock _syncRoot = new();
 
     /// <summary>Physical device buffers keyed by tag name.</summary>
-    private readonly Dictionary<string, byte[]> _deviceBuffers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, byte[]> _deviceBuffers = [with(StringComparer.OrdinalIgnoreCase)];
 
     /// <summary>Staged buffers keyed by handle.</summary>
     private readonly Dictionary<int, HandleState> _handles = [];
@@ -33,7 +33,7 @@ internal sealed class SimulatedPlcTagNative : IPlcTagNative, IDisposable
     private readonly List<ScriptedResult> _scriptedResults = [];
 
     /// <summary>Latest status keyed by physical tag name.</summary>
-    private readonly Dictionary<string, int> _tagStatuses = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, int> _tagStatuses = [with(StringComparer.OrdinalIgnoreCase)];
 
     /// <summary>Time source for log entries.</summary>
     private readonly TimeProvider _timeProvider;

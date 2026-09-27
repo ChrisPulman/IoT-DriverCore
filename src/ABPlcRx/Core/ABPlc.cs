@@ -18,7 +18,7 @@ internal sealed class ABPlc : IDisposable
     private readonly Dictionary<string, PlcTagCollection> _tagList = [];
 
     /// <summary>Tags keyed by caller variable name.</summary>
-    private readonly Dictionary<string, IPlcTag> _tagsByVariable = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, IPlcTag> _tagsByVariable = [with(StringComparer.Ordinal)];
 
     /// <summary>Synchronizes access to tag state.</summary>
     private readonly Lock _syncRoot = new();
@@ -87,6 +87,9 @@ internal sealed class ABPlc : IDisposable
     {
         Dispose(false);
     }
+
+    /// <summary>Gets or sets the optional destination for ping diagnostics; defaults to standard output.</summary>
+    internal TextWriter? Output { get; set; }
 
     /// <summary>Gets or sets the time provider used to obtain timestamps for tag operations.</summary>
     internal TimeProvider TimeProvider { get; set; } = TimeProvider.System;
@@ -229,12 +232,13 @@ internal sealed class ABPlc : IDisposable
             var reply = _ping.Send(IPAddress);
             if (echo)
             {
-                Console.Out.WriteLine($"Address: {reply.Address}");
-                Console.Out.WriteLine($"RoundTrip time: {reply.RoundtripTime}");
-                Console.Out.WriteLine($"Time to live: {reply.Options?.Ttl}");
-                Console.Out.WriteLine($"Don't fragment: {reply.Options?.DontFragment}");
-                Console.Out.WriteLine($"Buffer size: {reply.Buffer?.Length}");
-                Console.Out.WriteLine($"Status: {reply.Status}");
+                var output = Output ?? Console.Out;
+                output.WriteLine($"Address: {reply.Address}");
+                output.WriteLine($"RoundTrip time: {reply.RoundtripTime}");
+                output.WriteLine($"Time to live: {reply.Options?.Ttl}");
+                output.WriteLine($"Don't fragment: {reply.Options?.DontFragment}");
+                output.WriteLine($"Buffer size: {reply.Buffer?.Length}");
+                output.WriteLine($"Status: {reply.Status}");
             }
 
             return reply.Status == IPStatus.Success;

@@ -122,8 +122,9 @@ public sealed partial class MitsubishiTagClientGenerator : IIncrementalGenerator
         isEnabledByDefault: true);
 
     /// <summary>Supported schema data types.</summary>
-    private static readonly HashSet<string> SupportedDataTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
+    private static readonly HashSet<string> SupportedDataTypes =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
         "Bit",
         "Word",
         "DWord",
@@ -133,7 +134,7 @@ public sealed partial class MitsubishiTagClientGenerator : IIncrementalGenerator
         "UInt16",
         "Int32",
         "UInt32",
-    };
+    ];
 
     /// <inheritdoc/>
     public void Initialize(

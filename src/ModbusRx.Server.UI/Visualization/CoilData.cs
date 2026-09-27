@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI;
-using ReactiveUI.SourceGenerators;
 
 namespace IoT.Driver.ModbusRx.Server.UI.Visualization;
 
@@ -11,11 +10,11 @@ namespace IoT.Driver.ModbusRx.Server.UI.Visualization;
 public partial class CoilData : ReactiveObject
 {
     /// <summary>The current coil value.</summary>
-    [Reactive]
+    [global::ReactiveUI.SourceGenerators.Reactive]
     private bool _value;
 
     /// <summary>Gets or sets a value indicating whether this coil can be edited.</summary>
-    [Reactive]
+    [global::ReactiveUI.SourceGenerators.Reactive]
     private bool _isEditable = true;
 
     /// <summary>Gets or sets the coil address.</summary>

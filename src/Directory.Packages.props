@@ -3,7 +3,7 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <ReactiveUIPrimitivesVersion>8.2.0</ReactiveUIPrimitivesVersion>
     <CoreBCLVersion>10.0.12</CoreBCLVersion>
-    <RoslynAnalysersVersion>3.46.2</RoslynAnalysersVersion>
+    <RoslynAnalysersVersion>5.1.2</RoslynAnalysersVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,7 +14,7 @@
     <PackageVersion Include="ReactiveUI.Primitives.Async.Reactive" Version="$(ReactiveUIPrimitivesVersion)" />
     <PackageVersion Include="ReactiveUI.WPF" Version="25.0.1" />
     <PackageVersion Include="Splat" Version="21.0.0" />
-    <PackageVersion Include="ReactiveUI.SourceGenerators" Version="3.2.0" />
+    <PackageVersion Include="ReactiveUI.SourceGenerators" Version="4.2.0" />
 
     <!--Microsoft-->
     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="$(CoreBCLVersion)" />
@@ -25,9 +25,10 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="$(CoreBCLVersion)" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="$(CoreBCLVersion)" />
     <PackageVersion Include="System.CodeDom" Version="$(CoreBCLVersion)" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.6.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.6.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
 
+    <!-- 3.x native assets reject AnyCPU .NET Framework builds consuming CP.IoT.Core. -->
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.13" />
     <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
 
@@ -35,7 +36,7 @@
 
     <!--PLC Base-->
     <PackageVersion Include="libplctag.NativeImport" Version="2.0.0-alpha.9" />
-    <PackageVersion Include="Beckhoff.TwinCAT.Ads" Version="7.0.348" />
+    <PackageVersion Include="Beckhoff.TwinCAT.Ads" Version="7.0.371" />
     <PackageVersion Include="HashTableRx" Version="4.0.1" />
     <PackageVersion Include="HashTableRx.Reactive" Version="4.0.1" />
 
@@ -63,9 +64,9 @@
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageVersion Include="Microsoft.Reactive.Testing" Version="7.0.0" />
     <PackageVersion Include="MinVer" Version="8.0.0" />
-    <PackageVersion Include="TUnit" Version="1.66.27" />
+    <PackageVersion Include="TUnit" Version="1.70.1" />
     <PackageVersion Include="TUnit.Assertions" Version="1.70.1" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.400" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
   </ItemGroup>
 </Project>

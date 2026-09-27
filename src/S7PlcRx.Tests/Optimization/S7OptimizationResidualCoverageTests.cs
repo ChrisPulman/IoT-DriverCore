@@ -298,7 +298,7 @@ public sealed class S7OptimizationResidualCoverageTests
     private sealed class OptimizationTestPlc(string ip) : IRxS7
     {
         /// <summary>Stores values returned by typed reads.</summary>
-        private readonly Dictionary<string, object?> _values = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, object?> _values = [with(StringComparer.Ordinal)];
 
         /// <summary>Publishes tags to typed observers.</summary>
         private readonly Signal<Tag?> _observedTags = new();

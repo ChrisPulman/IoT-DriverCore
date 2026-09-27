@@ -18,10 +18,10 @@ public sealed class FakeOmronPlcRx : IOmronPlcRx
     private readonly Signal<OmronPLCException?> _errors = new();
 
     /// <summary>Stores per-tag value subjects.</summary>
-    private readonly Dictionary<string, BehaviorSignal<object?>> _subjects = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, BehaviorSignal<object?>> _subjects = [with(StringComparer.OrdinalIgnoreCase)];
 
     /// <summary>Stores the latest per-tag values.</summary>
-    private readonly Dictionary<string, object?> _values = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, object?> _values = [with(StringComparer.OrdinalIgnoreCase)];
 
     /// <summary>Publishes aggregate tag change notifications.</summary>
     private readonly Signal<IPlcTag?> _all = new();
@@ -51,7 +51,7 @@ public sealed class FakeOmronPlcRx : IOmronPlcRx
     public List<Write> Writes { get; } = [];
 
     /// <summary>Gets tag names whose observable should fail during subscription.</summary>
-    public HashSet<string> TagsThrowingOnSubscribe { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public HashSet<string> TagsThrowingOnSubscribe { get; } = [with(StringComparer.OrdinalIgnoreCase)];
 
     /// <inheritdoc />
     public void AddUpdateTagItem<T>(PlcTag<T> tag)

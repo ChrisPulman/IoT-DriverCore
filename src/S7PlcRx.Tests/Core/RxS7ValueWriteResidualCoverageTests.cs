@@ -210,7 +210,7 @@ public sealed class RxS7ValueWriteResidualCoverageTests
         plc.Value("Counter", CounterValue);
         plc.Value("Invalid", InvalidValue);
         plc.Value("Unknown", UnknownValue);
-        plc.Value(UnsupportedTagName, (object)new object());
+        plc.Value(UnsupportedTagName, new object());
 
         await TUnitAssert.That(plc.TagList[InputTagName]!.NewValue).IsEqualTo(InputValue);
         await TUnitAssert.That(plc.TagList[UnsupportedTagName]!.NewValue).IsTypeOf<object>();

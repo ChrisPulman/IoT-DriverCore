@@ -29,7 +29,7 @@ public partial class RxTcAdsClient
 
     /// <summary>Tracks variable prefixes whose stale files were cleaned in this process.</summary>
     private static readonly HashSet<string> CleanedGeneratedDataTypePrefixes =
-        new(StringComparer.OrdinalIgnoreCase);
+        [with(StringComparer.OrdinalIgnoreCase)];
 
     /// <summary>Builds the generated data type file prefix.</summary>
     /// <param name="variable">The PLC variable name.</param>

@@ -189,7 +189,7 @@ public sealed class AdditionalCoreBranchCoverageTests
             ?? throw new MissingMethodException(typeof(CodeGenerator).FullName, CreateArrayOfStructureMethodName);
         var wrapperBuilder = new StringBuilder();
         var symbol = CreateSymbol("Ignored", "ARRAY [0..1] OF STRING(4)");
-        ((TestSymbol)symbol).InstanceName = null!;
+        symbol.InstanceName = null!;
 
         var emitted = GetRequired<string>(createArray.Invoke(null, [symbol, wrapperBuilder, false]));
 

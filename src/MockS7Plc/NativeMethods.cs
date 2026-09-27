@@ -17,7 +17,7 @@ internal static class NativeMethods
     private static readonly nint LibraryHandle;
 
     /// <summary>Caches resolved native exports.</summary>
-    private static readonly Dictionary<string, Delegate> ExportCache = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, Delegate> ExportCache = [with(StringComparer.Ordinal)];
 
     /// <summary>Guards export resolution.</summary>
 #if NET9_0_OR_GREATER

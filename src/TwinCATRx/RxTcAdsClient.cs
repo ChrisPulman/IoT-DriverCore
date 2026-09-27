@@ -59,7 +59,7 @@ public partial class RxTcAdsClient : IRxTcAdsClient
     private readonly List<string> _code = [];
 
     /// <summary>Stores resolved PLC variable types by variable name.</summary>
-    private readonly Dictionary<string, Type> _typeInfo = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Type> _typeInfo = [with(StringComparer.OrdinalIgnoreCase)];
 
     /// <summary>Maps read-write ADS handles to variable names.</summary>
     private readonly Dictionary<uint, string> _readWriteVariablesByHandle = [];

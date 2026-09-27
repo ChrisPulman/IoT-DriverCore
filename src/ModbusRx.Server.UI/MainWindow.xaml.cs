@@ -8,19 +8,28 @@ using IoT.Driver.ModbusRx.Server.UI.Services;
 using IoT.Driver.ModbusRx.Server.UI.Visualization;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using ReactiveUI.SourceGenerators;
+using ReactiveUI;
 
 namespace IoT.Driver.ModbusRx.Server.UI;
 
 /// <summary>Interaction logic for MainWindow.xaml.</summary>
-[IViewFor<ModbusServerViewModel>]
-public partial class MainWindow
+public partial class MainWindow : IViewFor<ModbusServerViewModel>
 {
     /// <summary>Initializes a new instance of the <see cref="MainWindow"/> class.</summary>
     public MainWindow()
     {
         InitializeComponent();
         SetupDependencies();
+    }
+
+    /// <inheritdoc />
+    public ModbusServerViewModel? ViewModel { get; set; }
+
+    /// <inheritdoc />
+    object? IViewFor.ViewModel
+    {
+        get => ViewModel;
+        set => ViewModel = (ModbusServerViewModel?)value;
     }
 
     /// <summary>Configures the data context and application services.</summary>

@@ -8,7 +8,6 @@ using IoT.Driver.ModbusRx.Device;
 using IoT.Driver.ModbusRx.Server.UI.Data;
 using IoT.Driver.ModbusRx.Server.UI.Services;
 using ReactiveUI;
-using ReactiveUI.SourceGenerators;
 using MainModbusServerExtensions = global::IoT.Driver.ModbusRx.ModbusServerExtensions;
 
 namespace IoT.Driver.ModbusRx.Server.UI.Visualization;
@@ -38,47 +37,47 @@ public partial class ModbusServerViewModel : ReactiveObject, IDisposable
     private ModbusServer? _server;
 
     /// <summary>A value indicating whether the server is running.</summary>
-    [Reactive]
+    [global::ReactiveUI.SourceGenerators.Reactive]
     private bool _isServerRunning;
 
     /// <summary>A value indicating whether simulation mode is active.</summary>
-    [Reactive]
+    [global::ReactiveUI.SourceGenerators.Reactive]
     private bool _simulationMode;
 
     /// <summary>The selected test pattern.</summary>
-    [Reactive]
+    [global::ReactiveUI.SourceGenerators.Reactive]
     private TestPattern _selectedTestPattern = TestPattern.Random;
 
     /// <summary>The selected simulation data generator.</summary>
-    [Reactive]
+    [global::ReactiveUI.SourceGenerators.Reactive]
     private SimulationType _selectedSimulationType;
 
     /// <summary>The active server configuration.</summary>
-    [Reactive]
+    [global::ReactiveUI.SourceGenerators.Reactive]
     private ServerConfiguration? _serverConfiguration;
 
     /// <summary>The selected client configuration.</summary>
-    [Reactive]
+    [global::ReactiveUI.SourceGenerators.Reactive]
     private ModbusClientConfiguration? _selectedClientConfiguration;
 
     /// <summary>The name for a new client configuration.</summary>
-    [Reactive]
+    [global::ReactiveUI.SourceGenerators.Reactive]
     private string _newClientName = string.Empty;
 
     /// <summary>The address for a new client configuration.</summary>
-    [Reactive]
+    [global::ReactiveUI.SourceGenerators.Reactive]
     private string _newClientAddress = "127.0.0.1";
 
     /// <summary>The port for a new client configuration.</summary>
-    [Reactive]
+    [global::ReactiveUI.SourceGenerators.Reactive]
     private int _newClientPort = DefaultModbusPort;
 
     /// <summary>The connection type for a new client configuration.</summary>
-    [Reactive]
+    [global::ReactiveUI.SourceGenerators.Reactive]
     private string _newClientConnectionType = "TCP";
 
     /// <summary>The current UI status message.</summary>
-    [Reactive]
+    [global::ReactiveUI.SourceGenerators.Reactive]
     private string _statusMessage = "Ready";
 
     /// <summary>A value indicating whether this instance has been disposed.</summary>

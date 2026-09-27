@@ -53,7 +53,7 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
     private readonly Dictionary<InMemoryAdsOperation, Queue<Exception>> _faults = [];
 
     /// <summary>Stores registered symbols by case-insensitive ADS variable name.</summary>
-    private readonly Dictionary<string, InMemoryAdsSymbol> _symbols = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, InMemoryAdsSymbol> _symbols = [with(StringComparer.OrdinalIgnoreCase)];
 
     /// <summary>Stores the current pause timer.</summary>
     private Timer? _pauseTimer;

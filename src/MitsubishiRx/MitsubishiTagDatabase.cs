@@ -70,8 +70,8 @@ public sealed class MitsubishiTagDatabase
     public MitsubishiTagDatabase(IEnumerable<MitsubishiTagDefinition> tags)
     {
         ArgumentNullException.ThrowIfNull(tags);
-        _tags = new(StringComparer.OrdinalIgnoreCase);
-        _groups = new(StringComparer.OrdinalIgnoreCase);
+        _tags = [with(StringComparer.OrdinalIgnoreCase)];
+        _groups = [with(StringComparer.OrdinalIgnoreCase)];
         foreach (var tag in tags)
         {
             Add(tag);

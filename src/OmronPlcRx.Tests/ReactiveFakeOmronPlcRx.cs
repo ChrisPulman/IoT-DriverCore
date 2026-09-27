@@ -22,10 +22,10 @@ public sealed class ReactiveFakeOmronPlcRx : ReactiveIOmronPlcRx
     private readonly Signal<ReactiveOmronPLCException?> _errors = new();
 
     /// <summary>Stores per-tag value subjects.</summary>
-    private readonly Dictionary<string, BehaviorSignal<object?>> _subjects = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, BehaviorSignal<object?>> _subjects = [with(StringComparer.OrdinalIgnoreCase)];
 
     /// <summary>Stores the latest per-tag values.</summary>
-    private readonly Dictionary<string, object?> _values = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, object?> _values = [with(StringComparer.OrdinalIgnoreCase)];
 
     /// <summary>Publishes aggregate tag change notifications.</summary>
     private readonly Signal<ReactiveIPlcTag?> _all = new();

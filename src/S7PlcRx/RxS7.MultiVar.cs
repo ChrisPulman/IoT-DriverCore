@@ -72,7 +72,7 @@ public partial class RxS7
         out VarType[] varTypes,
         out int[] arrayLengths)
     {
-        items = new(tags.Count);
+        items = [with(tags.Count)];
         varTypes = new VarType[tags.Count];
         arrayLengths = new int[tags.Count];
 
@@ -99,7 +99,7 @@ public partial class RxS7
     /// <returns>true when all tags are valid and serializable; otherwise, false.</returns>
     private static bool TryBuildMultiVarWriteItems(IReadOnlyList<Tag> tags, out List<S7MultiVar.WriteItem> items)
     {
-        items = new(tags.Count);
+        items = [with(tags.Count)];
         for (var i = 0; i < tags.Count; i++)
         {
             var tag = tags[i];

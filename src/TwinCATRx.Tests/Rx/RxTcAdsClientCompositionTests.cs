@@ -553,7 +553,7 @@ public sealed class RxTcAdsClientCompositionTests
     private sealed class FakeAdsClient : IAdsClientRuntime
     {
         /// <summary>Maps variable names to deterministic handles.</summary>
-        private readonly Dictionary<string, uint> _handles = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, uint> _handles = [with(StringComparer.OrdinalIgnoreCase)];
 
         /// <summary>Maps handles back to variable names.</summary>
         private readonly Dictionary<uint, string> _variables = [];
@@ -571,7 +571,7 @@ public sealed class RxTcAdsClientCompositionTests
         public StateInfo State { get; set; } = new(AdsState.Run, 0);
 
         /// <summary>Gets configured values by variable.</summary>
-        public Dictionary<string, object> ValuesByVariable { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, object> ValuesByVariable { get; } = [with(StringComparer.OrdinalIgnoreCase)];
 
         /// <summary>Gets the local connection count.</summary>
         public int LocalConnectCount { get; private set; }

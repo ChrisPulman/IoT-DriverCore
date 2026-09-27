@@ -528,7 +528,14 @@ public sealed class ABPlcSimulatorTests
         await Assert.That(reconnectedRead.Succeeded).IsTrue();
         await Assert.That(states).IsEquivalentTo([true, false, true]);
         await Assert.That(simulator.Ping(echo: false)).IsTrue();
+#if NET8_0_OR_GREATER
+        await using var output = new StringWriter();
+#else
+        using var output = new StringWriter();
+#endif
+        simulator.Output = output;
         await Assert.That(simulator.Ping(echo: true)).IsTrue();
+        await Assert.That(output.ToString()).Contains("Simulator connected: True");
         await Assert.That(await simulator.PingAsync(echo: false, CancellationToken.None)).IsTrue();
         await Assert.That(() => simulator.Disconnect(PlcTagStatus.StatusOK))
             .Throws<ArgumentOutOfRangeException>();

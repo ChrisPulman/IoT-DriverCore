@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI;
-using ReactiveUI.SourceGenerators;
 
 namespace IoT.Driver.ModbusRx.Server.UI.Visualization;
 
@@ -11,7 +10,7 @@ namespace IoT.Driver.ModbusRx.Server.UI.Visualization;
 public partial class RegisterData : ReactiveObject
 {
     /// <summary>The current register value.</summary>
-    [Reactive]
+    [global::ReactiveUI.SourceGenerators.Reactive]
     private ushort _value;
 
     /// <summary>Gets or sets the register address.</summary>
