@@ -22,8 +22,7 @@ public sealed partial class MitsubishiRx
     private readonly object _reactiveStreamsGate = new();
 
     /// <summary>Stores the reactiveStreams field.</summary>
-    private readonly Dictionary<string, object> _reactiveStreams = new(
-        StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, object> _reactiveStreams = [with(StringComparer.OrdinalIgnoreCase)];
 
     /// <summary>Executes the ObserveReactiveWords operation.</summary>
     /// <param name="address">The address parameter.</param>

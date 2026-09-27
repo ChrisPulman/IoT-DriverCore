@@ -186,6 +186,107 @@ public class TwinCatReactiveStreamGeneratorTests
         await AssertUnsupportedGeneratedMembersAreAbsentAsync(generated);
     }
 
+    /// <summary>Verifies duplicate addresses are registered once and write-only properties do not create notifications.</summary>
+    /// <returns>The test task.</returns>
+    [Test]
+    public async Task Connection_Uses_Unique_Registrations_And_WriteOnly_FallbacksAsync()
+    {
+        const string source = """
+            using IoT.Driver.TwinCATRx;
+
+            [TwinCatPlcConnection("duplicate-address", 854)]
+            internal partial class RegistrationConnection
+            {
+                [DirectNotification(".Signal", CycleTime = 10, ArraySize = 4)]
+                public int First { get; }
+
+                [DirectNotification(".signal", CycleTime = 20)]
+                public int Duplicate { get; }
+
+                [WriteOnly(".Command", ArraySize = 2)]
+                public int Command { get; }
+            }
+            """;
+
+        var result = RunGenerator(source);
+        var generated = GetGeneratedSource(result, "RegistrationConnection.Lean.TwinCatPlcConnection");
+
+        await TUnitAssert.That(result.Diagnostics.Length).IsEqualTo(0);
+        await TUnitAssert.That(CountOccurrences(generated, "AddNotification(settings, \".Signal\"")).IsEqualTo(1);
+        await TUnitAssert.That(generated).DoesNotContain("AddNotification(settings, \".signal\"");
+        await TUnitAssert.That(CountOccurrences(generated, "AddWriteVariable(settings, \".Command\"")).IsEqualTo(1);
+        await TUnitAssert.That(generated).Contains("client.Read(\".Signal\", arrayLength: 4);");
+        await TUnitAssert.That(generated).Contains("ReadDuplicateAsync");
+        await TUnitAssert.That(generated).Contains("public void WriteCommand(int value)");
+        await TUnitAssert.That(generated).Contains("AccessMode = global::IoT.Driver.Core.LogicalTagAccessMode.Write");
+    }
+
+    /// <summary>Verifies generated logical tags preserve explicit write addresses and access modes.</summary>
+    /// <returns>The test task.</returns>
+    [Test]
+    public async Task Connection_Emits_Write_Address_Metadata_And_ReadWrite_AccessAsync()
+    {
+        const string source = """
+            using IoT.Driver.TwinCATRx;
+
+            [TwinCatPlcConnection("metadata-address", 855)]
+            internal partial class MetadataConnection
+            {
+                [DirectNotification(".ReadWrite", WriteAddress = ".WriteTarget")]
+                public int ReadWrite { get; }
+
+                [DirectNotification(".ReadOnly", CanWrite = false)]
+                public int ReadOnly { get; }
+
+                [StructuredNotification(".Structure", "Member")]
+                public int Member { get; }
+
+                [StructuredNotification(".NoMember")]
+                public int NoMember { get; }
+            }
+            """;
+
+        var result = RunGenerator(source);
+        var generated = GetGeneratedSource(result, "MetadataConnection.Lean.TwinCatPlcConnection");
+
+        await TUnitAssert.That(result.Diagnostics.Length).IsEqualTo(0);
+        await TUnitAssert.That(generated).Contains("[\"WriteAddress\"] = \".WriteTarget\"");
+        await TUnitAssert.That(generated).Contains(
+            "AccessMode = global::IoT.Driver.Core.LogicalTagAccessMode.ReadWrite");
+        await TUnitAssert.That(generated).Contains(
+            "AccessMode = global::IoT.Driver.Core.LogicalTagAccessMode.Read");
+        await TUnitAssert.That(generated).Contains("ReadWriteAsync");
+        await TUnitAssert.That(generated).Contains("WriteReadWriteAsync");
+        await TUnitAssert.That(generated).Contains("[\"StructureRoot\"] = \".Structure\"");
+        await TUnitAssert.That(generated).Contains("[\"MemberAddress\"] = \"Member\"");
+        await TUnitAssert.That(generated).Contains("Observe<int>(client, \".NoMember\"");
+    }
+
+    /// <summary>Verifies a write-only connection does not emit notification registration scaffolding.</summary>
+    /// <returns>The test task.</returns>
+    [Test]
+    public async Task WriteOnly_Connection_Emits_No_Notification_RegistrationsAsync()
+    {
+        const string source = """
+            using IoT.Driver.TwinCATRx;
+
+            [TwinCatPlcConnection("write-only-address", 856)]
+            internal partial class WriteOnlyConnection
+            {
+                [WriteOnly(".Command")]
+                public bool Command { get; }
+            }
+            """;
+
+        var result = RunGenerator(source);
+        var generated = GetGeneratedSource(result, "WriteOnlyConnection.Lean.TwinCatPlcConnection");
+
+        await TUnitAssert.That(result.Diagnostics.Length).IsEqualTo(0);
+        await TUnitAssert.That(generated).DoesNotContain("AddNotification(settings");
+        await TUnitAssert.That(generated).Contains("AddWriteVariable(settings, \".Command\", arraySize: -1)");
+        await TUnitAssert.That(generated).Contains("public void WriteCommand(bool value)");
+    }
+
     /// <summary>Verifies Reactive PLC connections consistently select Reactive aliases and generated members.</summary>
     /// <returns>The test task.</returns>
     [Test]
@@ -371,5 +472,22 @@ public class TwinCatReactiveStreamGeneratorTests
         }
 
         throw new InvalidOperationException($"Generated source containing '{hintNamePart}' was not found.");
+    }
+
+    /// <summary>Counts non-overlapping occurrences of a generated source fragment.</summary>
+    /// <param name="source">The generated source.</param>
+    /// <param name="fragment">The fragment to count.</param>
+    /// <returns>The number of occurrences.</returns>
+    private static int CountOccurrences(string source, string fragment)
+    {
+        var count = 0;
+        for (var index = source.IndexOf(fragment, 0, StringComparison.Ordinal);
+             index >= 0;
+             index = source.IndexOf(fragment, index + fragment.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
     }
 }

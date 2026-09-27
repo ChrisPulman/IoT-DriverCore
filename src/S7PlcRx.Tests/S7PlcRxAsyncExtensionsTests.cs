@@ -571,17 +571,17 @@ public class S7PlcRxAsyncExtensionsTests
     public sealed class TestPlc : IRxS7
     {
         /// <summary>Gets values returned from cancellable reads.</summary>
-        public Dictionary<string, object?> AsyncValues { get; } = new(StringComparer.InvariantCultureIgnoreCase);
+        public Dictionary<string, object?> AsyncValues { get; } = [with(StringComparer.InvariantCultureIgnoreCase)];
 
         /// <summary>Gets factories used to defer cancellable reads.</summary>
         public Dictionary<string, Func<CancellationToken, Task<object?>>> AsyncValueFactories { get; } =
-            new(StringComparer.InvariantCultureIgnoreCase);
+            [with(StringComparer.InvariantCultureIgnoreCase)];
 
         /// <summary>Gets the signal that publishes tag updates to observers.</summary>
         public Signal<Tag?> ObserveAllSubject { get; } = new();
 
         /// <summary>Gets values returned from non-cancellable reads.</summary>
-        public Dictionary<string, object?> SyncValues { get; } = new(StringComparer.InvariantCultureIgnoreCase);
+        public Dictionary<string, object?> SyncValues { get; } = [with(StringComparer.InvariantCultureIgnoreCase)];
 
         /// <summary>Gets the number of cancellable reads performed.</summary>
         public int AsyncReadCount { get; private set; }
@@ -590,7 +590,7 @@ public class S7PlcRxAsyncExtensionsTests
         public int SyncReadCount { get; private set; }
 
         /// <summary>Gets the values written by the test subject.</summary>
-        public Dictionary<string, object?> WrittenValues { get; } = new(StringComparer.InvariantCultureIgnoreCase);
+        public Dictionary<string, object?> WrittenValues { get; } = [with(StringComparer.InvariantCultureIgnoreCase)];
 
         /// <summary>Gets the test PLC address.</summary>
         public string IP => MockServer.Localhost;

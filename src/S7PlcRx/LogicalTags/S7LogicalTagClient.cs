@@ -55,7 +55,7 @@ public sealed partial class S7LogicalTagClient : IManagedLogicalTagClient, IDisp
     private readonly IS7LogicalBatchOperations? _batchOperations;
 
     /// <summary>Tracks the logical tags registered with the S7 connection.</summary>
-    private readonly HashSet<string> _registeredTags = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _registeredTags = [with(StringComparer.Ordinal)];
 
     /// <summary>Stores persisted logical tags when persistence is configured.</summary>
     private LogicalTagSqliteStore? _store;

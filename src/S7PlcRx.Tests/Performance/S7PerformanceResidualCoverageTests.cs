@@ -485,16 +485,16 @@ public sealed class S7PerformanceResidualCoverageTests
         private readonly Signal<Tag?> _updates = new();
 
         /// <summary>Gets values returned by reads.</summary>
-        public Dictionary<string, object?> ReadValues { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, object?> ReadValues { get; } = [with(StringComparer.Ordinal)];
 
         /// <summary>Gets tag names whose reads throw.</summary>
-        public HashSet<string> ThrowReads { get; } = new(StringComparer.Ordinal);
+        public HashSet<string> ThrowReads { get; } = [with(StringComparer.Ordinal)];
 
         /// <summary>Gets tag names whose writes throw.</summary>
-        public HashSet<string> ThrowWrites { get; } = new(StringComparer.Ordinal);
+        public HashSet<string> ThrowWrites { get; } = [with(StringComparer.Ordinal)];
 
         /// <summary>Gets recorded writes.</summary>
-        public Dictionary<string, object?> WrittenValues { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, object?> WrittenValues { get; } = [with(StringComparer.Ordinal)];
 
         /// <summary>Gets or sets whether writes update subsequent read values.</summary>
         public bool EchoWritesToReads { get; set; } = true;

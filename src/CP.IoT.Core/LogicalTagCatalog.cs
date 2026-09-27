@@ -8,7 +8,7 @@ namespace IoT.Driver.Core;
 public sealed class LogicalTagCatalog : ILogicalTagCatalog, IDisposable
 {
     /// <summary>Tag dictionary keyed by name using ordinal comparison.</summary>
-    private readonly Dictionary<string, LogicalTag> _tags = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, LogicalTag> _tags = [with(StringComparer.Ordinal)];
 
     /// <summary>Reader/writer lock protecting <see cref="_tags"/>.</summary>
     private readonly ReaderWriterLockSlim _lock = new(LockRecursionPolicy.NoRecursion);

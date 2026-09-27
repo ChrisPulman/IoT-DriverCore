@@ -92,6 +92,9 @@ public sealed class ABPlcSimulator : IABPlcRx
             timeProvider);
     }
 
+    /// <summary>Gets or sets the optional destination for ping diagnostics; defaults to standard output.</summary>
+    public TextWriter? Output { get; set; }
+
     /// <inheritdoc/>
     public bool IsDisposed => _disposed;
 
@@ -374,7 +377,8 @@ public sealed class ABPlcSimulator : IABPlcRx
         ThrowIfDisposed();
         if (echo)
         {
-            Console.Out.WriteLine($"Simulator connected: {IsConnected}");
+            var output = Output ?? Console.Out;
+            output.WriteLine($"Simulator connected: {IsConnected}");
         }
 
         return IsConnected;

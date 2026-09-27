@@ -316,7 +316,7 @@ public static class AsyncExtensions
         IReadOnlyList<string> variables,
         out Dictionary<string, T?> values)
     {
-        values = new(variables.Count, StringComparer.InvariantCultureIgnoreCase);
+        values = [with(variables.Count, StringComparer.InvariantCultureIgnoreCase)];
         foreach (var variable in variables)
         {
             if (!TryGetCurrentValue(plc, variable, out T? value))
@@ -359,7 +359,7 @@ public static class AsyncExtensions
             return false;
         }
 
-        values = new(multi.Count, StringComparer.InvariantCultureIgnoreCase);
+        values = [with(multi.Count, StringComparer.InvariantCultureIgnoreCase)];
         foreach (var kvp in multi)
         {
             if (kvp.Value is null)

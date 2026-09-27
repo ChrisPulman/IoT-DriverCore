@@ -94,8 +94,8 @@ public sealed class S7TagRuntimeBinding : IDisposable
         _plc = plc ?? throw new ArgumentNullException(nameof(plc));
         _definitions = definitions ?? throw new ArgumentNullException(nameof(definitions));
         _applyRead = applyRead ?? throw new ArgumentNullException(nameof(applyRead));
-        _definitionsByName = new(StringComparer.InvariantCultureIgnoreCase);
-        _addresses = new(StringComparer.InvariantCultureIgnoreCase);
+        _definitionsByName = [with(StringComparer.InvariantCultureIgnoreCase)];
+        _addresses = [with(StringComparer.InvariantCultureIgnoreCase)];
         foreach (var definition in definitions)
         {
             _definitionsByName[definition.Name] = definition;

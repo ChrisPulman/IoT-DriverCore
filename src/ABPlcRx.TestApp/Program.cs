@@ -22,6 +22,9 @@ internal static class Program
     /// <summary>Tracks sample application subscriptions.</summary>
     private static MultipleDisposable _disposables = new();
 
+    /// <summary>Gets or sets the sample application's output destination.</summary>
+    internal static TextWriter Output { get; set; } = Console.Out;
+
     /// <summary>Runs the sample application.</summary>
     /// <param name="args">Command-line arguments.</param>
     internal static void Main(string[] args)
@@ -33,7 +36,7 @@ internal static class Program
            {
                config.Title = "MicroLogix ABPlcRx Example";
                config.EnableWriteTitle = true;
-               config.WriteHeaderAction = static () => Console.Out.WriteLine("Please select a mode:");
+               config.WriteHeaderAction = static () => Output.WriteLine("Please select a mode:");
            })
            .Show();
     }
@@ -62,7 +65,7 @@ internal static class Program
             // Subscribe to tag updates.
             _disposables.Add(
                 microLogix.Observe<bool>(SampleVariableName, default, 0)
-                    .Subscribe(static value => Console.Out.WriteLine($"B3:3/0 = {value}")));
+                    .Subscribe(static value => Output.WriteLine($"B3:3/0 = {value}")));
 
             _disposables.Add(Signal.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(1)).Subscribe(writeTick =>
             {
@@ -76,7 +79,7 @@ internal static class Program
                     GC.KeepAlive(microLogix.Write());
                 }
 
-                Console.Out.WriteLine($"Written {current} to PLC B3:3/0");
+                Output.WriteLine($"Written {current} to PLC B3:3/0");
             }));
         }));
         WaitForExit();
@@ -94,11 +97,11 @@ internal static class Program
 
         if (message is not null)
         {
-            Console.Out.WriteLine(message);
+            Output.WriteLine(message);
         }
 
-        Console.Out.WriteLine("Press 'Escape' or 'E' to exit.");
-        Console.Out.WriteLine();
+        Output.WriteLine("Press 'Escape' or 'E' to exit.");
+        Output.WriteLine();
 
         while (Console.ReadKey(true).Key is not (ConsoleKey.Escape or ConsoleKey.E))
         {

@@ -640,9 +640,21 @@ internal sealed partial class MitsubishiGeneratedClientTests
         Task<string> standardOutputTask = process.StandardOutput.ReadToEndAsync();
         Task<string> standardErrorTask = process.StandardError.ReadToEndAsync();
         using var timeout = new CancellationTokenSource(DotNetCommandTimeout);
+        int exitCode;
         try
         {
+#if NET11_0_OR_GREATER
+            ProcessExitStatus status = await process.WaitForExitStatusAsync(timeout.Token).ConfigureAwait(false);
+            if (status.Signal is not null)
+            {
+                throw new InvalidOperationException($"dotnet {command} was terminated by signal {status.Signal}.");
+            }
+
+            exitCode = status.ExitCode;
+#else
             await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            exitCode = process.ExitCode;
+#endif
         }
         catch (OperationCanceledException ex) when (timeout.IsCancellationRequested)
         {
@@ -664,7 +676,7 @@ internal sealed partial class MitsubishiGeneratedClientTests
 
         string standardOutput = await standardOutputTask.ConfigureAwait(false);
         string standardError = await standardErrorTask.ConfigureAwait(false);
-        return (process.ExitCode, standardOutput + Environment.NewLine + standardError);
+        return (exitCode, standardOutput + Environment.NewLine + standardError);
     }
 
     /// <summary>Gets the .NET host that loaded the current test process.</summary>
