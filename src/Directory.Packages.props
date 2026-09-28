@@ -12,7 +12,7 @@
     <PackageVersion Include="ReactiveUI.Primitives.Reactive" Version="$(ReactiveUIPrimitivesVersion)" />
     <PackageVersion Include="ReactiveUI.Primitives.Async" Version="$(ReactiveUIPrimitivesVersion)" />
     <PackageVersion Include="ReactiveUI.Primitives.Async.Reactive" Version="$(ReactiveUIPrimitivesVersion)" />
-    <PackageVersion Include="ReactiveUI.WPF" Version="25.0.1" />
+    <PackageVersion Include="ReactiveUI.WPF" Version="25.1.1" />
     <PackageVersion Include="Splat" Version="21.0.0" />
     <PackageVersion Include="ReactiveUI.SourceGenerators" Version="4.2.0" />
 
