@@ -38,7 +38,7 @@
     <PackageVersion Include="libplctag.NativeImport" Version="2.0.0-alpha.9" />
     <PackageVersion Include="Beckhoff.TwinCAT.Ads" Version="7.0.389" />
     <PackageVersion Include="HashTableRx" Version="4.1.0" />
-    <PackageVersion Include="HashTableRx.Reactive" Version="4.0.1" />
+    <PackageVersion Include="HashTableRx.Reactive" Version="4.1.0" />
 
     <PackageVersion Include="YamlDotNet" Version="18.1.0" />
 
