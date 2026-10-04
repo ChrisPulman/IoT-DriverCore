@@ -49,7 +49,7 @@
     <PackageVersion Include="Polyfill" Version="11.4.1" />
 
     <PackageVersion Include="Mono.Cecil" Version="0.11.6" />
-    <PackageVersion Include="Roslynator.Analyzers" Version="5.0.0" />
+    <PackageVersion Include="Roslynator.Analyzers" Version="5.0.1" />
     <PackageVersion Include="StyleSharp.Analyzers" Version="$(RoslynAnalysersVersion)" />
     <PackageVersion Include="PerformanceSharp.Analyzers" Version="$(RoslynAnalysersVersion)" />
     <PackageVersion Include="SecuritySharp.Analyzers" Version="$(RoslynAnalysersVersion)" />
