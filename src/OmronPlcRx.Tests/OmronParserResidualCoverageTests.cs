@@ -103,29 +103,45 @@ public sealed class OmronParserResidualCoverageTests
     }
 
     /// <summary>Verifies TCP FINS requests use the node identities negotiated by the TCP channel.</summary>
+    /// <param name="cancellationToken">Cancels the test and its loopback peer.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
-    public async Task FinsRequest_UsesNegotiatedTcpNodeIdentifiersAsync()
+    public async Task FinsRequest_UsesNegotiatedTcpNodeIdentifiersAsync(CancellationToken cancellationToken)
     {
         var portSource = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var peer = RunTcpNegotiationPeerAsync(portSource);
+        using var peerCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var peerToken = peerCancellation.Token;
+        var peer = RunTcpNegotiationPeerAsync(portSource, peerToken);
         var port = await portSource.Task.ConfigureAwait(false);
         using var channel = new TCPChannel(IPAddress.Loopback.ToString(), port);
-        await channel.InitializeAsync(NegotiationTimeoutMilliseconds, CancellationToken.None).ConfigureAwait(false);
-        using var connection = new OmronPLCConnection(
-            new OmronConnectionOptions(1, NegotiatedRemoteNode, ConnectionMethod.TCP, IPAddress.Loopback.ToString()) { Port = port },
-            channel,
-            PlcType.CJ2,
-            "CJ2M",
-            "1.0",
-            true);
-        var request = ReadClockRequest.CreateNew(connection);
+        try
+        {
+            await channel.InitializeAsync(NegotiationTimeoutMilliseconds, cancellationToken).ConfigureAwait(false);
+            using var connection = new OmronPLCConnection(
+                new OmronConnectionOptions(1, NegotiatedRemoteNode, ConnectionMethod.TCP, IPAddress.Loopback.ToString()) { Port = port },
+                channel,
+                PlcType.CJ2,
+                "CJ2M",
+                "1.0",
+                true);
+            var request = ReadClockRequest.CreateNew(connection);
 
-        var message = request.BuildMessage(0x44).ToArray();
+            var message = request.BuildMessage(0x44).ToArray();
 
-        await Assert.That(message[4]).IsEqualTo(NegotiatedRemoteNode);
-        await Assert.That(message[7]).IsEqualTo(NegotiatedLocalNode);
-        await peer.ConfigureAwait(false);
+            await Assert.That(message[4]).IsEqualTo(NegotiatedRemoteNode);
+            await Assert.That(message[7]).IsEqualTo(NegotiatedLocalNode);
+        }
+        finally
+        {
+            await peerCancellation.CancelAsync().ConfigureAwait(false);
+            try
+            {
+                await peer.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (peerCancellation.IsCancellationRequested)
+            {
+            }
+        }
     }
 
     /// <summary>Verifies direct Host Link and Toolbus decoders reject malformed frames after valid framing setup.</summary>
@@ -165,16 +181,17 @@ public sealed class OmronParserResidualCoverageTests
 
     /// <summary>Publishes a TCP negotiation reply with deterministic local and remote node IDs.</summary>
     /// <param name="portSource">Receives the bound loopback port.</param>
+    /// <param name="cancellationToken">Ends the peer lifetime.</param>
     /// <returns>A task that represents the peer lifetime.</returns>
-    private static async Task RunTcpNegotiationPeerAsync(TaskCompletionSource<int> portSource)
+    private static async Task RunTcpNegotiationPeerAsync(TaskCompletionSource<int> portSource, CancellationToken cancellationToken)
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         portSource.SetResult(((IPEndPoint)listener.LocalEndpoint).Port);
-        using var accepted = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
+        using var accepted = await listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
         await using var stream = accepted.GetStream();
         var request = new byte[NegotiationRequestLength];
-        await stream.ReadExactlyAsync(request, CancellationToken.None).ConfigureAwait(false);
+        await stream.ReadExactlyAsync(request, cancellationToken).ConfigureAwait(false);
         var response = new byte[NegotiationResponseLength];
         response[0] = (byte)'F';
         response[1] = (byte)'I';
@@ -184,8 +201,9 @@ public sealed class OmronParserResidualCoverageTests
         response[11] = 1;
         response[19] = NegotiatedLocalNode;
         response[23] = NegotiatedRemoteNode;
-        await stream.WriteAsync(response, CancellationToken.None).ConfigureAwait(false);
-        await stream.FlushAsync(CancellationToken.None).ConfigureAwait(false);
+        await stream.WriteAsync(response, cancellationToken).ConfigureAwait(false);
+        await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+        await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Captures an expected synchronous exception.</summary>
