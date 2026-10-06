@@ -1040,31 +1040,23 @@ public sealed class InMemoryAdsClientTests
     /// <summary>Cancels a token source without blocking on supported target frameworks.</summary>
     /// <param name="source">The token source.</param>
     /// <returns>The cancellation task.</returns>
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
     private static Task CancelAsync(CancellationTokenSource source)
         => source.CancelAsync();
 #else
     private static Task CancelAsync(CancellationTokenSource source)
         => CancelOnLegacyFrameworkAsync(source);
 
-    /// <summary>Schedules and observes cancellation on frameworks without asynchronous cancellation support.</summary>
+    /// <summary>Runs cancellation to completion on frameworks without asynchronous cancellation support.</summary>
     /// <param name="source">The token source.</param>
     /// <returns>The cancellation task.</returns>
-    private static async Task CancelOnLegacyFrameworkAsync(CancellationTokenSource source)
-    {
-        var cancellationObserved = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-#if NET8_0_OR_GREATER
-        await using var registration = source.Token.Register(
-            static state => ((TaskCompletionSource<object?>)state!).TrySetResult(null),
-            cancellationObserved);
-#else
-        using var registration = source.Token.Register(
-            static state => ((TaskCompletionSource<object?>)state!).TrySetResult(null),
-            cancellationObserved);
-#endif
-        source.CancelAfter(TimeSpan.Zero);
-        await cancellationObserved.Task;
-    }
+    private static Task CancelOnLegacyFrameworkAsync(CancellationTokenSource source) =>
+        Task.Factory.StartNew(
+            static state => ((CancellationTokenSource)state!).Cancel(),
+            source,
+            CancellationToken.None,
+            TaskCreationOptions.DenyChildAttach,
+            TaskScheduler.Default);
 #endif
 
     /// <summary>Verifies the logical-client argument and access guards.</summary>
