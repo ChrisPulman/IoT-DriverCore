@@ -37,6 +37,7 @@ dotnet add package IoT-Driver.TwinCATRx.Generators
 ```csharp
 using IoT.Driver.TwinCATRx;
 using IoT.Driver.TwinCATRx.Core;
+using TwinCAT.Ads;
 
 using var client = new RxTcAdsClient();
 var settings = new Settings { AdsAddress = "5.35.59.10.1.1", Port = 851, SettingsId = "Default" };
@@ -56,7 +57,7 @@ client.Write(".AInt", (short)42);
 
 ## Configuration
 
-Set `Settings.AdsAddress`, `Port`, and `SettingsId`, then register every notification with `AddNotification` and every writable variable with `AddWriteVariable`. The configuration overloads accept a cycle time and an array/string size. Supply a positive explicit size for ADS strings and arrays when the protocol cannot infer it.
+Set `Settings.AdsAddress`, `Port`, and `SettingsId`, then register polling notifications with `AddNotification`, native ADS event notifications with `AddAdsNotification`, and writable variables with `AddWriteVariable`. The configuration overloads accept a cycle time and an array/string size. Supply a positive explicit size for ADS strings and arrays when the protocol cannot infer it.
 
 Use `Connect(ISettings)`, then `Disconnect()` before disposing. Dynamic structure materialization in `Connect` is marked `RequiresDynamicCode` and `RequiresUnreferencedCode`; publish trimmed/AOT applications only after validating their exact ADS structures.
 
@@ -71,6 +72,7 @@ Use `Connect(ISettings)`, then `Disconnect()` before disposing. Dynamic structur
 ```csharp
 using IoT.Driver.TwinCATRx;
 using IoT.Driver.TwinCATRx.Core;
+using TwinCAT.Ads;
 
 using var client = new RxTcAdsClient();
 using var errors = client.ErrorReceived.Subscribe(ex => AuditFailure(ex));
@@ -79,6 +81,7 @@ using var written = client.OnWrite.Subscribe(name => Console.WriteLine($"Wrote {
 
 var settings = new Settings { AdsAddress = "5.35.59.10.1.1", Port = 851, SettingsId = "LineA" };
 settings.AddNotification(".Main.Temperature", cycleTime: 250);
+settings.AddAdsNotification(".Main.Pressure", adsTransMode: AdsTransMode.OnChange, cycleTime: 250, maxDelay: 0);
 settings.AddWriteVariable(".Main.Setpoint");
 client.Connect(settings);
 // Dispose subscriptions first, then Disconnect/Dispose when the application stops.
@@ -102,6 +105,17 @@ settings.AddNotification(".Main.BatchName", 500, arraySize: 80);
 settings.AddWriteVariable(".Main.RequestedSpeed");
 settings.AddWriteVariable(".Main.Recipe", arraySize: 80);
 ```
+
+### Native ADS notifications
+
+`AddAdsNotification` registers a Beckhoff symbol `ValueChanged` subscription. Its defaults are `AdsTransMode.OnChange`, `cycleTime: 100` milliseconds, and `maxDelay: 0` milliseconds. Import `TwinCAT.Ads` for `AdsTransMode`. These values configure Beckhoff `NotificationSettings`; this registration does not schedule polling reads.
+
+```csharp
+settings.AddAdsNotification(".Main.Pressure");
+settings.AddAdsNotification(".Main.Flow", adsTransMode: AdsTransMode.Cyclic, cycleTime: 250, maxDelay: 0);
+```
+
+Values arrive through `DataReceived`, `Observe<T>`, and their asynchronous observable adapters. The native callback transfers the value to an observable; downstream delivery runs on the task pool. A shared symbol loader is created when the first ADS notification is subscribed on a connected PLC. Disconnecting or disposing the client removes event handlers and disposes the loader with that connection. Reconnecting creates a fresh loader and subscriptions. Configure registrations before calling `Connect`.
 
 ### One-shot reads, correlated requests, writes, and pause windows
 
@@ -241,6 +255,7 @@ The legacy stream attribute is useful for a small, focused model rather than a f
 ```csharp
 using IoT.Driver.TwinCATRx;
 using IoT.Driver.TwinCATRx.Core;
+using TwinCAT.Ads;
 using ReactiveUI.Primitives;
 
 [TwinCatReactiveStream(
@@ -267,8 +282,8 @@ client.Read(".Main.Counter"); // updates Counter and CounterValues through the g
 
 ```csharp
 using IoT.Driver.TwinCATRx.Core;
-using ReactiveUI.Primitives;
 using TwinCAT.Ads;
+using ReactiveUI.Primitives;
 
 using var ads = new AdsClient();
 using var adsState = TwinCatRxExtensions.OnErrorRetry<StateInfo, Exception>(

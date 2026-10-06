@@ -301,6 +301,12 @@ public partial class RxTcAdsClient
             return;
         }
 
+        if (notification is IAdsNotification)
+        {
+            CreateAdsNotificationVariable(notificationVariable, client);
+            return;
+        }
+
         var dataTypesBaseName = BuildDataTypesFileName(notificationVariable);
         var dataTypesFileName = BuildDataTypesFilePath(dataTypesBaseName, _generatedAssemblyIdentifier);
         Type? type;
@@ -323,6 +329,24 @@ public partial class RxTcAdsClient
         ReadWriteHandleInfo[notificationVariable] = handle;
         _readWriteVariablesByHandle[handle] = notificationVariable;
         _typeInfo[notificationVariable] = type;
+    }
+
+    /// <summary>Registers an ADS notification without generating a CLR structure type.</summary>
+    /// <param name="variable">The PLC variable name.</param>
+    /// <param name="client">The ADS runtime.</param>
+    [RequiresUnreferencedCode("Resolves CLR types for explicit reads of primitive ADS notification variables.")]
+    private void CreateAdsNotificationVariable(string variable, IAdsClientRuntime client)
+    {
+        var handle = client.CreateVariableHandle(variable);
+        ReadWriteHandleInfo[variable] = handle;
+        _readWriteVariablesByHandle[handle] = variable;
+        var symbol = _codeGenerator?.SearchSymbols(variable)?.Tag as ISymbol;
+        if (!TryResolvePlcType(symbol?.TypeName, out var type) || type is null)
+        {
+            return;
+        }
+
+        _typeInfo[variable] = type;
     }
 
     /// <summary>Resolves the CLR type used by a notification variable.</summary>

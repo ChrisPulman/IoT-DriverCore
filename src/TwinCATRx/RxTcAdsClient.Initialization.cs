@@ -17,6 +17,11 @@ using CoreTwinCatRxExtensions = IoT.Driver.TwinCATRx.Core.TwinCatRxExtensions;
 using RxNotification = IoT.Driver.TwinCATRx.Core.INotification;
 #endif
 using TwinCAT.Ads;
+#if REACTIVE_SHIM
+using NotificationSequencer = System.Reactive.Concurrency.TaskPoolScheduler;
+#else
+using NotificationSequencer = ReactiveUI.Primitives.Concurrency.TaskPoolSequencer;
+#endif
 
 #if REACTIVE_SHIM
 namespace IoT.Driver.TwinCATRx.Reactive;
@@ -27,6 +32,9 @@ namespace IoT.Driver.TwinCATRx;
 /// <summary>Observable TwinCAT ADS Client.</summary>
 public partial class RxTcAdsClient
 {
+    /// <summary>Disposes notification delivery before the native connection.</summary>
+    private CompositeDisposable? _adsNotificationLifetime;
+
     /// <summary>Gets the active connection lifetime.</summary>
     private CompositeDisposable ConnectionLifetime =>
         _cleanup ?? throw new InvalidOperationException("The TwinCAT connection lifetime is not initialized.");
@@ -67,6 +75,8 @@ public partial class RxTcAdsClient
     private IDisposable InitializeConnection(IObserver<Unit> observer)
     {
         ResetConnectionState();
+        _adsNotificationLifetime = [];
+        _ = _adsNotificationLifetime.DisposeWith(ConnectionLifetime);
         var client = _platform.CreateAdsClient();
         _ = client.DisposeWith(ConnectionLifetime);
         var codeGenerator = _platform.CreateCodeGenerator();
@@ -291,6 +301,8 @@ public partial class RxTcAdsClient
                 throw error;
             }
 
+            SubscribeAdsNotifications(client);
+
             _ = Task.Run(() => _codeSubject.OnNext([.. _code]));
             _codeGenerator?.Dispose();
             _initialized = true;
@@ -391,9 +403,48 @@ public partial class RxTcAdsClient
     {
         foreach (var notification in Settings?.Notifications ?? [])
         {
+            if (notification is IAdsNotification)
+            {
+                continue;
+            }
+
             _ = ObservableBridgeExtensions.SubscribeTo(
                 _platform.Interval(TimeSpan.FromMilliseconds(notification.UpdateRate)).Retry(int.MaxValue),
                 _ => ReadNotification(client, notification)).DisposeWith(ConnectionLifetime);
+        }
+    }
+
+    /// <summary>Transfers ADS event values onto the connection's data channel.</summary>
+    /// <param name="client">The ADS runtime.</param>
+    private void SubscribeAdsNotifications(IAdsClientRuntime client)
+    {
+        var lifetime = ConnectionLifetime;
+        foreach (var notification in Settings?.Notifications ?? [])
+        {
+            if (notification is not IAdsNotification adsNotification ||
+                notification.Variable is not { } variable)
+            {
+                continue;
+            }
+
+            _ = ObservableBridgeExtensions.SubscribeTo(
+                client.ObserveValue(
+                    variable,
+                    adsNotification.AdsTransMode,
+                    adsNotification.CycleTime,
+                    adsNotification.MaxDelay).ObserveOn(NotificationSequencer.Default),
+                value =>
+                {
+                    if (lifetime.IsDisposed || !ReferenceEquals(_cleanup, lifetime))
+                    {
+                        return;
+                    }
+
+                    _dataReceived.OnNext((variable, value, null));
+                },
+                _errorReceived.OnNext,
+                static () => { }).DisposeWith(
+                    _adsNotificationLifetime ?? throw new InvalidOperationException("ADS notification lifetime is not initialized."));
         }
     }
 
