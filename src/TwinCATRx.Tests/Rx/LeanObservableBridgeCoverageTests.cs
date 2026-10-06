@@ -130,6 +130,39 @@ public class LeanObservableBridgeCoverageTests
         await TUnitAssert.That(observer.Values).IsEmpty();
     }
 
+    /// <summary>Verifies async disposal waits for upstream cleanup already running in a cancellation callback.</summary>
+    /// <returns>The test task.</returns>
+    [Test]
+    public async Task Async_Bridge_Disposal_Waits_For_Cancellation_CleanupAsync()
+    {
+        using var releaseDisposal = new ManualResetEventSlim();
+        var disposalStarted = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = new ManualObservable<int>(() =>
+        {
+            _ = disposalStarted.TrySetResult(null);
+            releaseDisposal.Wait();
+        });
+        using var cancellation = new CancellationTokenSource();
+        var subscription = await ObservableBridgeExtensions.ToAsyncObservable(source)
+            .SubscribeAsync(new RecordingAsyncObserver<int>(), cancellation.Token);
+        var cancellationTask = Task.Run(cancellation.Cancel);
+        await disposalStarted.Task;
+
+        try
+        {
+            var disposal = subscription.DisposeAsync();
+            await TUnitAssert.That(disposal.IsCompleted).IsFalse();
+            releaseDisposal.Set();
+            await disposal;
+            await TUnitAssert.That(source.SubscriptionDisposed).IsTrue();
+        }
+        finally
+        {
+            releaseDisposal.Set();
+            await cancellationTask;
+        }
+    }
+
     /// <summary>Verifies a token canceled before subscription immediately disposes the upstream subscription.</summary>
     /// <returns>The test task.</returns>
     [Test]
@@ -192,7 +225,8 @@ public class LeanObservableBridgeCoverageTests
 
     /// <summary>Manually controlled observable used to avoid external dependencies.</summary>
     /// <typeparam name="T">The value type.</typeparam>
-    private sealed class ManualObservable<T> : IObservable<T>
+    /// <param name="beforeDispose">An optional callback before disposal completes.</param>
+    private sealed class ManualObservable<T>(Action? beforeDispose = null) : IObservable<T>
     {
         /// <summary>Stores the current observer.</summary>
         private IObserver<T>? _observer;
@@ -215,7 +249,11 @@ public class LeanObservableBridgeCoverageTests
         public IDisposable Subscribe(IObserver<T> observer)
         {
             _observer = observer;
-            return new CallbackDisposable(() => SubscriptionDisposed = true);
+            return new CallbackDisposable(() =>
+            {
+                beforeDispose?.Invoke();
+                SubscriptionDisposed = true;
+            });
         }
     }
 
