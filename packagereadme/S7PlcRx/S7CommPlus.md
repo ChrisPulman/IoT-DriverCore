@@ -1,11 +1,5 @@
 # S7CommPlus symbolic and secure communication
 
-## Reference analysis
-
-The comparison uses [S7CommPlusDriver at dbd61e447c7aaf4486cf1f1fe0201212a6bd93c8](https://github.com/thomas-v2/S7CommPlusDriver/tree/dbd61e447c7aaf4486cf1f1fe0201212a6bd93c8). Its source was inspected outside this repository to identify protocol behavior. Its implementation, native binaries, compression dictionaries, and sample PLC data are not dependencies or bundled assets.
-
-The important distinction is between offline aliases for classic S7 memory addresses and controller-resolved symbolic identifiers. Optimized S7-1200/1500 blocks need the latter. TLS alone does not make the classic S7 protocol understand optimized symbolic blocks: S7CommPlus has its own session establishment, object discovery, typed values, and requests.
-
 ## Implementation map
 
 | Reference capability | Independent S7PlcRx implementation |
