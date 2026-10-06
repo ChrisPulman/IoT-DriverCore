@@ -129,18 +129,15 @@ public class LeanServiceControllerCoverageTests
         var statuses = new RecordingObserver<ServiceControllerStatus>();
         using var subscription = controller.StatusObserver.Subscribe(statuses);
 
-        var pollingTask = Task.Run(() => ticks.Emit(0));
+        // These operations deliberately block, so dedicated threads keep coordination independent of the test runner's thread pool.
+        var pollingTask = StartPolling(ticks);
         var statusReadWasObserved = statusReadEntered.Wait(RaceTimeout);
         Task? disposeTask = null;
         var disposalTaskWasObserved = false;
         var disposalWaitedForPolling = false;
         if (statusReadWasObserved)
         {
-            disposeTask = Task.Run(() =>
-            {
-                disposalTaskStarted.Set();
-                controller.Dispose();
-            });
+            disposeTask = StartDisposal(controller.Dispose, disposalTaskStarted.Set);
             disposalTaskWasObserved = disposalTaskStarted.Wait(RaceTimeout);
             if (disposalTaskWasObserved)
             {
@@ -200,6 +197,34 @@ public class LeanServiceControllerCoverageTests
 
         await TUnitAssert.That(controller.IsDisposed).IsTrue();
     }
+
+    /// <summary>Starts blocking polling on a dedicated thread.</summary>
+    /// <param name="ticks">The polling triggers.</param>
+    /// <returns>The polling operation.</returns>
+    private static Task StartPolling(ManualObservable<long> ticks) =>
+        Task.Factory.StartNew(
+            static state => ((ManualObservable<long>)state!).Emit(0),
+            ticks,
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach,
+            TaskScheduler.Default);
+
+    /// <summary>Starts blocking disposal on a dedicated thread.</summary>
+    /// <param name="dispose">The disposal operation.</param>
+    /// <param name="started">The operation entry callback.</param>
+    /// <returns>A task that completes when disposal finishes.</returns>
+    private static Task StartDisposal(Action dispose, Action started) =>
+        Task.Factory.StartNew(
+            static state =>
+            {
+                var context = ((Action Dispose, Action Started))state!;
+                context.Started();
+                context.Dispose();
+            },
+            (dispose, started),
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach,
+            TaskScheduler.Default);
 
     /// <summary>Replaces the wrapped controller for null-state branch validation.</summary>
     /// <param name="controller">The observable wrapper.</param>
