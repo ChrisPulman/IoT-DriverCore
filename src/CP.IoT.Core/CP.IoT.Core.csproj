@@ -26,4 +26,10 @@
           Pack="true"
           PackagePath="skills/cp-iot-core/SKILL.md" />
   </ItemGroup>
+  <!-- MinVer updates AssemblyVersion during target execution, after project properties are evaluated. -->
+  <Target Name="SetCompatibleCoreAssemblyVersion" AfterTargets="MinVer" BeforeTargets="GetAssemblyVersion">
+    <PropertyGroup>
+      <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    </PropertyGroup>
+  </Target>
 </Project>
