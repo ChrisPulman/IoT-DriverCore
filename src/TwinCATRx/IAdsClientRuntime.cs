@@ -33,6 +33,14 @@ internal interface IAdsClientRuntime : IDisposable
     /// <returns>The native handle.</returns>
     uint CreateVariableHandle(string variable);
 
+    /// <summary>Observes native ADS value changes for one variable.</summary>
+    /// <param name="variable">The PLC variable name.</param>
+    /// <param name="adsTransMode">The ADS transmission mode.</param>
+    /// <param name="cycleTime">The cycle time in milliseconds.</param>
+    /// <param name="maxDelay">The maximum delay in milliseconds.</param>
+    /// <returns>A sequence whose disposal removes its event handler.</returns>
+    IObservable<object> ObserveValue(string variable, AdsTransMode adsTransMode, int cycleTime, int maxDelay);
+
     /// <summary>Reads one scalar native value.</summary>
     /// <param name="handle">The native handle.</param>
     /// <param name="type">The value type.</param>

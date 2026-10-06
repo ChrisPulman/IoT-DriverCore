@@ -20,7 +20,7 @@ namespace IoT.Driver.TwinCATRx.Tests.Rx;
 
 /// <summary>Exercises the production ADS client through deterministic composed dependencies.</summary>
 [NotInParallel]
-public sealed class RxTcAdsClientCompositionTests
+public sealed partial class RxTcAdsClientCompositionTests
 {
     /// <summary>The expected notification handle count.</summary>
     private const int ExpectedNotificationHandleCount = 2;
@@ -588,6 +588,12 @@ public sealed class RxTcAdsClientCompositionTests
         /// <summary>Gets the signal for the first attempted native read.</summary>
         public TaskCompletionSource<bool> ReadAttempted { get; } = CreatePublicationSource();
 
+        /// <summary>Gets the manual ADS value event sequence.</summary>
+        public ManualObservable<object> ValueChanges { get; } = new();
+
+        /// <summary>Gets requested ADS notification options.</summary>
+        public List<(string Variable, AdsTransMode Mode, int CycleTime, int MaxDelay)> Observations { get; } = [];
+
         /// <summary>Gets or sets a connection error.</summary>
         public Exception? ConnectError
         {
@@ -667,6 +673,13 @@ public sealed class RxTcAdsClientCompositionTests
 
         /// <inheritdoc/>
         public void Dispose() => IsConnected = false;
+
+        /// <inheritdoc/>
+        public IObservable<object> ObserveValue(string variable, AdsTransMode adsTransMode, int cycleTime, int maxDelay)
+        {
+            Observations.Add((variable, adsTransMode, cycleTime, maxDelay));
+            return ValueChanges;
+        }
 
         /// <inheritdoc/>
         public object ReadAny(uint handle, Type type)
@@ -870,6 +883,19 @@ public sealed class RxTcAdsClientCompositionTests
     {
         /// <summary>Stores current observers.</summary>
         private readonly List<IObserver<T>> _observers = [];
+
+        /// <summary>Gets the active subscription count.</summary>
+        public int ObserverCount => _observers.Count;
+
+        /// <summary>Publishes a terminal source failure.</summary>
+        /// <param name="error">The failure.</param>
+        public void Fail(Exception error)
+        {
+            foreach (var observer in _observers.ToArray())
+            {
+                observer.OnError(error);
+            }
+        }
 
         /// <summary>Emits one value.</summary>
         /// <param name="value">The value.</param>

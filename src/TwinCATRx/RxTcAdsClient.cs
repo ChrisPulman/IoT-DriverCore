@@ -85,6 +85,9 @@ public partial class RxTcAdsClient : IRxTcAdsClient
     /// <summary>Stores whether the current ADS connection completed initialization.</summary>
     private bool _initialized;
 
+    /// <summary>Tracks disposal of the client independently of its connection.</summary>
+    private int _disposed;
+
     /// <summary>Initializes a new instance of the <see cref="RxTcAdsClient"/> class.</summary>
     public RxTcAdsClient()
         : this(TimeProvider.System, RxTcAdsPlatform.CreateDefault())
@@ -144,7 +147,7 @@ public partial class RxTcAdsClient : IRxTcAdsClient
         ObservableBridgeExtensions.ToAsyncObservable(ErrorReceived);
 
     /// <summary>Gets a value indicating whether gets a value that indicates whether the object is disposed.</summary>
-    public bool IsDisposed => _cleanup?.IsDisposed ?? false;
+    public bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
     /// <summary>Gets the on write.</summary>
     /// <value>The on write.</value>
@@ -192,7 +195,7 @@ public partial class RxTcAdsClient : IRxTcAdsClient
     [RequiresDynamicCode("Invokes dynamic code generation and reflection to materialize PLC types.")]
     public void Connect(ISettings settings)
     {
-        if (_cleanup?.IsDisposed == true)
+        if (IsDisposed)
         {
             _errorReceived.OnNext(new ObjectDisposedException(nameof(RxTcAdsClient)));
             return;
@@ -338,7 +341,7 @@ public partial class RxTcAdsClient : IRxTcAdsClient
     /// </param>
     protected virtual void Dispose(bool disposing)
     {
-        if (_cleanup?.IsDisposed != false || !disposing)
+        if (!disposing || Interlocked.Exchange(ref _disposed, 1) != 0)
         {
             return;
         }
@@ -346,7 +349,7 @@ public partial class RxTcAdsClient : IRxTcAdsClient
         _plcCleanup?.Dispose();
         _codeGenerator?.Dispose();
         _codeGenerator = null;
-        _cleanup.Dispose();
+        _cleanup?.Dispose();
         _code.Clear();
         ReadWriteHandleInfo.Clear();
         _typeInfo.Clear();

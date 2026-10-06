@@ -210,6 +210,82 @@ public static class TwinCatRxExtensions
         settings.Notifications.Add(new Notification(cycleTime, variableName, arraySize));
     }
 
+    /// <summary>Configures notifications delivered by ADS.</summary>
+    /// <param name="settings">The TwinCAT settings.</param>
+    extension(ISettings? settings)
+    {
+        /// <summary>Adds an ADS notification with OnChange, a 100 ms cycle, and no delay.</summary>
+        /// <param name="variableName">The PLC variable name.</param>
+        public void AddAdsNotification(string variableName) =>
+            settings.AddAdsNotification(variableName, AdsTransMode.OnChange, DefaultNotificationCycleTimeMilliseconds, 0);
+
+        /// <summary>Adds an ADS notification with a 100 ms cycle and no delay.</summary>
+        /// <param name="variableName">The PLC variable name.</param>
+        /// <param name="adsTransMode">The ADS transmission mode.</param>
+        public void AddAdsNotification(string variableName, AdsTransMode adsTransMode) =>
+            settings.AddAdsNotification(variableName, adsTransMode, DefaultNotificationCycleTimeMilliseconds, 0);
+
+        /// <summary>Adds an OnChange ADS notification with no delay.</summary>
+        /// <param name="variableName">The PLC variable name.</param>
+        /// <param name="cycleTime">The cycle time in milliseconds.</param>
+        public void AddAdsNotification(string variableName, int cycleTime) =>
+            settings.AddAdsNotification(variableName, AdsTransMode.OnChange, cycleTime, 0);
+
+        /// <summary>Adds an ADS notification with no delay.</summary>
+        /// <param name="variableName">The PLC variable name.</param>
+        /// <param name="adsTransMode">The ADS transmission mode.</param>
+        /// <param name="cycleTime">The cycle time in milliseconds.</param>
+        public void AddAdsNotification(string variableName, AdsTransMode adsTransMode, int cycleTime) =>
+            settings.AddAdsNotification(variableName, adsTransMode, cycleTime, 0);
+
+        /// <summary>Adds an OnChange ADS notification.</summary>
+        /// <param name="variableName">The PLC variable name.</param>
+        /// <param name="cycleTime">The cycle time in milliseconds.</param>
+        /// <param name="maxDelay">The maximum delivery delay in milliseconds.</param>
+        public void AddAdsNotification(string variableName, int cycleTime, int maxDelay) =>
+            settings.AddAdsNotification(variableName, AdsTransMode.OnChange, cycleTime, maxDelay);
+
+        /// <summary>Adds a variable whose values are delivered by ADS notifications.</summary>
+        /// <param name="variableName">The PLC variable name.</param>
+        /// <param name="adsTransMode">The ADS transmission mode.</param>
+        /// <param name="cycleTime">The notification cycle time in milliseconds.</param>
+        /// <param name="maxDelay">The maximum delivery delay in milliseconds.</param>
+        public void AddAdsNotification(
+            string variableName,
+            AdsTransMode adsTransMode,
+            int cycleTime,
+            int maxDelay)
+        {
+            if (settings is null)
+            {
+                return;
+            }
+
+#if NET
+            ArgumentException.ThrowIfNullOrWhiteSpace(variableName);
+            ArgumentOutOfRangeException.ThrowIfNegative(cycleTime);
+            ArgumentOutOfRangeException.ThrowIfNegative(maxDelay);
+#else
+            if (string.IsNullOrWhiteSpace(variableName))
+            {
+                throw new ArgumentException("The PLC variable name must not be empty.", nameof(variableName));
+            }
+
+            if (cycleTime < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(cycleTime));
+            }
+
+            if (maxDelay < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxDelay));
+            }
+#endif
+
+            settings.Notifications.Add(new AdsNotification(variableName, adsTransMode, cycleTime, maxDelay));
+        }
+    }
+
     /// <summary>Adds a write variable to the settings.</summary>
     /// <param name="settings">The TwinCAT settings.</param>
     /// <param name="variableName">The PLC variable name.</param>

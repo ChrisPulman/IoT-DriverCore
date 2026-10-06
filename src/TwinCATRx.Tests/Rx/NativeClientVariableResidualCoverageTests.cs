@@ -361,7 +361,9 @@ public sealed class NativeClientVariableResidualCoverageTests
         _ = InvokeInstance(guardedClient, ResetConnectionStateMethod);
         var cleanup = GetField<IDisposable>(guardedClient, "_cleanup");
         cleanup.Dispose();
+        SetField(guardedClient, "_disposed", 1);
         guardedClient.Connect(new Settings());
+        SetField(guardedClient, "_disposed", 0);
 
         using var disconnectClient = new RxTcAdsClient();
         var pauseStates = new List<bool>();
@@ -384,6 +386,8 @@ public sealed class NativeClientVariableResidualCoverageTests
 
         await TUnitAssert.That(errors[0]).IsTypeOf<ObjectDisposedException>();
         await TUnitAssert.That(disconnectClient.IsPaused).IsFalse();
+        await TUnitAssert.That(disconnectClient.IsDisposed).IsFalse();
+        await TUnitAssert.That(nullCleanupClient.IsDisposed).IsTrue();
         await TUnitAssert.That(pauseStates).Contains(false);
         await TUnitAssert.That(disposableClient.ReadWriteHandleInfo).IsEmpty();
         await TUnitAssert.That(disposableClient.IsDisposed).IsTrue();
@@ -602,6 +606,10 @@ public sealed class NativeClientVariableResidualCoverageTests
 
         /// <inheritdoc/>
         public int? Port { get; private set; }
+
+        /// <inheritdoc/>
+        public IObservable<object> ObserveValue(string variable, AdsTransMode adsTransMode, int cycleTime, int maxDelay) =>
+            Observable.Create<object>(static _ => ReactiveUI.Primitives.Disposables.Scope.Create(static () => { }));
 
         /// <inheritdoc/>
         public void Connect(int port)
