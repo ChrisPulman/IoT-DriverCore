@@ -67,7 +67,7 @@
     <PackageVersion Include="MinVer" Version="8.0.0" />
     <PackageVersion Include="TUnit" Version="1.72.16" />
     <PackageVersion Include="TUnit.Assertions" Version="1.72.16" />
-    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
   </ItemGroup>
 </Project>
