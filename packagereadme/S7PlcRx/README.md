@@ -35,7 +35,7 @@ The runtime packages target `net462`, `net472`, `net481`, `net8.0`, `net9.0`, `n
 
 `S71200.CreateSymbolic` and `S71500.CreateSymbolic` create a composed `S7SymbolicClient` for S7CommPlus. This client discovers names and types from the controller and addresses optimized data blocks by their native symbolic identifiers. The existing `IRxS7` factories and imported `SymbolTable` aliases continue to use classic S7 byte addressing.
 
-The symbolic client negotiates TLS 1.3 inside ISO-on-TCP/COTP and supports the controller's password challenge and newer TLS-exporter authentication exchanges. BouncyCastle.Cryptography supplies the managed TLS and protocol cryptography on all supported target frameworks. No reference-driver source or OpenSSL binaries are bundled.
+The symbolic client negotiates TLS 1.3 inside ISO-on-TCP/COTP and supports the controller's password challenge and newer TLS-exporter authentication exchanges. BouncyCastle.Cryptography supplies the managed TLS and protocol cryptography on all supported target frameworks.
 
 Certificate validation uses system trust, the configured host name, validity dates, and server authentication policy by default. A SHA-256 certificate pin can trust a specific PLC certificate; obtain that fingerprint through your controller's certificate administration. Authentication failure never falls back to unencrypted classic communication.
 
