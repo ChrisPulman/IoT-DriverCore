@@ -426,6 +426,9 @@ public sealed class ManagedS7ServerTests
         managed.ClearFaults();
         await TUnitAssert.That(managed.ReadCount).IsGreaterThanOrEqualTo(MinimumExpectedReadCount);
         await TUnitAssert.That(managed.WriteCount).IsGreaterThanOrEqualTo(MinimumExpectedReadCount);
+
+        // Socket closure can precede session removal; stop joins server cleanup.
+        managed.Stop();
         await TUnitAssert.That(managed.ClientsCount).IsEqualTo(0);
     }
 
