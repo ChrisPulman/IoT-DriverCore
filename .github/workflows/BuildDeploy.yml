@@ -261,6 +261,15 @@ jobs:
           name: unsigned-nuget
           path: signed
 
+      - name: Install Python for signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          apt-get update
+          apt-get install -y --no-install-recommends python3
+          python3 --version
+          python3 -c 'import os, hmac, hashlib, base64, struct, time; from urllib.parse import urlparse, parse_qs'
+
       - name: Resolve prebuilt SimplySign paths
         shell: bash
         run: |
@@ -362,9 +371,9 @@ jobs:
           : "${CERTUM_CERT_FINGERPRINT:?map the CERTUM_CERT_FINGERPRINT secret into the job env}"
 
           JAR="${JSIGN_JAR:-$RUNNER_TEMP/jsign.jar}"
-          EXPECTED_JSIGN_SHA256="2abf2ade9ea322acc2d60c24794eadc465ff9380938fca4c932d09e0b25f1c28"
+          EXPECTED_JSIGN_SHA256="602a51c3545a6dc4fb99bd2ea7152b26d1345916d0c93ddfbd5936cb735af91c"
           if [ ! -s "$JAR" ]; then
-            curl -fsSL -o "$JAR" "https://repo1.maven.org/maven2/net/jsign/jsign/7.4/jsign-7.4.jar"
+            curl -fsSL -o "$JAR" "https://repo1.maven.org/maven2/net/jsign/jsign/7.5/jsign-7.5.jar"
           fi
 
           actual_jsign_sha256="$(sha256sum "$JAR" | awk '{print $1}')"
