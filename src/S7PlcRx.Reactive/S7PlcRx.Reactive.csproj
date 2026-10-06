@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" />
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
     <PackageReference Include="ReactiveUI.Primitives.Reactive" />
     <PackageReference Include="ReactiveUI.Primitives.Async.Reactive" />

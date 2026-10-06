@@ -17,6 +17,16 @@ public static class S71500
     /// <summary>The maximum supported CPU slot.</summary>
     private const short MaximumSlot = 31;
 
+    /// <summary>Creates an unconnected native symbolic client.</summary>
+    /// <param name="host">The controller host.</param>
+    /// <returns>The symbolic client.</returns>
+    public static Symbolic.S7SymbolicClient CreateSymbolic(string host) => CreateSymbolic(new Symbolic.S7SymbolicConnectionOptions(host));
+
+    /// <summary>Creates an unconnected native symbolic client with explicit settings.</summary>
+    /// <param name="options">The symbolic session settings.</param>
+    /// <returns>The symbolic client.</returns>
+    public static Symbolic.S7SymbolicClient CreateSymbolic(Symbolic.S7SymbolicConnectionOptions options) => new(options);
+
     /// <summary>Creates an S7-1500 connection with standard settings.</summary>
     /// <param name="ip">The PLC IP address.</param>
     /// <returns>The configured PLC connection.</returns>

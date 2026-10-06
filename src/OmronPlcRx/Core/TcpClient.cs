@@ -502,29 +502,20 @@ internal sealed class TcpClient : IDisposable
         }
 
         using var receiveCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var receiveValueTask = _socket.ReceiveAsync(buffer, SocketFlags.None, receiveCts.Token);
-
-        if (receiveValueTask.IsCompleted || receiveValueTask.IsCanceled || cancellationToken.IsCancellationRequested)
+        var receive = _socket.ReceiveAsync(buffer, SocketFlags.None, receiveCts.Token);
+        if (!receive.IsCompleted)
         {
-            return await receiveValueTask.ConfigureAwait(false);
+            receiveCts.CancelAfter(timeout);
         }
 
-        using var delayCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var receiveTask = receiveValueTask.AsTask();
-        var delayTask = Task.Delay(timeout, delayCts.Token);
-
-        if (receiveTask == await Task.WhenAny(receiveTask, delayTask).ConfigureAwait(false))
+        try
         {
-            await SocketOperationCleanup.CancelDelayAsync(delayCts, delayTask).ConfigureAwait(false);
-
-            return await receiveTask.ConfigureAwait(false);
+            return await receive.ConfigureAwait(false);
         }
-
-        await SocketOperationCleanup.CancelSocketOperationAsync(receiveCts, receiveTask).ConfigureAwait(false);
-
-        await delayTask.ConfigureAwait(false);
-
-        throw new TimeoutException(CreateTimeoutMessage("Receive"));
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested && receiveCts.IsCancellationRequested)
+        {
+            throw new TimeoutException(CreateTimeoutMessage("Receive"), exception);
+        }
     }
 #endif
 

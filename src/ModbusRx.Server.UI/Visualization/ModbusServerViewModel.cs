@@ -270,7 +270,7 @@ public partial class ModbusServerViewModel : ReactiveObject, IDisposable
         var canStop = this.WhenAnyValue(static x => x.IsServerRunning);
         var hasSelectedClient = this.WhenAnyValue(static x => x.SelectedClientConfiguration).Select(static c => c is not null);
         var canAddClient = this.WhenAnyValue(static x => x.NewClientName, static x => x.NewClientAddress)
-            .Select(static x => !string.IsNullOrWhiteSpace(x.Value1) && !string.IsNullOrWhiteSpace(x.Value2));
+            .Select(static x => !string.IsNullOrWhiteSpace(x.Property1) && !string.IsNullOrWhiteSpace(x.Property2));
 
         StartServerCommand = CreateCommand(StartServerAsync, canStart);
         StopServerCommand = CreateCommand(StopServerAsync, canStop);

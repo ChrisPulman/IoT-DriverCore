@@ -8,7 +8,6 @@ using IoT.Driver.ModbusRx.Server.UI.Services;
 using IoT.Driver.ModbusRx.Server.UI.Visualization;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using ReactiveUI;
 
 namespace IoT.Driver.ModbusRx.Server.UI;
 

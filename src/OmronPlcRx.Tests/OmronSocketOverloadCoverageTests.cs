@@ -33,6 +33,49 @@ public sealed class OmronSocketOverloadCoverageTests
     /// <summary>Gets the first TCP response payload.</summary>
     private const byte FirstTcpResponse = 5;
 
+    /// <summary>Gets the reply sent after a receive has timed out.</summary>
+    private static readonly byte[] DelayedTcpReply = [FirstTcpResponse];
+
+    /// <summary>Verifies deadline cancellation leaves the next receive available for a later reply.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task TcpClient_TimedOutReceiveDoesNotConsumeNextReplyAsync()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        using var client = new CoreTcpClient(IPAddress.Loopback, ((IPEndPoint)listener.LocalEndpoint).Port);
+        await client.ConnectAsync(TimeoutMilliseconds, CancellationToken.None);
+        using var accepted = await listener.AcceptTcpClientAsync();
+        await using var stream = accepted.GetStream();
+        var buffer = new byte[1];
+
+        await Assert.That(async () => await client.ReceiveAsync(buffer, NoDataTimeoutMilliseconds, CancellationToken.None))
+            .Throws<TimeoutException>();
+        await stream.WriteAsync(DelayedTcpReply);
+        var received = await client.ReceiveAsync(buffer, TimeoutMilliseconds, CancellationToken.None);
+
+        await Assert.That(received).IsEqualTo(1);
+        await Assert.That(buffer[0]).IsEqualTo(FirstTcpResponse);
+    }
+
+    /// <summary>Verifies caller cancellation of a pending finite receive propagates as cancellation.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task TcpClient_CallerCancellationDoesNotBecomeTimeoutAsync()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        using var client = new CoreTcpClient(IPAddress.Loopback, ((IPEndPoint)listener.LocalEndpoint).Port);
+        await client.ConnectAsync(TimeoutMilliseconds, CancellationToken.None);
+        using var accepted = await listener.AcceptTcpClientAsync();
+        using var cancellation = new CancellationTokenSource();
+        var receive = client.ReceiveAsync(new byte[1], TimeoutMilliseconds, cancellation.Token);
+
+        await cancellation.CancelAsync();
+
+        await Assert.That(async () => await receive).Throws<OperationCanceledException>();
+    }
+
     /// <summary>Verifies TCP array and memory overloads, socket options, timeouts, and disposed state.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]

@@ -26,6 +26,9 @@ internal sealed class ObservableAsyncSubscription<T> : IObserver<T>, IAsyncDispo
     /// <summary>Signals disposal to pending observer calls.</summary>
     private readonly CancellationTokenSource _source = new();
 
+    /// <summary>Signals that the winning disposal call has finished cleaning up.</summary>
+    private readonly TaskCompletionSource<object?> _disposalCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     /// <summary>Stores whether disposal has already happened.</summary>
     private int _disposed;
 
@@ -61,11 +64,11 @@ internal sealed class ObservableAsyncSubscription<T> : IObserver<T>, IAsyncDispo
     public void OnNext(T value) => QueueObserver(() => _observer.OnNextAsync(value, _source.Token));
 
     /// <summary>Disposes the async subscription.</summary>
-    /// <returns>The completed disposal operation.</returns>
+    /// <returns>The resource cleanup completion operation.</returns>
     public ValueTask DisposeAsync()
     {
         Dispose();
-        return default;
+        return new(_disposalCompletion.Task);
     }
 
     /// <summary>Sets the upstream observable subscription.</summary>
@@ -89,10 +92,19 @@ internal sealed class ObservableAsyncSubscription<T> : IObserver<T>, IAsyncDispo
             return;
         }
 
-        _source.Cancel();
-        _sourceSubscription?.Dispose();
-        _registration.Dispose();
-        _source.Dispose();
+        try
+        {
+            _source.Cancel();
+            _sourceSubscription?.Dispose();
+            _registration.Dispose();
+            _source.Dispose();
+            _ = _disposalCompletion.TrySetResult(null);
+        }
+        catch (Exception error)
+        {
+            _ = _disposalCompletion.TrySetException(error);
+            throw;
+        }
     }
 
     /// <summary>Queues an async observer callback under the subscription gate.</summary>
