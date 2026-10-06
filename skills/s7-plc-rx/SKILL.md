@@ -49,7 +49,21 @@ using var values = plc.Observe(new LogicalTagKey<float>("Temperature"))
 
 Factory equivalent: `using IRxS7 plc = S71500.Create(...)`.
 
-## Addressing and types
+## Secure online symbolic access
+
+For optimized S7-1200/1500 blocks, use `S71200.CreateSymbolic` or `S71500.CreateSymbolic` with `S7SymbolicConnectionOptions`. These return an unconnected `S7SymbolicClient`; call `ConnectAsync` and dispose it asynchronously. The corresponding namespace is `IoT.Driver.S7PlcRx.Symbolic`, or `.Reactive.Symbolic` for the Reactive package.
+
+This client uses S7CommPlus and TLS 1.3 inside COTP. Configure system-trusted certificates or a verified SHA-256 controller certificate pin. A failed secure session does not fall back to classic S7. Obtain credentials from the application's secret provider.
+
+Use `BrowseAsync` and `ResolveAsync` to discover PLC names, types, access permissions, string lengths, and array bounds. Pass true symbolic paths such as `"Drive".ActualSpeed` or `"Drive".Samples[-2]`. Typed reads take `LogicalTagKey<T>`; writes accept typed values. `ReadManyAsync`/`WriteManyAsync` preserve native per-item errors and use controller resource limits.
+
+Observe through `SubscribeAsync`, which creates PLC-pushed subscriptions rather than polling classic addresses. Dispose subscriptions and consume their bounded async streams with cancellation. `S7SymbolicLogicalTagClient` maps application aliases to native symbolic paths through the common logical-tag API.
+
+The imported enterprise `SymbolTable` remains an offline alias table for classic addresses. It does not browse optimized blocks. Do not claim it provides secure symbolic communication.
+
+Comment metadata exposes bounded XML decompression with caller-supplied preset dictionaries when required. No reference dictionaries are bundled. For protocol boundaries and validation, read `packagereadme/S7PlcRx/S7CommPlus.md` in the repository.
+
+## Classic addressing and types
 
 Match address width to the CLR type:
 

@@ -12,7 +12,7 @@ Reactive Siemens S7 PLC communication for .NET. `IoT-Driver.S7PlcRx` provides ta
 
 The NuGet package is named `IoT-Driver.S7PlcRx`, while the migrated runtime namespace is `IoT.Driver.S7PlcRx`; `IoT-Driver.S7PlcRx.Reactive` uses `IoT.Driver.S7PlcRx.Reactive`. This guide is the contract for both packages: the reactive variant has the same PLC, tag, binding, optimisation, production, and logical-tag features, with its namespace segment `.Reactive` and ReactiveUI.Primitives Reactive dependencies.
 
-Every read is asynchronous or observable, and every write is a command sent to a PLC. A tag must be registered before it can be observed, read by name, batched, bound, cached, or written. A nullable read result means that the operation did not yield a value; it is not a safe substitute for inspecting connection and error streams.
+Every read is asynchronous or observable, and every write is a command sent to a PLC. Classic `IRxS7` tag-name operations require registration before a tag can be observed, read, batched, bound, cached, or written. The online symbolic client resolves controller paths directly. A nullable classic read result means that the operation did not yield a value; inspect connection and error streams as well.
 
 ## Safety
 
@@ -31,7 +31,46 @@ Every read is asynchronous or observable, and every write is a command sent to a
 
 The runtime packages target `net462`, `net472`, `net481`, `net8.0`, `net9.0`, `net10.0`, and `net11.0`. Do not pass core-package objects to the reactive-package API or vice versa.
 
-## Lifecycle and error model
+## Secure online symbolic access
+
+`S71200.CreateSymbolic` and `S71500.CreateSymbolic` create a composed `S7SymbolicClient` for S7CommPlus. This client discovers names and types from the controller and addresses optimized data blocks by their native symbolic identifiers. The existing `IRxS7` factories and imported `SymbolTable` aliases continue to use classic S7 byte addressing.
+
+The symbolic client negotiates TLS 1.3 inside ISO-on-TCP/COTP and supports the controller's password challenge and newer TLS-exporter authentication exchanges. BouncyCastle.Cryptography supplies the managed TLS and protocol cryptography on all supported target frameworks. No reference-driver source or OpenSSL binaries are bundled.
+
+Certificate validation uses system trust, the configured host name, validity dates, and server authentication policy by default. A SHA-256 certificate pin can trust a specific PLC certificate; obtain that fingerprint through your controller's certificate administration. Authentication failure never falls back to unencrypted classic communication.
+
+```csharp
+using IoT.Driver.Core;
+using IoT.Driver.S7PlcRx;
+using IoT.Driver.S7PlcRx.Symbolic;
+
+var options = new S7SymbolicConnectionOptions("192.168.10.20")
+{
+    Username = "operator",
+    Password = passwordFromYourSecretProvider,
+    CertificateSha256 = trustedControllerCertificateSha256,
+};
+
+await using var plc = S71500.CreateSymbolic(options);
+using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+await plc.ConnectAsync(timeout.Token);
+var symbols = await plc.BrowseAsync(timeout.Token);
+var speed = await plc.ReadAsync(new LogicalTagKey<float>("\"Drive\".ActualSpeed"), timeout.Token);
+await plc.WriteAsync("\"Drive\".TargetSpeed", 1500f, timeout.Token);
+
+await using var changes = await plc.SubscribeAsync(
+    ["\"Drive\".ActualSpeed"], TimeSpan.FromMilliseconds(100), timeout.Token);
+await foreach (var change in changes.Changes.WithCancellation(timeout.Token))
+{
+    Console.WriteLine($"{change.Path}: {change.Value?.Value}, error={change.ErrorCode}");
+}
+```
+
+The symbolic APIs expose individual errors for batch operations, retain array bounds and read-only metadata, and support nested structures and indexed array elements. Variable observation uses PLC-pushed subscriptions with bounded buffering and credit renewal. The same implementation is included in `IoT.Driver.S7PlcRx.Reactive.Symbolic`.
+
+[Protocol comparison, implementation boundaries, and validation](https://github.com/ChrisPulman/IoT-DriverCore/blob/main/packagereadme/S7PlcRx/S7CommPlus.md).
+
+## Classic connection lifecycle
 
 `IRxS7` exposes connection and operation state as `IsConnected`, `IsConnectedValue`, `IsPaused`, `Status`, `LastError`, `LastErrorCode`, and `ReadTime`. Subscribe before starting command traffic. A failed/invalid operation is reported by its return value, the nullable result of an async read, and/or these streams; do not infer success merely because a write was queued.
 
