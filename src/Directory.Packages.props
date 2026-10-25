@@ -2,7 +2,7 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <ReactiveUIPrimitivesVersion>9.0.0</ReactiveUIPrimitivesVersion>
-    <CoreBCLVersion>10.0.12</CoreBCLVersion>
+    <CoreBCLVersion>10.0.14</CoreBCLVersion>
     <RoslynAnalysersVersion>5.1.2</RoslynAnalysersVersion>
   </PropertyGroup>
 
