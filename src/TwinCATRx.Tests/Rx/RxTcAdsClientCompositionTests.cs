@@ -588,6 +588,12 @@ public sealed partial class RxTcAdsClientCompositionTests
         /// <summary>Gets the signal for the first attempted native read.</summary>
         public TaskCompletionSource<bool> ReadAttempted { get; } = CreatePublicationSource();
 
+        /// <summary>Gets or sets an optional controlled native read.</summary>
+        public Func<object>? ReadOverride { get; set; }
+
+        /// <summary>Gets the native runtime disposal barrier.</summary>
+        public TaskCompletionSource<bool> Disposed { get; } = CreatePublicationSource();
+
         /// <summary>Gets the manual ADS value event sequence.</summary>
         public ManualObservable<object> ValueChanges { get; } = new();
 
@@ -672,7 +678,11 @@ public sealed partial class RxTcAdsClientCompositionTests
         }
 
         /// <inheritdoc/>
-        public void Dispose() => IsConnected = false;
+        public void Dispose()
+        {
+            IsConnected = false;
+            _ = Disposed.TrySetResult(true);
+        }
 
         /// <inheritdoc/>
         public IObservable<object> ObserveValue(string variable, AdsTransMode adsTransMode, int cycleTime, int maxDelay)
@@ -686,6 +696,11 @@ public sealed partial class RxTcAdsClientCompositionTests
         {
             _ = type;
             _ = ReadAttempted.TrySetResult(true);
+            if (ReadOverride is { } read)
+            {
+                return read();
+            }
+
             ThrowIfConfigured(ReadAnyError);
             return ValuesByVariable[_variables[handle]];
         }
@@ -737,8 +752,8 @@ public sealed partial class RxTcAdsClientCompositionTests
     /// <param name="adsClient">The deterministic ADS runtime.</param>
     private sealed class FakePlatform(FakeAdsClient adsClient) : IRxTcAdsPlatform, IDisposable
     {
-        /// <summary>Stores the deterministic generator.</summary>
-        private readonly CodeGenerator _generator = new();
+        /// <summary>Stores symbols independently of each connection's disposable generator.</summary>
+        private readonly List<NodeEmulator> _symbols = [];
 
         /// <summary>Gets the shared manual tick sequence.</summary>
         public ManualObservable<long> Ticks { get; } = new();
@@ -748,6 +763,9 @@ public sealed partial class RxTcAdsClientCompositionTests
 
         /// <summary>Gets the number of symbol-load requests.</summary>
         public int LoadSymbolsCount { get; private set; }
+
+        /// <summary>Gets or sets the factory for replacement connection runtimes.</summary>
+        public Func<IAdsClientRuntime>? AdsClientFactory { get; set; }
 
         /// <inheritdoc/>
         public bool IsWindowsServiceMonitoringSupported { get; set; }
@@ -763,17 +781,26 @@ public sealed partial class RxTcAdsClientCompositionTests
                 Text = name,
                 Tag = new FakeSymbol(name, typeName, category),
             };
-            _ = _generator.SymbolList.Add(node);
+            _symbols.Add(node);
         }
 
         /// <inheritdoc/>
-        public IAdsClientRuntime CreateAdsClient() => adsClient;
+        public IAdsClientRuntime CreateAdsClient() => AdsClientFactory?.Invoke() ?? adsClient;
 
         /// <inheritdoc/>
-        public ICodeGenerator CreateCodeGenerator() => _generator;
+        public ICodeGenerator CreateCodeGenerator()
+        {
+            var generator = new CodeGenerator();
+            foreach (var symbol in _symbols)
+            {
+                _ = generator.SymbolList.Add(symbol);
+            }
+
+            return generator;
+        }
 
         /// <inheritdoc/>
-        public void Dispose() => _generator.Dispose();
+        public void Dispose() => _symbols.Clear();
 
         /// <inheritdoc/>
         public IObservable<long> Interval(TimeSpan period)

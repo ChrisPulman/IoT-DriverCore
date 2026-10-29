@@ -267,17 +267,11 @@ public class ReactiveRuntimeCoverageTests
     /// <param name="name">The field name.</param>
     /// <returns>The field value.</returns>
     private static T GetPrivateField<T>(object instance, string name) =>
-        (T)(instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(instance)
-            ?? throw new InvalidOperationException($"Private field was not found: {name}"));
+        ClientConnectionTestState.Get<T>(instance, name);
 
     /// <summary>Initializes local disposable state without connecting to ADS.</summary>
     /// <param name="client">The client.</param>
-    private static void InitializeCleanup(ReactiveRxClient client)
-    {
-        var cleanup = typeof(ReactiveRxClient).GetField("_cleanup", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new MissingFieldException(typeof(ReactiveRxClient).FullName, "_cleanup");
-        cleanup.SetValue(client, new MultipleDisposable());
-    }
+    private static void InitializeCleanup(ReactiveRxClient client) => ClientConnectionTestState.Activate(client);
 
     /// <summary>Records async observer calls synchronously for deterministic assertions.</summary>
     /// <typeparam name="T">The observed value type.</typeparam>

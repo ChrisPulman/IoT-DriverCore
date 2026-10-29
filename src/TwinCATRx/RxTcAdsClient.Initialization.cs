@@ -32,12 +32,13 @@ namespace IoT.Driver.TwinCATRx;
 /// <summary>Observable TwinCAT ADS Client.</summary>
 public partial class RxTcAdsClient
 {
-    /// <summary>Disposes notification delivery before the native connection.</summary>
-    private CompositeDisposable? _adsNotificationLifetime;
+    /// <summary>Gets or sets the notification delivery lifetime, which is disposed before the native connection.</summary>
+    private CompositeDisposable? _adsNotificationLifetime { get => ConnectionState.Notifications; set => ConnectionState.SetNotifications(value); }
 
     /// <summary>Gets the active connection lifetime.</summary>
     private CompositeDisposable ConnectionLifetime =>
-        _cleanup ?? throw new InvalidOperationException("The TwinCAT connection lifetime is not initialized.");
+        (_executingConnection.Value ?? _connection)?.Resources ??
+        throw new InvalidOperationException("The TwinCAT connection lifetime is not initialized.");
 
     /// <summary>Reads one native ADS value.</summary>
     /// <param name="client">The native ADS client.</param>
@@ -58,44 +59,81 @@ public partial class RxTcAdsClient
     }
 
     /// <summary>Initializes the PLC connection and reactive read/write loops.</summary>
+    /// <param name="subscription">The owning connect subscription.</param>
     /// <returns>The PLC initialization observable sequence.</returns>
     [RequiresUnreferencedCode("Invokes dynamic code generation and reflection to materialize PLC types.")]
     [RequiresDynamicCode("Invokes dynamic code generation and reflection to materialize PLC types.")]
-    private IObservable<Unit> InitPLC() =>
+    private IObservable<Unit> InitPLC(IDisposable subscription) =>
         CoreTwinCatRxExtensions.OnErrorRetry<Unit, Exception>(
-            Observable.Create<Unit>(InitializeConnection),
-            _errorReceived.OnNext,
+            Observable.Create<Unit>(observer => InitializeConnection(observer, subscription)),
+            PublishError,
             TimeSpan.FromSeconds(ConnectionRetryDelaySeconds)).Publish().RefCount();
 
     /// <summary>Creates and composes the current ADS connection monitors.</summary>
     /// <param name="observer">The initialization observer.</param>
+    /// <param name="subscription">The owning connect subscription.</param>
     /// <returns>The active connection lifetime.</returns>
     [RequiresUnreferencedCode("Invokes dynamic code generation and reflection to materialize PLC types.")]
     [RequiresDynamicCode("Invokes dynamic code generation and reflection to materialize PLC types.")]
-    private IDisposable InitializeConnection(IObserver<Unit> observer)
+    private IDisposable InitializeConnection(IObserver<Unit> observer, IDisposable subscription)
     {
-        ResetConnectionState();
-        _adsNotificationLifetime = [];
-        _ = _adsNotificationLifetime.DisposeWith(ConnectionLifetime);
-        var client = _platform.CreateAdsClient();
-        _ = client.DisposeWith(ConnectionLifetime);
-        var codeGenerator = _platform.CreateCodeGenerator();
-        _codeGenerator = codeGenerator;
-        _ = codeGenerator.DisposeWith(ConnectionLifetime);
-        ConnectAdsClient(client, codeGenerator, observer);
-        MonitorServiceStatus(observer);
-        MonitorAdsState(client, observer);
-        MonitorWrites(client);
-        MonitorReads(client);
-        MonitorInitialization(client, observer);
-        ScheduleNotifications(client);
-        return ConnectionLifetime;
+        var connection = new ConnectionScope { Settings = _settings };
+        ConnectionScope? previous;
+        ConnectionScope? placeholder;
+        bool wasPaused;
+        long pauseVersion;
+        lock (_lifecycleGate)
+        {
+            if (IsDisposed || !ReferenceEquals(_plcCleanup, subscription))
+            {
+                connection.Closed = true;
+                return connection;
+            }
+
+            placeholder = !ReferenceEquals(_lastConnection, _connection) && _lastConnection.ActiveOperations == 0
+                ? _lastConnection
+                : null;
+            previous = CloseConnectionLocked(_connection);
+            _connection = connection;
+            _lastConnection = connection;
+            _cleanup = connection.Resources;
+            wasPaused = IsPaused;
+            IsPaused = false;
+            pauseVersion = ++_pauseVersion;
+        }
+
+        previous?.Dispose();
+        placeholder?.Dispose();
+
+        if (wasPaused)
+        {
+            RunConnection(connection, () => Publish(_isPausedSubject, false, () => _pauseVersion == pauseVersion));
+        }
+
+        RunConnection(connection, () =>
+        {
+            ResetConnectionState();
+            _adsNotificationLifetime = [];
+            _ = _adsNotificationLifetime.DisposeWith(ConnectionLifetime);
+            var client = _platform.CreateAdsClient();
+            _ = client.DisposeWith(ConnectionLifetime);
+            var codeGenerator = _platform.CreateCodeGenerator();
+            _codeGenerator = codeGenerator;
+            _ = codeGenerator.DisposeWith(ConnectionLifetime);
+            ConnectAdsClient(client, codeGenerator, observer);
+            MonitorServiceStatus(observer);
+            MonitorAdsState(client, observer);
+            MonitorWrites(client);
+            MonitorReads(client);
+            MonitorInitialization(client, observer);
+            ScheduleNotifications(client);
+        });
+        return new ConnectionSubscription(this, connection);
     }
 
     /// <summary>Resets all state owned by one ADS connection.</summary>
     private void ResetConnectionState()
     {
-        _cleanup = [];
         _initialized = false;
         _code.Clear();
         ReadWriteHandleInfo.Clear();
@@ -140,8 +178,25 @@ public partial class RxTcAdsClient
     /// <param name="observer">The initialization observer.</param>
     private void PublishConnectionError(Exception error, IObserver<Unit> observer)
     {
-        Connected = false;
-        _errorReceived.OnNext(error);
+        lock (_lifecycleGate)
+        {
+            if (!IsCurrentConnection(_executingConnection.Value))
+            {
+                return;
+            }
+
+            Connected = false;
+        }
+
+        Publish(_errorReceived, error);
+        lock (_lifecycleGate)
+        {
+            if (!IsCurrentConnection(_executingConnection.Value))
+            {
+                return;
+            }
+        }
+
         observer.OnError(error);
     }
 
@@ -159,7 +214,7 @@ public partial class RxTcAdsClient
             return;
         }
 
-        _serviceStatus.OnNext(ServiceStatus.Running);
+        QueueConnection(() => _serviceStatus.OnNext(ServiceStatus.Running));
     }
 
     /// <summary>Monitors the TwinCAT system service on Windows.</summary>
@@ -173,10 +228,10 @@ public partial class RxTcAdsClient
         var services = _platform.GetServices()
             .Where(static service => string.Equals(service.ServiceName, "TcSysSrv", StringComparison.OrdinalIgnoreCase))
             .Retry(int.MaxValue);
-        _ = ObservableBridgeExtensions.SubscribeTo(
+        _ = SubscribeConnection(
             services,
             service => ObserveService(service, statuses, observer)).DisposeWith(ConnectionLifetime);
-        _ = ObservableBridgeExtensions.SubscribeTo(
+        _ = SubscribeConnection(
             _platform.Interval(TimeSpan.FromSeconds(1)).Retry(int.MaxValue),
             _ => PublishServiceStatus(statuses)).DisposeWith(ConnectionLifetime);
     }
@@ -195,7 +250,7 @@ public partial class RxTcAdsClient
     {
         statuses[service.ServiceName] = service.Status;
         EnsureServiceRunning(service, service.Status, observer);
-        _ = ObservableBridgeExtensions.SubscribeTo(service.StatusObserver.Retry(int.MaxValue), status =>
+        _ = SubscribeConnection(service.StatusObserver.Retry(int.MaxValue), status =>
         {
             statuses[service.ServiceName] = status;
             EnsureServiceRunning(service, status, observer);
@@ -232,7 +287,7 @@ public partial class RxTcAdsClient
     {
         var running = !statuses.TryGetValue("TcSysSrv", out var status) ||
             status == ServiceControllerStatus.Running;
-        _serviceStatus.OnNext(running ? ServiceStatus.Running : ServiceStatus.Faulted);
+        QueueConnection(() => _serviceStatus.OnNext(running ? ServiceStatus.Running : ServiceStatus.Faulted));
     }
 
     /// <summary>Polls and publishes the native ADS client state.</summary>
@@ -240,7 +295,7 @@ public partial class RxTcAdsClient
     /// <param name="observer">The initialization observer.</param>
     private void MonitorAdsState(IAdsClientRuntime client, IObserver<Unit> observer)
     {
-        _ = ObservableBridgeExtensions.SubscribeTo(
+        _ = SubscribeConnection(
             _platform.Interval(TimeSpan.FromSeconds(1)).Retry(int.MaxValue),
             _ => ReadAdsState(client, observer)).DisposeWith(ConnectionLifetime);
     }
@@ -252,11 +307,12 @@ public partial class RxTcAdsClient
     {
         try
         {
-            _clientState.OnNext(client.IsConnected ? client.ReadState().AdsState : AdsState.Invalid);
+            var state = client.IsConnected ? client.ReadState().AdsState : AdsState.Invalid;
+            QueueConnection(() => _clientState.OnNext(state));
         }
         catch (Exception innerError)
         {
-            _clientState.OnNext(AdsState.Invalid);
+            QueueConnection(() => _clientState.OnNext(AdsState.Invalid));
             PublishConnectionError(new InvalidOperationException("Ads Fault", innerError), observer);
         }
     }
@@ -271,7 +327,7 @@ public partial class RxTcAdsClient
         var statuses = _clientState.DistinctUntilChanged().CombineLatest(
             _serviceStatus.DistinctUntilChanged(),
             static (state, service) => (State: state, Service: service));
-        _ = ObservableBridgeExtensions.SubscribeTo(statuses.Retry(int.MaxValue), status =>
+        _ = SubscribeConnection(statuses.Retry(int.MaxValue), status =>
         {
             if (!_initialized && status.Service == ServiceStatus.Running && status.State == AdsState.Run)
             {
@@ -303,11 +359,22 @@ public partial class RxTcAdsClient
 
             SubscribeAdsNotifications(client);
 
-            _ = Task.Run(() => _codeSubject.OnNext([.. _code]));
+            var code = _code.ToArray();
+            var connection = _executingConnection.Value!;
+            _ = Task.Run(() => RunConnection(connection, () => Publish(_codeSubject, code)));
             _codeGenerator?.Dispose();
-            _initialized = true;
-            Connected = true;
-            _initCompleteSubject.OnNext(Unit.Default);
+            lock (_lifecycleGate)
+            {
+                if (!IsCurrentConnection(connection))
+                {
+                    return;
+                }
+
+                _initialized = true;
+                Connected = true;
+            }
+
+            Publish(_initCompleteSubject, Unit.Default);
         }
         catch (Exception error)
         {
@@ -334,7 +401,7 @@ public partial class RxTcAdsClient
     /// <param name="client">The native ADS client.</param>
     private void MonitorWrites(IAdsClientRuntime client)
     {
-        _ = ObservableBridgeExtensions.SubscribeTo(_writePLC, request =>
+        _ = SubscribeConnection(_writePLC, request =>
         {
             if (!_initialized || !client.IsConnected || request.Handle is null)
             {
@@ -345,12 +412,12 @@ public partial class RxTcAdsClient
             {
                 client.WriteAny(request.Handle.Value, request.Value);
                 var result = string.IsNullOrWhiteSpace(request.Id) ? "Success" : $"Success,{request.Id}";
-                _onWriteSubject.OnNext(result);
+                Publish(_onWriteSubject, result);
             }
             catch (Exception error)
             {
-                _onWriteSubject.OnNext(error.ToString());
-                _errorReceived.OnNext(error);
+                Publish(_onWriteSubject, error.ToString());
+                Publish(_errorReceived, error);
             }
         }).DisposeWith(ConnectionLifetime);
     }
@@ -359,7 +426,7 @@ public partial class RxTcAdsClient
     /// <param name="client">The native ADS client.</param>
     private void MonitorReads(IAdsClientRuntime client)
     {
-        _ = ObservableBridgeExtensions.SubscribeTo(_readPLC.Retry(int.MaxValue), request =>
+        _ = SubscribeConnection(_readPLC.Retry(int.MaxValue), request =>
         {
             try
             {
@@ -368,7 +435,7 @@ public partial class RxTcAdsClient
             }
             catch (Exception error)
             {
-                _errorReceived.OnNext(error);
+                Publish(_errorReceived, error);
             }
         }).DisposeWith(ConnectionLifetime);
     }
@@ -379,22 +446,31 @@ public partial class RxTcAdsClient
     /// <param name="id">The optional correlation identifier.</param>
     private void PublishNativeValue(uint? handle, object? value, string? id)
     {
-        if (value is null || !handle.HasValue)
+        string? variable;
+        lock (_lifecycleGate)
         {
-            return;
+            if (!IsCurrentConnection(_executingConnection.Value))
+            {
+                return;
+            }
+
+            if (value is null || !handle.HasValue)
+            {
+                return;
+            }
+
+            if (!_readWriteVariablesByHandle.TryGetValue(handle.Value, out variable))
+            {
+                _ = _writeVariablesByHandle.TryGetValue(handle.Value, out variable);
+            }
+
+            if (string.IsNullOrWhiteSpace(variable))
+            {
+                return;
+            }
         }
 
-        if (!_readWriteVariablesByHandle.TryGetValue(handle.Value, out var variable))
-        {
-            _ = _writeVariablesByHandle.TryGetValue(handle.Value, out variable);
-        }
-
-        if (string.IsNullOrWhiteSpace(variable))
-        {
-            return;
-        }
-
-        _dataReceived.OnNext((Variable: variable, Data: value, id));
+        Publish(_dataReceived, (Variable: variable, Data: value, id));
     }
 
     /// <summary>Schedules all configured notification reads.</summary>
@@ -408,7 +484,7 @@ public partial class RxTcAdsClient
                 continue;
             }
 
-            _ = ObservableBridgeExtensions.SubscribeTo(
+            _ = SubscribeConnection(
                 _platform.Interval(TimeSpan.FromMilliseconds(notification.UpdateRate)).Retry(int.MaxValue),
                 _ => ReadNotification(client, notification)).DisposeWith(ConnectionLifetime);
         }
@@ -427,7 +503,7 @@ public partial class RxTcAdsClient
                 continue;
             }
 
-            _ = ObservableBridgeExtensions.SubscribeTo(
+            _ = SubscribeConnection(
                 client.ObserveValue(
                     variable,
                     adsNotification.AdsTransMode,
@@ -440,9 +516,9 @@ public partial class RxTcAdsClient
                         return;
                     }
 
-                    _dataReceived.OnNext((variable, value, null));
+                    Publish(_dataReceived, (variable, value, null));
                 },
-                _errorReceived.OnNext,
+                PublishError,
                 static () => { }).DisposeWith(
                     _adsNotificationLifetime ?? throw new InvalidOperationException("ADS notification lifetime is not initialized."));
         }
@@ -474,7 +550,8 @@ public partial class RxTcAdsClient
         }
 
         var kind = type == typeof(string) ? "String" : "Array";
-        _errorReceived.OnNext(
+        Publish(
+            _errorReceived,
             new InvalidOperationException($"Please set Notification ArraySize to the {kind} length."));
     }
 }

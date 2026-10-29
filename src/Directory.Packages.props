@@ -2,8 +2,8 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <ReactiveUIPrimitivesVersion>9.0.0</ReactiveUIPrimitivesVersion>
-    <CoreBCLVersion>10.0.12</CoreBCLVersion>
-    <RoslynAnalysersVersion>5.1.2</RoslynAnalysersVersion>
+    <CoreBCLVersion>10.0.14</CoreBCLVersion>
+    <RoslynAnalysersVersion>5.1.4</RoslynAnalysersVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -43,11 +43,11 @@
 
     <PackageVersion Include="YamlDotNet" Version="18.1.0" />
 
-    <PackageVersion Include="CrissCross.WPF.UI" Version="5.0.1" />
+    <PackageVersion Include="CrissCross.WPF.UI" Version="5.0.2" />
 
     <PackageVersion Include="System.Memory" Version="4.6.3" />
     <PackageVersion Include="IndexRange" Version="1.1.1" />
-    <PackageVersion Include="Polyfill" Version="11.4.3" />
+    <PackageVersion Include="Polyfill" Version="11.4.5" />
 
     <PackageVersion Include="Mono.Cecil" Version="0.11.6" />
     <PackageVersion Include="Roslynator.Analyzers" Version="5.0.1" />
@@ -62,12 +62,12 @@
     <PackageVersion Include="NuGet.Packaging" Version="7.9.0" />
 
     <PackageVersion Include="Moq" Version="4.21.0" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageVersion Include="Microsoft.Reactive.Testing" Version="7.0.0" />
     <PackageVersion Include="MinVer" Version="8.0.0" />
-    <PackageVersion Include="TUnit" Version="1.72.16" />
-    <PackageVersion Include="TUnit.Assertions" Version="1.73.19" />
+    <PackageVersion Include="TUnit" Version="1.76.45" />
+    <PackageVersion Include="TUnit.Assertions" Version="1.76.45" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.403" />
   </ItemGroup>
 </Project>

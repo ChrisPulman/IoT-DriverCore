@@ -8,7 +8,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using CP.Collections.Reactive;
 using IoT.Driver.TwinCATRx.Reactive;
-using ReactiveUI.Primitives.Disposables;
 using ReactiveClient = IoT.Driver.TwinCATRx.Reactive.RxTcAdsClient;
 using ReactiveCoreExtensions = IoT.Driver.TwinCATRx.Core.Reactive.TwinCatRxExtensions;
 using ReactiveExtensions = IoT.Driver.TwinCATRx.Reactive.TwinCatRxExtensions;
@@ -87,6 +86,7 @@ public class ReactiveRuntimeParityCoverageTests
     public async Task Read_And_Write_Select_Local_Handle_MetadataAsync()
     {
         using var client = new ReactiveClient();
+        InitializeCleanup(client);
         var typeInfo = GetPrivateField<Dictionary<string, Type>>(client, TypeInfoFieldName);
 
         client.Read(string.Empty);
@@ -153,6 +153,7 @@ public class ReactiveRuntimeParityCoverageTests
         SetProperty(client, nameof(ReactiveClient.Settings), settings);
         GetPrivateField<Dictionary<string, Type>>(client, TypeInfoFieldName)[ArrayVariable] = typeof(int[]);
         client.ReadWriteHandleInfo[ArrayVariable] = Handle;
+        InitializeCleanup(client);
 
         client.Read(ArrayVariable);
 
@@ -291,8 +292,7 @@ public class ReactiveRuntimeParityCoverageTests
     /// <param name="name">The field name.</param>
     /// <returns>The field value.</returns>
     private static T GetPrivateField<T>(object instance, string name) =>
-        (T)(instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(instance)
-            ?? throw new InvalidOperationException($"Private field was not found: {name}"));
+        ClientConnectionTestState.Get<T>(instance, name);
 
     /// <summary>Gets a private static method.</summary>
     /// <param name="name">The method name.</param>
@@ -303,12 +303,7 @@ public class ReactiveRuntimeParityCoverageTests
 
     /// <summary>Initializes local disposable state without creating an ADS client.</summary>
     /// <param name="client">The client.</param>
-    private static void InitializeCleanup(ReactiveClient client)
-    {
-        var cleanup = typeof(ReactiveClient).GetField("_cleanup", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new MissingFieldException(typeof(ReactiveClient).FullName, "_cleanup");
-        cleanup.SetValue(client, new MultipleDisposable());
-    }
+    private static void InitializeCleanup(ReactiveClient client) => ClientConnectionTestState.Activate(client);
 
     /// <summary>Sets a property, including non-public setters, for local state setup.</summary>
     /// <param name="instance">The containing instance.</param>

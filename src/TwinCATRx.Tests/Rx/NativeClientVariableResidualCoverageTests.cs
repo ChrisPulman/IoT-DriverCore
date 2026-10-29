@@ -358,12 +358,8 @@ public sealed class NativeClientVariableResidualCoverageTests
         using var guardedClient = new RxTcAdsClient();
         var errors = new List<Exception>();
         using var errorSubscription = ObservableBridgeExtensions.SubscribeTo(guardedClient.ErrorReceived, errors.Add);
-        _ = InvokeInstance(guardedClient, ResetConnectionStateMethod);
-        var cleanup = GetField<IDisposable>(guardedClient, "_cleanup");
-        cleanup.Dispose();
-        SetField(guardedClient, "_disposed", 1);
+        guardedClient.Dispose();
         guardedClient.Connect(new Settings());
-        SetField(guardedClient, "_disposed", 0);
 
         using var disconnectClient = new RxTcAdsClient();
         var pauseStates = new List<bool>();
@@ -384,7 +380,7 @@ public sealed class NativeClientVariableResidualCoverageTests
         GetField<IDictionary<string, Type>>(disposableClient, TypeInfoField)[ScalarVariable] = typeof(int);
         disposableClient.Dispose();
 
-        await TUnitAssert.That(errors[0]).IsTypeOf<ObjectDisposedException>();
+        await TUnitAssert.That(errors).IsEmpty();
         await TUnitAssert.That(disconnectClient.IsPaused).IsFalse();
         await TUnitAssert.That(disconnectClient.IsDisposed).IsFalse();
         await TUnitAssert.That(nullCleanupClient.IsDisposed).IsTrue();
@@ -502,19 +498,14 @@ public sealed class NativeClientVariableResidualCoverageTests
     /// <param name="name">The field name.</param>
     /// <returns>The field value.</returns>
     private static T GetField<T>(object instance, string name) =>
-        (T)(instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(instance)
-            ?? throw new MissingFieldException(instance.GetType().FullName, name));
+        ClientConnectionTestState.Get<T>(instance, name);
 
     /// <summary>Sets a private client field to a deterministic test value.</summary>
     /// <param name="instance">The containing instance.</param>
     /// <param name="name">The field name.</param>
     /// <param name="value">The replacement value.</param>
-    private static void SetField(object instance, string name, object value)
-    {
-        var field = instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new MissingFieldException(instance.GetType().FullName, name);
-        field.SetValue(instance, value);
-    }
+    private static void SetField(object instance, string name, object value) =>
+        ClientConnectionTestState.Set(instance, name, value);
 
     /// <summary>Invokes a private instance method.</summary>
     /// <param name="instance">The containing instance.</param>
@@ -522,7 +513,7 @@ public sealed class NativeClientVariableResidualCoverageTests
     /// <param name="arguments">The method arguments.</param>
     /// <returns>The invocation result.</returns>
     private static object? InvokeInstance(object instance, string name, params object?[] arguments) =>
-        GetMethod(instance.GetType(), name, BindingFlags.Instance).Invoke(instance, arguments);
+        ClientConnectionTestState.Invoke(instance, name, arguments);
 
     /// <summary>Invokes a private static client method.</summary>
     /// <param name="name">The method name.</param>
