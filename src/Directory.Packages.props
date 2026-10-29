@@ -30,7 +30,7 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
 
     <!-- 3.x native assets reject AnyCPU .NET Framework builds consuming CP.IoT.Core. -->
-    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.13" />
+    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.14" />
     <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
 
     <PackageVersion Include="ConsoleMenu-simple" Version="2.7.0" />
