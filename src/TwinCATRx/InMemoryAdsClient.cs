@@ -141,11 +141,8 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
     public ISettings? Settings { get; private set; }
 
     /// <summary>Gets a deterministic snapshot of native ADS operation counts.</summary>
-    public InMemoryAdsOperationMetrics OperationMetrics =>
-        new(
-            Interlocked.Read(ref _readOperations),
-            Interlocked.Read(ref _writeOperations),
-            Interlocked.Read(ref _notificationPublications));
+    /// <remarks>Each access creates a new snapshot. Use <see cref="GetOperationMetrics"/> to explicitly capture one.</remarks>
+    public InMemoryAdsOperationMetrics OperationMetrics => GetOperationMetrics();
 
     /// <summary>Gets the read-only view of all registered symbols.</summary>
     public IReadOnlyCollection<InMemoryAdsSymbol> Symbols => _symbols.Values;
@@ -650,6 +647,14 @@ public sealed class InMemoryAdsClient : IRxTcAdsClient
             index++;
         }
     }
+
+    /// <summary>Creates a deterministic snapshot of native ADS operation counts.</summary>
+    /// <returns>A new snapshot whose counts are unaffected by subsequent operations or resets.</returns>
+    public InMemoryAdsOperationMetrics GetOperationMetrics() =>
+        new(
+            Interlocked.Read(ref _readOperations),
+            Interlocked.Read(ref _writeOperations),
+            Interlocked.Read(ref _notificationPublications));
 
     /// <summary>Resets deterministic native ADS operation counts without changing simulator state.</summary>
     public void ResetOperationMetrics()

@@ -9,7 +9,6 @@ using System.Reflection;
 using CP.Collections;
 using IoT.Driver.TwinCATRx;
 using IoT.Driver.TwinCATRx.Core;
-using ReactiveUI.Primitives.Disposables;
 using LeanTwinCatRxExtensions = IoT.Driver.TwinCATRx.TwinCatRxExtensions;
 
 namespace IoT.Driver.TwinCATRx.Tests.Rx;
@@ -110,6 +109,7 @@ public class LeanRxClientCoverageTests
     public async Task Read_And_Write_Select_Local_Handle_MetadataAsync()
     {
         using var client = new RxTcAdsClient();
+        InitializeCleanup(client);
         var typeInfo = GetPrivateField<Dictionary<string, Type>>(client, TypeInfoFieldName);
 
         client.Read(string.Empty);
@@ -182,6 +182,7 @@ public class LeanRxClientCoverageTests
         SetProperty(client, nameof(RxTcAdsClient.Settings), settings);
         GetPrivateField<Dictionary<string, Type>>(client, TypeInfoFieldName)[ArrayVariable] = typeof(int[]);
         client.ReadWriteHandleInfo[ArrayVariable] = Handle;
+        InitializeCleanup(client);
 
         client.Read(ArrayVariable);
 
@@ -317,8 +318,7 @@ public class LeanRxClientCoverageTests
     /// <param name="name">The field name.</param>
     /// <returns>The field value.</returns>
     private static T GetPrivateField<T>(object instance, string name) =>
-        (T)(instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(instance)
-            ?? throw new InvalidOperationException($"Private field was not found: {name}"));
+        ClientConnectionTestState.Get<T>(instance, name);
 
     /// <summary>Gets a private static method.</summary>
     /// <param name="name">The method name.</param>
@@ -329,12 +329,7 @@ public class LeanRxClientCoverageTests
 
     /// <summary>Initializes the client's local disposable collection without creating an ADS client.</summary>
     /// <param name="client">The client.</param>
-    private static void InitializeCleanup(RxTcAdsClient client)
-    {
-        var field = typeof(RxTcAdsClient).GetField("_cleanup", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new MissingFieldException(typeof(RxTcAdsClient).FullName, "_cleanup");
-        field.SetValue(client, new MultipleDisposable());
-    }
+    private static void InitializeCleanup(RxTcAdsClient client) => ClientConnectionTestState.Activate(client);
 
     /// <summary>Sets a property, including non-public setters, for deterministic state setup.</summary>
     /// <param name="instance">The containing instance.</param>

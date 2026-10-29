@@ -25,9 +25,6 @@ public partial class RxTcAdsClient : IRxTcAdsClient
     /// <summary>Stores the retry delay used when establishing a PLC connection.</summary>
     private const int ConnectionRetryDelaySeconds = 5;
 
-    /// <summary>Publishes ADS client state changes.</summary>
-    private readonly Signal<AdsState> _clientState = new();
-
     /// <summary>Publishes generated code snapshots.</summary>
     private readonly Signal<string[]> _codeSubject = new();
 
@@ -40,32 +37,11 @@ public partial class RxTcAdsClient : IRxTcAdsClient
     /// <summary>Publishes write results.</summary>
     private readonly Signal<string?> _onWriteSubject = new();
 
-    /// <summary>Queues PLC read requests.</summary>
-    private readonly Signal<(uint? Handle, Type Type, int Length, string? Id)> _readPLC = new();
-
-    /// <summary>Publishes TwinCAT service status updates.</summary>
-    private readonly ReplaySignal<ServiceStatus> _serviceStatus = new(1);
-
-    /// <summary>Queues PLC write requests.</summary>
-    private readonly Signal<(uint? Handle, object Value, int Length, string? Id)> _writePLC = new();
-
     /// <summary>Publishes PLC initialization completion.</summary>
     private readonly ReplaySignal<Unit> _initCompleteSubject = new(1);
 
     /// <summary>Publishes pause state changes.</summary>
     private readonly ReplaySignal<bool> _isPausedSubject = new(1);
-
-    /// <summary>Stores generated code payloads.</summary>
-    private readonly List<string> _code = [];
-
-    /// <summary>Stores resolved PLC variable types by variable name.</summary>
-    private readonly Dictionary<string, Type> _typeInfo = [with(StringComparer.OrdinalIgnoreCase)];
-
-    /// <summary>Maps read-write ADS handles to variable names.</summary>
-    private readonly Dictionary<uint, string> _readWriteVariablesByHandle = [];
-
-    /// <summary>Maps write ADS handles to variable names.</summary>
-    private readonly Dictionary<uint, string> _writeVariablesByHandle = [];
 
     /// <summary>Stores replaceable platform dependencies.</summary>
     private readonly IRxTcAdsPlatform _platform;
@@ -76,17 +52,14 @@ public partial class RxTcAdsClient : IRxTcAdsClient
     /// <summary>Stores disposable resources owned by this client.</summary>
     private CompositeDisposable? _cleanup;
 
-    /// <summary>Stores the dynamic PLC code generator.</summary>
-    private ICodeGenerator? _codeGenerator;
-
     /// <summary>Stores the active PLC initialization subscription.</summary>
     private IDisposable? _plcCleanup;
 
-    /// <summary>Stores whether the current ADS connection completed initialization.</summary>
-    private bool _initialized;
-
     /// <summary>Tracks disposal of the client independently of its connection.</summary>
     private int _disposed;
+
+    /// <summary>Stores the most recently configured settings.</summary>
+    private ISettings? _settings;
 
     /// <summary>Initializes a new instance of the <see cref="RxTcAdsClient"/> class.</summary>
     public RxTcAdsClient()
@@ -158,19 +131,21 @@ public partial class RxTcAdsClient : IRxTcAdsClient
 
     /// <summary>Gets the read write handle information.</summary>
     /// <value>The read write handle information.</value>
-    public IDictionary<string, uint?> ReadWriteHandleInfo { get; } =
-        new Dictionary<string, uint?>(StringComparer.OrdinalIgnoreCase);
+    public IDictionary<string, uint?> ReadWriteHandleInfo => ConnectionState.ReadWriteHandles;
 
     /// <summary>Gets the write handle information.</summary>
     /// <value>The write handle information.</value>
-    public IDictionary<string, (uint? Handle, int ArrayLength)> WriteHandleInfo { get; } =
-        new Dictionary<string, (uint? Handle, int ArrayLength)>(StringComparer.OrdinalIgnoreCase);
+    public IDictionary<string, (uint? Handle, int ArrayLength)> WriteHandleInfo => ConnectionState.WriteHandles;
 
     /// <summary>Gets the settings.</summary>
     /// <value>
     /// The settings.
     /// </value>
-    public ISettings? Settings { get; private set; }
+    public ISettings? Settings
+    {
+        get => _executingConnection.Value?.Settings ?? _settings;
+        private set => _settings = value;
+    }
 
     /// <summary>Gets a value indicating whether this instance is paused.</summary>
     /// <value>
@@ -188,6 +163,36 @@ public partial class RxTcAdsClient : IRxTcAdsClient
     public IObservableAsync<bool> IsPausedObservableAsync =>
         ObservableBridgeExtensions.ToAsyncObservable(IsPausedObservable);
 
+    /// <summary>Gets the signal for ADS client state changes.</summary>
+    private Signal<AdsState> _clientState => ConnectionState.ClientState;
+
+    /// <summary>Gets the queue of PLC read requests.</summary>
+    private Signal<(uint? Handle, Type Type, int Length, string? Id)> _readPLC => ConnectionState.Reads;
+
+    /// <summary>Gets the signal for TwinCAT service status updates.</summary>
+    private ReplaySignal<ServiceStatus> _serviceStatus => ConnectionState.ServiceStatus;
+
+    /// <summary>Gets the queue of PLC write requests.</summary>
+    private Signal<(uint? Handle, object Value, int Length, string? Id)> _writePLC => ConnectionState.Writes;
+
+    /// <summary>Gets generated code payloads.</summary>
+    private List<string> _code => ConnectionState.Code;
+
+    /// <summary>Gets resolved PLC variable types by variable name.</summary>
+    private Dictionary<string, Type> _typeInfo => ConnectionState.TypeInfo;
+
+    /// <summary>Gets read-write ADS handles mapped to variable names.</summary>
+    private Dictionary<uint, string> _readWriteVariablesByHandle => ConnectionState.ReadWriteVariables;
+
+    /// <summary>Gets write ADS handles mapped to variable names.</summary>
+    private Dictionary<uint, string> _writeVariablesByHandle => ConnectionState.WriteVariables;
+
+    /// <summary>Gets or sets the dynamic PLC code generator.</summary>
+    private ICodeGenerator? _codeGenerator { get => ConnectionState.CodeGenerator; set => ConnectionState.CodeGenerator = value; }
+
+    /// <summary>Gets or sets whether the current ADS connection completed initialization.</summary>
+    private bool _initialized { get => ConnectionState.Initialized; set => ConnectionState.Initialized = value; }
+
     /// <summary>Connects the specified settings.</summary>
     /// <param name="settings">The settings.</param>
     /// <exception cref="Exception">An Exception.</exception>
@@ -197,38 +202,58 @@ public partial class RxTcAdsClient : IRxTcAdsClient
     {
         if (IsDisposed)
         {
-            _errorReceived.OnNext(new ObjectDisposedException(nameof(RxTcAdsClient)));
+            Publish(_errorReceived, new ObjectDisposedException(nameof(RxTcAdsClient)));
             return;
         }
 
         try
         {
-            if (_plcCleanup is null)
+            CompositeDisposable subscription;
+            lock (_lifecycleGate)
             {
+                if (IsDisposed || _plcCleanup is not null)
+                {
+                    return;
+                }
+
+                subscription = new();
+                _plcCleanup = subscription;
                 Settings = settings;
                 Connected = false;
-                _plcCleanup = ObservableBridgeExtensions.SubscribeTo(InitPLC());
             }
+
+            _ = ObservableBridgeExtensions.SubscribeTo(InitPLC(subscription)).DisposeWith(subscription);
         }
         catch (Exception ex)
         {
-            _errorReceived.OnNext(ex);
+            Publish(_errorReceived, ex);
         }
     }
 
     /// <summary>Disconnects this instance.</summary>
     public void Disconnect()
     {
-        _plcCleanup?.Dispose();
-        _plcCleanup = null;
-        Connected = false;
-        if (!IsPaused)
+        IDisposable? subscription;
+        ConnectionScope? resources;
+        bool wasPaused;
+        lock (_lifecycleGate)
+        {
+            subscription = _plcCleanup;
+            _plcCleanup = null;
+            resources = CloseConnectionLocked(_connection ?? _lastConnection);
+            wasPaused = IsPaused;
+            IsPaused = false;
+            _pauseVersion++;
+        }
+
+        subscription?.Dispose();
+        resources?.Dispose();
+        if (!wasPaused)
         {
             return;
         }
 
-        IsPaused = false;
-        _isPausedSubject.OnNext(IsPaused);
+        Publish(_isPausedSubject, false);
     }
 
     /// <summary>Releases unmanaged and - optionally - managed resources.</summary>
@@ -260,6 +285,125 @@ public partial class RxTcAdsClient : IRxTcAdsClient
     /// <param name="arrayLength">The optional array length.</param>
     /// <param name="id">The correlation identifier.</param>
     public void Read(string variable, int? arrayLength, string? id)
+        => QueueCurrentConnection(() => ReadConnectionVariable(variable, arrayLength, id));
+
+    /// <summary>Writes the specified variable.</summary>
+    /// <param name="variable">The variable.</param>
+    /// <param name="value">The value.</param>
+    public void Write(string variable, object value) => Write(variable, value, null);
+
+    /// <summary>Writes a variable with a correlation identifier.</summary>
+    /// <param name="variable">The variable.</param>
+    /// <param name="value">The value.</param>
+    /// <param name="id">The correlation identifier.</param>
+    public void Write(string variable, object value, string? id)
+        => QueueCurrentConnection(() => WriteConnectionVariable(variable, value, id));
+
+    /// <summary>Pauses the specified time.</summary>
+    /// <param name="time">The time.</param>
+    public void Pause(TimeSpan time)
+    {
+        bool connected;
+        lock (_lifecycleGate)
+        {
+            connected = IsCurrentConnection(_connection);
+        }
+
+        if (!connected)
+        {
+            PublishError(new ObjectDisposedException(nameof(RxTcAdsClient)));
+            return;
+        }
+
+        if (time.TotalMilliseconds <= 0)
+        {
+            return;
+        }
+
+        QueueCurrentConnection(() =>
+        {
+            var cleanup = new CompositeDisposable();
+            _ = cleanup.DisposeWith(ConnectionLifetime);
+            lock (_lifecycleGate)
+            {
+                if (!IsCurrentConnection(_executingConnection.Value))
+                {
+                    return;
+                }
+
+                IsPaused = true;
+                _pauseVersion++;
+            }
+
+            Publish(_isPausedSubject, true);
+
+            _ = SubscribeConnection(Observable.Timer(time), _ =>
+            {
+                lock (_lifecycleGate)
+                {
+                    if (!IsCurrentConnection(_executingConnection.Value))
+                    {
+                        return;
+                    }
+
+                    IsPaused = false;
+                    _pauseVersion++;
+                }
+
+                Publish(_isPausedSubject, false);
+                cleanup.Dispose();
+            }).DisposeWith(cleanup);
+        });
+    }
+
+    /// <summary>Releases unmanaged and - optionally - managed resources.</summary>
+    /// <param name="disposing">
+    /// <c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only
+    /// unmanaged resources.
+    /// </param>
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!disposing || Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        Disconnect();
+        bool release;
+        lock (_lifecycleGate)
+        {
+            release = _activePublications == 0;
+        }
+
+        if (!release)
+        {
+            return;
+        }
+
+        DisposeSignals();
+    }
+
+    /// <summary>Disposes the client-owned signals.</summary>
+    private void DisposeSignals()
+    {
+        if (Interlocked.Exchange(ref _signalsDisposed, 1) != 0)
+        {
+            return;
+        }
+
+        _codeSubject.Dispose();
+        _errorReceived.Dispose();
+        _onWriteSubject.Dispose();
+        _dataReceived.Dispose();
+        _initCompleteSubject.Dispose();
+        _isPausedSubject.Dispose();
+    }
+
+    /// <summary>Queues a read for a resolved variable.</summary>
+    /// <param name="variable">The PLC variable name.</param>
+    /// <param name="arrayLength">The optional array length.</param>
+    /// <param name="id">The correlation identifier.</param>
+    private void ReadConnectionVariable(string variable, int? arrayLength, string? id)
     {
         if (!TryGetReadTarget(variable, arrayLength, out var handle, out var type, out var readLength) || type is null)
         {
@@ -276,16 +420,11 @@ public partial class RxTcAdsClient : IRxTcAdsClient
         }
     }
 
-    /// <summary>Writes the specified variable.</summary>
-    /// <param name="variable">The variable.</param>
-    /// <param name="value">The value.</param>
-    public void Write(string variable, object value) => Write(variable, value, null);
-
-    /// <summary>Writes a variable with a correlation identifier.</summary>
-    /// <param name="variable">The variable.</param>
-    /// <param name="value">The value.</param>
+    /// <summary>Queues a write for a resolved variable.</summary>
+    /// <param name="variable">The PLC variable name.</param>
+    /// <param name="value">The value to write.</param>
     /// <param name="id">The correlation identifier.</param>
-    public void Write(string variable, object value, string? id)
+    private void WriteConnectionVariable(string variable, object value, string? id)
     {
         if (string.IsNullOrWhiteSpace(variable))
         {
@@ -306,80 +445,20 @@ public partial class RxTcAdsClient : IRxTcAdsClient
         WriteHandle(item.Handle, value, item.ArrayLength, id: id);
     }
 
-    /// <summary>Pauses the specified time.</summary>
-    /// <param name="time">The time.</param>
-    public void Pause(TimeSpan time)
-    {
-        var ownerCleanup = _cleanup;
-        if (ownerCleanup?.IsDisposed != false)
-        {
-            _errorReceived.OnNext(new ObjectDisposedException(nameof(RxTcAdsClient)));
-            return;
-        }
-
-        if (time.TotalMilliseconds <= 0)
-        {
-            return;
-        }
-
-        var cleanup = new CompositeDisposable();
-        _ = cleanup.DisposeWith(ownerCleanup);
-        IsPaused = true;
-        _isPausedSubject.OnNext(IsPaused);
-        _ = ObservableBridgeExtensions.SubscribeTo(Observable.Timer(time), _ =>
-        {
-            IsPaused = false;
-            _isPausedSubject.OnNext(IsPaused);
-            cleanup.Dispose();
-        }).DisposeWith(cleanup);
-    }
-
-    /// <summary>Releases unmanaged and - optionally - managed resources.</summary>
-    /// <param name="disposing">
-    /// <c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only
-    /// unmanaged resources.
-    /// </param>
-    protected virtual void Dispose(bool disposing)
-    {
-        if (!disposing || Interlocked.Exchange(ref _disposed, 1) != 0)
-        {
-            return;
-        }
-
-        _plcCleanup?.Dispose();
-        _codeGenerator?.Dispose();
-        _codeGenerator = null;
-        _cleanup?.Dispose();
-        _code.Clear();
-        ReadWriteHandleInfo.Clear();
-        _typeInfo.Clear();
-        WriteHandleInfo.Clear();
-        _clientState.Dispose();
-        _codeSubject.Dispose();
-        _errorReceived.Dispose();
-        _onWriteSubject.Dispose();
-        _serviceStatus.Dispose();
-        _readPLC.Dispose();
-        _writePLC.Dispose();
-        _dataReceived.Dispose();
-        _initCompleteSubject.Dispose();
-        _isPausedSubject.Dispose();
-    }
-
     /// <summary>Queues a PLC array read request.</summary>
     /// <param name="handle">The ADS variable handle.</param>
     /// <param name="type">The value type.</param>
     /// <param name="length">The array length.</param>
     /// <param name="id">The correlation identifier.</param>
     private void ReadArrayHandle(uint? handle, Type type, int length, string? id) =>
-        _readPLC.OnNext((handle, type, length, id));
+        QueueConnection(() => _readPLC.OnNext((handle, type, length, id)));
 
     /// <summary>Queues a PLC scalar read request.</summary>
     /// <param name="handle">The ADS variable handle.</param>
     /// <param name="type">The value type.</param>
     /// <param name="id">The correlation identifier.</param>
     private void ReadHandle(uint? handle, Type type, string? id) =>
-        _readPLC.OnNext((handle, type, -1, id));
+        QueueConnection(() => _readPLC.OnNext((handle, type, -1, id)));
 
     /// <summary>Queues a PLC write request.</summary>
     /// <param name="handle">The ADS variable handle.</param>
@@ -387,5 +466,5 @@ public partial class RxTcAdsClient : IRxTcAdsClient
     /// <param name="length">The array length.</param>
     /// <param name="id">The correlation identifier.</param>
     private void WriteHandle(uint? handle, object value, int length = -1, string? id = null) =>
-        _writePLC.OnNext((handle, value, length, id));
+        QueueConnection(() => _writePLC.OnNext((handle, value, length, id)));
 }

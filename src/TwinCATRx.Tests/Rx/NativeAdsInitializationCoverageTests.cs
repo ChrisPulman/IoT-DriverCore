@@ -154,8 +154,7 @@ public sealed class NativeAdsInitializationCoverageTests
     /// <param name="name">The field name.</param>
     /// <returns>The field value.</returns>
     private static T GetField<T>(object instance, string name) =>
-        (T)(instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(instance)
-            ?? throw new MissingFieldException(instance.GetType().FullName, name));
+        ClientConnectionTestState.Get<T>(instance, name);
 
     /// <summary>Gets a private instance property.</summary>
     /// <param name="name">The property name.</param>
@@ -169,13 +168,8 @@ public sealed class NativeAdsInitializationCoverageTests
     /// <param name="name">The method name.</param>
     /// <param name="arguments">The arguments.</param>
     /// <returns>The method result.</returns>
-    private static object? Invoke(object instance, string name, params object?[] arguments)
-    {
-        var method = instance.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic);
-        return method is null
-            ? MissingMethodResult(instance.GetType(), name)
-            : method.Invoke(instance, arguments);
-    }
+    private static object? Invoke(object instance, string name, params object?[] arguments) =>
+        ClientConnectionTestState.Invoke(instance, name, arguments);
 
     /// <summary>Invokes a private static method.</summary>
     /// <param name="name">The method name.</param>
@@ -183,13 +177,6 @@ public sealed class NativeAdsInitializationCoverageTests
     /// <returns>The method result.</returns>
     private static object? InvokeStatic(string name, params object?[] arguments) =>
         typeof(RxTcAdsClient).GetMethod(name, BindingFlags.Static | BindingFlags.NonPublic)?.Invoke(null, arguments);
-
-    /// <summary>Throws a descriptive missing-method exception for expression-bodied reflection helpers.</summary>
-    /// <param name="type">The containing type.</param>
-    /// <param name="name">The method name.</param>
-    /// <returns>This method never returns.</returns>
-    private static object MissingMethodResult(Type type, string name) =>
-        throw new MissingMethodException(type.FullName, name);
 
     /// <summary>Sets the current private settings property.</summary>
     /// <param name="client">The client.</param>

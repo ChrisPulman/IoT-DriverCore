@@ -129,6 +129,29 @@ public sealed class InMemoryAdsClientTests
         Running,
     }
 
+    /// <summary>Verifies metrics factories preserve earlier snapshots across operations and resets.</summary>
+    /// <returns>The test task.</returns>
+    [Test]
+    public async Task OperationMetrics_Captures_Independent_SnapshotsAsync()
+    {
+        using var client = new InMemoryAdsClient();
+        var initial = client.GetOperationMetrics();
+
+        client.Read(SpeedVariable);
+        var afterRead = client.GetOperationMetrics();
+        var propertySnapshot = client.OperationMetrics;
+        client.ResetOperationMetrics();
+        var afterReset = client.GetOperationMetrics();
+
+        await TUnitAssert.That(initial.ReadOperations).IsEqualTo(0L);
+        await TUnitAssert.That(afterRead.ReadOperations).IsEqualTo(1L);
+        await TUnitAssert.That(propertySnapshot.ReadOperations).IsEqualTo(1L);
+        await TUnitAssert.That(afterReset.ReadOperations).IsEqualTo(0L);
+        await TUnitAssert.That(ReferenceEquals(afterRead, propertySnapshot)).IsFalse();
+        await TUnitAssert.That(afterRead.WriteOperations).IsEqualTo(0L);
+        await TUnitAssert.That(afterRead.NotificationPublications).IsEqualTo(0L);
+    }
+
     /// <summary>Verifies setup, handles, code, notifications, scalar/array reads, writes, and direct bulk operations.</summary>
     /// <returns>The test task.</returns>
     [Test]
