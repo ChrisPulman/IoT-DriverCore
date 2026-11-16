@@ -262,7 +262,7 @@ jobs:
       - name: Setup .NET for signing
         uses: actions/setup-dotnet@v6.1.0
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.x
 
       - name: Install SafeSign
         shell: bash
